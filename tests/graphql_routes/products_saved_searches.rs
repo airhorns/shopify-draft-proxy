@@ -6328,7 +6328,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
                         "currencyCode": "USD"
                     },
                     "publicationIds": [
-                        "gid://shopify/Publication/base-a",
+                        "gid://shopify/Publication/82090459369",
                         "gid://shopify/Publication/base-b",
                         "gid://shopify/Publication/base-c"
                     ],
@@ -6674,10 +6674,130 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
 }
 
 #[test]
+fn publishable_publish_hydrates_selected_collection_identity_for_payload_and_readback() {
+    let collection_id = "gid://shopify/Collection/468787757289";
+    let publication_id = "gid://shopify/Publication/82090459369";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert!(
+                body["query"].as_str().is_some_and(
+                    |query| query.contains("StorePropertiesPublishableInputValidationHydrate")
+                ),
+                "unexpected upstream query: {}",
+                body["query"]
+            );
+            assert_eq!(body["variables"], json!({ "id": collection_id }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publishable": {
+                            "id": collection_id,
+                            "title": "Hydrated Publishable Collection",
+                            "handle": "hydrated-publishable-collection",
+                            "publishedOnCurrentPublication": false,
+                            "publishedOnPublication": false,
+                            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishHydratedCollection($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              ... on Collection {
+                id
+                title
+                handle
+                publishedOnCurrentPublication
+                publishedOnPublication(publicationId: $publicationId)
+                resourcePublicationsCount { count precision }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "input": [{ "publicationId": publication_id }],
+            "publicationId": publication_id
+        }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        publish.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": collection_id,
+            "title": "Hydrated Publishable Collection",
+            "handle": "hydrated-publishable-collection",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratedCollectionPublicationRead($id: ID!, $publicationId: ID!) {
+          collection(id: $id) {
+            id
+            title
+            handle
+            publishedOnCurrentPublication
+            publishedOnPublication(publicationId: $publicationId)
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": collection_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["collection"],
+        json!({
+            "id": collection_id,
+            "title": "Hydrated Publishable Collection",
+            "handle": "hydrated-publishable-collection",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn publishable_mutations_validate_publication_input_locally() {
     let mut proxy = snapshot_proxy();
     let product_id = "gid://shopify/Product/10179659858226";
     let publication_id = "gid://shopify/Publication/268039389490";
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["publicationIds"] = json!([publication_id]);
+    restored["state"]["baseState"]["publicationCount"] = json!(1);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
     let publish = r#"
         mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) {
           publishablePublish(id: $id, input: $input) {
@@ -6737,7 +6857,7 @@ fn publishable_mutations_validate_publication_input_locally() {
 
         let unknown = proxy.process_request(json_graphql_request(
             query,
-            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/999999999999" }] }),
+            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/not-known" }] }),
         ));
         assert_eq!(
             unknown.body["data"][root]["userErrors"],
@@ -6766,6 +6886,34 @@ fn publishable_mutations_validate_publication_input_locally() {
         );
     }
 
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishableMissingRequiredId($input: [PublicationInput!]!) {
+          publishablePublish(input: $input) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": [{ "publicationId": publication_id }] }),
+    ));
+    assert_eq!(missing_id.status, 200);
+    assert_eq!(missing_id.body.get("data"), None);
+    assert_eq!(
+        missing_id.body["errors"][0],
+        json!({
+            "message": "Field 'publishablePublish' is missing required arguments: id",
+            "locations": [{ "line": 3, "column": 11 }],
+            "path": ["mutation PublishableMissingRequiredId", "publishablePublish"],
+            "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "publishablePublish",
+                "arguments": "id"
+            }
+        })
+    );
+
     let log = proxy.process_request(Request {
         method: "GET".to_string(),
         path: "/__meta/log".to_string(),
@@ -6773,6 +6921,121 @@ fn publishable_mutations_validate_publication_input_locally() {
         body: String::new(),
     });
     assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
+fn publishable_publish_preserves_collection_identity_and_current_publication_state() {
+    let mut proxy = snapshot_proxy();
+    let publication_id = "gid://shopify/Publication/1";
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["publicationIds"] = json!([publication_id]);
+    restored["state"]["baseState"]["publicationCount"] = json!(1);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePublishableCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Local Publishable Collection",
+                "handle": "local-publishable-collection"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection = &create.body["data"]["collectionCreate"]["collection"];
+    let collection_id = collection["id"].as_str().unwrap().to_string();
+    assert_eq!(collection["title"], json!("Local Publishable Collection"));
+    assert_eq!(collection["handle"], json!("local-publishable-collection"));
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishCollection($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              ... on Collection {
+                id
+                title
+                handle
+                publishedOnCurrentPublication
+                publishedOnPublication(publicationId: $publicationId)
+                resourcePublicationsCount { count precision }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "input": [{ "publicationId": publication_id }],
+            "publicationId": publication_id
+        }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        publish.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": collection_id,
+            "title": "Local Publishable Collection",
+            "handle": "local-publishable-collection",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionPublicationRead($id: ID!, $publicationId: ID!) {
+          collection(id: $id) {
+            id
+            title
+            handle
+            publishedOnCurrentPublication
+            publishedOnPublication(publicationId: $publicationId)
+            resourcePublicationsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": collection_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["collection"],
+        json!({
+            "id": collection_id,
+            "title": "Local Publishable Collection",
+            "handle": "local-publishable-collection",
+            "publishedOnCurrentPublication": true,
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["collections"][&collection_id]["title"],
+        json!("Local Publishable Collection")
+    );
 }
 
 #[test]

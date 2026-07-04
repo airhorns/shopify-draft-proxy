@@ -1107,10 +1107,30 @@ impl Store {
             || !self.staged.publications.is_empty()
     }
 
+    fn has_known_publication_ids(&self) -> bool {
+        !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
+    }
+
     fn has_publication_id(&self, id: &str) -> bool {
         self.base.publication_ids.contains(id)
             || self.staged.publication_ids.contains(id)
             || self.staged.publications.contains_key(id)
+    }
+
+    fn current_publication_id(&self) -> Option<&'static str> {
+        let id = "gid://shopify/Publication/1";
+        self.has_publication_id(id).then_some(id)
+    }
+
+    fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
+        self.current_publication_id().is_some_and(|publication_id| {
+            self.staged
+                .resource_publications
+                .get(resource_id)
+                .is_some_and(|publications| publications.contains(publication_id))
+        })
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
