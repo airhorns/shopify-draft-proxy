@@ -3966,6 +3966,11 @@ fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes
 #[test]
 fn customer_update_and_delete_stage_known_fixture_customer_reads() {
     let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/customer-delete-real-shop"
+        });
+    });
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
@@ -4028,7 +4033,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         delete.body["data"]["customerDelete"],
         json!({
             "deletedCustomerId": id,
-            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "shop": { "id": "gid://shopify/Shop/customer-delete-real-shop" },
             "userErrors": []
         })
     );
