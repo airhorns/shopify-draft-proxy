@@ -1,0 +1,75 @@
+{
+  "scenarioId": "localization-translatable-resources-reverse",
+  "operationNames": ["productCreate", "translatableResources"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "reverse-argument", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translatable-resources-reverse.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translatable-resources-reverse-product-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates two disposable products, then proves `translatableResources(resourceType: PRODUCT, reverse: true, first: 1)` returns the newest disposable Product resource with populated nodes, edges, and pageInfo. Runtime tests cover forward/reverse cursor-window progression across staged Product resources.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-alpha-user-errors",
+        "capturePath": "$.cases[0].response.payload.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "product-create-beta-user-errors",
+        "capturePath": "$.cases[1].response.payload.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translatable-resources-reverse-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "translatable-resources-reverse-first",
+        "capturePath": "$.cases[2].response.payload.data.reversedFirst",
+        "proxyPath": "$.data.reversedFirst",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translatable-resources-reverse-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[2].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates deterministic synthetic Product ids while the capture stores live Shopify Product ids."
+          },
+          {
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          },
+          {
+            "path": "$.edges[0].node.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates deterministic synthetic Product ids while the capture stores live Shopify Product ids."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+query CurrentAppInstallationObservedIdentity {
+  currentAppInstallation {
+    id
+    app {
+      id
+      handle
+      title
+    }
+  }
+}

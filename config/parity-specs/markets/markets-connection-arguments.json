@@ -1,0 +1,100 @@
+{
+  "scenarioId": "markets-connection-arguments",
+  "operationNames": ["marketCreate", "markets"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "search-sort-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-connection-arguments.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/markets-connection-arguments-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates three disposable active markets with a high-sorting unique name prefix, then proves `markets(query: \"status:ACTIVE\", sortKey: NAME, reverse: true)` returns the reverse name-ordered first window with populated nodes, edges, and pageInfo. Runtime tests cover free-text filtering, the local unknown-filter empty-connection policy, and nested connection windowing.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-create-alpha-user-errors",
+        "capturePath": "$.cases[0].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors"
+      },
+      {
+        "name": "market-create-beta-user-errors",
+        "capturePath": "$.cases[1].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/markets-connection-arguments-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "market-create-gamma-user-errors",
+        "capturePath": "$.cases[2].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/markets-connection-arguments-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[2].variables"
+        }
+      },
+      {
+        "name": "markets-query-name-sort-reverse-window",
+        "capturePath": "$.cases[3].response.payload.data.filtered",
+        "proxyPath": "$.data.filtered",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/markets-connection-arguments-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[3].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy creates deterministic synthetic Market ids while the capture stores disposable live Shopify ids."
+          },
+          {
+            "path": "$.nodes[1].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy creates deterministic synthetic Market ids while the capture stores disposable live Shopify ids."
+          },
+          {
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          },
+          {
+            "path": "$.edges[0].node.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy creates deterministic synthetic Market ids while the capture stores disposable live Shopify ids."
+          },
+          {
+            "path": "$.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          },
+          {
+            "path": "$.edges[1].node.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy creates deterministic synthetic Market ids while the capture stores disposable live Shopify ids."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors; the local staged connection uses stable synthetic cursors."
+          }
+        ]
+      }
+    ]
+  }
+}

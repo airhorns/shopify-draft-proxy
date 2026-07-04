@@ -194,6 +194,8 @@ struct SellingPlanGroupRecord {
     options: Vec<String>,
     position: i64,
     created_at: String,
+    #[serde(default)]
+    updated_at: String,
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
@@ -339,6 +341,12 @@ struct StagedState {
     // Empty for every scenario that does not seed publications, leaving the
     // existing passthrough behavior for those roots untouched.
     publications: BTreeMap<String, Value>,
+    // Current app publication resolved from `currentAppInstallation.publication`
+    // by current-channel publishable mutations in live-hybrid mode. The separate
+    // resolved flag distinguishes "not looked up yet" from "looked up and Shopify
+    // returned no current publication".
+    current_channel_publication_id: Option<String>,
+    current_channel_publication_resolved: bool,
     // Resource gid (Product/Collection) -> set of publication gids the resource
     // is published on. Seeded from `seedProducts`/`seedCollections`
     // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
@@ -426,6 +434,7 @@ struct StagedState {
     next_refund_id: u64,
     next_refund_line_item_id: u64,
     next_order_id: u64,
+    next_order_number: u64,
     next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
@@ -772,6 +781,8 @@ impl Default for StagedState {
             publication_ids: BTreeSet::new(),
             created_publication_ids: BTreeSet::new(),
             publications: BTreeMap::new(),
+            current_channel_publication_id: None,
+            current_channel_publication_resolved: false,
             resource_publications: BTreeMap::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
@@ -842,6 +853,7 @@ impl Default for StagedState {
             next_refund_id: 1,
             next_refund_line_item_id: 1,
             next_order_id: 1,
+            next_order_number: 1,
             next_draft_order_id: 1,
             draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,

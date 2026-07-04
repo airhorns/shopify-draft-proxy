@@ -1371,17 +1371,16 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((customer_first, customer_last, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((customer_first, customer_last, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| customer_address_payload(Value::Null, errors),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1427,17 +1426,16 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((_, _, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((_, _, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1475,10 +1473,6 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
         // Return the full staged customer record; the field's `customer`
         // sub-selection is applied by `selected_json` at the call site.
         let render_customer = |me: &Self| {
@@ -1509,10 +1503,14 @@ impl DraftProxy {
                 )],
             )
         };
-        let Some((_, _, existing_nodes, _)) = context else {
-            // Unknown customer: treat the address as not found.
-            return missing_address_result(self);
+        let Some((_, _, existing_nodes, _)) = self.customer_address_context(&customer_id) else {
+            return self.customer_address_missing_customer_result(
+                &address_id,
+                &field.response_key,
+                |errors| json!({ "customer": Value::Null, "userErrors": errors }),
+            );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             // Address belongs to another customer (exists somewhere) → userError,
             // but the customer record is still returned. Truly unknown ids return
@@ -1562,6 +1560,31 @@ impl DraftProxy {
         self.store.staged.customers.values().any(|customer| {
             customer_address_node_index(&customer_address_nodes(customer), address_id).is_some()
         })
+    }
+
+    fn customer_address_missing_customer_result(
+        &self,
+        address_id: &str,
+        response_key: &str,
+        build_payload: impl Fn(Vec<Value>) -> Value,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        if self.customer_address_exists_anywhere(address_id) {
+            (
+                build_payload(vec![user_error_omit_code(
+                    json!(["customerId"]),
+                    "Customer does not exist",
+                    None,
+                )]),
+                Vec::new(),
+                Vec::new(),
+            )
+        } else {
+            (
+                Value::Null,
+                Vec::new(),
+                vec![customer_address_resource_not_found_error(response_key)],
+            )
+        }
     }
 
     /// Shared "addressId not present on this customer" branch for update/delete.
