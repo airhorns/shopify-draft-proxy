@@ -16,6 +16,43 @@ jobs:
   rust:
     name: Rust
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Rust build and cargo registry
+        uses: Swatinem/rust-cache@v2
+
+      - name: Rust format check
+        run: cargo fmt --check
+
+      - name: Rust clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::ignore-without-reason
+
+      - name: Check for ignored Rust tests
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --all-targets -- --ignored --list | awk '/^[^[:space:]].*: test$/ { print; found=1 } END { if (found) exit 42 }'
+          status=$?
+          if [ "$status" -eq 42 ]; then
+            echo "Ignored Rust tests are not allowed. Remove the ignore attribute or remove the defunct test." >&2
+            exit 1
+          fi
+          exit "$status"
+
+      - name: Rust tests
+        run: cargo test --all-targets
+
+      - name: Rust proxy path benchmarks
+        run: cargo bench --bench proxy_paths -- --sample-size 10 --measurement-time 1 --warm-up-time 1
+
+  node:
+    name: Node.js / TypeScript
+    runs-on: ubuntu-latest
     env:
       NODE_VERSION: '22'
 
@@ -25,6 +62,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Node smoke and interop tests build and launch the Rust server, so keep a
+      # Rust cache here even though the Rust test suite runs in its own job.
       - name: Cache Rust build and cargo registry
         uses: Swatinem/rust-cache@v2
 
@@ -53,18 +92,6 @@ jobs:
 
       - name: Check protected evidence invariants
         run: corepack pnpm conformance:fixture-invariants
-
-      - name: Rust format check
-        run: corepack pnpm rust:fmt
-
-      - name: Rust clippy
-        run: corepack pnpm rust:clippy
-
-      - name: Rust tests
-        run: corepack pnpm rust:test
-
-      - name: Rust proxy path benchmarks
-        run: corepack pnpm rust:bench
 
       - name: Lint TypeScript interop and tooling
         run: corepack pnpm lint
@@ -101,7 +128,7 @@ jobs:
           mkdir -p .conformance/main
           echo "No main conformance baseline artifact found; PR status will omit the baseline comparison."
 
-      - name: Generate Rust conformance status report
+      - name: Generate conformance status report
         id: conformance_status
         run: >
           corepack pnpm conformance:status --

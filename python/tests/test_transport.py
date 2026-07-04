@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import json
 
-from shopify_draft_proxy import DraftProxy, create_draft_proxy, default_http_transport
+import pytest
+
+from shopify_draft_proxy import (
+    DraftProxy,
+    DraftProxyCommitError,
+    create_draft_proxy,
+    default_http_transport,
+)
 
 STAGE_MUTATION = (
     'mutation { savedSearchCreate(input: { name: "Promo orders", '
@@ -56,6 +63,43 @@ def test_custom_transport_runs_in_python_and_observes_the_commit_replay() -> Non
     # Hop-by-hop headers are stripped by the shared Rust prep before we see it.
     assert "host" not in {name.lower() for name in replay["headers"]}
     assert "savedSearchCreate" in replay["body"]
+
+
+def test_commit_failure_raises_typed_error_with_core_result_body() -> None:
+    def transport(request: dict) -> dict:
+        return {
+            "status": 500,
+            "headers": {"content-type": "application/json"},
+            "body": json.dumps({"errors": [{"message": "upstream boom"}]}),
+        }
+
+    proxy = create_draft_proxy(
+        shopify_admin_origin="https://example.myshopify.com",
+        transport=transport,
+    )
+    _stage_one_mutation(proxy)
+
+    with pytest.raises(DraftProxyCommitError) as raised:
+        proxy.commit(headers={"authorization": "Bearer test"})
+
+    assert isinstance(raised.value, RuntimeError)
+    result = raised.value.result
+    assert result["ok"] is False
+    assert result["committed"] == 0
+    assert result["failed"] == 1
+    assert result["stopIndex"] == 0
+    assert result["error"] == "Upstream commit failed for log-1 with status 500"
+    assert result["attempts"][0]["index"] == 0
+    assert result["attempts"][0]["logId"] == "log-1"
+    assert result["attempts"][0]["status"] == "failed"
+    assert result["attempts"][0]["request"] == {
+        "method": "POST",
+        "path": "/admin/api/2025-01/graphql.json",
+    }
+    assert result["attempts"][0]["response"] == {
+        "status": 500,
+        "body": {"errors": [{"message": "upstream boom"}]},
+    }
 
 
 def test_default_http_transport_translates_request_and_response_shapes() -> None:

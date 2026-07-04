@@ -519,60 +519,33 @@ impl DraftProxy {
             ));
         };
 
-        if let Some(handle) = resolved_string_field(&input, "handle") {
-            if handle.chars().count() > 255 {
-                return MutationOutcome::response(
-                    self.product_create_user_errors_response_with_shop(
-                        request,
-                        query,
-                        variables,
-                        vec![length_user_error(
-                            ["handle"],
-                            "Handle",
-                            LengthUserErrorBound::TooLong { maximum: 255 },
-                        )],
-                    ),
-                );
-            }
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductInput,
+        );
+        if !length_errors.is_empty() {
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
+                query,
+                variables,
+                length_errors,
+            ));
         }
-        if let Some(vendor) = resolved_string_field(&input, "vendor") {
-            if vendor.chars().count() > 255 {
-                return MutationOutcome::response(
-                    self.product_create_user_errors_response_with_shop(
-                        request,
-                        query,
-                        variables,
-                        vec![length_user_error(
-                            ["vendor"],
-                            "Vendor",
-                            LengthUserErrorBound::TooLong { maximum: 255 },
-                        )],
-                    ),
-                );
-            }
-        }
-        if let Some(product_type) = resolved_string_field(&input, "productType") {
-            if product_type.chars().count() > 255 {
-                return MutationOutcome::response(
-                    self.product_create_user_errors_response_with_shop(
-                        request,
-                        query,
-                        variables,
-                        vec![
-                            length_user_error(
-                                ["productType"],
-                                "Product type",
-                                LengthUserErrorBound::TooLong { maximum: 255 },
-                            ),
-                            length_user_error(
-                                ["customProductType"],
-                                "Custom product type",
-                                LengthUserErrorBound::TooLong { maximum: 255 },
-                            ),
-                        ],
-                    ),
-                );
-            }
+        if resolved_object_list_field(&input, "productOptions")
+            .iter()
+            .filter_map(|option| resolved_string_field(option, "name"))
+            .any(|name| product_option_name_has_title_delimiter(&name))
+        {
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
+                query,
+                variables,
+                vec![user_error_omit_code(
+                    ["options"],
+                    PRODUCT_CREATE_OPTION_NAME_DELIMITER_MESSAGE,
+                    None,
+                )],
+            ));
         }
 
         let id = self.next_proxy_synthetic_gid("Product");
@@ -891,18 +864,12 @@ impl DraftProxy {
             );
         }
 
-        if let Some(handle) = resolved_string_field(&input, "handle") {
-            if handle.chars().count() > 255 {
-                return self.product_update_field_user_error(
-                    query,
-                    &existing,
-                    length_user_error(
-                        ["handle"],
-                        "Handle",
-                        LengthUserErrorBound::TooLong { maximum: 255 },
-                    ),
-                );
-            }
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductInput,
+        );
+        if !length_errors.is_empty() {
+            return self.product_update_field_user_errors(query, &existing, length_errors);
         }
 
         if let Some(tags) = incoming_tags.as_ref() {
@@ -1000,6 +967,15 @@ impl DraftProxy {
         existing: &ProductRecord,
         user_error: Value,
     ) -> MutationOutcome {
+        self.product_update_field_user_errors(query, existing, vec![user_error])
+    }
+
+    fn product_update_field_user_errors(
+        &self,
+        query: &str,
+        existing: &ProductRecord,
+        user_errors: Vec<Value>,
+    ) -> MutationOutcome {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, &BTreeMap::new(), || {
                 "productUpdate".to_string()
@@ -1008,7 +984,10 @@ impl DraftProxy {
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-        let user_error = selected_json(&user_error, &error_selection);
+        let user_errors = user_errors
+            .iter()
+            .map(|user_error| selected_json(user_error, &error_selection))
+            .collect::<Vec<_>>();
         MutationOutcome::response(ok_json(json!({
             "data": {
                 response_key: selected_json(
@@ -1018,7 +997,7 @@ impl DraftProxy {
                             &product_selection,
                             &self.store.shop_currency_code()
                         ),
-                        "userErrors": [user_error]
+                        "userErrors": user_errors
                     }),
                     &payload_selection
                 )

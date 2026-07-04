@@ -453,11 +453,11 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &result.records,
             &field.selection,
-            |collection, selection| {
+            |collection, selections| {
                 collection_json(
                     collection,
                     self.collection_product_entries(collection),
-                    selection,
+                    selections,
                     &shop_currency_code,
                 )
             },
@@ -1098,7 +1098,7 @@ impl DraftProxy {
                 // applying this publish, so counts reflect the real baseline.
                 self.hydrate_publishable_resource(&resource_id, request);
                 let publication_ids = if to_current {
-                    current_channel_id.map(|id| vec![id]).unwrap_or_default()
+                    current_channel_id.into_iter().collect::<Vec<_>>()
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };

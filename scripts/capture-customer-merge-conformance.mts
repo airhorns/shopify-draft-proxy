@@ -97,11 +97,23 @@ const customerSlice = `
     nodes { id address1 city provinceCode countryCodeV2 zip }
     pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
   }
+  addressesV2Reverse: addressesV2(first: 1, reverse: true) {
+    nodes { id address1 city provinceCode countryCodeV2 zip }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
   metafields(first: 10) {
     nodes { id namespace key type value }
     pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
   }
+  metafieldsReverse: metafields(first: 1, reverse: true) {
+    nodes { id namespace key type value }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
   orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+    nodes { id name email createdAt }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  ordersFiltered: orders(first: 1, query: $orderQuery, sortKey: CREATED_AT, reverse: true) {
     nodes { id name email createdAt }
     pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
   }
@@ -121,7 +133,7 @@ const accessScopesQuery = `#graphql
 `;
 
 const createCustomerMutation = `#graphql
-  mutation CustomerMergeSeedCreate($input: CustomerInput!) {
+  mutation CustomerMergeSeedCreate($input: CustomerInput!, $orderQuery: String) {
     customerCreate(input: $input) {
       customer {
         ${customerSlice}
@@ -290,7 +302,14 @@ const jobStatusQuery = `#graphql
 `;
 
 const downstreamQuery = `#graphql
-  query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!, $jobId: ID!) {
+  query CustomerMergeDownstreamParity(
+    $one: ID!
+    $two: ID!
+    $emailOne: String!
+    $emailTwo: String!
+    $jobId: ID!
+    $orderQuery: String
+  ) {
     source: customer(id: $one) {
       ${customerSlice}
     }
@@ -324,7 +343,13 @@ const downstreamQuery = `#graphql
 `;
 
 const attachedResourcesQuery = `#graphql
-  query CustomerMergeAttachedResources($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!) {
+  query CustomerMergeAttachedResources(
+    $one: ID!
+    $two: ID!
+    $emailOne: String!
+    $emailTwo: String!
+    $orderQuery: String!
+  ) {
     source: customer(id: $one) {
       ${customerSlice}
     }
@@ -564,6 +589,7 @@ async function main() {
     two: customerTwoId,
     emailOne: oneVariables.input.email,
     emailTwo: twoVariables.input.email,
+    orderQuery: `email:${oneVariables.input.email}`,
   };
   const attachedBeforeMerge = capturesAttachedResources
     ? await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables)
@@ -639,6 +665,7 @@ async function main() {
     emailOne: oneVariables.input.email,
     emailTwo: twoVariables.input.email,
     jobId,
+    orderQuery: `email:${oneVariables.input.email}`,
   };
   const downstreamRead = await runGraphql(downstreamQuery, downstreamVariables);
   assertNoTopLevelErrors(downstreamRead, 'customerMerge downstream read');

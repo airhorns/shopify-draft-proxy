@@ -53,28 +53,39 @@ impl DraftProxy {
             if field.name != root_field {
                 continue;
             }
-            let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
             if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
                 return response;
             }
+
             let payload_selection = field.selection.clone();
-            if selected_child_selection(&payload_selection, "shop")
-                .as_deref()
-                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-            }
             let publishable_selection =
                 selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
             let to_current = root_field == "publishablePublishToCurrentChannel"
                 || root_field == "publishableUnpublishToCurrentChannel";
             let publish = root_field == "publishablePublish"
                 || root_field == "publishablePublishToCurrentChannel";
+
+            if selected_child_selection(&payload_selection, "shop")
+                .as_deref()
+                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
             if self
                 .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
             {
                 self.hydrate_publishable_payload_shop(&resource_id, request);
+                if self.publishable_payload_resource_needs_hydration(
+                    &resource_id,
+                    &publishable_selection,
+                ) {
+                    self.hydrate_publishable_resource(&resource_id, request);
+                }
             }
+
             let mut user_errors = Vec::new();
             let resource_exists = self.publishable_resource_exists(&resource_id, request);
             if !resource_exists {
@@ -87,6 +98,7 @@ impl DraftProxy {
             user_errors.extend(
                 self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
             );
+
             let current_channel_id = if resource_exists && to_current {
                 self.resolve_current_channel_publication_id(request)
             } else {
@@ -99,15 +111,10 @@ impl DraftProxy {
                     Some("CHANNEL_DOES_NOT_EXIST"),
                 ));
             }
+
             if user_errors.is_empty() {
-                if self.publishable_payload_resource_needs_hydration(
-                    &resource_id,
-                    &publishable_selection,
-                ) {
-                    self.hydrate_publishable_resource(&resource_id, request);
-                }
                 let publication_ids = if to_current {
-                    current_channel_id.clone().into_iter().collect()
+                    current_channel_id.into_iter().collect::<Vec<_>>()
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };
@@ -126,6 +133,7 @@ impl DraftProxy {
                 }
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
+
             let publishable = if user_errors.iter().any(|error| {
                 error
                     .get("code")
