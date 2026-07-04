@@ -1514,17 +1514,24 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "discountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.discount_record(&id).map(discount_admin_node_for_record)
+                    self.discount_record(&id)
+                        .map(|record| {
+                            selected_discount_admin_node_for_record(record, &field.selection)
+                        })
+                        .unwrap_or(Value::Null)
                 }
                 "codeDiscountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.discount_record(&id).map(discount_node_for_record)
+                    self.discount_record(&id)
+                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .unwrap_or(Value::Null)
                 }
                 "automaticDiscountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
                         .filter(|record| discount_kind(record) == "automatic")
-                        .map(discount_node_for_record)
+                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .unwrap_or(Value::Null)
                 }
                 "codeDiscountNodeByCode" => {
                     let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
@@ -1533,32 +1540,54 @@ impl DraftProxy {
                         .discount_code_index
                         .get(&code.to_ascii_uppercase())
                         .and_then(|id| self.discount_record(id))
-                        .map(discount_node_for_record)
+                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .unwrap_or(Value::Null)
                 }
-                "discountNodes" => Some(json!({
-                    "nodes": self.filtered_discount_records(field).into_iter().map(discount_admin_node_for_record).collect::<Vec<_>>()
-                })),
+                "discountNodes" => selected_staged_connection_with_args(
+                    self.discount_connection_records(),
+                    &field.arguments,
+                    &field.selection,
+                    discount_search_decision,
+                    discount_staged_sort_key,
+                    selected_discount_admin_node_for_record,
+                    value_id_cursor,
+                ),
                 "automaticDiscountNodes" | "codeDiscountNodes" => {
                     let want_kind = if field.name == "automaticDiscountNodes" {
                         "automatic"
                     } else {
                         "code"
                     };
-                    let nodes = self
-                        .filtered_discount_records(field)
-                        .into_iter()
-                        .filter(|record| discount_kind(record) == want_kind)
-                        .map(discount_node_for_record)
-                        .collect::<Vec<_>>();
-                    let (windowed, page_info) =
-                        connection_window(&nodes, &field.arguments, value_id_cursor);
-                    Some(connection_json_with_cursor(
-                        windowed,
-                        |_, node| value_id_cursor(node),
-                        page_info,
-                    ))
+                    selected_staged_connection_with_args(
+                        self.discount_connection_records(),
+                        &field.arguments,
+                        &field.selection,
+                        |record, query| {
+                            if discount_kind(record) == want_kind {
+                                discount_search_decision(record, query)
+                            } else {
+                                StagedSearchDecision::NoMatch
+                            }
+                        },
+                        discount_staged_sort_key,
+                        selected_discount_node_for_record,
+                        value_id_cursor,
+                    )
                 }
-                "discountNodesCount" => Some(count_object(self.filtered_discount_records(field).len())),
+                "discountNodesCount" => selected_json(
+                    &staged_count_with_limit_precision(
+                        staged_connection_query(
+                            self.discount_connection_records(),
+                            &field.arguments,
+                            discount_search_decision,
+                            discount_staged_sort_key,
+                            value_id_cursor,
+                        )
+                        .total_count,
+                        &field.arguments,
+                    ),
+                    &field.selection,
+                ),
                 "discountRedeemCodeBulkCreation" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -1566,21 +1595,16 @@ impl DraftProxy {
                         .discount_redeem_code_bulk_creations
                         .get(&id)
                         .cloned()
+                        .map(|value| selected_json(&value, &field.selection))
+                        .unwrap_or(Value::Null)
                 }
-                _ => None,
-            }
-            .unwrap_or(Value::Null);
-            let selected = if value.is_null() {
-                Value::Null
-            } else {
-                selected_json(&value, &field.selection)
+                _ => Value::Null,
             };
-            Some(selected)
+            Some(value)
         })
     }
 
-    fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
-        let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
+    fn discount_connection_records(&self) -> Vec<Value> {
         self.store
             .staged
             .discounts
@@ -1592,7 +1616,7 @@ impl DraftProxy {
                     .discounts
                     .is_tombstoned(discount_id(record))
             })
-            .filter(|record| discount_matches_query(record, &query))
+            .cloned()
             .collect()
     }
 
@@ -3006,27 +3030,52 @@ fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
     )
 }
 
+fn selected_discount_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
+    selected_json(
+        &discount_node_for_record_with_selection(record, selection),
+        selection,
+    )
+}
+
+fn selected_discount_admin_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
+    selected_json(
+        &discount_admin_node_for_record_with_selection(record, selection),
+        selection,
+    )
+}
+
 fn discount_node_for_record(record: &Value) -> Value {
-    let discount = discount_body_for_record(record);
+    discount_node_for_record_with_selection(record, &[])
+}
+
+fn discount_node_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {
     if discount_kind(record) == "automatic" {
+        let discount_selection =
+            selected_child_selection(selection, "automaticDiscount").unwrap_or_default();
         json!({
             "id": discount_id(record),
-            "automaticDiscount": discount,
+            "automaticDiscount": discount_body_for_record_with_selection(record, &discount_selection),
             "__typename": "DiscountAutomaticNode"
         })
     } else {
+        let discount_selection =
+            selected_child_selection(selection, "codeDiscount").unwrap_or_default();
         json!({
             "id": discount_id(record),
-            "codeDiscount": discount,
+            "codeDiscount": discount_body_for_record_with_selection(record, &discount_selection),
             "__typename": "DiscountCodeNode"
         })
     }
 }
 
-fn discount_admin_node_for_record(record: &Value) -> Value {
+fn discount_admin_node_for_record_with_selection(
+    record: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let discount_selection = selected_child_selection(selection, "discount").unwrap_or_default();
     json!({
         "id": discount_id(record),
-        "discount": discount_body_for_record(record),
+        "discount": discount_body_for_record_with_selection(record, &discount_selection),
         "__typename": if discount_kind(record) == "automatic" {
             "DiscountAutomaticNode"
         } else {
@@ -3036,6 +3085,10 @@ fn discount_admin_node_for_record(record: &Value) -> Value {
 }
 
 fn discount_body_for_record(record: &Value) -> Value {
+    discount_body_for_record_with_selection(record, &[])
+}
+
+fn discount_body_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {
     let metafields = record
         .get("metafields")
         .cloned()
@@ -3059,10 +3112,7 @@ fn discount_body_for_record(record: &Value) -> Value {
         "customerBuys": record["customerBuys"],
         "customerGets": record["customerGets"],
         "minimumRequirement": record["minimumRequirement"],
-        "codes": {
-            "nodes": record["codes"],
-            "pageInfo": empty_page_info()
-        },
+        "codes": discount_redeem_codes_connection_for_record(record, selection),
         "codesCount": record["codesCount"],
         "destinationSelection": record["destinationSelection"],
         "maximumShippingPrice": record["maximumShippingPrice"],
@@ -3076,6 +3126,85 @@ fn discount_body_for_record(record: &Value) -> Value {
             "pageInfo": empty_page_info()
         }
     })
+}
+
+fn discount_redeem_codes_connection_for_record(
+    record: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let arguments = selected_discount_body_field(record, selection, "codes")
+        .map(|field| field.arguments.clone())
+        .unwrap_or_default();
+    let codes = record["codes"].as_array().cloned().unwrap_or_default();
+    let (windowed, page_info) = connection_window(&codes, &arguments, value_id_cursor);
+    connection_json_with_cursor(windowed, |_, node| value_id_cursor(node), page_info)
+}
+
+fn selected_discount_body_field<'a>(
+    record: &Value,
+    selection: &'a [SelectedField],
+    name: &str,
+) -> Option<&'a SelectedField> {
+    let typename = record.get("typename").and_then(Value::as_str);
+    selection.iter().find(|field| {
+        field.name == name
+            && field
+                .type_condition
+                .as_deref()
+                .is_none_or(|condition| Some(condition) == typename)
+    })
+}
+
+fn discount_search_decision(record: &Value, query: Option<&str>) -> StagedSearchDecision {
+    StagedSearchDecision::from_bool(discount_matches_query(record, query.unwrap_or_default()))
+}
+
+fn discount_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => discount_string_sort_value(record, "createdAt"),
+        "ENDS_AT" => discount_nullable_string_sort_value(record, "endsAt"),
+        "STARTS_AT" => discount_string_sort_value(record, "startsAt"),
+        "TITLE" => discount_normalized_string_sort_value(record, "title"),
+        "UPDATED_AT" => discount_string_sort_value(record, "updatedAt"),
+        "ID" | "RELEVANCE" => discount_gid_tail_sort_value(record),
+        _ => discount_gid_tail_sort_value(record),
+    };
+    vec![primary, discount_gid_tail_sort_value(record)]
+}
+
+fn discount_string_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        record
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    )
+}
+
+fn discount_normalized_string_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        record
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn discount_nullable_string_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_string()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn discount_gid_tail_sort_value(record: &Value) -> StagedSortValue {
+    let tail = resource_id_tail(discount_id(record));
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
 fn app_discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {
