@@ -1,0 +1,136 @@
+{
+  "scenarioId": "metafield-definition-catalog-connection",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionDelete", "metafieldDefinitions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "connection-shape", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-catalog-connection.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-catalog-connection-create.graphql",
+    "variablesCapturePath": "$.captures.createDefinitions.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definitions-setup",
+        "capturePath": "$.captures.createDefinitions.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.first.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.second.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.third.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "first-page-default-id-window",
+        "capturePath": "$.captures.firstPage.response.data.firstPage",
+        "proxyPath": "$.data.firstPage",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-catalog-connection-first-page.graphql",
+          "variablesCapturePath": "$.captures.firstPage.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns staged synthetic definition IDs in the catalog."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns staged synthetic definition IDs in edge nodes."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          }
+        ]
+      },
+      {
+        "name": "second-page-after-window",
+        "capturePath": "$.captures.secondPage.response.data.secondPage",
+        "proxyPath": "$.data.secondPage",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-catalog-connection-after.graphql",
+          "variables": {
+            "namespace": {
+              "fromCapturePath": "$.namespace"
+            },
+            "after": {
+              "fromProxyResponse": "first-page-default-id-window",
+              "path": "$.data.firstPage.pageInfo.endCursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns staged synthetic definition IDs in the catalog."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns staged synthetic definition IDs in edge nodes."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local catalog uses stable definition cursors."
+          }
+        ]
+      },
+      {
+        "name": "query-sort-reverse-policy",
+        "capturePath": "$.captures.sortAndQuery.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-catalog-connection-sort-query.graphql",
+          "variablesCapturePath": "$.captures.sortAndQuery.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Records metafieldDefinitions default ID ordering, real cursor windows, after pagination using the prior page cursor, key query filtering, NAME reverse sorting, and the documented local unrecognized-filter behavior."
+}

@@ -1543,6 +1543,8 @@ HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` 
 
 Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
 
+A catalog connection capture with three disposable product definitions showed two non-obvious read quirks: newly created definitions may need a short search-indexing poll before recognized query terms and `sortKey: NAME` reflect them, and an invalid fielded query such as `unknown:value` returns the namespace-filtered rows with an `extensions.search` invalid-field warning instead of failing closed.
+
 ## 19b. Definition pinning uses owner-type positions and compacts on unpin
 
 HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against the 2025-01 conformance store with two temporary product-owned definitions. Useful behavior:
