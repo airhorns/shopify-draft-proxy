@@ -453,7 +453,10 @@ pub(in crate::proxy) fn product_publication_field_json(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "publishedOnCurrentPublication" => Some(Value::Bool(false)),
+        "publishedOnCurrentPublication" => Some(Value::Bool(
+            product.status == "ACTIVE"
+                && product_is_published_on_publication(product, "gid://shopify/Publication/1"),
+        )),
         "publishedOnPublication" => {
             let publication_id = selection
                 .arguments

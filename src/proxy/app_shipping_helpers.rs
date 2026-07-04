@@ -1480,36 +1480,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     })
 }
 
-pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
-    let count = if published { 1 } else { 0 };
-    json!({
-        "id": id,
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
-        "publishedOnCurrentPublication": false,
-        "publishedOnPublication": published,
-        "availablePublicationsCount": count_object(count),
-        "resourcePublicationsCount": count_object(count)
-    })
-}
-
-pub(in crate::proxy) fn publishable_payload_json(
-    publishable: Value,
-    shop: Value,
-    payload_selection: &[SelectedField],
-    publishable_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&shop, &selection.selection)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn segment_payload_json(
     segment: Value,
     deleted_segment_id: Value,

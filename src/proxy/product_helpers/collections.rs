@@ -700,6 +700,9 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
+        if let Some(publication_id) = self.store.current_publication_id() {
+            return Some(publication_id.to_string());
+        }
         if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
         {
             None
@@ -956,11 +959,15 @@ impl DraftProxy {
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
                 "publishedOnCurrentPublication" => {
-                    let published = self
+                    let current_channel_published = self
                         .current_channel_publication_id()
-                        .map(|id| live_pubs.contains(&id))
-                        .unwrap_or(false);
-                    json!(published)
+                        .is_some_and(|id| live_pubs.contains(&id));
+                    json!(
+                        current_channel_published
+                            || self
+                                .store
+                                .resource_is_published_on_current_publication(resource_id)
+                    )
                 }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
@@ -1054,10 +1061,9 @@ impl DraftProxy {
                     Some("RESOURCE_DOES_NOT_EXIST"),
                 ));
             }
-            user_errors.extend(publishable_publication_input_errors(
-                field.arguments.get("input"),
-                to_current,
-            ));
+            user_errors.extend(
+                self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
+            );
             let current_channel_id = if resource_exists && to_current {
                 self.resolve_current_channel_publication_id(request)
             } else {
@@ -1071,12 +1077,20 @@ impl DraftProxy {
                 ));
             }
             if user_errors.is_empty() {
+                let publishable_selection =
+                    selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+                if self.publishable_payload_resource_needs_hydration(
+                    &resource_id,
+                    &publishable_selection,
+                ) {
+                    self.hydrate_publishable_payload_shop(&resource_id, request);
+                }
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before
                 // applying this publish, so counts reflect the real baseline.
                 self.hydrate_publishable_resource(&resource_id, request);
                 let publication_ids = if to_current {
-                    current_channel_id.map(|id| vec![id]).unwrap_or_default()
+                    current_channel_id.into_iter().collect::<Vec<_>>()
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };
@@ -1237,14 +1251,56 @@ impl DraftProxy {
         self.store
             .collection_by_id(&id)
             .map(|collection| {
-                collection_json(
-                    collection,
-                    self.collection_product_entries(collection),
-                    &field.selection,
-                    &self.store.shop_currency_code(),
-                )
+                self.collection_json_with_publication_fields(collection, &field.selection)
             })
             .unwrap_or(Value::Null)
+    }
+
+    fn collection_json_with_publication_fields(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut value = collection_json(
+            collection,
+            self.collection_product_entries(collection),
+            selections,
+            &shop_currency_code,
+        );
+        let Some(fields) = value.as_object_mut() else {
+            return value;
+        };
+        let collection_id = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let publications = self.resource_publication_set(collection_id);
+        for selection in selections {
+            let computed = match selection.name.as_str() {
+                "publishedOnPublication" => {
+                    let publication_id =
+                        resolved_string_field(&selection.arguments, "publicationId");
+                    Some(json!(publication_id
+                        .map(|id| publications.contains(&id))
+                        .unwrap_or(false)))
+                }
+                "publishedOnCurrentPublication" => Some(json!(self
+                    .store
+                    .resource_is_published_on_current_publication(collection_id))),
+                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
+                    Some(selected_count_json(
+                        self.publishable_live_publication_count(collection_id, &publications),
+                        &selection.selection,
+                    ))
+                }
+                _ => None,
+            };
+            if let Some(computed) = computed {
+                fields.insert(selection.response_key.clone(), computed);
+            }
+        }
+        value
     }
 
     fn collection_job_read(&self, field: &RootFieldSelection) -> Value {
@@ -1959,16 +2015,10 @@ impl DraftProxy {
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
-        let shop_currency_code = self.store.shop_currency_code();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| collection_json(
-                        collection,
-                        self.collection_product_entries(collection),
-                        &collection_selection,
-                        &shop_currency_code,
-                    )).unwrap_or(Value::Null)),
+                    "collection" => Some(collection.map(|collection| self.collection_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
                     "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,

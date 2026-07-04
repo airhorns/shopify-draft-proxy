@@ -38,8 +38,9 @@ Read behavior:
 Query export behavior:
 
 - `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging, including connection `nodes` selections whose userError example names the offending connection field.
+- Omitted required `query` arguments return the same top-level GraphQL `missingRequiredArguments` envelope as other locally validated Admin mutations. Blank query strings return a selected payload with `bulkOperation: null` and a `field: ["query"]` userError.
 - Submitted bulk query text is measured after Shopify-style single-quoted newline escaping and rejects escaped UTF-8 byte sizes above 65,535 with `field: ["query"]`, message `Query is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID`, `bulkOperation: null`, and no staged job.
-- Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`.
+- Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`. Both local export roots apply the selected product search query before serializing JSONL rows.
 - Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic absolute `https://localhost:<proxy-port>/__meta/bulk-operations/<encoded-id>/result.jsonl` result URL, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.
 - `groupObjects: true`, `groupObjects: false`, and omitted `groupObjects` all stage the same local export shape; grouped JSONL ordering is not modeled as a separate result mode.
