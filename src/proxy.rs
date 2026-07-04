@@ -1414,15 +1414,6 @@ impl Store {
         effective_records(&self.base.product_variants, &self.staged.product_variants)
     }
 
-    fn has_product_variant_reference_state(&self) -> bool {
-        !self.base.product_variants.records.is_empty()
-            || !self.staged.product_variants.is_empty()
-            || self
-                .products()
-                .iter()
-                .any(|product| !product.variants.is_empty())
-    }
-
     fn has_product_variant_reference(&self, variant_id: &str) -> bool {
         self.product_variant_by_id(variant_id).is_some()
             || self.fixed_price_variant_lookup(variant_id).is_some()
