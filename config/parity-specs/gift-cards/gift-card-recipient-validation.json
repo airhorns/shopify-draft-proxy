@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The public giftCardUpdate userErrors type is generic UserError in the captured API, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
+  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, nonexistent recipient id, structurally invalid no-contact sentinel recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The no-contact sentinel target proves Shopify rejects the fabricated Customer/no-contact-recipient id as a top-level RESOURCE_NOT_FOUND error. The public giftCardUpdate userErrors type is generic UserError in the captured API, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -92,6 +92,20 @@
             "activeId": {
               "fromProxyResponse": "create setup gift card user errors",
               "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "no-contact sentinel recipient id returns top-level invalid id error",
+        "capturePath": "$.operations.createNoContactSentinelRecipient.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data", "$.errors[0].message", "$.errors[0].extensions", "$.errors[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-no-contact-sentinel.graphql",
+          "variables": {
+            "recipientId": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.noContactSentinelRecipientId"
             }
           }
         }

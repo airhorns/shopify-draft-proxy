@@ -1,0 +1,1290 @@
+{
+  "scenarioId": "draft-orders-search-sort-staged",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-07-04T09:37:17.003Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live staged draftOrders search/sort evidence using two disposable draft orders. Shopify 2026-04 on this shop emitted invalid-field warnings for total_price during manual probing, so total_price comparator behavior is covered by local runtime tests and documented separately instead of asserted as strict live parity here.",
+  "setup": {
+    "alphaCreate": {
+      "document": "mutation DraftOrdersSearchSortCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "draft-sort-alpha-20260704093710@example.com",
+          "tags": ["draftsort20260704093710", "alpha20260704093710"],
+          "note": "Alpha searchable 20260704093710",
+          "lineItems": [
+            {
+              "title": "Alpha Search Needle 20260704093710",
+              "quantity": 1,
+              "originalUnitPrice": "12.50"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1275461697842",
+              "name": "#D304",
+              "email": "draft-sort-alpha-20260704093710@example.com",
+              "status": "OPEN",
+              "tags": ["alpha20260704093710", "draftsort20260704093710"],
+              "createdAt": "2026-07-04T09:37:10Z",
+              "updatedAt": "2026-07-04T09:37:10Z",
+              "customer": {
+                "id": "gid://shopify/Customer/10895673917746",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "displayName": "draft-sort-alpha-20260704093710@example.com"
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "title": "Alpha Search Needle 20260704093710",
+                    "sku": null
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "betaCreate": {
+      "document": "mutation DraftOrdersSearchSortCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "draft-sort-beta-20260704093710@example.com",
+          "tags": ["draftsort20260704093710", "beta20260704093710"],
+          "note": "Beta searchable 20260704093710",
+          "lineItems": [
+            {
+              "title": "Beta Search Haystack 20260704093710",
+              "quantity": 1,
+              "originalUnitPrice": "5.00"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1275461730610",
+              "name": "#D305",
+              "email": "draft-sort-beta-20260704093710@example.com",
+              "status": "OPEN",
+              "tags": ["beta20260704093710", "draftsort20260704093710"],
+              "createdAt": "2026-07-04T09:37:11Z",
+              "updatedAt": "2026-07-04T09:37:11Z",
+              "customer": {
+                "id": "gid://shopify/Customer/10895673950514",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "displayName": "draft-sort-beta-20260704093710@example.com"
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "title": "Beta Search Haystack 20260704093710",
+                    "sku": null
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "alphaUpdate": {
+      "document": "mutation DraftOrdersSearchSortUpdate($id: ID!, $input: DraftOrderInput!) {\n  draftOrderUpdate(id: $id, input: $input) {\n    draftOrder {\n      id\n      email\n      tags\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1275461697842",
+        "input": {
+          "note": "Alpha touched for updatedAt sort 20260704093710"
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderUpdate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1275461697842",
+              "email": "draft-sort-alpha-20260704093710@example.com",
+              "tags": ["alpha20260704093710", "draftsort20260704093710"],
+              "updatedAt": "2026-07-04T09:37:12Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "defaultId": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "tag:draftsort20260704093710",
+        "sortKey": null,
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 5
+    },
+    "idReverse": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": true
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "updatedAtAsc": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "tag:draftsort20260704093710",
+        "sortKey": "UPDATED_AT",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxNzgzMTU3ODMxMDAwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxNzgzMTU3ODMyMDAwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxNzgzMTU3ODMxMDAwfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxNzgzMTU3ODMyMDAwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "firstPage": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 1,
+        "after": null,
+        "query": "tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1965,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "secondPage": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 1,
+        "after": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+        "query": "tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1958,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "statusTag": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "status:open tag:alpha20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1952,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "createdAt": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "created_at:>=2024-01-01 tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "updatedAt": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "updated_at:>=2024-01-01 tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1938,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "freeText": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "Needle 20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1933,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "attempts": 1
+    },
+    "unknownAndKnown": {
+      "document": "query DraftOrdersSearchSortRead(\n  $first: Int!\n  $after: String\n  $query: String\n  $sortKey: DraftOrderSortKeys\n  $reverse: Boolean\n) {\n  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      email\n      status\n      tags\n      createdAt\n      updatedAt\n      customer {\n        id\n        email\n        displayName\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          sku\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        email\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "query": "notadraftfield:ignored tag:draftsort20260704093710",
+        "sortKey": "ID",
+        "reverse": false
+      },
+      "response": {
+        "data": {
+          "draftOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DraftOrder/1275461697842",
+                "email": "draft-sort-alpha-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["alpha20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:10Z",
+                "updatedAt": "2026-07-04T09:37:12Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673917746",
+                  "email": "draft-sort-alpha-20260704093710@example.com",
+                  "displayName": "draft-sort-alpha-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "12.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Alpha Search Needle 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/DraftOrder/1275461730610",
+                "email": "draft-sort-beta-20260704093710@example.com",
+                "status": "OPEN",
+                "tags": ["beta20260704093710", "draftsort20260704093710"],
+                "createdAt": "2026-07-04T09:37:11Z",
+                "updatedAt": "2026-07-04T09:37:11Z",
+                "customer": {
+                  "id": "gid://shopify/Customer/10895673950514",
+                  "email": "draft-sort-beta-20260704093710@example.com",
+                  "displayName": "draft-sort-beta-20260704093710@example.com"
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Beta Search Haystack 20260704093710",
+                      "sku": null
+                    }
+                  ]
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461697842",
+                  "email": "draft-sort-alpha-20260704093710@example.com"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ==",
+                "node": {
+                  "id": "gid://shopify/DraftOrder/1275461730610",
+                  "email": "draft-sort-beta-20260704093710@example.com"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNjk3ODQyLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNjk3ODQyfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjc1NDYxNzMwNjEwLCJsYXN0X3ZhbHVlIjoxMjc1NDYxNzMwNjEwfQ=="
+            }
+          },
+          "draftOrdersCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1926,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["draftOrders"],
+              "query": "notadraftfield:ignored tag:draftsort20260704093710",
+              "parsed": {
+                "and": [
+                  {
+                    "field": "notadraftfield",
+                    "match_all": "ignored"
+                  },
+                  {
+                    "field": "tag",
+                    "match_all": "draftsort20260704093710"
+                  }
+                ]
+              },
+              "warnings": [
+                {
+                  "field": "notadraftfield",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            },
+            {
+              "path": ["draftOrdersCount"],
+              "query": "notadraftfield:ignored tag:draftsort20260704093710",
+              "parsed": {
+                "and": [
+                  {
+                    "field": "notadraftfield",
+                    "match_all": "ignored"
+                  },
+                  {
+                    "field": "tag",
+                    "match_all": "draftsort20260704093710"
+                  }
+                ]
+              },
+              "warnings": [
+                {
+                  "field": "notadraftfield",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "attempts": 1
+    }
+  },
+  "cleanup": {
+    "draftOrders": [
+      {
+        "status": "fulfilled",
+        "value": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderDelete": {
+                "deletedId": "gid://shopify/DraftOrder/1275461697842",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1935,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderDelete": {
+                "deletedId": "gid://shopify/DraftOrder/1275461730610",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1926,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "customers": [
+      {
+        "status": "fulfilled",
+        "value": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "customerDelete": {
+                "deletedCustomerId": "gid://shopify/Customer/10895673917746",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1935,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": "fulfilled",
+        "value": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "customerDelete": {
+                "deletedCustomerId": "gid://shopify/Customer/10895673950514",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1925,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": []
+}
