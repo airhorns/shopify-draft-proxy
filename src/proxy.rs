@@ -194,6 +194,8 @@ struct SellingPlanGroupRecord {
     options: Vec<String>,
     position: i64,
     created_at: String,
+    #[serde(default)]
+    updated_at: String,
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
@@ -339,6 +341,12 @@ struct StagedState {
     // Empty for every scenario that does not seed publications, leaving the
     // existing passthrough behavior for those roots untouched.
     publications: BTreeMap<String, Value>,
+    // Current app publication resolved from `currentAppInstallation.publication`
+    // by current-channel publishable mutations in live-hybrid mode. The separate
+    // resolved flag distinguishes "not looked up yet" from "looked up and Shopify
+    // returned no current publication".
+    current_channel_publication_id: Option<String>,
+    current_channel_publication_resolved: bool,
     // Resource gid (Product/Collection) -> set of publication gids the resource
     // is published on. Seeded from `seedProducts`/`seedCollections`
     // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
@@ -426,6 +434,7 @@ struct StagedState {
     next_refund_id: u64,
     next_refund_line_item_id: u64,
     next_order_id: u64,
+    next_order_number: u64,
     next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
@@ -460,6 +469,7 @@ struct StagedState {
     function_cart_transform_order: Vec<String>,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    tax_app_configuration: Option<Value>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -772,6 +782,8 @@ impl Default for StagedState {
             publication_ids: BTreeSet::new(),
             created_publication_ids: BTreeSet::new(),
             publications: BTreeMap::new(),
+            current_channel_publication_id: None,
+            current_channel_publication_resolved: false,
             resource_publications: BTreeMap::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
@@ -842,6 +854,7 @@ impl Default for StagedState {
             next_refund_id: 1,
             next_refund_line_item_id: 1,
             next_order_id: 1,
+            next_order_number: 1,
             next_draft_order_id: 1,
             draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
@@ -869,6 +882,7 @@ impl Default for StagedState {
             function_cart_transform_order: Vec::new(),
             function_fulfillment_constraint_rules: BTreeMap::new(),
             function_fulfillment_constraint_rule_order: Vec::new(),
+            tax_app_configuration: None,
             functions_dirty: false,
             backup_region: Value::Null,
             flow_signatures: Vec::new(),
@@ -1166,13 +1180,28 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
+        self.observed_shop_currency_code()
+            .unwrap_or_else(|| "USD".to_string())
+    }
+
+    pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {
         self.base
             .shop
             .get("currencyCode")
             .and_then(Value::as_str)
             .filter(|currency| !currency.is_empty())
-            .unwrap_or("USD")
-            .to_string()
+            .map(str::to_string)
+    }
+
+    pub(in crate::proxy) fn shop_taxes_included(&self) -> Option<bool> {
+        self.base.shop.get("taxesIncluded").and_then(Value::as_bool)
+    }
+
+    pub(in crate::proxy) fn shop_duties_included(&self) -> Option<bool> {
+        self.base
+            .shop
+            .get("dutiesIncluded")
+            .and_then(Value::as_bool)
     }
 
     fn shop_money_format(&self) -> Option<String> {
@@ -1905,6 +1934,12 @@ fn default_upstream_transport(_request: Request) -> Response {
     json_error(502, "No Rust upstream transport configured")
 }
 
+type RuntimeClock = Arc<dyn Fn() -> time::OffsetDateTime + Send + Sync>;
+
+fn default_runtime_clock() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_utc()
+}
+
 #[derive(Clone)]
 pub struct DraftProxy {
     config: Config,
@@ -1919,6 +1954,8 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    clock: RuntimeClock,
+    last_mutation_timestamp: Option<time::OffsetDateTime>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
 }

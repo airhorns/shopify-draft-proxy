@@ -1,0 +1,115 @@
+{
+  "data": {
+    "priceList": {
+      "__typename": "PriceList",
+      "id": "gid://shopify/PriceList/31575408946",
+      "name": "Mexico Buyers",
+      "currency": "MXN",
+      "prices": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+            "node": {
+              "price": {
+                "amount": "9.5",
+                "currencyCode": "CAD"
+              },
+              "compareAtPrice": null,
+              "originType": "RELATIVE",
+              "variant": {
+                "id": "gid://shopify/ProductVariant/49875425329458",
+                "sku": null,
+                "product": {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card"
+                }
+              }
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+          "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0="
+        }
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 6,
+      "actualQueryCost": 6,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1994,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListPricesWindowFiltered",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/31575408946",
+        "first": 1,
+        "priceQuery": "product_id:9801098821938",
+        "originType": "RELATIVE"
+      },
+      "query": "query PriceListPricesWindowFiltered(\n  $priceListId: ID!\n  $first: Int!\n  $priceQuery: String\n  $originType: PriceListPriceOriginType\n) {\n  priceList(id: $priceListId) {\n    __typename\n    id\n    name\n    currency\n    prices(first: $first, query: $priceQuery, originType: $originType) {\n      edges {\n        cursor\n        node {\n          price {\n            amount\n            currencyCode\n          }\n          compareAtPrice {\n            amount\n            currencyCode\n          }\n          originType\n          variant {\n            id\n            sku\n            product {\n              id\n              title\n            }\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575408946",
+              "name": "Mexico Buyers",
+              "currency": "MXN",
+              "prices": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "price": {
+                        "amount": "9.5",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "RELATIVE",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "sku": null,
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

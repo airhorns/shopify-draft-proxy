@@ -1,0 +1,13 @@
+mutation PublishableCurrentChannelNoCurrentChannelPublish($id: ID!) {
+  publishablePublishToCurrentChannel(id: $id) {
+    publishable {
+      ... on Product {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "variables": {
+    "eventId": "gid://shopify/BasicEvent/181928760017202",
+    "first": 3
+  },
+  "response": {
+    "data": {
+      "event": {
+        "__typename": "BasicEvent",
+        "id": "gid://shopify/BasicEvent/181928760017202",
+        "action": "destroy",
+        "appTitle": "hermes-conformance-products",
+        "attributeToApp": true,
+        "attributeToUser": false,
+        "createdAt": "2026-07-04T09:25:25Z",
+        "criticalAlert": false,
+        "message": "",
+        "additionalContent": "null",
+        "additionalData": "null",
+        "arguments": [],
+        "author": "hermes-conformance-products",
+        "hasAdditionalContent": false,
+        "secondaryMessage": null,
+        "subjectId": "gid://shopify/DraftOrder/1275457044786",
+        "subjectType": "DRAFT_ORDER"
+      },
+      "events": {
+        "nodes": [
+          {
+            "__typename": "BasicEvent",
+            "id": "gid://shopify/BasicEvent/181928760017202",
+            "action": "destroy",
+            "message": "",
+            "createdAt": "2026-07-04T09:25:25Z",
+            "subjectId": "gid://shopify/DraftOrder/1275457044786",
+            "subjectType": "DRAFT_ORDER"
+          },
+          {
+            "__typename": "BasicEvent",
+            "id": "gid://shopify/BasicEvent/181928759984434",
+            "action": "destroy",
+            "message": "",
+            "createdAt": "2026-07-04T09:25:25Z",
+            "subjectId": "gid://shopify/DraftOrder/1275457208626",
+            "subjectType": "DRAFT_ORDER"
+          },
+          {
+            "__typename": "BasicEvent",
+            "id": "gid://shopify/BasicEvent/181928758182194",
+            "action": "create",
+            "message": "",
+            "createdAt": "2026-07-04T09:25:19Z",
+            "subjectId": "gid://shopify/DraftOrder/1275457208626",
+            "subjectType": "DRAFT_ORDER"
+          }
+        ],
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+            "node": {
+              "__typename": "BasicEvent",
+              "id": "gid://shopify/BasicEvent/181928760017202",
+              "action": "destroy",
+              "message": "",
+              "createdAt": "2026-07-04T09:25:25Z",
+              "subjectId": "gid://shopify/DraftOrder/1275457044786",
+              "subjectType": "DRAFT_ORDER"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTk5ODQ0MzQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTk5ODQ0MzQifQ==",
+            "node": {
+              "__typename": "BasicEvent",
+              "id": "gid://shopify/BasicEvent/181928759984434",
+              "action": "destroy",
+              "message": "",
+              "createdAt": "2026-07-04T09:25:25Z",
+              "subjectId": "gid://shopify/DraftOrder/1275457208626",
+              "subjectType": "DRAFT_ORDER"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ==",
+            "node": {
+              "__typename": "BasicEvent",
+              "id": "gid://shopify/BasicEvent/181928758182194",
+              "action": "create",
+              "message": "",
+              "createdAt": "2026-07-04T09:25:19Z",
+              "subjectId": "gid://shopify/DraftOrder/1275457208626",
+              "subjectType": "DRAFT_ORDER"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+          "endCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ=="
+        }
+      },
+      "eventsCount": {
+        "count": 10000,
+        "precision": "AT_LEAST"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "EventNonEmptyRead",
+      "variables": {
+        "eventId": "gid://shopify/BasicEvent/181928760017202",
+        "first": 3
+      },
+      "query": "query EventNonEmptyRead($eventId: ID!, $first: Int!) {\n  event(id: $eventId) {\n    __typename\n    id\n    action\n    appTitle\n    attributeToApp\n    attributeToUser\n    createdAt\n    criticalAlert\n    message\n    ... on BasicEvent {\n      additionalContent\n      additionalData\n      arguments\n      author\n      hasAdditionalContent\n      secondaryMessage\n      subjectId\n      subjectType\n    }\n  }\n  events(first: $first, sortKey: ID, reverse: true) {\n    nodes {\n      __typename\n      id\n      action\n      message\n      createdAt\n      ... on BasicEvent {\n        subjectId\n        subjectType\n      }\n    }\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        action\n        message\n        createdAt\n        ... on BasicEvent {\n          subjectId\n          subjectType\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  eventsCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "event": {
+              "__typename": "BasicEvent",
+              "id": "gid://shopify/BasicEvent/181928760017202",
+              "action": "destroy",
+              "appTitle": "hermes-conformance-products",
+              "attributeToApp": true,
+              "attributeToUser": false,
+              "createdAt": "2026-07-04T09:25:25Z",
+              "criticalAlert": false,
+              "message": "",
+              "additionalContent": "null",
+              "additionalData": "null",
+              "arguments": [],
+              "author": "hermes-conformance-products",
+              "hasAdditionalContent": false,
+              "secondaryMessage": null,
+              "subjectId": "gid://shopify/DraftOrder/1275457044786",
+              "subjectType": "DRAFT_ORDER"
+            },
+            "events": {
+              "nodes": [
+                {
+                  "__typename": "BasicEvent",
+                  "id": "gid://shopify/BasicEvent/181928760017202",
+                  "action": "destroy",
+                  "message": "",
+                  "createdAt": "2026-07-04T09:25:25Z",
+                  "subjectId": "gid://shopify/DraftOrder/1275457044786",
+                  "subjectType": "DRAFT_ORDER"
+                },
+                {
+                  "__typename": "BasicEvent",
+                  "id": "gid://shopify/BasicEvent/181928759984434",
+                  "action": "destroy",
+                  "message": "",
+                  "createdAt": "2026-07-04T09:25:25Z",
+                  "subjectId": "gid://shopify/DraftOrder/1275457208626",
+                  "subjectType": "DRAFT_ORDER"
+                },
+                {
+                  "__typename": "BasicEvent",
+                  "id": "gid://shopify/BasicEvent/181928758182194",
+                  "action": "create",
+                  "message": "",
+                  "createdAt": "2026-07-04T09:25:19Z",
+                  "subjectId": "gid://shopify/DraftOrder/1275457208626",
+                  "subjectType": "DRAFT_ORDER"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+                  "node": {
+                    "__typename": "BasicEvent",
+                    "id": "gid://shopify/BasicEvent/181928760017202",
+                    "action": "destroy",
+                    "message": "",
+                    "createdAt": "2026-07-04T09:25:25Z",
+                    "subjectId": "gid://shopify/DraftOrder/1275457044786",
+                    "subjectType": "DRAFT_ORDER"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTk5ODQ0MzQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTk5ODQ0MzQifQ==",
+                  "node": {
+                    "__typename": "BasicEvent",
+                    "id": "gid://shopify/BasicEvent/181928759984434",
+                    "action": "destroy",
+                    "message": "",
+                    "createdAt": "2026-07-04T09:25:25Z",
+                    "subjectId": "gid://shopify/DraftOrder/1275457208626",
+                    "subjectType": "DRAFT_ORDER"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ==",
+                  "node": {
+                    "__typename": "BasicEvent",
+                    "id": "gid://shopify/BasicEvent/181928758182194",
+                    "action": "create",
+                    "message": "",
+                    "createdAt": "2026-07-04T09:25:19Z",
+                    "subjectId": "gid://shopify/DraftOrder/1275457208626",
+                    "subjectType": "DRAFT_ORDER"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ=="
+              }
+            },
+            "eventsCount": {
+              "count": 10000,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -464,8 +464,135 @@ pub(in crate::proxy) fn price_edges(price_list: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn price_edge_cursor(edge: &Value) -> String {
+    edge["cursor"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| fixed_price_edge_variant_id(edge))
+        .unwrap_or_default()
+}
+
 pub(in crate::proxy) fn fixed_price_edge_variant_id(edge: &Value) -> Option<String> {
     edge["node"]["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn price_edge_product_id(edge: &Value) -> Option<String> {
+    edge["node"]["variant"]["product"]["id"]
+        .as_str()
+        .map(str::to_string)
+}
+
+fn price_edge_origin_type(edge: &Value) -> Option<&str> {
+    edge["node"]["originType"].as_str()
+}
+
+fn price_edge_matches_id_filter(actual_id: Option<String>, expected: &str) -> bool {
+    let Some(actual_id) = actual_id else {
+        return false;
+    };
+    actual_id == expected || resource_id_tail(&actual_id) == expected
+}
+
+/// Local staged price search intentionally supports only captured ID filters.
+/// Unknown terms resolve to no matches so the proxy does not pretend to emulate
+/// Shopify's broader search grammar without evidence.
+fn price_edge_matches_query(edge: &Value, query: Option<&str>) -> bool {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return true;
+    };
+    query.split_whitespace().all(|term| {
+        let Some((name, expected)) = term.split_once(':') else {
+            return false;
+        };
+        let expected = expected.trim();
+        if expected.is_empty() {
+            return false;
+        }
+        match name.trim() {
+            "variant_id" => {
+                price_edge_matches_id_filter(fixed_price_edge_variant_id(edge), expected)
+            }
+            "product_id" => price_edge_matches_id_filter(price_edge_product_id(edge), expected),
+            _ => false,
+        }
+    })
+}
+
+fn price_edge_matches_args(edge: &Value, arguments: &BTreeMap<String, ResolvedValue>) -> bool {
+    if let Some(origin_type) = resolved_string_field(arguments, "originType") {
+        if price_edge_origin_type(edge) != Some(origin_type.as_str()) {
+            return false;
+        }
+    }
+    price_edge_matches_query(edge, resolved_string_field(arguments, "query").as_deref())
+}
+
+pub(in crate::proxy) fn selected_price_list_prices(
+    price_list: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let matched = price_edges(price_list)
+        .into_iter()
+        .filter(|edge| price_edge_matches_args(edge, arguments))
+        .collect::<Vec<_>>();
+    let (edges, page_info) = connection_window(&matched, arguments, price_edge_cursor);
+    let nodes = edges
+        .iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    selected_json(
+        &json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": page_info
+        }),
+        selection,
+    )
+}
+
+pub(in crate::proxy) fn selected_price_list_json(
+    price_list: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let mut record = serde_json::Map::new();
+    for field in selection {
+        if let Some(type_condition) = field.type_condition.as_deref() {
+            if !matches!(type_condition, "PriceList" | "Node") {
+                continue;
+            }
+        }
+        let value = if field.name == "prices" {
+            Some(selected_price_list_prices(
+                price_list,
+                &field.arguments,
+                &field.selection,
+            ))
+        } else {
+            selected_json(price_list, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|projected| projected.get(&field.response_key).cloned())
+        };
+        if let Some(value) = value {
+            record.insert(field.response_key.clone(), value);
+        }
+    }
+    Value::Object(record)
+}
+
+pub(in crate::proxy) fn selected_price_lists_connection_with_args(
+    records: &BTreeMap<String, Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let records = records.values().cloned().collect::<Vec<_>>();
+    selected_typed_connection_with_args(
+        &records,
+        arguments,
+        selection,
+        selected_price_list_json,
+        value_id_cursor,
+    )
 }
 
 pub(in crate::proxy) fn fixed_price_variant_ids(price_list: &Value) -> Vec<String> {
@@ -1187,6 +1314,7 @@ pub(in crate::proxy) fn market_record_from_input(
     name: &str,
     handle: &str,
     region_codes: &[String],
+    shop_currency_code: &str,
 ) -> Value {
     // Defaults for staged market data: status falls
     // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
@@ -1214,7 +1342,7 @@ pub(in crate::proxy) fn market_record_from_input(
         "enabled": enabled,
         "type": market_type,
         "priceInclusions": market_price_inclusions(input),
-        "currencySettings": market_currency_settings_json(input),
+        "currencySettings": market_currency_settings_json(input, shop_currency_code),
         "regionCodes": region_codes,
         "conditions": {
             "regionsCondition": {
@@ -1240,12 +1368,13 @@ pub(in crate::proxy) fn market_price_inclusions(input: &BTreeMap<String, Resolve
 
 pub(in crate::proxy) fn market_currency_settings_json(
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let Some(currency_settings) = resolved_object_field(input, "currencySettings") else {
         return Value::Null;
     };
     let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     json!({
         "baseCurrency": {
             "currencyCode": currency_code,
@@ -1594,11 +1723,16 @@ pub(in crate::proxy) fn default_available_language_subtag_name(
         })
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
+pub(in crate::proxy) fn shop_locale_record(
+    locale: &str,
+    name: &str,
+    published: bool,
+    primary_locale: &str,
+) -> Value {
     json!({
         "locale": locale,
         "name": name,
-        "primary": locale == "en",
+        "primary": locale == primary_locale,
         "published": published,
         "marketWebPresences": []
     })
@@ -1608,11 +1742,14 @@ pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) 
     user_error_omit_code(field, message, None)
 }
 
-pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {
+pub(in crate::proxy) fn shop_locale_market_web_presence_record(
+    id: &str,
+    default_locale: &str,
+) -> Value {
     json!({
         "id": id,
         "__typename": "MarketWebPresence",
-        "defaultLocale": { "locale": "en" }
+        "defaultLocale": { "locale": default_locale }
     })
 }
 

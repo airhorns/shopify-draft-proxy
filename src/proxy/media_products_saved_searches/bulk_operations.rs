@@ -261,13 +261,6 @@ impl DraftProxy {
                         .cmp(&left.get("id").and_then(Value::as_str))
                 })
         });
-        if matches!(
-            field.arguments.get("reverse"),
-            Some(ResolvedValue::Bool(true))
-        ) {
-            operations.reverse();
-        }
-
         let records = operations.into_iter().cloned().collect::<Vec<_>>();
         selected_connection_json_with_args(
             records,

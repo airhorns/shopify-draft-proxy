@@ -170,10 +170,12 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
           codes(first: 250) {
             nodes {
               id
               code
+              asyncUsageCount
             }
           }
         }
@@ -183,6 +185,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
         ... on DiscountCodeBxgy {
           title
@@ -190,6 +193,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
         ... on DiscountCodeFreeShipping {
           title
@@ -197,6 +201,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
       }
     }
@@ -210,6 +215,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
         ... on DiscountAutomaticApp {
           title
@@ -217,6 +223,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
         ... on DiscountAutomaticBxgy {
           title
@@ -224,6 +231,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
         ... on DiscountAutomaticFreeShipping {
           title
@@ -231,6 +239,7 @@ const discountHydrateDocument = `#graphql
           startsAt
           endsAt
           updatedAt
+          asyncUsageCount
         }
       }
     }

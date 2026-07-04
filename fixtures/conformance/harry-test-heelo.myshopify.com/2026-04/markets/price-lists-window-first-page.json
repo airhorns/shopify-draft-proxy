@@ -1,0 +1,102 @@
+{
+  "data": {
+    "priceLists": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/31575376178",
+            "name": "Price List example Buyers",
+            "currency": "CAD",
+            "fixedPricesCount": 0
+          }
+        },
+        {
+          "cursor": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/31575408946",
+            "name": "Mexico Buyers",
+            "currency": "MXN",
+            "fixedPricesCount": 0
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": false,
+        "startCursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+        "endCursor": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 3,
+      "actualQueryCost": 3,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1997,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListsWindowFirstPage",
+      "variables": {
+        "first": 2
+      },
+      "query": "query PriceListsWindowFirstPage($first: Int!) {\n  priceLists(first: $first) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        name\n        currency\n        fixedPricesCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceLists": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+                  "node": {
+                    "__typename": "PriceList",
+                    "id": "gid://shopify/PriceList/31575376178",
+                    "name": "Price List example Buyers",
+                    "currency": "CAD",
+                    "fixedPricesCount": 0
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0=",
+                  "node": {
+                    "__typename": "PriceList",
+                    "id": "gid://shopify/PriceList/31575408946",
+                    "name": "Mexico Buyers",
+                    "currency": "MXN",
+                    "fixedPricesCount": 0
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozMTU3NTM3NjE3OCwibGFzdF92YWx1ZSI6IjMxNTc1Mzc2MTc4In0=",
+                "endCursor": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+mutation ProductUpdateInputLengthValidation($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      vendor
+      productType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
