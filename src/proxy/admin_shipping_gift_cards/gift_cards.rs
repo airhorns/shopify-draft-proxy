@@ -196,6 +196,18 @@ impl DraftProxy {
                 if let Some(error) = gift_card_missing_recipient_id_error(field) {
                     return ok_json(json!({ "errors": [error] }));
                 }
+                if self
+                    .gift_card_assignment_errors(
+                        &field.name,
+                        &resolved_object_field(&field.arguments, "input").unwrap_or_default(),
+                        "input",
+                    )
+                    .is_empty()
+                {
+                    if let Some(response) = gift_card_invalid_recipient_id_response(field) {
+                        return ok_json(response);
+                    }
+                }
             }
             if matches!(field.name.as_str(), "giftCardCredit" | "giftCardDebit") {
                 if let Some(error) = gift_card_transaction_payload_selection_error(field) {
@@ -1956,4 +1968,36 @@ fn gift_card_missing_recipient_id_error(field: &RootFieldSelection) -> Option<Va
             "inputObjectType": "GiftCardRecipientInput"
         }
     }))
+}
+
+fn gift_card_invalid_recipient_id_response(field: &RootFieldSelection) -> Option<Value> {
+    let input = resolved_object_field(&field.arguments, "input")?;
+    let recipient = resolved_object_field(&input, "recipientAttributes")?;
+    let recipient_id = resolved_string_field(&recipient, "id")?;
+    if !gift_card_customer_gid_is_structurally_invalid(&recipient_id) {
+        return None;
+    }
+
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": format!("Invalid id: {recipient_id}"),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [field.response_key.clone()]
+        }]
+    }))
+}
+
+fn gift_card_customer_gid_is_structurally_invalid(id: &str) -> bool {
+    let Some(tail) = shopify_gid_tail_for_type(id, "Customer") else {
+        return false;
+    };
+    let numeric_tail = tail.split('?').next().unwrap_or_default();
+    numeric_tail.is_empty() || !numeric_tail.bytes().all(|byte| byte.is_ascii_digit())
 }

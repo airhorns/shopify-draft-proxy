@@ -452,7 +452,14 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &result.records,
             &field.selection,
-            collection_json,
+            |collection, selection| {
+                collection_json(
+                    collection,
+                    self.collection_product_entries(collection),
+                    selection,
+                    &self.store.shop_currency_code(),
+                )
+            },
             value_id_cursor,
             result.page_info,
         )

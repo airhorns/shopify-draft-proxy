@@ -8687,14 +8687,16 @@ fn gift_card_create_rejects_fabricated_no_contact_recipient_sentinel() {
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
-        create.body["data"]["giftCardCreate"],
+        create.body,
         json!({
-            "giftCard": null,
-            "giftCardCode": null,
-            "userErrors": [{
-                "field": ["input", "recipientAttributes", "id"],
-                "code": "RECIPIENT_NOT_FOUND",
-                "message": "Recipient could not be found"
+            "data": {
+                "giftCardCreate": null
+            },
+            "errors": [{
+                "message": "Invalid id: gid://shopify/Customer/no-contact-recipient",
+                "locations": [{ "line": 2, "column": 11 }],
+                "extensions": { "code": "RESOURCE_NOT_FOUND" },
+                "path": ["giftCardCreate"]
             }]
         })
     );
