@@ -170,7 +170,7 @@ pub(in crate::proxy) fn selected_connection_json(
 }
 
 pub(in crate::proxy) fn selected_connection_json_with_args<F>(
-    nodes: Vec<Value>,
+    mut nodes: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
     mut cursor_for: F,
@@ -178,6 +178,9 @@ pub(in crate::proxy) fn selected_connection_json_with_args<F>(
 where
     F: FnMut(&Value) -> String,
 {
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        nodes.reverse();
+    }
     let (nodes, page_info) = connection_window(&nodes, arguments, &mut cursor_for);
     selected_json(
         &connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info),

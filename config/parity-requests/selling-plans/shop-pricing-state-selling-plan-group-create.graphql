@@ -1,0 +1,56 @@
+mutation ShopPricingStateSellingPlanGroupCreate(
+  $input: SellingPlanGroupInput!
+  $resources: SellingPlanGroupResourceInput!
+) {
+  sellingPlanGroupCreate(input: $input, resources: $resources) {
+    sellingPlanGroup {
+      id
+      productsCount {
+        count
+        precision
+      }
+      products(first: 5) {
+        nodes {
+          id
+          title
+          priceRangeV2 {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      sellingPlans(first: 10) {
+        nodes {
+          id
+          pricingPolicies {
+            __typename
+            ... on SellingPlanFixedPricingPolicy {
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on MoneyV2 {
+                  amount
+                  currencyCode
+                }
+                ... on SellingPlanPricingPolicyPercentageValue {
+                  percentage
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -37,6 +37,24 @@
         }
       },
       {
+        "name": "too-long-title-user-errors",
+        "capturePath": "$.scenarios.tooLongTitle.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.scenarios.tooLongTitle.variables.product.title"
+              },
+              "vendor": {
+                "fromCapturePath": "$.scenarios.tooLongTitle.variables.product.vendor"
+              }
+            }
+          }
+        }
+      },
+      {
         "name": "too-long-vendor-user-errors",
         "capturePath": "$.scenarios.tooLongVendor.response.data.productCreate.userErrors",
         "proxyPath": "$.data.productCreate.userErrors",

@@ -1,0 +1,137 @@
+{
+  "scenarioId": "product-option-name-delimiter-validation",
+  "operationNames": ["productCreate", "productOptionsCreate", "productOptionUpdate", "productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-name-delimiter-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-option-name-delimiter-setup.graphql",
+    "variablesCapturePath": "$.setupProduct.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's product option name delimiter validation for the four option-write entry points. The setup product gives the proxy a public GraphQL-created option so productOptionsCreate and productOptionUpdate can prove both captured userErrors and no-staging readbacks after rejected names containing the literal \" / \" title delimiter.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-user-errors",
+        "capturePath": "$.setupProduct.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "product-options-create-delimiter-user-errors",
+        "capturePath": "$.createDelimiter.response.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-name-delimiter.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "options": { "fromCapturePath": "$.createDelimiter.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "read-after-create-delimiter-data",
+        "capturePath": "$.readAfterCreateDelimiter.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-option-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The setup product ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.options[0].id",
+            "matcher": "shopify-gid:ProductOption",
+            "reason": "The setup option ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.options[0].optionValues[0].id",
+            "matcher": "shopify-gid:ProductOptionValue",
+            "reason": "The setup option value ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The setup variant ID is allocated independently by Shopify and the local staging identity registry."
+          }
+        ]
+      },
+      {
+        "name": "product-option-update-delimiter-user-errors",
+        "capturePath": "$.updateDelimiter.response.data.productOptionUpdate.userErrors",
+        "proxyPath": "$.data.productOptionUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionUpdate-name-delimiter.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "option": {
+              "id": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+              "name": { "fromCapturePath": "$.updateDelimiter.variables.option.name" }
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-update-delimiter-data",
+        "capturePath": "$.readAfterUpdateDelimiter.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-option-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The setup product ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.options[0].id",
+            "matcher": "shopify-gid:ProductOption",
+            "reason": "The setup option ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.options[0].optionValues[0].id",
+            "matcher": "shopify-gid:ProductOptionValue",
+            "reason": "The setup option value ID is allocated independently by Shopify and the local staging identity registry."
+          },
+          {
+            "path": "$.variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The setup variant ID is allocated independently by Shopify and the local staging identity registry."
+          }
+        ]
+      },
+      {
+        "name": "product-create-delimiter-data",
+        "capturePath": "$.productCreateDelimiter.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-option-name-delimiter.graphql",
+          "variablesCapturePath": "$.productCreateDelimiter.variables"
+        }
+      },
+      {
+        "name": "product-set-delimiter-data",
+        "capturePath": "$.productSetDelimiter.response.data.productSet",
+        "proxyPath": "$.data.productSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-option-name-delimiter.graphql",
+          "variablesCapturePath": "$.productSetDelimiter.variables"
+        }
+      }
+    ]
+  }
+}

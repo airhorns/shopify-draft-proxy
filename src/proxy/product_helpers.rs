@@ -9,7 +9,17 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+const PRODUCT_SCALAR_MAX_LENGTH: usize = 255;
 const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
+pub(in crate::proxy) const PRODUCT_OPTION_NAME_TITLE_DELIMITER: &str = " / ";
+pub(in crate::proxy) const PRODUCT_OPTION_NAME_DELIMITER_MESSAGE: &str =
+    "The name contains unsupported sequence ' / '";
+pub(in crate::proxy) const PRODUCT_CREATE_OPTION_NAME_DELIMITER_MESSAGE: &str =
+    "Name cannot contain the character sequence \" / \"";
+
+pub(in crate::proxy) fn product_option_name_has_title_delimiter(name: &str) -> bool {
+    name.trim().contains(PRODUCT_OPTION_NAME_TITLE_DELIMITER)
+}
 
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
@@ -40,6 +50,13 @@ pub(in crate::proxy) const PRODUCT_OPTIONS_HYDRATE_NODES_QUERY: &str =
 pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/products/publication-resource-hydrate-nodes.graphql"
 );
+
+pub(in crate::proxy) const CURRENT_APP_PUBLICATION_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/store-properties/current-app-publication-hydrate.graphql"
+);
+
+pub(in crate::proxy) const CURRENT_CHANNEL_PUBLICATION_ID: &str =
+    "gid://shopify/Publication/current-channel";
 
 struct ProductStatusInputContext<'a> {
     argument_name: &'a str,
@@ -270,6 +287,18 @@ fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> 
     })
 }
 
+fn publishable_node_json(
+    resource_id: &str,
+    resource_type: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!(resource_type)),
+        "id" => Some(json!(resource_id)),
+        _ => None,
+    })
+}
+
 fn product_publishable_node_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
@@ -327,6 +356,38 @@ fn resource_publication_connection_node_json(
     })
 }
 
+fn staged_resource_publication_connection_node_json(
+    resource_id: &str,
+    resource_type: &str,
+    entry: &ProductPublicationEntry,
+    typename: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!(typename)),
+        "channel" => Some(Value::Null),
+        "isPublished" => Some(json!(true)),
+        "publication" => Some(publication_node_json(
+            &entry.publication_id,
+            &selection.selection,
+        )),
+        "publishDate" => Some(
+            entry
+                .publish_date
+                .as_ref()
+                .or(entry.published_at.as_ref())
+                .map(|value| json!(value))
+                .unwrap_or(Value::Null),
+        ),
+        "publishable" => Some(publishable_node_json(
+            resource_id,
+            resource_type,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
 fn product_publication_connection_json(
     product: &ProductRecord,
     selections: &[SelectedField],
@@ -358,6 +419,38 @@ fn resource_publication_connection_json(
     )
 }
 
+pub(in crate::proxy) fn staged_resource_publication_connection_json(
+    resource_id: &str,
+    resource_type: &str,
+    publication_ids: &BTreeSet<String>,
+    typename: &str,
+    selections: &[SelectedField],
+) -> Value {
+    let entries = publication_ids
+        .iter()
+        .map(|publication_id| ProductPublicationEntry {
+            publication_id: publication_id.clone(),
+            publish_date: None,
+            published_at: None,
+        })
+        .collect::<Vec<_>>();
+    selected_typed_connection(
+        &entries,
+        selections,
+        |entry, selections| {
+            staged_resource_publication_connection_node_json(
+                resource_id,
+                resource_type,
+                entry,
+                typename,
+                selections,
+            )
+        },
+        |entry| entry.publication_id.clone(),
+        |selections| selected_json(&empty_page_info(), selections),
+    )
+}
+
 pub(in crate::proxy) fn product_publication_field_json(
     product: &ProductRecord,
     selection: &SelectedField,
@@ -370,7 +463,10 @@ pub(in crate::proxy) fn product_publication_field_json(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "publishedOnCurrentPublication" => Some(Value::Bool(false)),
+        "publishedOnCurrentPublication" => Some(Value::Bool(
+            product.status == "ACTIVE"
+                && product_is_published_on_publication(product, "gid://shopify/Publication/1"),
+        )),
         "publishedOnPublication" => {
             let publication_id = selection
                 .arguments
@@ -498,6 +594,7 @@ impl DraftProxy {
         let mut source_errors = Vec::new();
         let mut created = Vec::new();
         let mut staged = Vec::new();
+        let mut ready_on_read_ids = Vec::new();
         for (index, item) in media_inputs.iter().enumerate() {
             let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
             if !media_source_is_valid(&original_source) {
@@ -524,7 +621,7 @@ impl DraftProxy {
                 None,
                 Some(&original_source),
             ));
-            staged.push(product_media_node_with_type(
+            let staged_node = product_media_node_with_type(
                 &id,
                 &alt,
                 &media_content_type,
@@ -535,7 +632,9 @@ impl DraftProxy {
                 },
                 None,
                 Some(&original_source),
-            ));
+            );
+            staged.push(staged_node);
+            ready_on_read_ids.push(id);
         }
 
         if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
@@ -551,6 +650,10 @@ impl DraftProxy {
         product_media_nodes.extend(created.clone());
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
+            self.store
+                .staged
+                .media_ready_on_read
+                .extend(ready_on_read_ids);
         }
 
         Some(json!({
@@ -625,6 +728,7 @@ impl DraftProxy {
                     }
                 }
                 updated.push(node.clone());
+                self.store.staged.media_ready_on_read.remove(&id);
             }
         }
 
@@ -695,6 +799,9 @@ impl DraftProxy {
                 !media_ids.iter().any(|deleted| deleted == id)
             })
             .collect();
+        for id in &media_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
         self.stage_product_media_nodes(&product_id, remaining.clone());
 
         Some(json!({
@@ -733,10 +840,16 @@ impl DraftProxy {
                 .and_then(|position| position.parse::<usize>().ok())
                 .unwrap_or(usize::MAX)
         });
-        let media = moves
+        let move_ids = moves
             .iter()
             .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .map(|id| self.product_reorder_media_node(&product_id, &id))
+            .collect::<Vec<_>>();
+        for id in &move_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
+        let media = move_ids
+            .iter()
+            .map(|id| self.product_reorder_media_node(&product_id, id))
             .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
@@ -778,6 +891,48 @@ impl DraftProxy {
             .product_staged_or_base(product_id)
             .map(|product| product.media)
             .unwrap_or_default()
+    }
+
+    pub(in crate::proxy) fn promote_product_media_ready_on_read(
+        &mut self,
+        root_fields: &[RootFieldSelection],
+    ) {
+        if !root_fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "product" | "products" | "productByIdentifier" | "node" | "nodes"
+            )
+        }) {
+            return;
+        }
+
+        let ready_on_read_ids = self.store.staged.media_ready_on_read.clone();
+        let product_ids = self
+            .store
+            .staged
+            .products
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for product_id in product_ids {
+            let Some(product) = self.store.staged.products.get_mut(&product_id) else {
+                continue;
+            };
+            let mut promoted = Vec::new();
+            for node in &mut product.media {
+                let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                    continue;
+                };
+                if !ready_on_read_ids.contains(&id) {
+                    continue;
+                }
+                promote_product_media_node_to_ready(node);
+                promoted.push(id);
+            }
+            for id in promoted {
+                self.store.staged.media_ready_on_read.remove(&id);
+            }
+        }
     }
 
     /// Confirm a product exists, hydrating it from upstream when it has no
@@ -889,6 +1044,18 @@ fn product_media_ready_url(node: &Value) -> String {
         .unwrap_or_else(|| product_media_local_ready_url(node))
 }
 
+fn promote_product_media_node_to_ready(node: &mut Value) {
+    let ready_url = product_media_ready_url(node);
+    node["status"] = json!("READY");
+    node["preview"] = json!({ "image": { "url": ready_url.clone() } });
+    if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
+        match node.get("image").and_then(|image| image.get("id")).cloned() {
+            Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
+            None => node["image"] = json!({ "url": ready_url }),
+        }
+    }
+}
+
 fn product_media_image_url(node: &Value) -> Option<&str> {
     node.get("image")
         .and_then(|image| image.get("url"))
@@ -921,6 +1088,7 @@ fn product_media_local_ready_url(node: &Value) -> String {
     let token = product_media_url_token(&format!("{resource_type}-{tail}"));
     let extension = product_media_original_source_url(node)
         .map(file_extension)
+        .map(|extension| extension.to_ascii_lowercase())
         .filter(|extension| !extension.is_empty() && extension.chars().all(token_char))
         .unwrap_or_else(|| "png".to_string());
     format!("https://shopify-draft-proxy.local/media/{token}.{extension}")
@@ -943,7 +1111,10 @@ fn infer_product_media_content_type(original_source: &str) -> &'static str {
     if product_media_source_is_external_video(original_source) {
         return "EXTERNAL_VIDEO";
     }
-    match file_extension(original_source).as_str() {
+    match file_extension(original_source)
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         "glb" | "gltf" | "usdz" => "MODEL_3D",
         _ => "IMAGE",
@@ -1076,6 +1247,62 @@ pub(in crate::proxy) fn product_json_with_currency(
     currency_code: &str,
 ) -> Value {
     product_json_with_variants_and_currency(product, &[], selections, currency_code)
+}
+
+pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_fields(query, variables)
+        .as_ref()
+        .is_some_and(|fields| product_root_fields_select_shop_currency_money(fields))
+}
+
+pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
+    fields: &[RootFieldSelection],
+) -> bool {
+    fields
+        .iter()
+        .any(product_root_field_selects_shop_currency_money)
+}
+
+fn product_root_field_selects_shop_currency_money(field: &RootFieldSelection) -> bool {
+    if product_selections_include_names(&field.selection, &["priceRange", "priceRangeV2"]) {
+        return true;
+    }
+    if !product_selections_include_names(&field.selection, &["adjustmentValue", "summary"]) {
+        return false;
+    }
+    if matches!(
+        field.name.as_str(),
+        "sellingPlanGroupCreate" | "sellingPlanGroupUpdate"
+    ) {
+        return resolved_value_contains_field(
+            &ResolvedValue::Object(field.arguments.clone()),
+            "fixedValue",
+        );
+    }
+    true
+}
+
+fn product_selections_include_names(selections: &[SelectedField], names: &[&str]) -> bool {
+    selections.iter().any(|selection| {
+        names.iter().any(|field_name| {
+            selection.name == *field_name || selection.response_key == *field_name
+        }) || product_selections_include_names(&selection.selection, names)
+    })
+}
+
+fn resolved_value_contains_field(value: &ResolvedValue, field_name: &str) -> bool {
+    match value {
+        ResolvedValue::Object(fields) => fields.iter().any(|(name, value)| {
+            name == field_name || resolved_value_contains_field(value, field_name)
+        }),
+        ResolvedValue::List(values) => values
+            .iter()
+            .any(|value| resolved_value_contains_field(value, field_name)),
+        _ => false,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1229,9 +1456,6 @@ fn sorted_product_collection_nodes_for_connection(
             ))
             .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
     });
-    if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
-        indexed.reverse();
-    }
     indexed
         .into_iter()
         .map(|(_, collection)| collection)
@@ -1979,14 +2203,20 @@ impl ProductSearchTerm {
             return true;
         }
         match self.field.as_deref() {
+            Some("id") => product_matches_search_id(product, value),
             Some("status") => product.status.eq_ignore_ascii_case(value),
             Some("vendor") => product_search_string_matches(&product.vendor, value),
             Some("product_type") => product_search_string_matches(&product.product_type, value),
             Some("title") => product_search_string_matches(&product.title, value),
+            Some("handle") => product_search_string_matches(&product.handle, value),
             Some("tag") => product_matches_search_tag(product, value),
             Some("tag_not") => !product_matches_search_tag(product, value),
             Some("sku") => product_matches_search_sku(product, variants, value),
+            Some("barcode") => product_matches_search_barcode(product, variants, value),
+            Some("gift_card") => product_matches_search_gift_card(product, value),
+            Some("collection_id") => product_matches_search_collection_id(product, value),
             Some("published_status") => product_matches_published_status(product, value),
+            Some("published_at") => product_matches_published_at(product, value),
             Some("created_at") => product_matches_date_query(&product.created_at, value),
             Some("updated_at") => product_matches_date_query(&product.updated_at, value),
             Some(_) => false,
@@ -2079,6 +2309,11 @@ fn product_matches_free_text(
         || product_matches_search_sku(product, variants, value)
 }
 
+fn product_matches_search_id(product: &ProductRecord, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    product.id == value || resource_id_path_tail(&product.id) == value
+}
+
 fn product_matches_search_tag(product: &ProductRecord, value: &str) -> bool {
     product
         .tags
@@ -2100,6 +2335,47 @@ fn product_matches_search_sku(
                 .and_then(Value::as_str)
                 .is_some_and(|sku| product_search_string_matches(sku, value))
         })
+}
+
+fn product_matches_search_barcode(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    value: &str,
+) -> bool {
+    variants.iter().any(|variant| {
+        variant
+            .barcode
+            .as_deref()
+            .is_some_and(|barcode| product_search_string_matches(barcode, value))
+    }) || product.variants.iter().any(|variant| {
+        variant
+            .get("barcode")
+            .and_then(Value::as_str)
+            .is_some_and(|barcode| product_search_string_matches(barcode, value))
+    })
+}
+
+fn product_matches_search_gift_card(product: &ProductRecord, value: &str) -> bool {
+    let actual = product
+        .extra_fields
+        .get("isGiftCard")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    match value.to_ascii_lowercase().as_str() {
+        "true" => actual,
+        "false" => !actual,
+        _ => false,
+    }
+}
+
+fn product_matches_search_collection_id(product: &ProductRecord, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    product.collections.iter().any(|collection| {
+        collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id == value || resource_id_path_tail(id) == value)
+    })
 }
 
 fn product_search_string_matches(actual: &str, query_value: &str) -> bool {
@@ -2127,6 +2403,14 @@ fn product_matches_published_status(product: &ProductRecord, value: &str) -> boo
         "any" => true,
         _ => false,
     }
+}
+
+fn product_matches_published_at(product: &ProductRecord, value: &str) -> bool {
+    product
+        .extra_fields
+        .get("publishedAt")
+        .and_then(Value::as_str)
+        .is_some_and(|published_at| product_matches_date_query(published_at, value))
 }
 
 fn product_is_published(product: &ProductRecord) -> bool {
@@ -3212,6 +3496,141 @@ pub(in crate::proxy) fn product_input(
     {
         Some(ResolvedValue::Object(input)) => Some(input),
         _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) enum ProductScalarLengthValidationShape {
+    ProductInput,
+    ProductSetInput,
+}
+
+pub(in crate::proxy) fn product_scalar_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    shape: ProductScalarLengthValidationShape,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in [
+        ProductScalarLengthField::Title,
+        ProductScalarLengthField::Handle,
+        ProductScalarLengthField::Vendor,
+        ProductScalarLengthField::ProductType,
+    ] {
+        errors.extend(product_scalar_field_length_user_errors(input, field, shape));
+    }
+
+    if matches!(shape, ProductScalarLengthValidationShape::ProductSetInput)
+        && !input.contains_key("handle")
+    {
+        if let Some(title) = resolved_string_field(input, "title") {
+            let derived_handle = slugify_handle(&title);
+            if derived_handle.chars().count() > PRODUCT_SCALAR_MAX_LENGTH {
+                errors.push(product_set_scalar_length_user_error(
+                    ProductScalarLengthField::Handle,
+                ));
+            }
+        }
+    }
+
+    errors
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ProductScalarLengthField {
+    Title,
+    Handle,
+    Vendor,
+    ProductType,
+    CustomProductType,
+}
+
+fn product_scalar_field_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: ProductScalarLengthField,
+    shape: ProductScalarLengthValidationShape,
+) -> Vec<Value> {
+    let Some(value) = resolved_string_field(input, product_scalar_length_field_name(field)) else {
+        return Vec::new();
+    };
+    if value.chars().count() <= PRODUCT_SCALAR_MAX_LENGTH {
+        return Vec::new();
+    }
+
+    let mut errors = vec![product_scalar_length_user_error(field, shape)];
+    if matches!(field, ProductScalarLengthField::ProductType) {
+        errors.push(product_scalar_length_user_error(
+            ProductScalarLengthField::CustomProductType,
+            shape,
+        ));
+    }
+    errors
+}
+
+fn product_scalar_length_field_name(field: ProductScalarLengthField) -> &'static str {
+    match field {
+        ProductScalarLengthField::Title => "title",
+        ProductScalarLengthField::Handle => "handle",
+        ProductScalarLengthField::Vendor => "vendor",
+        ProductScalarLengthField::ProductType => "productType",
+        ProductScalarLengthField::CustomProductType => "customProductType",
+    }
+}
+
+fn product_scalar_length_user_error(
+    field: ProductScalarLengthField,
+    shape: ProductScalarLengthValidationShape,
+) -> Value {
+    match shape {
+        ProductScalarLengthValidationShape::ProductInput => length_user_error(
+            [product_scalar_length_field_name(field)],
+            product_scalar_length_field_label(field),
+            LengthUserErrorBound::TooLong {
+                maximum: PRODUCT_SCALAR_MAX_LENGTH,
+            },
+        ),
+        ProductScalarLengthValidationShape::ProductSetInput => {
+            product_set_scalar_length_user_error(field)
+        }
+    }
+}
+
+fn product_set_scalar_length_user_error(field: ProductScalarLengthField) -> Value {
+    match field {
+        ProductScalarLengthField::Title => user_error_omit_code(
+            ["input", "title"],
+            &format!("is too long (maximum is {PRODUCT_SCALAR_MAX_LENGTH} characters)"),
+            None,
+        ),
+        ProductScalarLengthField::Handle => user_error_omit_code(
+            ["input"],
+            &too_long_message("Handle", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::Vendor => user_error_omit_code(
+            ["input"],
+            &too_long_message("Vendor", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::ProductType => user_error_omit_code(
+            ["input"],
+            &too_long_message("Product type", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::CustomProductType => user_error_omit_code(
+            ["input"],
+            &too_long_message("Custom product type", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+    }
+}
+
+fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'static str {
+    match field {
+        ProductScalarLengthField::Title => "Title",
+        ProductScalarLengthField::Handle => "Handle",
+        ProductScalarLengthField::Vendor => "Vendor",
+        ProductScalarLengthField::ProductType => "Product type",
+        ProductScalarLengthField::CustomProductType => "Custom product type",
     }
 }
 

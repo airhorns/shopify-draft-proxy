@@ -555,37 +555,27 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let query = field.arguments.get("query").and_then(resolved_value_string);
-        let active_filter = match query.as_deref() {
-            Some("active:true") => Some(true),
-            Some("active:false") => Some(false),
-            _ => None,
-        };
-        let mut services: Vec<Value> = self
+        let services: Vec<Value> = self
             .store
             .staged
             .carrier_services
             .iter()
             .filter(|(id, _)| !self.store.staged.carrier_services.is_tombstoned(id))
             .map(|(_, carrier)| carrier.clone())
-            .filter(|carrier| {
-                active_filter
-                    .map(|expected| carrier.get("active") == Some(&json!(expected)))
-                    .unwrap_or(true)
-            })
             .collect();
-        services.sort_by_key(|carrier| {
-            carrier
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string()
-        });
-        selected_connection_json_with_args(
+        let result = staged_connection_query(
             services,
             &field.arguments,
-            &field.selection,
+            carrier_service_search_decision,
+            carrier_service_sort_key,
             carrier_service_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            &field.selection,
+            selected_json,
+            carrier_service_cursor,
+            result.page_info,
         )
     }
 
@@ -682,13 +672,16 @@ impl DraftProxy {
             );
         }
         let id = self.next_proxy_synthetic_gid("DeliveryCarrierService");
-        let carrier = carrier_service_record(
+        let timestamp = self.next_product_timestamp();
+        let mut carrier = carrier_service_record(
             &id,
             &name,
             resolved_string_field(&input, "callbackUrl"),
             resolved_bool_field(&input, "active").unwrap_or(false),
             resolved_bool_field(&input, "supportsServiceDiscovery").unwrap_or(false),
         );
+        carrier["createdAt"] = json!(timestamp.clone());
+        carrier["updatedAt"] = json!(timestamp);
         self.store
             .staged
             .carrier_services
@@ -758,7 +751,7 @@ impl DraftProxy {
                     .map(str::to_string)
             })
             .unwrap_or_default();
-        let carrier = carrier_service_record(
+        let mut carrier = carrier_service_record(
             &id,
             &name,
             input_callback_url.or(existing_callback_url),
@@ -775,6 +768,15 @@ impl DraftProxy {
                     .unwrap_or(false)
             }),
         );
+        carrier["createdAt"] = existing
+            .get("createdAt")
+            .cloned()
+            .unwrap_or_else(|| json!(self.next_product_timestamp()));
+        carrier["updatedAt"] = json!(existing
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .map(|current| self.next_product_updated_at(current))
+            .unwrap_or_else(|| self.next_product_timestamp()));
         self.store
             .staged
             .carrier_services
@@ -834,18 +836,6 @@ impl DraftProxy {
             );
         };
         let id = id.clone();
-        let package = self.shipping_package_for_mutation(&id, request);
-        if package.is_none() {
-            return ok_json(json!({
-                "errors": [{
-                    "message": format!("Invalid id: {id}"),
-                    "extensions": { "code": "RESOURCE_NOT_FOUND" },
-                    "path": [root_field]
-                }],
-                "data": { response_key: null }
-            }));
-        }
-
         let payload = match root_field {
             "shippingPackageUpdate" => {
                 let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
@@ -853,7 +843,9 @@ impl DraftProxy {
                         json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
-                let mut package = package.expect("shipping package existence checked");
+                let Some(mut package) = self.shipping_package_for_mutation(&id, request) else {
+                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                };
                 if package.get("boxType") == Some(&json!("FLAT_RATE")) {
                     return ok_json(json!({
                         "data": {
@@ -876,8 +868,10 @@ impl DraftProxy {
                 json!({ "userErrors": [] })
             }
             "shippingPackageMakeDefault" => {
+                let Some(mut package) = self.shipping_package_for_mutation(&id, request) else {
+                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                };
                 self.clear_default_shipping_packages_except(&id);
-                let mut package = package.expect("shipping package existence checked");
                 package["default"] = json!(true);
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
                 self.store
@@ -887,6 +881,9 @@ impl DraftProxy {
                 json!({ "userErrors": [] })
             }
             "shippingPackageDelete" => {
+                if self.shipping_package_for_mutation(&id, request).is_none() {
+                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                }
                 self.store.staged.shipping_packages.remove(&id);
                 self.store.staged.shipping_packages.tombstone(id.clone());
                 json!({ "deletedId": id, "userErrors": [] })
@@ -903,10 +900,13 @@ impl DraftProxy {
         id: &str,
         request: &Request,
     ) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("ShippingPackage") {
+            return None;
+        }
         if self.store.staged.shipping_packages.is_tombstoned(id) {
             return None;
         }
-        if let Some(package) = self.store.staged.shipping_packages.get(id).cloned() {
+        if let Some(package) = self.effective_shipping_package(id) {
             return Some(package);
         }
         if self.config.read_mode == ReadMode::Snapshot {
@@ -930,16 +930,23 @@ impl DraftProxy {
         normalize_hydrated_shipping_package(&response.body["data"]["node"], id)
     }
 
+    pub(in crate::proxy) fn effective_shipping_package(&self, id: &str) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("ShippingPackage") {
+            return None;
+        }
+        self.store.staged.shipping_packages.get(id).cloned()
+    }
+
     pub(in crate::proxy) fn clear_default_shipping_packages_except(&mut self, default_id: &str) {
-        let ids: Vec<String> = self
+        let package_ids: Vec<String> = self
             .store
             .staged
             .shipping_packages
             .iter()
             .map(|(id, _)| id.clone())
             .collect();
-        for id in ids {
-            if id == default_id {
+        for id in package_ids {
+            if id == default_id || self.store.staged.shipping_packages.is_tombstoned(&id) {
                 continue;
             }
             let updated_at = self.next_shipping_package_timestamp();
@@ -1001,6 +1008,17 @@ impl DraftProxy {
     }
 }
 
+fn shipping_package_not_found_response(root_field: &str, response_key: &str, id: &str) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": format!("Invalid id: {id}"),
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [root_field]
+        }],
+        "data": { response_key: null }
+    }))
+}
+
 fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Option<Value> {
     let mut package = package.clone();
     let object = package.as_object_mut()?;
@@ -1016,6 +1034,88 @@ fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Op
     }
     object.remove("__typename");
     Some(package)
+}
+
+fn carrier_service_search_decision(carrier: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    for term in query.split_whitespace() {
+        match carrier_service_search_term_decision(carrier, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn carrier_service_search_term_decision(carrier: &Value, term: &str) -> StagedSearchDecision {
+    let Some((field, value)) = term.split_once(':') else {
+        return StagedSearchDecision::Unsupported;
+    };
+    let field = field.trim().to_ascii_lowercase();
+    let value = carrier_service_query_value(value);
+    match field.as_str() {
+        "active" => match value.to_ascii_lowercase().as_str() {
+            "true" => StagedSearchDecision::from_bool(carrier.get("active") == Some(&json!(true))),
+            "false" => {
+                StagedSearchDecision::from_bool(carrier.get("active") == Some(&json!(false)))
+            }
+            _ => StagedSearchDecision::NoMatch,
+        },
+        "id" => StagedSearchDecision::from_bool(carrier_service_id_matches(carrier, &value)),
+        _ => StagedSearchDecision::Unsupported,
+    }
+}
+
+fn carrier_service_query_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string()
+}
+
+fn carrier_service_id_matches(carrier: &Value, value: &str) -> bool {
+    let Some(id) = carrier.get("id").and_then(Value::as_str) else {
+        return false;
+    };
+    id == value || resource_id_tail(id) == value || resource_id_tail(value) == resource_id_tail(id)
+}
+
+fn carrier_service_sort_key(carrier: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => vec![StagedSortValue::String(carrier_service_string_field(
+            carrier,
+            "createdAt",
+        ))],
+        "UPDATED_AT" => vec![StagedSortValue::String(carrier_service_string_field(
+            carrier,
+            "updatedAt",
+        ))],
+        "ID" => vec![carrier_service_id_sort_value(carrier)],
+        _ => vec![carrier_service_id_sort_value(carrier)],
+    }
+}
+
+fn carrier_service_string_field(carrier: &Value, field: &str) -> String {
+    carrier
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn carrier_service_id_sort_value(carrier: &Value) -> StagedSortValue {
+    let id = carrier
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    resource_id_tail(id)
+        .parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(id.to_string()))
 }
 
 fn fulfillment_service_name_user_errors(name: &str) -> Vec<Value> {

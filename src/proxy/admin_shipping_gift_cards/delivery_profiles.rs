@@ -680,14 +680,12 @@ impl DraftProxy {
         if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
             profiles.reverse();
         }
-        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-            profiles.truncate(limit);
-        }
+        let (profiles, page_info) = connection_window(&profiles, arguments, value_id_cursor);
         selected_json(
             &connection_json_with_cursor(
                 profiles,
                 |_, profile| value_id_cursor(profile),
-                connection_page_info(false, false, None, None),
+                page_info,
             ),
             selections,
         )

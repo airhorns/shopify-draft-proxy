@@ -17,5 +17,4 @@ pub(in crate::proxy) use self::locations::{
 };
 pub(in crate::proxy) use self::publishable::{
     publishable_empty_string_publication_error, publishable_input_publication_ids,
-    publishable_publication_input_errors,
 };
