@@ -89,7 +89,9 @@ broadly matching every staged market. Supported deterministic sort keys are
 back to ID order.
 Unsupported country-region validation is driven by a generated Shopify-derived
 Markets set captured from live `CountryCode` enum probes; the 2026-04 evidence
-rejects `AN`, `BV`, `CU`, `HM`, `IR`, `KP`, and `SY` before staging.
+in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json`
+probed 245 `CountryCode` enum values and rejects `AN`, `BV`, `CU`, `HM`,
+`IR`, `KP`, and `SY` before staging.
 Captured `marketCreate` name validation rejects blank names with `BLANK` then
 `TOO_SHORT`, rejects one-character names with `TOO_SHORT`, and treats name
 uniqueness as case-insensitive before handle generation.

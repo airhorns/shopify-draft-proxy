@@ -3578,6 +3578,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-resource-type-limit',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-resource-type-limit.mts',
+    purpose:
+      'MetafieldDefinitionCreate PRODUCT ownerType resource limit behavior and second-namespace rejection at the live ownerType boundary.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}metafield-definition-resource-type-limit.json`],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions until Shopify returns RESOURCE_TYPE_LIMIT_EXCEEDED, probes a second namespace at the boundary, then deletes every created definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
@@ -3782,6 +3795,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Validation branches create no records; successful valid-type and hyphen-key definitions are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-limit-caps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-limit-caps-conformance.mts',
+    purpose:
+      'MetaobjectDefinitionCreate field-count, admin-filterable field, reserved shopify--form, and shop definition count limit behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [`${CAPTURE_ROOT}metaobject-definition-limit-caps.json`],
+    cleanupBehavior:
+      'Creates and deletes a 40-field admin-filterable probe definition, records rejected field-count/reserved-type branches, then creates disposable definitions until Shopify returns MAX_DEFINITIONS_EXCEEDED and deletes every created definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -8411,6 +8411,143 @@ fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_ru
 }
 
 #[test]
+fn metaobject_definition_create_limits_field_and_admin_filterable_counts() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key capabilities { adminFilterable { enabled } } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let admin_filterable_field = |index: usize| {
+        json!({
+            "key": format!("field_{index:03}"),
+            "name": format!("Field {index}"),
+            "type": "single_line_text_field",
+            "capabilities": { "adminFilterable": { "enabled": true } }
+        })
+    };
+
+    let accepted_fields = (0..40).map(admin_filterable_field).collect::<Vec<_>>();
+    let accepted = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_40",
+            "name": "Admin Filterable Field Limit 40",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": accepted_fields
+        }}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        40
+    );
+
+    let rejected_fields = (0..41).map(admin_filterable_field).collect::<Vec<_>>();
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_41",
+            "name": "Admin Filterable Field Limit 41",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": rejected_fields
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                },
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 admin filterable fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+}
+
+#[test]
+fn metaobject_definition_create_reports_captured_shop_definition_limit() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let field_definition = json!({
+        "key": "title",
+        "name": "Title",
+        "type": "single_line_text_field"
+    });
+
+    for index in 0..128 {
+        let created = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "type": format!("definition_limit_{index:03}"),
+                "name": format!("Definition Limit {index}"),
+                "displayNameKey": "title",
+                "fieldDefinitions": [field_definition.clone()]
+            }}),
+        ));
+        assert_eq!(
+            created.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([]),
+            "definition {index} should be accepted"
+        );
+    }
+
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "definition_limit_128",
+            "name": "Definition Limit 128",
+            "displayNameKey": "title",
+            "fieldDefinitions": [field_definition]
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Total definition count exceeds the limit of 128",
+                "code": "MAX_DEFINITIONS_EXCEEDED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_app_type_uses_request_api_client_id() {
     let mut proxy = snapshot_proxy();
     let create_definition = r#"
