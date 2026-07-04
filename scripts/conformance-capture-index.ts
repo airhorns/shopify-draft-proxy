@@ -2585,6 +2585,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafields-set-value-type-fidelity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafields-set-value-type-fidelity-conformance.mts',
+    purpose:
+      'metafieldsSet ShopifyMetafields value type fidelity for boolean aliases, integer decimal-zero coercion, decimal truncation, money/url/date_time/json INVALID_VALUE messages, and product downstream readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafieldsSet-value-type-fidelity.json`,
+      'config/parity-specs/metafields/metafieldsSet-value-type-fidelity.json',
+      'config/parity-requests/metafields/metafieldsSet-value-type-fidelity-set.graphql',
+      'config/parity-requests/metafields/metafieldsSet-value-type-fidelity-read.graphql',
+      'config/parity-requests/metafields/metafields-set-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product owner, records accepted metafieldsSet values, product readback, validation-only error probes, and deletes the product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafields-parity-provenance-replacements',
     scriptPath: 'scripts/capture-metafields-parity-provenance-replacements.mts',
     purpose:

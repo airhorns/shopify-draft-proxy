@@ -1501,7 +1501,9 @@ fn owner_metafield_record(
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
     let updated_at = existing
-        .filter(|metafield| metafield.get("value").and_then(Value::as_str) == Some(value))
+        .filter(|metafield| {
+            metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
+        })
         .and_then(|metafield| metafield.get("updatedAt"))
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
@@ -1515,7 +1517,7 @@ fn owner_metafield_record(
         "key": key,
         "type": metafield_type,
         "value": normalized_value,
-        "jsonValue": metafield_json_value(metafield_type, value),
+        "jsonValue": metafield_json_value(metafield_type, &normalized_value),
         "compareDigest": metafield_compare_digest(&normalized_value),
         "createdAt": created_at,
         "updatedAt": updated_at,
