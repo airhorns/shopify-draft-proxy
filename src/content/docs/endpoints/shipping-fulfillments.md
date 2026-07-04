@@ -169,6 +169,12 @@ written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
 `Order.fulfillmentOrders` reads. These slices operate on local order-backed
 fulfillment records and are not a general fulfillment-service execution engine.
+`fulfillmentOrdersSetFulfillmentDeadline` stages `fulfillBy` for every
+requested fulfillment order that exists in local or hydrated order state,
+including `CLOSED` and `CANCELLED` fulfillment orders. When none of the
+requested IDs resolve, it returns `success: false` with a single user error:
+`field: null`, message `Fulfillment orders could not be found.`, and
+`code: null`.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
