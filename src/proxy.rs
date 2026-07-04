@@ -1919,6 +1919,12 @@ fn default_upstream_transport(_request: Request) -> Response {
     json_error(502, "No Rust upstream transport configured")
 }
 
+type RuntimeClock = Arc<dyn Fn() -> time::OffsetDateTime + Send + Sync>;
+
+fn default_runtime_clock() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_utc()
+}
+
 #[derive(Clone)]
 pub struct DraftProxy {
     config: Config,
@@ -1933,6 +1939,8 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    clock: RuntimeClock,
+    last_mutation_timestamp: Option<time::OffsetDateTime>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
 }

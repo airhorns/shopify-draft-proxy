@@ -5304,6 +5304,65 @@ fn data_sale_opt_out_stages_existing_customer_and_downstream_reads_without_upstr
 }
 
 #[test]
+fn data_sale_opt_out_created_and_updated_timestamps_use_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mutation_query = r#"
+        mutation DataSaleOptOutClocked($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let opt_out = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "clocked-opt-out@example.com" }),
+    ));
+    assert_eq!(opt_out.status, 200);
+    assert_eq!(
+        opt_out.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+    let id = opt_out.body["data"]["dataSaleOptOut"]["customerId"]
+        .as_str()
+        .expect("dataSaleOptOut customer id")
+        .to_string();
+
+    let read_query = r#"
+        query DataSaleOptOutClockedRead($id: ID!) {
+          customer(id: $id) {
+            id
+            dataSaleOptOut
+            createdAt
+            updatedAt
+          }
+        }
+    "#;
+    let created_read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    let customer = &created_read.body["data"]["customer"];
+    assert_eq!(customer["dataSaleOptOut"], json!(true));
+    assert_eq!(customer["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(customer["updatedAt"], json!("2026-07-03T12:00:00Z"));
+
+    set_clock(&clock, 1_783_166_400);
+    let repeat = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "clocked-opt-out@example.com" }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+    let updated_read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    let updated_customer = &updated_read.body["data"]["customer"];
+    assert_eq!(updated_customer["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(updated_customer["updatedAt"], json!("2026-07-04T12:00:00Z"));
+    assert!(updated_customer["updatedAt"].as_str() > customer["updatedAt"].as_str());
+}
+
+#[test]
 fn data_sale_opt_out_resolves_existing_upstream_customer_id_without_forwarding_mutation() {
     let forwarded = Arc::new(Mutex::new(Vec::<String>::new()));
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -10006,6 +10065,28 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "invalid schema variables should not stage store-credit mutations"
+    );
+}
+
+#[test]
+fn store_credit_expiry_validation_uses_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(clock);
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let expiry_after_the_old_synthetic_date = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        Some("2026-06-16T00:00:00Z"),
+    );
+    assert_eq!(
+        expiry_after_the_old_synthetic_date,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
     );
 }
 

@@ -1320,7 +1320,7 @@ impl DraftProxy {
                         .staged
                         .orders
                         .get(&id)
-                        .cloned()
+                        .map(|order| self.payment_terms_owner_record_with_effective_due(order))
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&order, &field.selection)
                 }
@@ -1369,7 +1369,11 @@ impl DraftProxy {
         // compared against Shopify's recorded opaque cursors.
         selected_json(
             &connection_json_with_cursor(
-                result.records,
+                result
+                    .records
+                    .into_iter()
+                    .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
+                    .collect::<Vec<_>>(),
                 |_, order| value_id_cursor(order),
                 result.page_info,
             ),

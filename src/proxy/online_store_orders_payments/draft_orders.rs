@@ -1732,7 +1732,12 @@ impl DraftProxy {
             .staged
             .draft_orders
             .get(&id)
-            .map(|draft_order| selected_json(draft_order, &field.selection))
+            .map(|draft_order| {
+                selected_json(
+                    &self.payment_terms_owner_record_with_effective_due(draft_order),
+                    &field.selection,
+                )
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -1756,9 +1761,14 @@ impl DraftProxy {
 
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
         let result = self.matching_draft_orders_query(&field.arguments);
+        let records = result
+            .records
+            .into_iter()
+            .map(|draft_order| self.payment_terms_owner_record_with_effective_due(&draft_order))
+            .collect::<Vec<_>>();
         selected_json(
             &connection_json_with_cursor(
-                result.records,
+                records,
                 |_, node| value_id_cursor(node),
                 result.page_info,
             ),

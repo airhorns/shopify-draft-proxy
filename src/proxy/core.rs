@@ -1,5 +1,11 @@
 use super::*;
 
+fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
 impl DraftProxy {
     pub fn new(config: Config) -> Self {
         Self {
@@ -9,6 +15,8 @@ impl DraftProxy {
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             shop_sells_subscriptions: None,
+            clock: Arc::new(default_runtime_clock),
+            last_mutation_timestamp: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
         }
@@ -38,6 +46,34 @@ impl DraftProxy {
     ) -> Self {
         self.upstream_transport = Arc::new(transport);
         self
+    }
+
+    pub fn with_clock(
+        mut self,
+        clock: impl Fn() -> time::OffsetDateTime + Send + Sync + 'static,
+    ) -> Self {
+        self.clock = Arc::new(clock);
+        self.last_mutation_timestamp = None;
+        self
+    }
+
+    pub(in crate::proxy) fn current_time(&self) -> time::OffsetDateTime {
+        (self.clock)()
+    }
+
+    pub(in crate::proxy) fn current_epoch_seconds(&self) -> i64 {
+        self.current_time().unix_timestamp()
+    }
+
+    pub(in crate::proxy) fn next_mutation_timestamp(&mut self) -> String {
+        let mut timestamp = self.current_time();
+        if let Some(previous) = self.last_mutation_timestamp {
+            if timestamp <= previous {
+                timestamp = previous + time::Duration::nanoseconds(1);
+            }
+        }
+        self.last_mutation_timestamp = Some(timestamp);
+        format_runtime_timestamp(timestamp)
     }
 
     pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
@@ -93,6 +129,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
+                self.last_mutation_timestamp = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),
