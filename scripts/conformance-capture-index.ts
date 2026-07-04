@@ -11170,7 +11170,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-connection-validators-conformance.ts',
     purpose:
-      'Records bulkOperationRunMutation inner mutation connection-count and connection-nesting validation errors.',
+      'Records bulkOperationRunMutation inner mutation connection-count precedence across public nested-connection candidates.',
     requiredAuthScopes: ['bulk operation access through active Admin token'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
