@@ -1,0 +1,545 @@
+{
+  "scenarioId": "location-connection-filters",
+  "capturedAt": "2026-07-04T02:30:50.012Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "workflow": {
+    "alphaLocationAdd": {
+      "name": "alphaLocationAdd",
+      "query": "mutation LocationConnectionLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Alpha-Conn1783132246256",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113786487090",
+                "name": "Alpha-Conn1783132246256",
+                "isActive": true,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "zuluLocationAdd": {
+      "name": "zuluLocationAdd",
+      "query": "mutation LocationConnectionLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Zulu-Conn1783132246256",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113786519858",
+                "name": "Zulu-Conn1783132246256",
+                "isActive": true,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "betaLocationAdd": {
+      "name": "betaLocationAdd",
+      "query": "mutation LocationConnectionLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Beta-Conn1783132246256",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113786552626",
+                "name": "Beta-Conn1783132246256",
+                "isActive": true,
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentServiceCreate": {
+      "name": "fulfillmentServiceCreate",
+      "query": "mutation LocationConnectionFulfillmentServiceCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        serviceName\n        location {\n          id\n          name\n          isActive\n          isFulfillmentService\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "name": "Carrier-Conn1783132246256"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/72081113394?id=true",
+                "serviceName": "Carrier-Conn1783132246256",
+                "location": {
+                  "id": "gid://shopify/Location/113786585394",
+                  "name": "Carrier-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "betaDeactivate": {
+      "name": "betaDeactivate",
+      "query": "mutation LocationConnectionDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786552626",
+        "idempotencyKey": "location-connection-filters-deactivate-Conn1783132246256"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113786552626",
+                "name": "Beta-Conn1783132246256",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionRead": {
+      "name": "connectionRead",
+      "query": "query LocationConnectionFilteredRead(\n    $query: String!\n    $alphaQuery: String!\n  ) {\n    filteredDefault: locations(first: 10, query: $query, sortKey: NAME) {\n      edges {\n        cursor\n      }\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    filteredIncludeInactive: locations(first: 10, query: $query, sortKey: NAME, includeInactive: true) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    filteredIncludeLegacy: locations(first: 10, query: $query, sortKey: NAME, includeLegacy: true) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n    queryAlpha: locations(first: 10, query: $alphaQuery) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n    nameFirst: locations(first: 1, query: $query, sortKey: NAME) {\n      edges {\n        cursor\n      }\n      nodes {\n        id\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    reversed: locations(first: 10, query: $query, sortKey: NAME, reverse: true) {\n      nodes {\n        id\n        name\n      }\n    }\n    filteredCount: locationsCount(query: $query) {\n      count\n      precision\n    }\n    limitedCount: locationsCount(query: $query, limit: 1) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "query": "name:'Alpha-Conn1783132246256' OR name:'Beta-Conn1783132246256' OR name:'Carrier-Conn1783132246256' OR name:'Zulu-Conn1783132246256'",
+        "alphaQuery": "name:'Alpha-Conn1783132246256'"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "filteredDefault": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9"
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTM3ODY1MTk4NTgsImxhc3RfdmFsdWUiOiJadWx1LUNvbm4xNzgzMTMyMjQ2MjU2In0="
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113786519858",
+                  "name": "Zulu-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMTM3ODY1MTk4NTgsImxhc3RfdmFsdWUiOiJadWx1LUNvbm4xNzgzMTMyMjQ2MjU2In0="
+              }
+            },
+            "filteredIncludeInactive": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113786552626",
+                  "name": "Beta-Conn1783132246256",
+                  "isActive": false,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113786519858",
+                  "name": "Zulu-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMTM3ODY1MTk4NTgsImxhc3RfdmFsdWUiOiJadWx1LUNvbm4xNzgzMTMyMjQ2MjU2In0="
+              }
+            },
+            "filteredIncludeLegacy": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/113786585394",
+                  "name": "Carrier-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": true
+                },
+                {
+                  "id": "gid://shopify/Location/113786519858",
+                  "name": "Zulu-Conn1783132246256",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            },
+            "queryAlpha": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256",
+                  "isActive": true
+                }
+              ]
+            },
+            "nameFirst": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9"
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxMTM3ODY0ODcwOTAsImxhc3RfdmFsdWUiOiJBbHBoYS1Db25uMTc4MzEzMjI0NjI1NiJ9"
+              }
+            },
+            "reversed": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/113786519858",
+                  "name": "Zulu-Conn1783132246256"
+                },
+                {
+                  "id": "gid://shopify/Location/113786487090",
+                  "name": "Alpha-Conn1783132246256"
+                }
+              ]
+            },
+            "filteredCount": {
+              "count": 4,
+              "precision": "EXACT"
+            },
+            "limitedCount": {
+              "count": 1,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 41,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "fulfillmentServiceDelete": {
+      "name": "fulfillmentServiceDelete",
+      "query": "mutation LocationConnectionFulfillmentServiceDelete($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72081113394?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/72081113394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "betaLocationDelete": {
+      "name": "betaLocationDelete",
+      "query": "mutation LocationConnectionDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786552626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113786552626",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alphaLocationDeactivate": {
+      "name": "alphaLocationDeactivate",
+      "query": "mutation LocationConnectionDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786487090",
+        "idempotencyKey": "location-connection-filters-alphaLocation-cleanup-Conn1783132246256"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113786487090",
+                "name": "Alpha-Conn1783132246256",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alphaLocationDelete": {
+      "name": "alphaLocationDelete",
+      "query": "mutation LocationConnectionDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786487090"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113786487090",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "zuluLocationDeactivate": {
+      "name": "zuluLocationDeactivate",
+      "query": "mutation LocationConnectionDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        name\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786519858",
+        "idempotencyKey": "location-connection-filters-zuluLocation-cleanup-Conn1783132246256"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113786519858",
+                "name": "Zulu-Conn1783132246256",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "zuluLocationDelete": {
+      "name": "zuluLocationDelete",
+      "query": "mutation LocationConnectionDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113786519858"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113786519858",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captures top-level locations connection filtering, default active/non-legacy behavior, includeInactive/includeLegacy, sortKey NAME, reverse, first-page pageInfo booleans/emitted cursors, and locationsCount(query:, limit:) against disposable locations.",
+    "The read query is isolated with a unique exact-name OR search so existing shop locations do not affect ordering or counts.",
+    "Current live locationsCount(query:) counts every matching location, including inactive and fulfillment-service legacy locations, even though the connection defaults exclude them."
+  ]
+}
