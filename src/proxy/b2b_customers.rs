@@ -976,7 +976,8 @@ impl DraftProxy {
         } else if let Some(raw_phone) = resolved_string_field(&identifier, "phone")
             .or_else(|| resolved_string_field(&identifier, "phoneNumber"))
         {
-            let needle = normalize_customer_phone(&raw_phone);
+            let needle =
+                normalize_customer_phone(&raw_phone, shop_country_code(&self.store.base.shop));
             self.store.staged.customers.values().find(|customer| {
                 if !is_live(customer) {
                     return false;
@@ -1162,7 +1163,7 @@ impl DraftProxy {
             return (response, Vec::new(), errors);
         }
         let (errors, normalized) =
-            self.customer_input_validation_errors(request, &input, None, false);
+            self.customer_input_validation_errors(request, &input, None, None, false);
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1682,10 +1683,11 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let shop = self.customer_delete_shop_payload();
         let mut payload = if id.is_empty() || !self.customer_exists_for_mutation(request, &id) {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
@@ -1698,7 +1700,7 @@ impl DraftProxy {
         {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
@@ -1706,7 +1708,7 @@ impl DraftProxy {
             self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": []
             })
         };
@@ -1723,6 +1725,17 @@ impl DraftProxy {
             .map(|id| vec![id.to_string()])
             .unwrap_or_default();
         (payload, staged_ids, Vec::new())
+    }
+
+    fn customer_delete_shop_payload(&self) -> Value {
+        self.store
+            .base
+            .shop
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null)
     }
 
     fn customer_set_payload(
@@ -1767,16 +1780,21 @@ impl DraftProxy {
                     "email",
                     &email,
                     &input,
+                    None,
                     find_customer_id_by_email,
                 );
             }
             if let Some(phone) = resolved_string_field(identifier, "phone") {
-                let normalized_phone = normalize_customer_phone(&phone).unwrap_or(phone);
+                let phone_country_code = self.customer_phone_country_code(&input, None);
+                let normalized_phone =
+                    normalize_customer_phone(&phone, phone_country_code.as_deref())
+                        .unwrap_or(phone);
                 return self.customer_set_contact_identifier_payload(
                     request,
                     "phone",
                     &normalized_phone,
                     &input,
+                    phone_country_code.as_deref(),
                     find_customer_id_by_phone,
                 );
             }
@@ -1802,6 +1820,7 @@ impl DraftProxy {
         identifier_field: &str,
         identifier_value: &str,
         input: &BTreeMap<String, ResolvedValue>,
+        phone_country_code: Option<&str>,
         find: fn(&BTreeMap<String, Value>, &str) -> Option<String>,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input_value = resolved_string_field(input, identifier_field);
@@ -1820,7 +1839,7 @@ impl DraftProxy {
             );
         };
         let normalized_input_value = if identifier_field == "phone" {
-            normalize_customer_phone(&input_value).unwrap_or(input_value)
+            normalize_customer_phone(&input_value, phone_country_code).unwrap_or(input_value)
         } else {
             normalize_customer_email(&input_value).unwrap_or(input_value)
         };
@@ -1873,7 +1892,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let (errors, normalized) =
-            self.customer_input_validation_errors(request, input, None, true);
+            self.customer_input_validation_errors(request, input, None, None, true);
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1940,6 +1959,7 @@ impl DraftProxy {
             request,
             validation_input,
             Some(id),
+            Some(&existing),
             customer_set,
         );
         if let Some(address_values) = update_address_values {
@@ -2165,11 +2185,22 @@ impl DraftProxy {
         Some(record)
     }
 
+    fn customer_phone_country_code(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        existing: Option<&Value>,
+    ) -> Option<String> {
+        customer_input_address_country_code(input)
+            .or_else(|| existing.and_then(customer_record_country_code))
+            .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+    }
+
     fn customer_input_validation_errors(
         &self,
         request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         current_id: Option<&str>,
+        existing: Option<&Value>,
         customer_set: bool,
     ) -> (Vec<Value>, NormalizedCustomerInput) {
         let mut errors = Vec::new();
@@ -2212,10 +2243,13 @@ impl DraftProxy {
             normalized.email = Some(None);
         }
 
+        let phone_country_code = self.customer_phone_country_code(input, existing);
         if let Some(raw_phone) = resolved_string_field(input, "phone") {
             if raw_phone.trim().is_empty() {
                 normalized.phone = Some(None);
-            } else if let Some(phone) = normalize_customer_phone(&raw_phone) {
+            } else if let Some(phone) =
+                normalize_customer_phone(&raw_phone, phone_country_code.as_deref())
+            {
                 if self.customer_phone_taken(request, current_id, &phone) {
                     errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "phone"),
@@ -3117,30 +3151,61 @@ fn customer_email_key(email: &str) -> String {
     email.split_whitespace().collect::<String>().to_lowercase()
 }
 
-fn normalize_customer_phone(raw: &str) -> Option<String> {
+fn customer_input_address_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_object_field(input, "defaultAddress")
+        .and_then(|address| customer_input_country_code(&address))
+        .or_else(|| {
+            input.get("addresses").and_then(|value| match value {
+                ResolvedValue::List(values) => values.iter().find_map(|value| {
+                    resolved_value_object(value)
+                        .as_ref()
+                        .and_then(customer_input_country_code)
+                }),
+                _ => None,
+            })
+        })
+}
+
+fn customer_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    customer_address_string(input, "countryCode")
+        .or_else(|| customer_address_string(input, "countryCodeV2"))
+        .or_else(|| customer_address_string(input, "country"))
+        .and_then(|country| customer_country_from_input(&country).map(|resolved| resolved.code))
+}
+
+fn customer_record_country_code(customer: &Value) -> Option<String> {
+    customer
+        .get("defaultAddress")
+        .and_then(customer_address_value_country_code)
+        .or_else(|| {
+            customer
+                .pointer("/addressesV2/nodes")
+                .and_then(Value::as_array)
+                .and_then(|nodes| nodes.iter().find_map(customer_address_value_country_code))
+        })
+        .or_else(|| {
+            customer
+                .get("addresses")
+                .and_then(Value::as_array)
+                .and_then(|nodes| nodes.iter().find_map(customer_address_value_country_code))
+        })
+}
+
+fn customer_address_value_country_code(address: &Value) -> Option<String> {
+    value_country_code(address).map(str::to_string).or_else(|| {
+        address
+            .get("country")
+            .and_then(Value::as_str)
+            .and_then(|country| customer_country_from_input(country).map(|resolved| resolved.code))
+    })
+}
+
+fn normalize_customer_phone(raw: &str, country_code: Option<&str>) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() || trimmed.chars().count() > 255 {
         return None;
     }
-    if trimmed.contains('*') {
-        return Some(trimmed.to_string());
-    }
-    let has_plus = trimmed.starts_with('+');
-    let digits = trimmed
-        .chars()
-        .filter(char::is_ascii_digit)
-        .collect::<String>();
-    if digits.len() < 10 || digits.len() > 15 {
-        return None;
-    }
-    if has_plus {
-        return Some(format!("+{digits}"));
-    }
-    if !has_plus && digits.len() == 10 {
-        Some(format!("+1{digits}"))
-    } else {
-        Some(format!("+{digits}"))
-    }
+    normalize_phone_with_country_context(trimmed, country_code, true)
 }
 
 fn blank_string_to_option(value: String) -> Option<String> {
@@ -4063,8 +4128,13 @@ fn customer_address_input_node(
     let company = field_value("company");
     let zip = field_value("zip");
     let phone = if input.contains_key("phone") {
-        customer_address_string(input, "phone")
-            .map(|phone| normalize_customer_address_phone(&phone).unwrap_or(phone))
+        customer_address_string(input, "phone").map(|phone| {
+            normalize_customer_address_phone(
+                &phone,
+                country.as_ref().map(|country| country.code.as_str()),
+            )
+            .unwrap_or(phone)
+        })
     } else {
         field_value("phone")
     };
@@ -4086,55 +4156,8 @@ fn customer_address_input_node(
     )
 }
 
-fn normalize_customer_address_phone(raw: &str) -> Option<String> {
-    const CALLING_CODE: &str = "1";
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
-    if !starts_with_plus && trimmed.chars().any(|c| c == '+' || c == '\u{FF0B}') {
-        return None;
-    }
-    let supported = |c: char| {
-        c.is_ascii_digit()
-            || matches!(
-                c,
-                '+' | '\u{FF0B}'
-                    | ' '
-                    | '\t'
-                    | '\n'
-                    | '\r'
-                    | '('
-                    | ')'
-                    | '-'
-                    | '.'
-                    | '\u{2010}'
-                    | '\u{2011}'
-                    | '\u{2012}'
-                    | '\u{2013}'
-                    | '\u{2014}'
-                    | '\u{00A0}'
-            )
-    };
-    if !trimmed.chars().all(supported) {
-        return None;
-    }
-    let digits = trimmed
-        .chars()
-        .filter(char::is_ascii_digit)
-        .collect::<String>();
-    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
-    {
-        digits
-    } else {
-        format!("{CALLING_CODE}{digits}")
-    };
-    if (8..=15).contains(&e164_digits.len()) {
-        Some(format!("+{e164_digits}"))
-    } else {
-        None
-    }
+fn normalize_customer_address_phone(raw: &str, country_code: Option<&str>) -> Option<String> {
+    normalize_phone_with_country_context(raw, country_code, false)
 }
 
 #[derive(Clone)]
