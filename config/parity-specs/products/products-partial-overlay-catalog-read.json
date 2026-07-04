@@ -1,0 +1,36 @@
+{
+  "scenarioId": "products-partial-overlay-catalog-read",
+  "operationNames": ["nodes", "product", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-partial-overlay-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-hydrate-nodes-observation.graphql",
+    "variablesCapturePath": "$.hydrate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "single-product-hydration-observation",
+        "capturePath": "$.hydrate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unobserved-product-and-catalog-after-partial-hydrate",
+        "capturePath": "$.catalog.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/products-partial-overlay-catalog-read.graphql",
+          "variablesCapturePath": "$.catalog.variables"
+        }
+      }
+    ]
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "notes": "Live capture creates two disposable Shopify products, hydrates only one through nodes(ids:), then proves product(id:), productsCount, and products(first:) are still answered from the authoritative upstream catalog instead of a partial observed overlay."
+}

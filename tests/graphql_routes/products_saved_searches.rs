@@ -7399,6 +7399,10 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
     alpha
         .extra_fields
         .insert("publishedAt".to_string(), json!("2024-01-02T00:00:00.000Z"));
+    alpha
+        .extra_fields
+        .insert("isGiftCard".to_string(), json!(true));
+    alpha.collections = vec![json!({ "id": "gid://shopify/Collection/outerwear" })];
 
     let mut beta = seed_product("gid://shopify/Product/beta");
     beta.title = "Beta Jacket".to_string();
@@ -7423,20 +7427,49 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
         "ALPHA-FILTER-SKU",
         "10.00",
     );
-    assert!(variant["id"].as_str().is_some());
+    let variant_id = variant["id"]
+        .as_str()
+        .expect("variant create should return id");
+    let update_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCommonSearchFilterBarcode($input: ProductVariantInput!) {
+          productVariantUpdate(input: $input) {
+            productVariant { id barcode }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": variant_id,
+                "barcode": "ALPHA-FILTER-BARCODE"
+            }
+        }),
+    ));
+    assert_eq!(update_variant.status, 200);
+    assert_eq!(
+        update_variant.body["data"]["productVariantUpdate"]["userErrors"],
+        json!([])
+    );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query ProductCommonSearchFilters($status: String!, $vendorType: String!, $title: String!, $tag: String!, $sku: String!, $literalStatusText: String!, $published: String!, $boolean: String!, $negated: String!, $unknown: String!) {
+        query ProductCommonSearchFilters($status: String!, $vendorType: String!, $title: String!, $tag: String!, $id: String!, $handle: String!, $sku: String!, $barcode: String!, $giftCard: String!, $collectionId: String!, $literalStatusText: String!, $published: String!, $publishedAt: String!, $boolean: String!, $negated: String!, $unknown: String!) {
           active: products(first: 10, query: $status) { nodes { id title status vendor productType tags } }
           activeCount: productsCount(query: $status) { count precision }
           vendorType: products(first: 10, query: $vendorType) { nodes { id } }
           vendorTypeCount: productsCount(query: $vendorType) { count precision }
           title: products(first: 10, query: $title) { nodes { id } }
           tag: products(first: 10, query: $tag) { nodes { id } }
+          byId: products(first: 10, query: $id) { nodes { id } }
+          handle: products(first: 10, query: $handle) { nodes { id } }
           sku: products(first: 10, query: $sku) { nodes { id } }
+          barcode: products(first: 10, query: $barcode) { nodes { id } }
+          giftCard: products(first: 10, query: $giftCard) { nodes { id } }
+          collectionId: products(first: 10, query: $collectionId) { nodes { id } }
           literalStatusText: products(first: 10, query: $literalStatusText) { nodes { id } }
           published: products(first: 10, query: $published) { nodes { id } }
+          publishedAt: products(first: 10, query: $publishedAt) { nodes { id } }
           boolean: products(first: 10, query: $boolean) { nodes { id } }
           negated: products(first: 10, query: $negated) { nodes { id } }
           unknown: products(first: 10, query: $unknown) { nodes { id } }
@@ -7448,9 +7481,15 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
             "vendorType": "vendor:Northwind product_type:Jackets",
             "title": "title:Alpha",
             "tag": "tag:featured",
+            "id": "id:alpha",
+            "handle": "handle:alpha-jacket",
             "sku": "sku:ALPHA-FILTER-SKU",
+            "barcode": "barcode:ALPHA-FILTER-BARCODE",
+            "giftCard": "gift_card:true",
+            "collectionId": "collection_id:outerwear",
             "literalStatusText": "\"status: ACTIVE\"",
             "published": "published_status:published",
+            "publishedAt": "published_at:2024-01-02",
             "boolean": "(vendor:Northwind OR vendor:Southwind) status:ACTIVE",
             "negated": "tag:featured -product_type:Shirts",
             "unknown": "warehouse:Northwind"
@@ -7503,7 +7542,27 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
         ])
     );
     assert_eq!(
+        read.body["data"]["byId"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["handle"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
         read.body["data"]["sku"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["barcode"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["giftCard"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["collectionId"]["nodes"],
         json!([{ "id": "gid://shopify/Product/alpha" }])
     );
     assert_eq!(
@@ -7512,6 +7571,10 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
     );
     assert_eq!(
         read.body["data"]["published"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/alpha" }])
+    );
+    assert_eq!(
+        read.body["data"]["publishedAt"]["nodes"],
         json!([{ "id": "gid://shopify/Product/alpha" }])
     );
     assert_eq!(
@@ -7530,6 +7593,205 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
         read.body["data"]["unknownCount"],
         json!({ "count": 0, "precision": "EXACT" })
     );
+}
+
+#[test]
+fn live_hybrid_observed_product_does_not_make_catalog_reads_local() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_catalog = json!({
+        "data": {
+            "products": {
+                "nodes": [
+                    { "id": "gid://shopify/Product/observed", "title": "Observed product" },
+                    { "id": "gid://shopify/Product/unobserved", "title": "Unobserved product" }
+                ]
+            },
+            "productsCount": { "count": 2, "precision": "EXACT" },
+            "product": { "id": "gid://shopify/Product/unobserved", "title": "Unobserved product" }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let calls = Arc::clone(&calls);
+        let upstream_catalog = upstream_catalog.clone();
+        move |request| {
+            calls.lock().unwrap().push(request.body.clone());
+            if request.body.contains("ObserveProductNode") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": "gid://shopify/Product/observed",
+                                "title": "Observed product",
+                                "handle": "observed-product",
+                                "status": "ACTIVE"
+                            }]
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: upstream_catalog.clone(),
+                }
+            }
+        }
+    });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveProductNode($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on Product { id title handle status }
+          }
+        }
+        "#,
+        json!({ "ids": ["gid://shopify/Product/observed"] }),
+    ));
+    assert_eq!(observed.status, 200);
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCatalogAfterObservation {
+          products(first: 250) { nodes { id title } }
+          productsCount { count precision }
+          product(id: "gid://shopify/Product/unobserved") { id title }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(catalog.status, 200);
+    assert_eq!(catalog.body, upstream_catalog);
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        2,
+        "catalog read should forward after a single observed product"
+    );
+}
+
+#[test]
+fn live_hybrid_handle_and_barcode_searches_forward_with_partial_overlay_state() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_search = json!({
+        "data": {
+            "handleMatches": {
+                "nodes": [{ "id": "gid://shopify/Product/handle-match", "handle": "handle-match" }]
+            },
+            "handleCount": { "count": 1, "precision": "EXACT" },
+            "barcodeMatches": {
+                "nodes": [{ "id": "gid://shopify/Product/barcode-match", "title": "Barcode match" }]
+            },
+            "barcodeCount": { "count": 1, "precision": "EXACT" }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let calls = Arc::clone(&calls);
+        let upstream_search = upstream_search.clone();
+        move |request| {
+            calls.lock().unwrap().push(request.body.clone());
+            if request.body.contains("ObserveSearchProduct") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": "gid://shopify/Product/observed-search",
+                                "title": "Observed search product",
+                                "handle": "observed-search-product",
+                                "status": "ACTIVE"
+                            }]
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: upstream_search.clone(),
+                }
+            }
+        }
+    });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveSearchProduct($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on Product { id title handle status }
+          }
+        }
+        "#,
+        json!({ "ids": ["gid://shopify/Product/observed-search"] }),
+    ));
+    assert_eq!(observed.status, 200);
+
+    let search = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductSearchAfterObservation($handleQuery: String!, $barcodeQuery: String!) {
+          handleMatches: products(first: 5, query: $handleQuery) { nodes { id handle } }
+          handleCount: productsCount(query: $handleQuery) { count precision }
+          barcodeMatches: products(first: 5, query: $barcodeQuery) { nodes { id title } }
+          barcodeCount: productsCount(query: $barcodeQuery) { count precision }
+        }
+        "#,
+        json!({
+            "handleQuery": "handle:handle-match",
+            "barcodeQuery": "barcode:012345678905"
+        }),
+    ));
+
+    assert_eq!(search.status, 200);
+    assert_eq!(search.body, upstream_search);
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        2,
+        "search read should forward instead of locally emptying documented filters"
+    );
+}
+
+#[test]
+fn variant_price_catalog_search_forwards_to_upstream() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let upstream_search = json!({
+        "data": {
+            "priceMatches": {
+                "nodes": [{ "id": "gid://shopify/Product/upstream-price", "title": "Upstream price" }]
+            },
+            "priceCount": { "count": 1, "precision": "EXACT" }
+        }
+    });
+    let mut proxy = snapshot_proxy()
+        .with_base_products(vec![seed_product("gid://shopify/Product/local")])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            let upstream_search = upstream_search.clone();
+            move |_| {
+                *calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: upstream_search.clone(),
+                }
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantPriceSearch($query: String!) {
+          priceMatches: products(first: 5, query: $query) { nodes { id title } }
+          priceCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "variants.price:>10" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, upstream_search);
+    assert_eq!(*calls.lock().unwrap(), 1);
 }
 
 #[test]
