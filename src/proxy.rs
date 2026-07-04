@@ -1420,10 +1420,6 @@ impl Store {
         )
     }
 
-    fn product_variants(&self) -> Vec<ProductVariantRecord> {
-        effective_records(&self.base.product_variants, &self.staged.product_variants)
-    }
-
     fn has_product_variant_reference_state(&self) -> bool {
         !self.base.product_variants.records.is_empty()
             || !self.staged.product_variants.is_empty()

@@ -120,17 +120,19 @@ impl DraftProxy {
     }
 
     fn bulk_operation_product_variants_result_jsonl(&self, field: &RootFieldSelection) -> String {
+        let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let node_selection = edge_node_selection(&field.selection);
         let variant_selection = bulk_jsonl_node_selection(&node_selection);
-        let rows = self
-            .store
-            .product_variants()
-            .into_iter()
-            .map(|variant| {
-                let product = self.store.product_by_id(&variant.product_id);
-                product_variant_json(&variant, product, &variant_selection)
-            })
-            .collect();
+        let mut rows = Vec::new();
+        for product in products {
+            for variant in self.store.product_variants_for_product(&product.id) {
+                rows.push(product_variant_json(
+                    &variant,
+                    Some(&product),
+                    &variant_selection,
+                ));
+            }
+        }
 
         values_to_jsonl(rows)
     }
@@ -827,6 +829,86 @@ fn escaped_single_quoted_newlines_byte_len(query_text: &str) -> usize {
 mod tests {
     use super::*;
 
+    fn test_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    fn bulk_artifact_request(operation_id: &str) -> Request {
+        Request {
+            method: "GET".to_string(),
+            path: bulk_operation_result_artifact_path(operation_id),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        }
+    }
+
+    fn seed_product(id: &str, title: &str, handle: &str) -> ProductRecord {
+        ProductRecord {
+            id: id.to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+            title: title.to_string(),
+            handle: handle.to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+            ..ProductRecord::default()
+        }
+    }
+
+    fn test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![
+            seed_product("gid://shopify/Product/1", "Red product", "red-product"),
+            seed_product("gid://shopify/Product/2", "Blue product", "blue-product"),
+        ])
+        .with_upstream_transport(|_| panic!("bulk operation tests should not call upstream"))
+    }
+
+    fn create_variant(proxy: &mut DraftProxy, product_id: &str, sku: &str) -> Value {
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation CreateLegacyVariantForBulkTest($input: ProductVariantInput!) {
+              productVariantCreate(input: $input) {
+                productVariant { id sku }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "productId": product_id,
+                    "title": sku,
+                    "sku": sku,
+                    "price": "10.00"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productVariantCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["productVariantCreate"]["productVariant"].clone()
+    }
+
     #[test]
     fn escaped_single_quoted_newlines_byte_len_counts_escaped_regular_string_newlines() {
         assert_eq!(escaped_single_quoted_newlines_byte_len("\"a\nb\""), 6);
@@ -865,6 +947,87 @@ mod tests {
             operation["url"],
             json!("https://localhost:3123/__meta/bulk-operations/123/result.jsonl")
         );
+    }
+
+    #[test]
+    fn product_variants_bulk_query_jsonl_applies_query_filter() {
+        let mut proxy = test_proxy();
+        let red = create_variant(&mut proxy, "gid://shopify/Product/1", "RED-SKU");
+        create_variant(&mut proxy, "gid://shopify/Product/2", "BLUE-SKU");
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RunVariantBulkQuery($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status objectCount }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": r#"
+                {
+                  productVariants(query: "sku:RED-SKU") {
+                    edges {
+                      node { id sku }
+                    }
+                  }
+                }
+                "#
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
+        assert_eq!(artifact.status, 200);
+        let rows = artifact
+            .body
+            .as_str()
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(rows, vec![json!({ "id": red["id"], "sku": "RED-SKU" })]);
+    }
+
+    #[test]
+    fn bulk_operation_run_query_missing_query_returns_graphql_error() {
+        let mut proxy = test_proxy();
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation MissingBulkQuery {
+              bulkOperationRunQuery {
+                bulkOperation { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert!(response.body.get("data").is_none());
+        let errors = response.body["errors"].as_array().unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0]["message"],
+            json!("Field 'bulkOperationRunQuery' is missing required arguments: query")
+        );
+        assert_eq!(
+            errors[0]["extensions"]["code"],
+            json!("missingRequiredArguments")
+        );
+        assert_eq!(errors[0]["extensions"]["arguments"], json!("query"));
     }
 }
 
