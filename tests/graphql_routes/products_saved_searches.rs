@@ -10378,6 +10378,163 @@ fn saved_search_reserved_names_are_rejected_and_failed_update_preserves_existing
 }
 
 #[test]
+fn saved_search_names_compare_raw_whitespace_for_create_update_and_reads() {
+    let mut proxy = snapshot_proxy();
+    let create_document = r#"
+        mutation SavedSearchCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_document = r#"
+        mutation SavedSearchUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let weekend = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Weekend", "query": "vendor:Acme" } }),
+    ));
+    assert_eq!(
+        weekend.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let leading_weekend = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": " Weekend", "query": "vendor:Acme" } }),
+    ));
+    assert_eq!(
+        leading_weekend.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": {
+                "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                "name": " Weekend",
+                "query": "vendor:Acme",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Acme" }]
+            },
+            "userErrors": []
+        })
+    );
+
+    let leading_reserved = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": " All products", "query": "*" } }),
+    ));
+    assert_eq!(
+        leading_reserved.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": {
+                "id": "gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic",
+                "name": " All products",
+                "query": "*",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "default", "value": "true" }]
+            },
+            "userErrors": []
+        })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Weekend", "query": "vendor:Duplicate" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let exact_reserved = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "All products", "query": "*" } }),
+    ));
+    assert_eq!(
+        exact_reserved.body["data"]["savedSearchCreate"],
+        json!({
+            "savedSearch": null,
+            "userErrors": [{ "field": ["input", "name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let update_seed = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Update target", "query": "vendor:Seed" } }),
+    ));
+    let update_id = update_seed.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .expect("update seed should create a saved search")
+        .to_string();
+    let trailing_weekend = proxy.process_request(json_graphql_request(
+        update_document,
+        json!({ "input": { "id": update_id, "name": "Weekend ", "query": "vendor:Renamed" } }),
+    ));
+    assert_eq!(
+        trailing_weekend.body["data"]["savedSearchUpdate"]["savedSearch"]["name"],
+        json!("Weekend ")
+    );
+    assert_eq!(
+        trailing_weekend.body["data"]["savedSearchUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchWhitespaceRawNames {
+          productSavedSearches(first: 10) {
+            nodes { name query resourceType searchTerms filters { key value } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([
+            {
+                "name": "Weekend",
+                "query": "vendor:Acme",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Acme" }]
+            },
+            {
+                "name": " Weekend",
+                "query": "vendor:Acme",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Acme" }]
+            },
+            {
+                "name": " All products",
+                "query": "*",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "default", "value": "true" }]
+            },
+            {
+                "name": "Weekend ",
+                "query": "vendor:Renamed",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [{ "key": "vendor", "value": "Renamed" }]
+            }
+        ])
+    );
+}
+
+#[test]
 fn saved_search_multi_root_create_delete_and_filter_projection() {
     let mut proxy = snapshot_proxy();
 
