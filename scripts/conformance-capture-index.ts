@@ -910,6 +910,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-partial-overlay-reads',
+    scriptPath: 'scripts/capture-product-partial-overlay-read-conformance.ts',
+    purpose:
+      'Products/product/productsCount read parity after only one product has been hydrated into the live-hybrid overlay, including handle and barcode search reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}products-partial-overlay-read.json`,
+      'config/parity-specs/products/products-partial-overlay-catalog-read.json',
+      'config/parity-specs/products/products-partial-overlay-search-read.json',
+      'config/parity-requests/products/products-partial-overlay-catalog-read.graphql',
+      'config/parity-requests/products/products-partial-overlay-search-read.graphql',
+      'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable active products, assigns a barcode to one default variant, records hydration/catalog/search reads, then deletes both products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The parity specs replay the same public nodes(ids:), product(id:), productsCount, and products requests against a cassette-backed live-hybrid proxy so partial observed product state cannot masquerade as the full Shopify catalog.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
