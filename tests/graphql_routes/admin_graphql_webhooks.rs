@@ -2,11 +2,56 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn event_empty_read_shapes_match_current_behavior() {
-    let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) {
+fn live_hybrid_event_reads_passthrough_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let upstream_body = json!({
+        "data": {
+            "myEvent": { "id": "gid://shopify/Event/1" },
+            "event": {
+                "id": "gid://shopify/BasicEvent/999999999999",
+                "action": "create",
+                "message": "Created from upstream"
+            },
+            "events": {
+                "nodes": [{
+                    "id": "gid://shopify/Event/123",
+                    "action": "update",
+                    "message": "Updated upstream"
+                }],
+                "edges": [{
+                    "cursor": "cursor-123",
+                    "node": {
+                        "id": "gid://shopify/Event/123",
+                        "action": "update",
+                        "message": "Updated upstream"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-123",
+                    "endCursor": "cursor-123"
+                }
+            },
+            "eventsCount": {
+                "count": 1,
+                "precision": "EXACT"
+            }
+        }
+    });
+    let expected_body = upstream_body.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 203,
+                headers: [("x-event-upstream".to_string(), "forwarded".to_string())].into(),
+                body: upstream_body.clone(),
+            }
+        });
+    let query = r#"
+        query EventPassthrough($eventId: ID!, $first: Int!, $query: String!) {
           myEvent: event(id: "gid://shopify/Event/1") { id }
           event(id: $eventId) { id action message }
           events(first: $first, query: $query, sortKey: ID, reverse: true) {
@@ -14,49 +59,42 @@ fn event_empty_read_shapes_match_current_behavior() {
             edges { cursor node { id action message } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
-          nodeOnlyEvents: events(first: 5) { nodes { id } }
           eventsCount(query: $query) { count precision }
-          looseCount: eventsCount { count whatever }
         }
-        "#,
-        json!({
-            "eventId": "gid://shopify/BasicEvent/999999999999",
-            "first": 2,
-            "query": "id:999999999999"
-        }),
-    ));
+        "#;
+    let variables = json!({
+        "eventId": "gid://shopify/BasicEvent/999999999999",
+        "first": 2,
+        "query": "id:999999999999"
+    });
 
-    assert_eq!(response.status, 200);
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer event-passthrough-token".to_string(),
+        )]
+        .into(),
+        body: json!({ "query": query, "variables": variables }).to_string(),
+    });
+
+    assert_eq!(response.status, 203);
+    assert_eq!(response.body, expected_body);
     assert_eq!(
-        response.body,
-        json!({
-            "data": {
-                "myEvent": null,
-                "event": null,
-                "events": {
-                    "nodes": [],
-                    "edges": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }
-                },
-                "nodeOnlyEvents": {
-                    "nodes": []
-                },
-                "eventsCount": {
-                    "count": 0,
-                    "precision": "EXACT"
-                },
-                "looseCount": {
-                    "count": 0,
-                    "whatever": null
-                }
-            }
-        })
+        response.headers.get("x-event-upstream"),
+        Some(&"forwarded".to_string())
     );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer event-passthrough-token".to_string())
+    );
+    let forwarded_body: Value =
+        serde_json::from_str(&forwarded[0].body).expect("forwarded body must be JSON");
+    assert_eq!(forwarded_body["query"], json!(query));
+    assert_eq!(forwarded_body["variables"], variables);
 }
 
 #[test]

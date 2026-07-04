@@ -1683,12 +1683,6 @@ impl DraftProxy {
             {
                 self.webhook_mutation(request, &query, &variables)
             }
-            (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": event_empty_read_data(&fields) }))
-            }
             (CapabilityDomain::Localization, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {

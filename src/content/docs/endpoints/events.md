@@ -7,9 +7,13 @@ This endpoint group covers the top-level Shopify Admin GraphQL Event catalog roo
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
 Read roots:
+
+- None.
+
+Tracked but unimplemented read roots:
 
 - `event(id:)`
 - `events(...)`
@@ -21,16 +25,14 @@ Mutation roots:
 
 ### Local behavior
 
-Snapshot mode models the checked-in no-data branch only:
+The proxy does not locally model Shopify's top-level Event catalog. These roots are kept in the operation registry as unimplemented coverage-map entries, so callers do not receive a synthetic local event catalog.
 
-- `event(id:)` returns `null` for absent Event GIDs.
-- `events(...)` returns a non-null empty connection with selected `nodes`, `edges`, and `pageInfo` fields, false page booleans, and null cursors.
-- `eventsCount(...)` returns `{ count: 0, precision: "EXACT" }`.
-
-The captured empty Event selection includes `id`, `action`, `appTitle`, `attributeToApp`, `attributeToUser`, `createdAt`, `criticalAlert`, and `message`, plus `BasicEvent` fields such as `additionalContent`, `additionalData`, `arguments`, `author`, `hasAdditionalContent`, `secondaryMessage`, `subjectId`, and `subjectType`. Because the evidence is empty/null, the local handler must not invent values for those fields.
+- In LiveHybrid and passthrough modes, `event`, `events`, and `eventsCount` forward upstream with the original query, variables, pagination, filters, sort key, and `reverse` arguments intact.
+- In snapshot mode, there is no upstream Event catalog to consult, so these roots surface the standard unsupported-read dispatcher error rather than a fabricated empty payload.
+- Supported mutations in other endpoint groups do not append records to a shared top-level Event catalog.
 
 ### Boundaries
 
-- Non-empty event catalogs, search/filter/sort behavior, count precision beyond exact zero, and pagination over real events remain unsupported.
-- Supported mutations in other domains do not write into a shared top-level Event catalog. Domain-owned event surfaces, such as discount detail events and fulfillment events, remain documented and modeled by their owning endpoint groups.
-- No event root is registry-only or validation-only in this group; the supported read roots are intentionally limited to the no-data shape above.
+- Local read-after-write effects for top-level events remain unsupported. The proxy does not synthesize Event records from staged mutations.
+- Local search/filter/sort behavior, count precision, and pagination over Event records remain unsupported because they are not modeled from store state.
+- Domain-owned event surfaces, such as discount detail events and fulfillment events, remain documented and modeled by their owning endpoint groups.
