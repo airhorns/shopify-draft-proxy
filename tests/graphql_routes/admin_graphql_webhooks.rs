@@ -60,6 +60,138 @@ fn event_empty_read_shapes_match_current_behavior() {
 }
 
 #[test]
+fn event_reads_forward_upstream_in_live_hybrid() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: [("x-test-upstream".to_string(), "events-read".to_string())].into(),
+                body: json!({
+                    "data": {
+                        "event": {
+                            "id": "gid://shopify/BasicEvent/1",
+                            "action": "created",
+                            "message": "from upstream"
+                        },
+                        "events": {
+                            "nodes": [{
+                                "id": "gid://shopify/BasicEvent/1",
+                                "action": "created",
+                                "message": "from upstream"
+                            }],
+                            "edges": [{
+                                "cursor": "cursor-1",
+                                "node": {
+                                    "id": "gid://shopify/BasicEvent/1",
+                                    "action": "created",
+                                    "message": "from upstream"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-1"
+                            }
+                        },
+                        "eventsCount": {
+                            "count": 1,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query EventColdRead($eventId: ID!, $first: Int!, $query: String!) {
+          event(id: $eventId) { id action message }
+          events(first: $first, query: $query, sortKey: ID, reverse: true) {
+            nodes { id action message }
+            edges { cursor node { id action message } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventsCount(query: $query) { count precision }
+        }
+    "#;
+    let body = json!({
+        "query": query,
+        "variables": {
+            "eventId": "gid://shopify/BasicEvent/1",
+            "first": 1,
+            "query": "id:1"
+        }
+    })
+    .to_string();
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer events-read-token".to_string(),
+        )]
+        .into(),
+        body: body.clone(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.headers.get("x-test-upstream"),
+        Some(&"events-read".to_string())
+    );
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "event": {
+                    "id": "gid://shopify/BasicEvent/1",
+                    "action": "created",
+                    "message": "from upstream"
+                },
+                "events": {
+                    "nodes": [{
+                        "id": "gid://shopify/BasicEvent/1",
+                        "action": "created",
+                        "message": "from upstream"
+                    }],
+                    "edges": [{
+                        "cursor": "cursor-1",
+                        "node": {
+                            "id": "gid://shopify/BasicEvent/1",
+                            "action": "created",
+                            "message": "from upstream"
+                        }
+                    }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor-1",
+                        "endCursor": "cursor-1"
+                    }
+                },
+                "eventsCount": {
+                    "count": 1,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].method, "POST");
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(forwarded[0].body, body);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer events-read-token".to_string())
+    );
+}
+
+#[test]
 fn admin_graphql_path_is_post_only() {
     let mut proxy = snapshot_proxy();
 
