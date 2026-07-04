@@ -1207,9 +1207,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1265,9 +1263,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1283,7 +1279,12 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(None),
+            "webhookEndpointAddress": null
+        });
         self.store
             .staged
             .online_store_integrations
@@ -1357,7 +1358,12 @@ impl DraftProxy {
             }
             format!("{project}/{topic}")
         };
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(Some(&endpoint)),
+            "webhookEndpointAddress": endpoint
+        });
         self.store
             .staged
             .online_store_integrations
