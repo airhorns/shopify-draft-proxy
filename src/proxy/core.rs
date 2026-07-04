@@ -655,6 +655,9 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
+        if let Some(configuration) = &self.store.staged.tax_app_configuration {
+            snapshot["stagedState"]["taxAppConfiguration"] = configuration.clone();
+        }
         if let Some(order) = &self.store.staged.order_edit_existing_order {
             snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
         }
@@ -1650,6 +1653,10 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.tax_app_configuration = state["stagedState"]
+            .get("taxAppConfiguration")
+            .filter(|value| value.is_object())
+            .cloned();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

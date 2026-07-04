@@ -373,6 +373,19 @@ fn function_metadata_proxy() -> DraftProxy {
     function_metadata_proxy_with_hits(Arc::new(Mutex::new(Vec::new())))
 }
 
+fn tax_app_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "write_taxes".to_string(),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-tax-calculations-app".to_string(),
+        "true".to_string(),
+    );
+    request
+}
+
 fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy {
     configured_proxy(
         ReadMode::LiveHybrid,
@@ -3879,7 +3892,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         })
     );
 
-    let stage_response = proxy.process_request(json_graphql_request(stage, json!({
+    let stage_response = proxy.process_request(tax_app_graphql_request(stage, json!({
         "validation": { "functionHandle": "validation-local", "title": "Local validation", "enable": true, "blockOnFailure": true },
         "cartFunctionHandle": "cart-transform-local",
         "cartBlockOnFailure": true,
@@ -4152,10 +4165,105 @@ fn functions_validation_reads_reject_fabricated_output_fields() {
 }
 
 #[test]
+fn tax_app_configure_stages_configuration_for_node_readback() {
+    let mut proxy = function_metadata_proxy();
+
+    let configure = proxy.process_request(tax_app_graphql_request(
+        r#"
+        mutation ConfigureTaxApp($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": true }),
+    ));
+    assert_eq!(
+        configure.body["data"]["taxAppConfigure"]["userErrors"],
+        json!([])
+    );
+    let configuration = configure.body["data"]["taxAppConfigure"]["taxAppConfiguration"].clone();
+    let configuration_id = json_string(&configuration["id"], "tax app configuration id");
+    assert_synthetic_gid(&configuration_id, "TaxAppConfiguration");
+    assert_ne!(configuration_id, "gid://shopify/TaxAppConfiguration/local");
+
+    let read = proxy.process_request(tax_app_graphql_request(
+        r#"
+        query ReadTaxAppConfiguration($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on TaxAppConfiguration { id ready state updatedAt }
+          }
+        }
+        "#,
+        json!({ "id": configuration_id.clone() }),
+    ));
+    let mut expected_read = configuration.clone();
+    expected_read["__typename"] = json!("TaxAppConfiguration");
+    assert_eq!(read.body["data"]["node"], expected_read);
+
+    let update = proxy.process_request(tax_app_graphql_request(
+        r#"
+        mutation UpdateTaxAppReadiness($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": false }),
+    ));
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["id"],
+        json!(configuration_id)
+    );
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["ready"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["state"],
+        json!("NOT_READY")
+    );
+}
+
+#[test]
+fn tax_app_configure_requires_tax_calculations_app_authority() {
+    let mut proxy = function_metadata_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConfigureTaxAppWithoutAuthority($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": true }),
+    ));
+
+    assert_eq!(response.body["data"]["taxAppConfigure"], Value::Null);
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0]["message"],
+        json!("Access denied for taxAppConfigure field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app.")
+    );
+    assert_eq!(errors[0]["extensions"]["code"], json!("ACCESS_DENIED"));
+    assert_eq!(
+        errors[0]["extensions"]["requiredAccess"],
+        json!("`write_taxes` access scope. Also: The caller must be a tax calculations app.")
+    );
+    assert_eq!(errors[0]["path"], json!(["taxAppConfigure"]));
+}
+
+#[test]
 fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let mut proxy = function_metadata_proxy();
 
-    let stage = proxy.process_request(json_graphql_request(
+    let stage = proxy.process_request(tax_app_graphql_request(
         r#"
         mutation StageOwnedFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) {
           validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle createdAt updatedAt shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
