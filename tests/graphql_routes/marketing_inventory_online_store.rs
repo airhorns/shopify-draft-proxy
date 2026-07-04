@@ -10093,6 +10093,163 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
 }
 
 #[test]
+fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileQuerySortCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id filename contentType createdAt updatedAt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Zulu image", "contentType": "IMAGE", "filename": "zulu-image.jpg", "originalSource": "https://cdn.example.com/zulu-image.jpg"},
+            {"alt": "Alpha file", "contentType": "FILE", "filename": "alpha-file.pdf", "originalSource": "https://cdn.example.com/alpha-file.pdf"},
+            {"alt": "Middle image", "contentType": "IMAGE", "filename": "middle-image.jpg", "originalSource": "https://cdn.example.com/middle-image.jpg"}
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileQuerySortRead {
+          filename: files(first: 10, query: "filename:alpha-file.pdf") {
+            nodes { id filename contentType fileStatus }
+          }
+          mediaType: files(first: 10, query: "media_type:IMAGE") {
+            nodes { filename contentType }
+          }
+          unknown: files(first: 10, query: "definitely_not_a_file_filter:value") {
+            nodes { filename }
+          }
+          byFilename: files(first: 10, sortKey: FILENAME) {
+            nodes { filename }
+          }
+          byFilenameReverse: files(first: 10, sortKey: FILENAME, reverse: true) {
+            nodes { filename }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["filename"]["nodes"],
+        json!([{
+            "id": "gid://shopify/GenericFile/3",
+            "filename": "alpha-file.pdf",
+            "contentType": "FILE",
+            "fileStatus": "UPLOADED"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["mediaType"]["nodes"],
+        json!([
+            {"filename": "zulu-image.jpg", "contentType": "IMAGE"},
+            {"filename": "middle-image.jpg", "contentType": "IMAGE"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknown"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["byFilename"]["nodes"],
+        json!([
+            {"filename": "alpha-file.pdf"},
+            {"filename": "middle-image.jpg"},
+            {"filename": "zulu-image.jpg"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byFilenameReverse"]["nodes"],
+        json!([
+            {"filename": "zulu-image.jpg"},
+            {"filename": "middle-image.jpg"},
+            {"filename": "alpha-file.pdf"}
+        ])
+    );
+}
+
+#[test]
+fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records() {
+    let mut proxy = snapshot_proxy();
+
+    let create_files = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchCreateFiles($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id filename contentType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Alpha file", "contentType": "FILE", "filename": "alpha-file.pdf", "originalSource": "https://cdn.example.com/alpha-file.pdf"},
+            {"alt": "Beta image", "contentType": "IMAGE", "filename": "beta-image.jpg", "originalSource": "https://cdn.example.com/beta-image.jpg"}
+        ]}),
+    ));
+    assert_eq!(
+        create_files.body["data"]["fileCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "FILE",
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf"
+        }}),
+    ));
+    assert_eq!(
+        create_saved_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let saved_search_id = create_saved_search.body["data"]["savedSearchCreate"]["savedSearch"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileSavedSearchRead($savedSearchId: ID!) {
+          files(first: 10, savedSearchId: $savedSearchId) {
+            nodes { filename contentType }
+          }
+          fileSavedSearches(first: 10) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"savedSearchId": saved_search_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"]["nodes"],
+        json!([{
+            "id": saved_search_id,
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf",
+            "resourceType": "FILE"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["files"]["nodes"],
+        json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
+    );
+}
+
+#[test]
 fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 

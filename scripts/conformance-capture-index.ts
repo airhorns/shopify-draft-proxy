@@ -1671,6 +1671,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-files-query-sort-saved-searches',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-files-query-sort-saved-searches-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL evidence for files(query:) filters, FileSortKeys.FILENAME ordering, fileSavedSearches reads, and files(savedSearchId:) resolution.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}files-query-sort-saved-searches.json`,
+      'config/parity-specs/media/files-query-sort-saved-searches.json',
+      'config/parity-requests/media/files-query-sort-saved-searches-create.graphql',
+      'config/parity-requests/media/files-query-sort-saved-searches-saved-search-create.graphql',
+      'config/parity-requests/media/files-query-sort-saved-searches-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable files and a disposable FILE saved search, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-create-validation-conformance.mts',
