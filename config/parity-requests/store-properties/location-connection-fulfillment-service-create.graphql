@@ -1,0 +1,23 @@
+mutation LocationConnectionFulfillmentServiceCreate($name: String!) {
+  fulfillmentServiceCreate(
+    name: $name
+    trackingSupport: true
+    inventoryManagement: true
+    requiresShippingMethod: true
+  ) {
+    fulfillmentService {
+      id
+      serviceName
+      location {
+        id
+        name
+        isActive
+        isFulfillmentService
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

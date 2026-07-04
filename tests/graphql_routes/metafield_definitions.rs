@@ -953,7 +953,7 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         over_limit["userErrors"],
         json!([{
             "field": ["definition"],
-            "message": "You can only have 256 definitions per resource type.",
+            "message": "Stores can only have 256 definitions for each store resource.",
             "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
         }])
     );
@@ -3759,6 +3759,53 @@ fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric()
             ["constraints"],
         json!({ "key": "category", "values": { "nodes": [] } })
     );
+}
+
+#[test]
+fn metafield_definition_validation_names_are_checked_against_type() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateInvalidValidationDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    for (key, metafield_type, validation_name) in [
+        ("text_scale_max", "single_line_text_field", "scale_max"),
+        ("boolean_max", "boolean", "max"),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "validation_name_matrix",
+                "key": key,
+                "name": key,
+                "type": metafield_type,
+                "validations": [{"name": validation_name, "value": "5"}]
+            }}),
+        ));
+        assert_eq!(response.status, 200, "{key}");
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"],
+            Value::Null,
+            "{key}"
+        );
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([{
+                "field": ["definition", "validations"],
+                "message": format!(
+                    "Validations value for option {validation_name} contains an invalid value: '{validation_name}' isn't supported for {metafield_type}."
+                ),
+                "code": "INVALID_OPTION"
+            }]),
+            "{key}"
+        );
+    }
 }
 
 #[test]

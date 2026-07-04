@@ -173,20 +173,8 @@ impl DraftProxy {
                         .map(|card| selected_json(&card, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "giftCards" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    let cards = self.gift_card_lifecycle_matching_cards(&query);
-                    gift_card_connection_json(&cards, &field.selection)
-                }
-                "giftCardsCount" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    selected_count_json(
-                        self.gift_card_lifecycle_matching_cards(&query).len(),
-                        &field.selection,
-                    )
-                }
+                "giftCards" => self.gift_card_connection_field(field),
+                "giftCardsCount" => self.gift_cards_count_field(field),
                 "giftCardConfiguration" => selected_json(
                     &gift_card_configuration_record(&self.store.shop_currency_code()),
                     &field.selection,
@@ -253,11 +241,37 @@ impl DraftProxy {
         ok_json(json!({ "data": data }))
     }
 
-    pub(in crate::proxy) fn gift_card_lifecycle_matching_cards(&self, query: &str) -> Vec<Value> {
-        self.gift_card_effective_records()
-            .into_iter()
-            .filter(|card| gift_card_matches_search_query(card, query))
-            .collect()
+    fn staged_gift_cards_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.gift_card_effective_records(),
+            arguments,
+            gift_card_search_decision,
+            gift_card_staged_sort_key,
+            value_id_cursor,
+        )
+    }
+
+    fn gift_card_connection_field(&self, field: &RootFieldSelection) -> Value {
+        let result = self.staged_gift_cards_query(&field.arguments);
+        selected_json(
+            &connection_json_with_cursor(
+                result.records,
+                |_, card| value_id_cursor(card),
+                result.page_info,
+            ),
+            &field.selection,
+        )
+    }
+
+    fn gift_cards_count_field(&self, field: &RootFieldSelection) -> Value {
+        let result = self.staged_gift_cards_query(&field.arguments);
+        selected_json(
+            &staged_count_with_limit_precision(result.total_count, &field.arguments),
+            &field.selection,
+        )
     }
 
     fn gift_card_effective_records(&self) -> Vec<Value> {
@@ -336,18 +350,18 @@ impl DraftProxy {
                     }
                 }
                 "giftCards" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     self.overlay_gift_card_connection(
                         &mut data[&field.response_key],
-                        &query,
+                        &field.arguments,
                         &field.selection,
                     );
                 }
                 "giftCardsCount" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    self.overlay_gift_card_count(&mut data[&field.response_key], &query);
+                    self.overlay_gift_card_count(
+                        &mut data[&field.response_key],
+                        &field.arguments,
+                        &field.selection,
+                    );
                 }
                 "giftCardConfiguration" => {
                     data[&field.response_key] =
@@ -361,9 +375,10 @@ impl DraftProxy {
     fn overlay_gift_card_connection(
         &self,
         connection: &mut Value,
-        query: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) {
+        let query = resolved_string_field(arguments, "query").unwrap_or_default();
         let mut seen_ids = BTreeSet::new();
         let node_selection = nested_selected_fields(selection, &["nodes"]);
         let edge_node_selection = nested_selected_fields(selection, &["edges", "node"]);
@@ -373,7 +388,7 @@ impl DraftProxy {
                     return true;
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                    if gift_card_matches_search_query(card, query) {
+                    if gift_card_matches_search_query(card, &query) {
                         *node = selected_json(card, &node_selection);
                         seen_ids.insert(id);
                         true
@@ -396,7 +411,7 @@ impl DraftProxy {
                     return true;
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                    if gift_card_matches_search_query(card, query) {
+                    if gift_card_matches_search_query(card, &query) {
                         edge["node"] = selected_json(card, &edge_node_selection);
                         seen_ids.insert(id);
                         true
@@ -415,14 +430,28 @@ impl DraftProxy {
             .gift_cards
             .iter()
             .filter(|(id, card)| {
-                !seen_ids.contains(*id) && gift_card_matches_search_query(card, query)
+                !seen_ids.contains(*id) && gift_card_matches_search_query(card, &query)
             })
             .map(|(_, card)| card.clone())
             .collect::<Vec<_>>();
         if staged_cards.is_empty() {
             return;
         }
-        let local = gift_card_connection_json(&staged_cards, selection);
+        let result = staged_connection_query(
+            staged_cards,
+            arguments,
+            gift_card_search_decision,
+            gift_card_staged_sort_key,
+            value_id_cursor,
+        );
+        let local = selected_json(
+            &connection_json_with_cursor(
+                result.records,
+                |_, card| value_id_cursor(card),
+                result.page_info,
+            ),
+            selection,
+        );
         if let (Some(existing), Some(additional)) = (
             connection.get_mut("nodes").and_then(Value::as_array_mut),
             local.get("nodes").and_then(Value::as_array),
@@ -437,16 +466,22 @@ impl DraftProxy {
         }
     }
 
-    fn overlay_gift_card_count(&self, count: &mut Value, query: &str) {
+    fn overlay_gift_card_count(
+        &self,
+        count: &mut Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) {
+        let query = resolved_string_field(arguments, "query").unwrap_or_default();
         let mut delta = 0i64;
         for (id, card) in &self.store.staged.gift_cards {
-            let staged_matches = gift_card_matches_search_query(card, query);
+            let staged_matches = gift_card_matches_search_query(card, &query);
             let base_matches = self
                 .store
                 .base
                 .gift_cards
                 .get(id)
-                .is_some_and(|base| gift_card_matches_search_query(base, query));
+                .is_some_and(|base| gift_card_matches_search_query(base, &query));
             match (base_matches, staged_matches) {
                 (false, true) => delta += 1,
                 (true, false) => delta -= 1,
@@ -457,7 +492,11 @@ impl DraftProxy {
             return;
         }
         if let Some(current) = count.get("count").and_then(Value::as_i64) {
-            count["count"] = json!((current + delta).max(0));
+            let adjusted = (current + delta).max(0) as usize;
+            *count = selected_json(
+                &staged_count_with_limit_precision(adjusted, arguments),
+                selection,
+            );
         }
     }
 
@@ -1533,6 +1572,88 @@ fn gift_card_matches_search_query(card: &Value, query: &str) -> bool {
     gift_card_search_terms(query)
         .iter()
         .all(|term| gift_card_matches_search_term(card, term))
+}
+
+fn gift_card_search_decision(card: &Value, query: Option<&str>) -> StagedSearchDecision {
+    StagedSearchDecision::from_bool(gift_card_matches_search_query(
+        card,
+        query.unwrap_or_default(),
+    ))
+}
+
+fn gift_card_gid_tail_sort_value(card: &Value) -> StagedSortValue {
+    let tail = card
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn gift_card_string_sort_value(card: &Value, field: &str) -> StagedSortValue {
+    card.get(field)
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn gift_card_money_sort_value(card: &Value, field: &str) -> StagedSortValue {
+    card.get(field)
+        .and_then(|money| money.get("amount"))
+        .and_then(Value::as_str)
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .map(|amount| StagedSortValue::I64((amount * 1_000_000.0).round() as i64))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn gift_card_amount_spent_sort_value(card: &Value) -> StagedSortValue {
+    let Some(initial) = card["initialValue"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+    else {
+        return StagedSortValue::Null;
+    };
+    let balance = card["balance"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(initial);
+    StagedSortValue::I64(((initial - balance) * 1_000_000.0).round() as i64)
+}
+
+fn gift_card_code_sort_value(card: &Value) -> StagedSortValue {
+    ["giftCardCode", "maskedCode", "lastCharacters"]
+        .iter()
+        .find_map(|field| card.get(*field).and_then(Value::as_str))
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn gift_card_customer_name_sort_value(card: &Value) -> StagedSortValue {
+    let customer = &card["customer"];
+    ["displayName", "email", "id"]
+        .iter()
+        .find_map(|field| customer.get(*field).and_then(Value::as_str))
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("ID") {
+        "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
+        "BALANCE" => gift_card_money_sort_value(card, "balance"),
+        "CODE" => gift_card_code_sort_value(card),
+        "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
+        "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
+        "DISABLED_AT" => gift_card_string_sort_value(card, "disabledAt"),
+        "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
+        "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
+        "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
+        "ID" | "RELEVANCE" => gift_card_gid_tail_sort_value(card),
+        _ => gift_card_gid_tail_sort_value(card),
+    };
+    vec![primary, gift_card_gid_tail_sort_value(card)]
 }
 
 fn gift_card_search_terms(query: &str) -> Vec<String> {
