@@ -38,8 +38,9 @@ Read behavior:
 Query export behavior:
 
 - `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging, including connection `nodes` selections whose userError example names the offending connection field.
+- Omitted required `query` arguments return the same top-level GraphQL `missingRequiredArguments` envelope as other locally validated Admin mutations. Blank query strings return a selected payload with `bulkOperation: null` and a `field: ["query"]` userError.
 - Submitted bulk query text is measured after Shopify-style single-quoted newline escaping and rejects escaped UTF-8 byte sizes above 65,535 with `field: ["query"]`, message `Query is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID`, `bulkOperation: null`, and no staged job.
-- Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`.
+- Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`. Both local export roots apply the selected product search query before serializing JSONL rows.
 - Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic absolute `https://localhost:<proxy-port>/__meta/bulk-operations/<encoded-id>/result.jsonl` result URL, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.
 - `groupObjects: true`, `groupObjects: false`, and omitted `groupObjects` all stage the same local export shape; grouped JSONL ordering is not modeled as a separate result mode.
@@ -54,7 +55,7 @@ Mutation import behavior:
 - For locally executable roots, each JSONL line is parsed as variables, stages through the same domain handler used by normal GraphQL mutations, and writes one result JSONL row.
 - Accepted roots without a local executor still create an observable local BulkOperation job, but each JSONL line is sent upstream through the unsupported-mutation passthrough escape hatch and logged as `Proxied`. Those lines are Shopify-side effects and do not create local downstream read-after-write state.
 - The proxy records one staged mutation-log entry per locally handled JSONL line, in original line order, with replay bodies containing the inner mutation and that line's variables. The outer bulk request is retained as audit metadata rather than as an additional commit entry.
-- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, zero-byte uploads, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Zero-byte uploads return `field: null`, message `The input file is empty.`, `code: INVALID_STAGED_UPLOAD_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
+- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, zero-byte uploads, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Missing staged uploads return `field: null`, the `NO_SUCH_FILE` message, `code: NO_SUCH_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Zero-byte uploads return `field: null`, message `The input file is empty.`, `code: INVALID_STAGED_UPLOAD_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
 
 Cancel behavior:
 
@@ -97,6 +98,7 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-empty-file.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -118,6 +120,7 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-empty-file.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json`
@@ -131,6 +134,7 @@ Meta API behavior:
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
 - `corepack pnpm parity -- bulk-operation-run-mutation-connection-validators`
+- `corepack pnpm parity -- bulk-operation-run-mutation-no-such-file-precedence`
 - `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`
 - `corepack pnpm parity -- bulk-operation-run-mutation-concurrency-limit`
 - `corepack pnpm parity -- bulk-operations-read-arg-validation`

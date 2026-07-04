@@ -1,0 +1,22 @@
+#graphql
+mutation ProductNestedConnectionsVariantAppendMedia(
+  $productId: ID!
+  $variantMedia: [ProductVariantAppendMediaInput!]!
+) {
+  productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+    productVariants {
+      id
+      media(first: 5) {
+        nodes {
+          alt
+          mediaContentType
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
