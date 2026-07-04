@@ -1232,7 +1232,10 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
-                b2b_company_contact_payload(None, vec![b2b_resource_not_found(["companyId"])]),
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_not_found(["companyId"], "Company does not exist.")],
+                ),
                 "failed",
                 Vec::new(),
             );
@@ -1834,7 +1837,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["id"])]
+                    "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2260,7 +2263,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedAddressId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["addressId"])]
+                    "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2434,7 +2437,7 @@ impl DraftProxy {
             return (
                 json!({
                     "roleAssignments": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2513,7 +2516,7 @@ impl DraftProxy {
                 json!({
                     "revokedRoleAssignmentIds": Value::Null,
                     "revokedCompanyContactRoleAssignmentIds": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -3163,71 +3166,23 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            (
+        self.b2b_company_tail_helper_response(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+        )
+        .unwrap_or_else(|| {
+            self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
                 variables,
                 operation_type,
                 parsed_root_fields,
                 root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyContactCreate")
-                    .cloned()
-            },
-            |proxy, create, response| {
-                if let Some(field) = create {
-                    if let Some(contact_id) = response
-                        .body
-                        .pointer("/data/companyContactCreate/companyContact/id")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                    {
-                        let company_id = resolved_string_field(&field.arguments, "companyId")
-                            .unwrap_or_default();
-                        let input =
-                            resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                        let first = resolved_string_field(&input, "firstName");
-                        let last = resolved_string_field(&input, "lastName");
-                        let title = resolved_string_field(&input, "title");
-                        let customer_id = resolved_string_field(&input, "email").map(|email| {
-                            proxy.b2b_provision_contact_customer(
-                                &email,
-                                first.clone(),
-                                last.clone(),
-                            )
-                        });
-                        let contact = json!({
-                            "id": contact_id,
-                            "companyId": company_id,
-                            "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
-                            "firstName": first.map(Value::String).unwrap_or(Value::Null),
-                            "lastName": last.map(Value::String).unwrap_or(Value::Null),
-                            "title": title.map(Value::String).unwrap_or(Value::Null),
-                            // A contact added after creation defaults to the shop's primary
-                            // locale ("en") and never becomes the company's main contact.
-                            "locale": resolved_string_field(&input, "locale")
-                                .unwrap_or_else(|| "en".to_string()),
-                            "isMainContact": false
-                        });
-                        proxy
-                            .store
-                            .staged
-                            .b2b_contacts
-                            .insert(contact_id.clone(), contact);
-                        if let Some(mut company) =
-                            proxy.store.staged.b2b_companies.get(&company_id).cloned()
-                        {
-                            b2b_push_json_id(&mut company, "contactIds", &contact_id);
-                            proxy.store.staged.b2b_companies.insert(company_id, company);
-                        }
-                    }
-                }
-            },
-        )
+            )
+        })
     }
 
     pub(in crate::proxy) fn b2b_company_contact_update_with_cascade(
@@ -4202,9 +4157,9 @@ fn b2b_not_found(field: impl Into<UserErrorField>, message: &str) -> Value {
     user_error(field, message, Some("RESOURCE_NOT_FOUND"))
 }
 
-/// Validates a `companyContactCreate` input: a title carrying HTML, a name that
+/// Validates a `companyContactCreate` input: a name carrying HTML, a name that
 /// exceeds Shopify's 255-character limit, a missing email, or an invalid email
-/// each produces a Shopify-shaped user error.
+/// each produces a Shopify-shaped user error. Title values are stored verbatim.
 fn b2b_contact_create_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
@@ -4217,18 +4172,16 @@ fn b2b_contact_create_input_errors(
             .chain(std::iter::once(name.to_string()))
             .collect()
     };
-    if let Some(title) = resolved_string_field(input, "title") {
-        if b2b_contains_html_tags(&title) {
-            errors.push(user_error(
-                json!(field_path("title")),
-                "Title contains HTML tags",
-                Some("CONTAINS_HTML_TAGS"),
-            ));
-        }
-    }
     for (name_field, label) in [("firstName", "First name"), ("lastName", "Last name")] {
         if let Some(value) = resolved_string_field(input, name_field) {
-            if value.chars().count() > 255 {
+            if b2b_contains_html_tags(&value) {
+                errors.push(user_error(
+                    json!(prefix),
+                    "Invalid input.",
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            } else if value.chars().count() > 255 {
                 errors.push(user_error(
                     json!(field_path(name_field)),
                     &format!("{label} is too long"),

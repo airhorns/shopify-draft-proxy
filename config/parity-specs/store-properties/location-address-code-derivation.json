@@ -13,7 +13,7 @@
     "variablesCapturePath": "$.cases.gbAdd.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures Admin GraphQL 2026-04 country/province name derivation for locationAdd with GB countryCode only, locationAdd with AU countryCode plus provinceCode NSW, and locationEdit with only provinceCode ON against a disposable CA location. Each mutation is immediately read back through location(id:) before cleanup.",
+  "notes": "Captures Admin GraphQL 2026-04 country/province name derivation for locationAdd with GB countryCode only, AU countryCode plus provinceCode NSW, AE countryCode plus provinceCode DU, and locationEdit with only provinceCode ON against a disposable CA location. Each mutation is immediately read back through location(id:) before cleanup.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -72,6 +72,39 @@
           "variables": {
             "id": {
               "fromProxyResponse": "au-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.address"]
+      },
+      {
+        "name": "ae-add-payload",
+        "capturePath": "$.cases.aeAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-add.graphql",
+          "variablesCapturePath": "$.cases.aeAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "ae-read-after-add",
+        "capturePath": "$.cases.aeRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "ae-add-payload",
               "path": "$.data.locationAdd.location.id"
             }
           }
