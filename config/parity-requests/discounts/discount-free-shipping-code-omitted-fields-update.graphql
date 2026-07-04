@@ -1,0 +1,29 @@
+mutation DiscountCodeFreeShippingOmittedFieldsUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) {
+  discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          asyncUsageCount
+          codes(first: 2) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

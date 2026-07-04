@@ -71,6 +71,24 @@ const cases = {
     },
     expectedMessage: 'Cannot find the specific Draft order with id 999999.',
   },
+  missingArbitraryOrder: {
+    purpose:
+      'Unknown non-magic Order reference returns a field-null paymentTermsCreate userError with the supplied numeric GID tail.',
+    variables: {
+      referenceId: 'gid://shopify/Order/555',
+      attrs,
+    },
+    expectedMessage: 'Cannot find the specific Order with id 555.',
+  },
+  missingArbitraryDraftOrder: {
+    purpose:
+      'Unknown non-magic DraftOrder reference returns a field-null paymentTermsCreate userError with the supplied numeric GID tail.',
+    variables: {
+      referenceId: 'gid://shopify/DraftOrder/42',
+      attrs,
+    },
+    expectedMessage: 'Cannot find the specific Draft order with id 42.',
+  },
 } as const;
 
 async function captureCase(name: keyof typeof cases) {
@@ -110,9 +128,11 @@ const fixture = {
   cases: {
     missingOrder: await captureCase('missingOrder'),
     missingDraftOrder: await captureCase('missingDraftOrder'),
+    missingArbitraryOrder: await captureCase('missingArbitraryOrder'),
+    missingArbitraryDraftOrder: await captureCase('missingArbitraryDraftOrder'),
   },
   notes:
-    'Live Shopify capture for paymentTermsCreate reference-not-found branches. Unknown Order and DraftOrder GIDs return PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors with field: null, type-specific messages, and paymentTerms: null.',
+    'Live Shopify capture for paymentTermsCreate reference-not-found branches. Unknown Order and DraftOrder GIDs, including non-magic numeric tails, return PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors with field: null, type-specific messages, and paymentTerms: null.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

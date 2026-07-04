@@ -1,0 +1,552 @@
+{
+  "scenarioId": "sellingPlanGroup-cap-validation",
+  "operationNames": ["productCreate", "sellingPlanGroupCreate", "productJoinSellingPlanGroups"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-cap-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.scenarios.productSetup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-user-errors",
+        "capturePath": "$.scenarios.productSetup.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "thirty-one-plans-create-user-errors",
+        "capturePath": "$.scenarios.thirtyOnePlansCreate.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.thirtyOnePlansCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "too-many-plans-create",
+        "capturePath": "$.scenarios.tooManyPlansCreate.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.tooManyPlansCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-01-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[0].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[0].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-02-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[1].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[1].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-03-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[2].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[2].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-04-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[3].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[3].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-05-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[4].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[4].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-06-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[5].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[5].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-07-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[6].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[6].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-08-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[7].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[7].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-09-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[8].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[8].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-10-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[9].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[9].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-11-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[10].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[10].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-12-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[11].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[11].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-13-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[12].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[12].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-14-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[13].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[13].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-15-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[14].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[14].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-16-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[15].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[15].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-17-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[16].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[16].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-18-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[17].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[17].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-19-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[18].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[18].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-20-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[19].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[19].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-21-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[20].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[20].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-22-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[21].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[21].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-23-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[22].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[22].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-24-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[23].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[23].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-25-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[24].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[24].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-26-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[25].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[25].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-27-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[26].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[26].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-28-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[27].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[27].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-29-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[28].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[28].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-30-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[29].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[29].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-31-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[30].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[30].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "group-32-create-user-errors",
+        "capturePath": "$.scenarios.groupCreates[31].response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupCreates[31].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "join-thirty-one-groups",
+        "capturePath": "$.scenarios.joinThirtyOneGroups.response.data.productJoinSellingPlanGroups",
+        "proxyPath": "$.data.productJoinSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "group-01-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-02-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-03-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-04-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-05-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-06-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-07-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-08-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-09-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-10-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-11-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-12-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-13-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-14-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-15-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-16-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-17-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-18-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-19-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-20-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-21-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-22-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-23-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-24-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-25-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-26-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-27-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-28-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-29-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-30-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "group-31-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a synthetic setup product ID while Shopify captured a real disposable product ID."
+          },
+          {
+            "path": "$.product.sellingPlanGroups.nodes[*].id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy creates synthetic selling-plan group IDs while Shopify captured real disposable group IDs."
+          }
+        ]
+      },
+      {
+        "name": "join-thirty-two-groups",
+        "capturePath": "$.scenarios.joinThirtyTwoGroups.response.data.productJoinSellingPlanGroups",
+        "proxyPath": "$.data.productJoinSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "group-32-create-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a synthetic setup product ID while Shopify captured a real disposable product ID."
+          },
+          {
+            "path": "$.product.sellingPlanGroups.nodes[*].id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy creates synthetic selling-plan group IDs while Shopify captured real disposable group IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 Shopify responses confirm sellingPlanGroupCreate accepts 31 selling plans and rejects 32, while productJoinSellingPlanGroups accepts at least 32 selling-plan groups for one product with empty userErrors."
+}

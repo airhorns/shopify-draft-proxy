@@ -1,0 +1,121 @@
+{
+  "scenarioId": "metaobjects-filter-sort",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjects"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["search-filtering", "sort-order", "reverse-order", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-filter-sort.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-definition-create.graphql",
+    "variablesCapturePath": "$.setup.definitionCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create-user-errors",
+        "capturePath": "$.setup.definitionCreate.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors"
+      },
+      {
+        "name": "entry-create-charlie-user-errors",
+        "capturePath": "$.setup.entryCreates[0].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-entry-create.graphql",
+          "variablesCapturePath": "$.setup.entryCreates[0].request.variables"
+        }
+      },
+      {
+        "name": "entry-create-alpha-user-errors",
+        "capturePath": "$.setup.entryCreates[1].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-entry-create.graphql",
+          "variablesCapturePath": "$.setup.entryCreates[1].request.variables"
+        }
+      },
+      {
+        "name": "entry-create-bravo-user-errors",
+        "capturePath": "$.setup.entryCreates[2].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-entry-create.graphql",
+          "variablesCapturePath": "$.setup.entryCreates[2].request.variables"
+        }
+      },
+      {
+        "name": "filter-display-name",
+        "capturePath": "$.reads.displayName.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.displayName.request.variables"
+        },
+        "excludedPaths": ["$.edges[*].cursor", "$.pageInfo.startCursor", "$.pageInfo.endCursor"]
+      },
+      {
+        "name": "filter-field-value",
+        "capturePath": "$.reads.fieldValue.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.fieldValue.request.variables"
+        },
+        "excludedPaths": ["$.edges[*].cursor", "$.pageInfo.startCursor", "$.pageInfo.endCursor"]
+      },
+      {
+        "name": "filter-handle",
+        "capturePath": "$.reads.handle.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.handle.request.variables"
+        },
+        "excludedPaths": ["$.edges[*].cursor", "$.pageInfo.startCursor", "$.pageInfo.endCursor"]
+      },
+      {
+        "name": "filter-id-range-no-match",
+        "capturePath": "$.reads.idRangeNoMatch.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.idRangeNoMatch.request.variables"
+        }
+      },
+      {
+        "name": "filter-updated-at-range-no-match",
+        "capturePath": "$.reads.updatedAtRangeNoMatch.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.updatedAtRangeNoMatch.request.variables"
+        }
+      },
+      {
+        "name": "sort-display-name-reverse",
+        "capturePath": "$.reads.displayNameReverse.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.displayNameReverse.request.variables"
+        },
+        "excludedPaths": ["$.edges[*].cursor", "$.pageInfo.startCursor", "$.pageInfo.endCursor"]
+      },
+      {
+        "name": "sort-id-reverse",
+        "capturePath": "$.reads.idReverse.response.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql",
+          "variablesCapturePath": "$.reads.idReverse.request.variables"
+        },
+        "excludedPaths": ["$.edges[*].cursor", "$.pageInfo.startCursor", "$.pageInfo.endCursor"]
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Shopify capture proves metaobjects(type:, query:, sortKey:, reverse:) filters by display_name, fields.{key}, handle, id range, and updated_at range, and orders by display_name/id with reverse. Replay stages the definition and rows through public GraphQL mutations before local connection reads."
+}

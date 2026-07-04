@@ -34,6 +34,21 @@ const CUSTOMER_ACCOUNT_SLICE = `
       hasPreviousPage
     }
   }
+  queriedStoreCreditAccounts: storeCreditAccounts(first: 5, query: "currency_code:CHF") {
+    nodes {
+      id
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
 `;
 
 const TRANSACTION_SLICE = `

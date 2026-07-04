@@ -1,0 +1,289 @@
+{
+  "scenarioId": "publishable-current-channel-no-current-channel",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-03T18:59:49.482Z",
+  "setup": {
+    "product": {
+      "id": "gid://shopify/Product/10230901539122",
+      "title": "Publishable no current channel mr5asg1v",
+      "status": "ACTIVE"
+    },
+    "currentChannelBeforeDelete": {
+      "id": "gid://shopify/Channel/302536360242",
+      "handle": "example-us-har-381-conformance",
+      "specificationHandle": "example-us",
+      "accountId": "har-381-conformance",
+      "accountName": "HAR-381 Conformance"
+    },
+    "marketRepair": null
+  },
+  "channelDelete": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "channelDelete": {
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postDeleteCurrentApp": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "currentAppInstallation": {
+          "channel": null,
+          "publication": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "publishCurrentNoChannel": {
+      "variables": {
+        "id": "gid://shopify/Product/10230901539122"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10230901539122"
+              },
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Channel does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishCurrentNoChannel": {
+      "variables": {
+        "id": "gid://shopify/Product/10230901539122"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10230901539122"
+              },
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Channel does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10230901539122",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "channelRecreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "channelCreate": {
+          "channel": {
+            "id": "gid://shopify/Channel/302536393010",
+            "handle": "example-us-har-381-conformance",
+            "specificationHandle": "example-us",
+            "accountId": "har-381-conformance",
+            "accountName": "HAR-381 Conformance"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postRecreateCurrentApp": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "currentAppInstallation": {
+          "channel": {
+            "id": "gid://shopify/Channel/302536393010",
+            "handle": "example-us-har-381-conformance",
+            "specificationHandle": "example-us",
+            "accountId": "har-381-conformance",
+            "accountName": "HAR-381 Conformance"
+          },
+          "publication": {
+            "id": "gid://shopify/Publication/302536393010"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live Admin API capture for publishable current-channel mutations when the calling app has no current publication/channel.",
+    "The recorder temporarily deletes the current app channel, records CHANNEL_DOES_NOT_EXIST on an ACTIVE product, and recreates the same channel in finally.",
+    "When restoring an example-us channel would otherwise fail because the store lacks a US market, the recorder creates that prerequisite through marketCreate before deleting the channel."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10230901539122"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10230901539122",
+                "title": "Publishable no current channel mr5asg1v",
+                "handle": "publishable-no-current-channel-mr5asg1v",
+                "status": "ACTIVE",
+                "resourcePublications": {
+                  "nodes": [
+                    {
+                      "publication": {
+                        "id": "gid://shopify/Publication/299574427954"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+      "variables": {},
+      "query": "#graphql\nquery StorePropertiesCurrentAppPublicationHydrate {\n  currentAppInstallation {\n    publication {\n      id\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "publication": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

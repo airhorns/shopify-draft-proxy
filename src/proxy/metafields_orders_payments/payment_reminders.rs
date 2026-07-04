@@ -138,7 +138,8 @@ impl DraftProxy {
             let Some(owner) = owner else {
                 continue;
             };
-            let mut payment_terms = terms.clone();
+            let mut payment_terms =
+                payment_terms_record_with_effective_due(terms, self.current_epoch_seconds());
             if owner_id.starts_with("gid://shopify/DraftOrder/") {
                 payment_terms["draftOrder"] = owner.clone();
                 payment_terms["order"] = Value::Null;

@@ -1,0 +1,427 @@
+{
+  "metadata": {
+    "capturedAt": "2026-07-03T17:40:59.626Z",
+    "startedAt": "2026-07-03T17:40:57.834Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrdersSetFulfillmentDeadline"],
+    "setup": [
+      "Creates a disposable order with one fulfillment order.",
+      "Uses fulfillmentOrderCancel to leave an existing fulfillment order in a closed/cancelled state before setting its fulfillBy deadline.",
+      "Uses a never-created fulfillment order GID for the all-ids-unresolvable branch."
+    ],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8888978833714",
+        "name": "#1701",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9826734670130"
+      }
+    ],
+    "closedFulfillmentOrder": {
+      "id": "gid://shopify/FulfillmentOrder/9826734670130",
+      "status": "CLOSED"
+    },
+    "unknownFulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999",
+    "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+  },
+  "workflows": {
+    "closedFulfillmentOrderDeadline": {
+      "create": {
+        "query": "#graphql\n  fragment FulfillmentOrderDeadlineFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    updatedAt\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderDeadlineOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderDeadlineFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "fulfillment-deadline-20260703174057@example.com",
+            "note": "fulfillment-order deadline parity 20260703174057",
+            "tags": ["shopify-draft-proxy", "fulfillment-deadline-parity"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Deadline",
+              "lastName": "Parity",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "Fulfillment deadline item 20260703174057",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8888978833714",
+                  "name": "#1701",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9826734670130",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "fulfillBy": null,
+                        "updatedAt": "2026-07-03T17:40:58Z",
+                        "order": {
+                          "id": "gid://shopify/Order/8888978833714",
+                          "name": "#1701",
+                          "displayFulfillmentStatus": "UNFULFILLED"
+                        },
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19875288973618",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 33,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "closeFulfillmentOrder": {
+        "query": "#graphql\n  fragment FulfillmentOrderDeadlineFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    updatedAt\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n      }\n    }\n  }\n\n  mutation CloseFulfillmentOrderForDeadline($id: ID!) {\n    fulfillmentOrderCancel(id: $id) {\n      fulfillmentOrder {\n        ...FulfillmentOrderDeadlineFields\n      }\n      replacementFulfillmentOrder {\n        ...FulfillmentOrderDeadlineFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9826734670130"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderCancel": {
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9826734670130",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "updatedAt": "2026-07-03T17:40:58Z",
+                  "order": {
+                    "id": "gid://shopify/Order/8888978833714",
+                    "name": "#1701",
+                    "displayFulfillmentStatus": "UNFULFILLED"
+                  },
+                  "lineItems": {
+                    "nodes": []
+                  }
+                },
+                "replacementFulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9826734702898",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "updatedAt": "2026-07-03T17:40:58Z",
+                  "order": {
+                    "id": "gid://shopify/Order/8888978833714",
+                    "name": "#1701",
+                    "displayFulfillmentStatus": "UNFULFILLED"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19875288973618",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 22,
+                "actualQueryCost": 20,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1980,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setFulfillmentDeadline": {
+        "query": "mutation FulfillmentOrdersSetFulfillmentDeadlineLifecycle(\n    $fulfillmentOrderIds: [ID!]!\n    $fulfillmentDeadline: DateTime!\n  ) {\n    fulfillmentOrdersSetFulfillmentDeadline(\n      fulfillmentOrderIds: $fulfillmentOrderIds\n      fulfillmentDeadline: $fulfillmentDeadline\n    ) {\n      success\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9826734670130"],
+          "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrdersSetFulfillmentDeadline": {
+                "success": true,
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "afterSetFulfillmentDeadline": {
+        "query": "#graphql\n  fragment FulfillmentOrderDeadlineFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    updatedAt\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n      }\n    }\n  }\n\n  query FulfillmentOrderDeadlineOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderDeadlineFields\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8888978833714"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8888978833714",
+                "name": "#1701",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9826734670130",
+                      "status": "CLOSED",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": "2026-12-01T00:00:00Z",
+                      "updatedAt": "2026-07-03T17:40:59Z",
+                      "order": {
+                        "id": "gid://shopify/Order/8888978833714",
+                        "name": "#1701",
+                        "displayFulfillmentStatus": "UNFULFILLED"
+                      },
+                      "lineItems": {
+                        "nodes": []
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9826734702898",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-07-03T17:40:58Z",
+                      "order": {
+                        "id": "gid://shopify/Order/8888978833714",
+                        "name": "#1701",
+                        "displayFulfillmentStatus": "UNFULFILLED"
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19875288973618",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 31,
+                "actualQueryCost": 7,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1993,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownIdDeadline": {
+      "setFulfillmentDeadline": {
+        "query": "mutation FulfillmentOrdersSetFulfillmentDeadlineLifecycle(\n    $fulfillmentOrderIds: [ID!]!\n    $fulfillmentDeadline: DateTime!\n  ) {\n    fulfillmentOrdersSetFulfillmentDeadline(\n      fulfillmentOrderIds: $fulfillmentOrderIds\n      fulfillmentDeadline: $fulfillmentDeadline\n    ) {\n      success\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/999999999999999"],
+          "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrdersSetFulfillmentDeadline": {
+                "success": false,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Fulfillment orders could not be found.",
+                    "code": null
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "preCleanup": {
+    "search": {
+      "query": "query FulfillmentOrderDeadlineTaggedOrders($query: String!, $first: Int!) {\n    orders(first: $first, query: $query, reverse: true) {\n      nodes {\n        id\n        name\n      }\n    }\n  }",
+      "variables": {
+        "query": "tag:fulfillment-deadline-parity",
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8888974541106",
+                  "name": "#1700"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancels": {
+      "gid://shopify/Order/8888974541106": {
+        "query": "mutation CleanupFulfillmentOrderDeadlineOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "orderId": "gid://shopify/Order/8888974541106",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCancel": {
+                "job": {
+                  "id": "gid://shopify/Job/9442e97f-6f23-4b6f-bd8d-cdf2f1f70382"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Order/8888978833714": {
+      "query": "mutation CleanupFulfillmentOrderDeadlineOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888978833714",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/5605b649-8b92-457e-9f9f-2f9a7176a8fc"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
