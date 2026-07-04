@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 import type {
   AppConfig,
-  DraftProxyCommitAttempt,
   DraftProxyCommitResult,
   DraftProxyConfigSnapshot,
   DraftProxyGraphQLRequestOptions,
@@ -384,23 +383,11 @@ export class DraftProxy {
 
   async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
     const response = await this.processRequest({ method: 'POST', path: '/__meta/commit', headers });
-    const body = response.body as { ok?: boolean; committed?: number; failed?: number };
-    const log = this.getLog() as { entries?: Array<Record<string, unknown>> };
-    const attempts: DraftProxyCommitAttempt[] = (log.entries ?? []).map((entry) => ({
-      logEntryId: String(entry['id'] ?? ''),
-      operationName: (entry['operationName'] ?? null) as string | null,
-      path: String(entry['path'] ?? ''),
-      success: entry['status'] === 'committed',
-      status: String(entry['status'] ?? ''),
-      upstreamStatus: null,
-      upstreamBody: null,
-      upstreamError: null,
-      responseBody: null,
-    }));
-    if (!body.ok) {
-      throw new DraftProxyCommitError({ ok: false, stopIndex: body.failed ?? null, attempts });
+    const body = response.body as DraftProxyCommitResult;
+    if (response.status !== 200 || !body.ok) {
+      throw new DraftProxyCommitError(body);
     }
-    return { stopIndex: null, attempts };
+    return body;
   }
 }
 

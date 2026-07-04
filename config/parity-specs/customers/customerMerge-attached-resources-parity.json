@@ -45,9 +45,24 @@
         "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
       },
       {
+        "path": "$.result.addressesV2Reverse.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.addressesV2Reverse.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
         "path": "$.result.metafields.nodes[2].id",
         "matcher": "shopify-gid:Metafield",
         "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafieldsReverse.nodes[0].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the reversed local proxy connection surfaces its own synthetic metafield ID."
       },
       {
         "path": "$.result.metafields.pageInfo.startCursor",
@@ -60,9 +75,24 @@
         "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
       },
       {
+        "path": "$.result.metafieldsReverse.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
+      },
+      {
+        "path": "$.result.metafieldsReverse.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
+      },
+      {
         "path": "$.mergeStatus.jobId",
         "matcher": "shopify-gid:Job",
         "reason": "The downstream proxy job-status read uses the locally generated merge job ID."
+      },
+      {
+        "path": "$.customersCount.count",
+        "matcher": "any-number",
+        "reason": "Shopify's captured customersCount(query: \"tag:har-291-merge\") response includes an invalid-field search warning and returns the shop-wide count, while the local proxy applies the staged customer tag filter."
       }
     ],
     "targets": [

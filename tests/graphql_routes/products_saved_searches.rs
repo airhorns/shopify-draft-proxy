@@ -2211,6 +2211,130 @@ fn product_set_rejects_inventory_item_cost_bounds_before_staging() {
 }
 
 #[test]
+fn product_option_name_delimiter_validation_rejects_all_option_write_paths() {
+    let fixture = product_fixture(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-name-delimiter-validation.json"
+    ));
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-option-name-delimiter-setup.graphql"
+        ),
+        fixture["setupProduct"]["variables"].clone(),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(setup.body["data"]["productCreate"]["userErrors"], json!([]));
+    let product_id = setup.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("setup productCreate should return a product id")
+        .to_string();
+    let option_id = setup.body["data"]["productCreate"]["product"]["options"][0]["id"]
+        .as_str()
+        .expect("setup productCreate should return an option id")
+        .to_string();
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionsCreate-name-delimiter.graphql"
+        ),
+        json!({
+            "productId": product_id.clone(),
+            "options": fixture["createDelimiter"]["variables"]["options"].clone(),
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["userErrors"],
+        fixture["createDelimiter"]["response"]["data"]["productOptionsCreate"]["userErrors"]
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let read_after_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+        ),
+        json!({ "id": product_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_create.body["data"]["product"]["options"][0]["name"],
+        json!("Color")
+    );
+    assert_eq!(
+        read_after_create
+            .body
+            .pointer("/data/product/options")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        read_after_create.body["data"]["product"]["variants"]["nodes"][0]["selectedOptions"],
+        json!([{ "name": "Color", "value": "Red" }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionUpdate-name-delimiter.graphql"
+        ),
+        json!({
+            "productId": product_id.clone(),
+            "option": {
+                "id": option_id,
+                "name": fixture["updateDelimiter"]["variables"]["option"]["name"].clone(),
+            },
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productOptionUpdate"]["userErrors"],
+        fixture["updateDelimiter"]["response"]["data"]["productOptionUpdate"]["userErrors"]
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+        ),
+        json!({ "id": product_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["product"]["options"][0]["name"],
+        json!("Color")
+    );
+    assert_eq!(
+        read_after_update.body["data"]["product"]["variants"]["nodes"][0]["selectedOptions"],
+        json!([{ "name": "Color", "value": "Red" }])
+    );
+
+    let product_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-option-name-delimiter.graphql"
+        ),
+        fixture["productCreateDelimiter"]["variables"].clone(),
+    ));
+    assert_eq!(product_create.status, 200);
+    assert_eq!(
+        product_create.body["data"]["productCreate"],
+        fixture["productCreateDelimiter"]["response"]["data"]["productCreate"]
+    );
+
+    let product_set = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productSet-option-name-delimiter.graphql"
+        ),
+        fixture["productSetDelimiter"]["variables"].clone(),
+    ));
+    assert_eq!(product_set.status, 200);
+    assert_eq!(
+        product_set.body["data"]["productSet"],
+        fixture["productSetDelimiter"]["response"]["data"]["productSet"]
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
     let forwarded = Arc::new(Mutex::new(0usize));
     let captured = Arc::clone(&forwarded);
@@ -7568,6 +7692,99 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
             }
         })
     );
+}
+
+#[test]
+fn product_update_scalar_length_validation_errors_leave_product_unchanged() {
+    let product_id = "gid://shopify/Product/1";
+    let base_product = ProductRecord {
+        id: product_id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Original product".to_string(),
+        handle: "original-product".to_string(),
+        status: "ACTIVE".to_string(),
+        vendor: "Original vendor".to_string(),
+        product_type: "Original type".to_string(),
+        ..ProductRecord::default()
+    };
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productUpdate-input-length-validation.graphql"
+    );
+    let expected_product = json!({
+        "id": product_id,
+        "title": "Original product",
+        "vendor": "Original vendor",
+        "productType": "Original type"
+    });
+    let scenarios = [
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "title": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["vendor"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["productType"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy().with_base_products(vec![base_product.clone()]);
+        let update = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(update.status, 200);
+        assert_eq!(
+            update.body["data"]["productUpdate"]["product"],
+            expected_product
+        );
+        assert_eq!(
+            update.body["data"]["productUpdate"]["userErrors"],
+            expected_errors
+        );
+
+        let read_back = proxy.process_request(json_graphql_request(
+            r#"
+            query ProductUpdateLengthRead($id: ID!) {
+              product(id: $id) {
+                id
+                title
+                vendor
+                productType
+              }
+            }
+            "#,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(read_back.body["data"]["product"], expected_product);
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
 }
 
 #[test]

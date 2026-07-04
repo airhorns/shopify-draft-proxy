@@ -976,6 +976,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-scalar-length-validation',
+    scriptPath: 'scripts/capture-product-scalar-length-validation-conformance.ts',
+    purpose:
+      'productCreate/productUpdate/productSet 255-character scalar length validation for title, handle, vendor, and productType.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-input-validation.json`,
+      `${CAPTURE_ROOT}product-update-input-length-validation.json`,
+      `${CAPTURE_ROOT}product-set-input-length-validation.json`,
+      'config/parity-specs/products/productCreate-input-validation.json',
+      'config/parity-specs/products/productUpdate-input-length-validation.json',
+      'config/parity-specs/products/productSet-input-length-validation.json',
+      'config/parity-requests/products/productUpdate-input-length-validation.graphql',
+      'config/parity-requests/products/productSet-input-length-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product for productUpdate validation, records rejected length branches, and deletes the setup product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-input-fields',
     scriptPath: 'scripts/capture-product-create-input-fields-conformance.ts',
     purpose:
@@ -2011,6 +2032,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}product-options-create-limits-and-duplicates-parity.json`],
     cleanupBehavior: 'Creates disposable products/options/variants and deletes the products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-option-name-delimiter-validation',
+    scriptPath: 'scripts/capture-product-option-name-delimiter-conformance.mts',
+    purpose:
+      'Option name delimiter validation for productOptionsCreate, productOptionUpdate, productCreate inline productOptions, and productSet productOptions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-option-name-delimiter-validation.json`,
+      'config/parity-specs/products/product-option-name-delimiter-validation.json',
+      'config/parity-requests/products/product-option-name-delimiter-setup.graphql',
+      'config/parity-requests/products/productOptionsCreate-name-delimiter.graphql',
+      'config/parity-requests/products/productOptionUpdate-name-delimiter.graphql',
+      'config/parity-requests/products/productCreate-option-name-delimiter.graphql',
+      'config/parity-requests/products/productSet-option-name-delimiter.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product/options graph and deletes it in best-effort cleanup; delimiter validation branches should not create products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -12816,6 +12857,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}store-credit-account-parity.json`,
       'config/parity-specs/customers/store-credit-account-local-staging.json',
+      'config/parity-requests/customers/storeCreditAccount-readback-parity.graphql',
+      'config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
@@ -12976,6 +13019,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
       'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
+      'config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql',
+      'config/parity-requests/customers/customer-merge-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customer graph; merge consumes source and cleanup removes remaining artifacts.',

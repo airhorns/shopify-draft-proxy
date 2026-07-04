@@ -6,6 +6,8 @@ export {
   DraftProxyCommitError,
   type AppConfig,
   type DraftProxyCommitAttempt,
+  type DraftProxyCommitAttemptRequest,
+  type DraftProxyCommitAttemptResponse,
   type DraftProxyCommitResult,
   type DraftProxyConfigSnapshot,
   type DraftProxyGraphQLRequestOptions,

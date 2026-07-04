@@ -805,6 +805,151 @@ fn return_create_and_request_persist_line_item_customer_note_for_read_after_writ
     );
 }
 
+#[test]
+fn order_returns_window_and_query_from_staged_returns() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
+
+    let open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOpenReturnForConnection($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return { id name status totalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(open.status, 200);
+    assert_eq!(open.body["data"]["returnCreate"]["userErrors"], json!([]));
+    let open_return_id = open.body["data"]["returnCreate"]["return"]["id"].clone();
+
+    let requested = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRequestedReturnForConnection($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return { id name status totalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(requested.status, 200);
+    assert_eq!(
+        requested.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let requested_return_id = requested.body["data"]["returnRequest"]["return"]["id"].clone();
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnConnectionFirstPage($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            returns(first: 1) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["order"]["returns"]["nodes"],
+        json!([{ "id": open_return_id, "status": "OPEN" }])
+    );
+    assert_eq!(
+        first_page.body["data"]["order"]["returns"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": open_return_id,
+            "endCursor": open_return_id
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnConnectionSecondPage($orderId: ID!, $after: String!) {
+          order(id: $orderId) {
+            returns(first: 1, after: $after) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "orderId": first_page.body["data"]["order"]["id"].clone(),
+            "after": first_page.body["data"]["order"]["returns"]["pageInfo"]["endCursor"].clone()
+        }),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["order"]["returns"]["nodes"],
+        json!([{ "id": requested_return_id, "status": "REQUESTED" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["order"]["returns"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": requested_return_id,
+            "endCursor": requested_return_id
+        })
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnConnectionFiltered($orderId: ID!) {
+          order(id: $orderId) {
+            returns(first: 5, query: "status:REQUESTED") {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(filtered.status, 200);
+    assert_eq!(
+        filtered.body["data"]["order"]["returns"]["nodes"],
+        json!([{ "id": requested_return_id, "status": "REQUESTED" }])
+    );
+    assert_eq!(
+        filtered.body["data"]["order"]["returns"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": requested_return_id,
+            "endCursor": requested_return_id
+        })
+    );
+}
+
 fn remove_from_return_for_test(
     proxy: &mut DraftProxy,
     return_id: Value,
@@ -13119,6 +13264,121 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
             "zip": "10001",
             "countryCodeV2": "US",
             "provinceCode": "NY"
+        })
+    );
+}
+
+#[test]
+fn customer_payment_methods_window_page_info_and_alias_show_revoked() {
+    let mut proxy = snapshot_proxy();
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerPaymentMethodsFirstPage {
+          customer(id: "gid://shopify/Customer/8801") {
+            paymentMethods(first: 2, showRevoked: true) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    let first_page_connection = &first_page.body["data"]["customer"]["paymentMethods"];
+    assert_eq!(
+        first_page_connection["nodes"],
+        json!([
+            { "id": "gid://shopify/CustomerPaymentMethod/base-card" },
+            { "id": "gid://shopify/CustomerPaymentMethod/base-paypal" }
+        ])
+    );
+    assert_eq!(
+        first_page_connection["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/CustomerPaymentMethod/base-card",
+            "endCursor": "gid://shopify/CustomerPaymentMethod/base-paypal"
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerPaymentMethodsSecondPage($after: String!) {
+          customer(id: "gid://shopify/Customer/8801") {
+            paymentMethods(first: 2, after: $after, showRevoked: true) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "after": first_page_connection["pageInfo"]["endCursor"].clone() }),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["customer"]["paymentMethods"]["nodes"],
+        json!([{ "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["customer"]["paymentMethods"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+            "endCursor": "gid://shopify/CustomerPaymentMethod/base-shop-pay"
+        })
+    );
+
+    let alias_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerPaymentMethodsAliasShowRevoked {
+          customer(id: "gid://shopify/Customer/revoke-sentinel") {
+            shown: paymentMethods(first: 2, showRevoked: true) {
+              nodes { id revokedAt }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            hidden: paymentMethods(first: 2) {
+              nodes { id revokedAt }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(alias_read.status, 200);
+    assert_eq!(
+        alias_read.body["data"]["customer"]["shown"]["nodes"],
+        json!([
+            { "id": "gid://shopify/CustomerPaymentMethod/active-contract", "revokedAt": Value::Null },
+            { "id": "gid://shopify/CustomerPaymentMethod/already-revoked", "revokedAt": "2026-05-01T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        alias_read.body["data"]["customer"]["shown"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "endCursor": "gid://shopify/CustomerPaymentMethod/already-revoked"
+        })
+    );
+    assert_eq!(
+        alias_read.body["data"]["customer"]["hidden"]["nodes"],
+        json!([
+            { "id": "gid://shopify/CustomerPaymentMethod/active-contract", "revokedAt": Value::Null }
+        ])
+    );
+    assert_eq!(
+        alias_read.body["data"]["customer"]["hidden"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "endCursor": "gid://shopify/CustomerPaymentMethod/active-contract"
         })
     );
 }

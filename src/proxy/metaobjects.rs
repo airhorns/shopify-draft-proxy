@@ -3395,7 +3395,11 @@ impl DraftProxy {
 
         let id = self.next_proxy_synthetic_gid("Metaobject");
         let handle_choice = if let Some(requested_handle) = resolved_string_field(input, "handle") {
-            self.available_metaobject_handle(&meta_type, &requested_handle)
+            if requested_handle.trim().is_empty() {
+                self.available_blank_metaobject_handle(&definition, &input_values, &meta_type, &id)
+            } else {
+                self.available_metaobject_handle(&meta_type, &requested_handle)
+            }
         } else {
             self.available_generated_metaobject_handle(&meta_type, &id)
         };
@@ -4455,6 +4459,18 @@ impl DraftProxy {
             }
         }
         unreachable!("infinite random handle search must return")
+    }
+
+    fn available_blank_metaobject_handle(
+        &self,
+        definition: &Value,
+        input_values: &BTreeMap<String, String>,
+        meta_type: &str,
+        id: &str,
+    ) -> MetaobjectHandleChoice {
+        metaobject_keyed_display_name(definition, input_values)
+            .map(|display_name| self.available_metaobject_handle(meta_type, &display_name))
+            .unwrap_or_else(|| self.available_generated_metaobject_handle(meta_type, id))
     }
 
     fn available_metaobject_handle(

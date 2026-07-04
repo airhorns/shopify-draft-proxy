@@ -9526,7 +9526,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
     let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
     let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_create_handle.is_empty());
+    assert_eq!(blank_create_handle, "blank-create");
     assert_eq!(
         blank_create_metaobject["displayName"],
         json!("Blank create")
@@ -9545,8 +9545,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     );
     let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
     let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_upsert_handle.is_empty());
-    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(blank_upsert_handle, "blank-upsert");
     assert_eq!(
         blank_upsert_metaobject["displayName"],
         json!("Blank upsert")
