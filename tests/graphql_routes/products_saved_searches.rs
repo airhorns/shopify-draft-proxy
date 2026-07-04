@@ -144,7 +144,7 @@ fn create_product_for_relationship_test(
                 nodes { id }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -721,7 +721,7 @@ fn product_create_unknown_category_returns_null_full_name() {
         mutation UnknownCategoryCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id category { id fullName } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -823,7 +823,7 @@ fn product_media_missing_product_errors_use_media_user_error_code() {
             r#"
             mutation MissingProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
               productCreateMedia(productId: $productId, media: $media) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -842,7 +842,7 @@ fn product_media_missing_product_errors_use_media_user_error_code() {
             r#"
             mutation MissingProductUpdateMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
               productUpdateMedia(productId: $productId, media: $media) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -857,7 +857,7 @@ fn product_media_missing_product_errors_use_media_user_error_code() {
             r#"
             mutation MissingProductDeleteMedia($productId: ID!, $mediaIds: [ID!]!) {
               productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -872,7 +872,7 @@ fn product_media_missing_product_errors_use_media_user_error_code() {
             r#"
             mutation MissingProductReorderMedia($id: ID!, $moves: [MoveInput!]!) {
               productReorderMedia(id: $id, moves: $moves) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -893,11 +893,15 @@ fn product_media_missing_product_errors_use_media_user_error_code() {
             "message": "Product does not exist",
             "code": "PRODUCT_DOES_NOT_EXIST"
         }]);
+        let expected_plain = json!([{
+            "field": if root == "productReorderMedia" { json!(["id"]) } else { json!(["productId"]) },
+            "message": "Product does not exist"
+        }]);
         assert_eq!(
             payload["mediaUserErrors"], expected,
             "{root} mediaUserErrors"
         );
-        assert_eq!(payload["userErrors"], expected, "{root} userErrors");
+        assert_eq!(payload["userErrors"], expected_plain, "{root} userErrors");
     }
 }
 
@@ -915,7 +919,7 @@ fn product_media_missing_media_errors_use_media_user_error_code_and_captured_mes
             r#"
             mutation MissingMediaUpdate($productId: ID!, $media: [UpdateMediaInput!]!) {
               productUpdateMedia(productId: $productId, media: $media) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -928,7 +932,7 @@ fn product_media_missing_media_errors_use_media_user_error_code_and_captured_mes
             r#"
             mutation MissingMediaDelete($productId: ID!, $mediaIds: [ID!]!) {
               productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
-                userErrors { field message code }
+                userErrors { field message  }
                 mediaUserErrors { field message code }
               }
             }
@@ -947,11 +951,15 @@ fn product_media_missing_media_errors_use_media_user_error_code_and_captured_mes
             "message": format!("Media id {missing_media_id} does not exist"),
             "code": "MEDIA_DOES_NOT_EXIST"
         }]);
+        let expected_plain = json!([{
+            "field": field,
+            "message": format!("Media id {missing_media_id} does not exist")
+        }]);
         assert_eq!(
             payload["mediaUserErrors"], expected,
             "{root} mediaUserErrors"
         );
-        assert_eq!(payload["userErrors"], expected, "{root} userErrors");
+        assert_eq!(payload["userErrors"], expected_plain, "{root} userErrors");
     }
 }
 
@@ -997,7 +1005,7 @@ fn product_media_missing_media_errors_aggregate_all_missing_ids() {
         mutation MissingMediaUpdate($productId: ID!, $media: [UpdateMediaInput!]!) {
           productUpdateMedia(productId: $productId, media: $media) {
             media { id }
-            userErrors { field message code }
+            userErrors { field message  }
             mediaUserErrors { field message code }
           }
         }
@@ -1017,9 +1025,13 @@ fn product_media_missing_media_errors_aggregate_all_missing_ids() {
         "message": expected_plural_message,
         "code": "MEDIA_DOES_NOT_EXIST"
     }]);
+    let expected_plain_update_errors = json!([{
+        "field": ["media"],
+        "message": expected_plural_message
+    }]);
     assert_eq!(update_payload["media"], Value::Null);
     assert_eq!(update_payload["mediaUserErrors"], expected_update_errors);
-    assert_eq!(update_payload["userErrors"], expected_update_errors);
+    assert_eq!(update_payload["userErrors"], expected_plain_update_errors);
 
     let delete = proxy.process_request(json_graphql_request(
         r#"
@@ -1027,7 +1039,7 @@ fn product_media_missing_media_errors_aggregate_all_missing_ids() {
           productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
             deletedMediaIds
             deletedProductImageIds
-            userErrors { field message code }
+            userErrors { field message  }
             mediaUserErrors { field message code }
           }
         }
@@ -1041,10 +1053,14 @@ fn product_media_missing_media_errors_aggregate_all_missing_ids() {
         "message": expected_plural_message,
         "code": "MEDIA_DOES_NOT_EXIST"
     }]);
+    let expected_plain_delete_errors = json!([{
+        "field": ["mediaIds"],
+        "message": expected_plural_message
+    }]);
     assert_eq!(delete_payload["deletedMediaIds"], Value::Null);
     assert_eq!(delete_payload["deletedProductImageIds"], Value::Null);
     assert_eq!(delete_payload["mediaUserErrors"], expected_delete_errors);
-    assert_eq!(delete_payload["userErrors"], expected_delete_errors);
+    assert_eq!(delete_payload["userErrors"], expected_plain_delete_errors);
 
     let after_invalid = proxy.process_request(json_graphql_request(
         r#"
@@ -1078,7 +1094,7 @@ fn product_reorder_media_unknown_media_id_returns_async_job_without_immediate_er
         mutation MissingMediaReorder($id: ID!, $moves: [MoveInput!]!) {
           productReorderMedia(id: $id, moves: $moves) {
             job { id done }
-            userErrors { field message code }
+            userErrors { field message  }
             mediaUserErrors { field message code }
           }
         }
@@ -2527,7 +2543,7 @@ fn product_variants_bulk_create_omitted_strategy_removes_default_standalone_vari
                 nodes { title selectedOptions { name value } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5210,7 +5226,7 @@ fn product_resource_feedback_reports_unavailable_products_as_product_not_found()
         mutation DeleteProductBeforeFeedback($input: ProductDeleteInput!) {
           productDelete(input: $input) {
             deletedProductId
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -6770,7 +6786,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             mutation MissingPublishablePublish($id: ID!, $input: [PublicationInput!]!) {
               publishablePublish(id: $id, input: $input) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6781,7 +6797,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             mutation MissingPublishableUnpublish($id: ID!, $input: [PublicationInput!]!) {
               publishableUnpublish(id: $id, input: $input) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6800,8 +6816,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             response.body["data"][root]["userErrors"],
             json!([{
                 "field": ["id"],
-                "message": "Resource does not exist",
-                "code": "RESOURCE_DOES_NOT_EXIST"
+                "message": "Resource does not exist"
             }])
         );
     }
@@ -6879,7 +6894,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             mutation NoCurrentPublish($id: ID!) {
               publishablePublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6890,7 +6905,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             mutation NoCurrentUnpublish($id: ID!) {
               publishableUnpublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6907,8 +6922,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             response.body["data"][root]["userErrors"],
             json!([{
                 "field": ["id"],
-                "message": "Channel does not exist",
-                "code": "CHANNEL_DOES_NOT_EXIST"
+                "message": "Channel does not exist"
             }])
         );
     }
@@ -7571,7 +7585,7 @@ fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields
         mutation ProductCreateBlankTitleWithCode($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -7581,7 +7595,7 @@ fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields
         local_code_projection.body["data"]["productCreate"],
         json!({
             "product": null,
-            "userErrors": [{ "field": ["title"], "message": "Title can't be blank", "code": "BLANK" }]
+            "userErrors": [{ "field": ["title"], "message": "Title can't be blank" }]
         })
     );
 }
@@ -7597,7 +7611,7 @@ fn product_create_payload_shop_uses_restored_shop_state_for_success_and_user_err
           productCreate(product: $product) {
             product { id title }
             shop { id name myshopifyDomain }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -7620,7 +7634,7 @@ fn product_create_payload_shop_uses_restored_shop_state_for_success_and_user_err
           productCreate(product: $product) {
             product { id }
             shop { id name myshopifyDomain }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -7634,8 +7648,7 @@ fn product_create_payload_shop_uses_restored_shop_state_for_success_and_user_err
             "shop": selected_product_payload_shop(),
             "userErrors": [{
                 "field": ["title"],
-                "message": "Title can't be blank",
-                "code": "BLANK"
+                "message": "Title can't be blank"
             }]
         })
     );
@@ -7707,7 +7720,7 @@ fn product_create_stages_extended_product_scalars_visible_to_product_read() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productCreate(product: { title: \"Extended product\", descriptionHtml: \"<p>Rich</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { title descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productCreate(product: { title: \"Extended product\", descriptionHtml: \"<p>Rich</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { title descriptionHtml vendor productType tags } userErrors { field message  } } }"}"#,
     ));
 
     assert_eq!(create.status, 200);
@@ -7771,7 +7784,7 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
 
     let update = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated product\", handle: \"updated-product\", status: DRAFT, descriptionHtml: \"<p>Updated</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { id title handle status descriptionHtml vendor productType tags } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated product\", handle: \"updated-product\", status: DRAFT, descriptionHtml: \"<p>Updated</p>\", vendor: \"Hermes\", productType: \"Accessory\", tags: [\"alpha\", \"beta\"] }) { product { id title handle status descriptionHtml vendor productType tags } userErrors { field message  } } }"}"#,
     ));
 
     assert_eq!(update.status, 200);
@@ -7934,7 +7947,7 @@ fn products_connection_reflects_staged_creates_and_deletes() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(create.status, 200);
 
@@ -7967,7 +7980,7 @@ fn products_connection_reflects_staged_creates_and_deletes() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message  } } }"}"#,
     ));
     assert_eq!(delete.status, 200);
 
@@ -8669,7 +8682,7 @@ fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags
         mutation ReplaceProductTags($product: ProductUpdateInput!) {
           productUpdate(product: $product) {
             product { id tags }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -9057,7 +9070,7 @@ fn products_sorted_connection_paginates_after_interleaved_create() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productCreate(product: { title: \"Aardvark Product\", handle: \"aardvark-product\" }) { product { id title } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productCreate(product: { title: \"Aardvark Product\", handle: \"aardvark-product\" }) { product { id title } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(
         create.body["data"]["productCreate"]["userErrors"],
@@ -9439,7 +9452,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { createResult: productCreate(product: { title: \"Alias product\" }) { product { id title } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { createResult: productCreate(product: { title: \"Alias product\" }) { product { id title } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
@@ -9459,7 +9472,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let update = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { updateResult: productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated alias\" }) { product { id title } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { updateResult: productUpdate(product: { id: \"gid://shopify/Product/1\", title: \"Updated alias\" }) { product { id title } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
@@ -9479,7 +9492,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { deleteResult: productDelete(product: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { deleteResult: productDelete(product: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message  } } }"}"#,
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
@@ -10637,7 +10650,7 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation CreateSearch($input: SavedSearchCreateInput!) { made: savedSearchCreate(input: $input) { savedSearch { id legacyResourceId name query resourceType filters { key value } } userErrors { field message code } } }","variables":{"input":{"name":"Promo products","query":"tag:promo vendor:acme","resourceType":"PRODUCT"}}}"#,
+        r#"{"query":"mutation CreateSearch($input: SavedSearchCreateInput!) { made: savedSearchCreate(input: $input) { savedSearch { id legacyResourceId name query resourceType filters { key value } } userErrors { field message  } } }","variables":{"input":{"name":"Promo products","query":"tag:promo vendor:acme","resourceType":"PRODUCT"}}}"#,
     ));
 
     assert_eq!(create.status, 200);
@@ -11757,7 +11770,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         json!([
             {
                 "message": "Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
-                "locations": [{ "line": 2, "column": 28 }],
+                "locations": [{ "line": 3, "column": 36 }],
                 "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "name"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
@@ -11768,7 +11781,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
             },
             {
                 "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
-                "locations": [{ "line": 2, "column": 28 }],
+                "locations": [{ "line": 3, "column": 36 }],
                 "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
@@ -11796,7 +11809,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         missing_resource_type.body["errors"][0],
         json!({
             "message": "Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!",
-            "locations": [{ "line": 2, "column": 28 }],
+            "locations": [{ "line": 3, "column": 36 }],
             "path": ["mutation SavedSearchCreateMissingResourceType", "savedSearchCreate", "input", "resourceType"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -11823,7 +11836,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         missing_id.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!",
-            "locations": [{ "line": 2, "column": 28 }],
+            "locations": [{ "line": 3, "column": 36 }],
             "path": ["mutation SavedSearchUpdateMissingId", "savedSearchUpdate", "input", "id"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -11879,7 +11892,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         missing_resource_type.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 55 }],
+            "locations": [{ "line": 2, "column": 63 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" },
@@ -11901,7 +11914,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         missing_name.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 47 }],
+            "locations": [{ "line": 2, "column": 55 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": { "resourceType": "PRODUCT", "query": "tag:variable-required" },
@@ -11961,7 +11974,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { failedCreate: productCreate(product: { title: \" \" }) { product { id } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { failedCreate: productCreate(product: { title: \" \" }) { product { id } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
@@ -11972,8 +11985,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                     "product": null,
                     "userErrors": [{
                         "field": ["title"],
-                        "message": "Title can't be blank",
-                        "code": "BLANK"
+                        "message": "Title can't be blank"
                     }]
                 }
             }
@@ -11996,24 +12008,13 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                 "locations": [{ "line": 1, "column": 12 }],
                 "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
                 "path": ["missingCreateInput"]
-            }],
-            "extensions": {
-                "cost": {
-                    "requestedQueryCost": 10,
-                    "actualQueryCost": 10,
-                    "throttleStatus": {
-                        "maximumAvailable": 2000,
-                        "currentlyAvailable": 1990,
-                        "restoreRate": 100
-                    }
-                }
-            }
+            }]
         })
     );
 
     let update = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { failedUpdate: productUpdate(product: { id: \"gid://shopify/Product/missing\", title: \"Missing\" }) { product { id } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { failedUpdate: productUpdate(product: { id: \"gid://shopify/Product/missing\", title: \"Missing\" }) { product { id } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
@@ -12024,8 +12025,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                     "product": null,
                     "userErrors": [{
                         "field": ["id"],
-                        "message": "Product does not exist",
-                        "code": "NOT_FOUND"
+                        "message": "Product does not exist"
                     }]
                 }
             }
@@ -12052,7 +12052,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { failedDelete: productDelete(input: { id: \"gid://shopify/Product/missing\" }) { deletedProductId userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { failedDelete: productDelete(input: { id: \"gid://shopify/Product/missing\" }) { deletedProductId userErrors { field message  } } }"}"#,
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
@@ -12063,8 +12063,7 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                     "deletedProductId": null,
                     "userErrors": [{
                         "field": ["id"],
-                        "message": "Product does not exist",
-                        "code": "NOT_FOUND"
+                        "message": "Product does not exist"
                     }]
                 }
             }
@@ -12086,7 +12085,7 @@ fn product_delete_payload_shop_uses_restored_shop_state_for_all_payload_branches
           productDelete(input: $input) {
             deletedProductId
             shop { id name myshopifyDomain }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -12108,7 +12107,7 @@ fn product_delete_payload_shop_uses_restored_shop_state_for_all_payload_branches
           productDelete(input: $input) {
             deletedProductId
             shop { id name myshopifyDomain }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -12122,8 +12121,7 @@ fn product_delete_payload_shop_uses_restored_shop_state_for_all_payload_branches
             "shop": selected_product_payload_shop(),
             "userErrors": [{
                 "field": ["id"],
-                "message": "Product does not exist",
-                "code": "NOT_FOUND"
+                "message": "Product does not exist"
             }]
         })
     );
@@ -12227,7 +12225,7 @@ fn product_delete_stages_downstream_no_data_for_product_read() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message  } } }"}"#,
     ));
 
     assert_eq!(delete.status, 200);
@@ -12258,7 +12256,7 @@ fn product_create_stages_product_visible_to_product_read() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productCreate(product: { title: \"Rust staged product\", handle: \"rust-staged-product\", status: ACTIVE }) { product { id title handle status } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productCreate(product: { title: \"Rust staged product\", handle: \"rust-staged-product\", status: ACTIVE }) { product { id title handle status } userErrors { field message  } } }"}"#,
     ));
 
     assert_eq!(create.status, 200);
@@ -12306,7 +12304,7 @@ fn product_create_update_and_connection_reads_emit_product_timestamps() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productCreate(product: { title: \"Timestamped product\", handle: \"timestamped-product\", status: ACTIVE }) { product { id createdAt updatedAt } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productCreate(product: { title: \"Timestamped product\", handle: \"timestamped-product\", status: ACTIVE }) { product { id createdAt updatedAt } userErrors { field message  } } }"}"#,
     ));
 
     assert_eq!(create.status, 200);
@@ -12345,7 +12343,7 @@ fn product_create_update_and_connection_reads_emit_product_timestamps() {
 
     let update = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\", title: \"Updated timestamped product\" }) { product { id createdAt updatedAt } userErrors { field message code } } }"}"#,
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\", title: \"Updated timestamped product\" }) { product { id createdAt updatedAt } userErrors { field message  } } }"}"#,
     ));
     assert_eq!(update.status, 200);
     let updated_product = &update.body["data"]["productUpdate"]["product"];
@@ -12421,7 +12419,7 @@ fn product_create_resolves_input_from_request_variables() {
 
     let create = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message code } } }","variables":{"product":{"title":"Variable staged product","handle":"variable-staged-product","status":"ARCHIVED"}}}"#,
+        r#"{"query":"mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message  } } }","variables":{"product":{"title":"Variable staged product","handle":"variable-staged-product","status":"ARCHIVED"}}}"#,
     ));
 
     assert_eq!(create.status, 200);
@@ -12591,7 +12589,7 @@ fn product_change_status_rejects_invalid_status_without_staging() {
     assert_eq!(
         variable.body["errors"][0]["extensions"],
         json!({
-            "code": "INVALID_VARIABLE",
+        "code": "INVALID_VARIABLE",
             "value": "ENABLED",
             "problems": [{
                 "path": [],

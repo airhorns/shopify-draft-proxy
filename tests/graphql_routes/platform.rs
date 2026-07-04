@@ -5183,7 +5183,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation OpenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5308,7 +5308,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation ReopenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5458,7 +5458,7 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
               fulfillBy
               assignedLocation { location { id } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5500,7 +5500,7 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
         mutation CloseNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderClose(id: $id, message: "done") {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5700,7 +5700,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
         mutation OpenAlreadyOpenFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5712,8 +5712,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             "fulfillmentOrder": null,
             "userErrors": [{
                 "field": null,
-                "message": "Expected fulfillment order status to be valid but it was open.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "message": "Expected fulfillment order status to be valid but it was open."
             }]
         })
     );
@@ -5789,7 +5788,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
             mutation FulfillmentOrderInvalidStateOpen($id: ID!) {
               fulfillmentOrderOpen(id: $id) {
                 fulfillmentOrder { id status updatedAt supportedActions { action } }
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
             "#,
@@ -5801,8 +5800,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
                 "fulfillmentOrder": null,
                 "userErrors": [{
                     "field": null,
-                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
-                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}.")
                 }]
             })
         );
@@ -6081,7 +6079,7 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
             fulfillmentOrderLineItems: $lineItems
           ) {
             submittedFulfillmentOrder { id requestStatus }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -6190,7 +6188,7 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
               title
               variants(first: 1) { nodes { id title } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,

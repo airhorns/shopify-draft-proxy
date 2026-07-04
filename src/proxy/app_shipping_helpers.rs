@@ -272,12 +272,19 @@ fn request_required_access_scope_values(request: &Request) -> Option<Vec<Value>>
         .map(|header| access_scope_values_from_header(&header))
 }
 
-fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+fn access_scope_handles_from_header(header: &str) -> Vec<String> {
     header
         .split(',')
         .map(str::trim)
         .filter(|scope| !scope.is_empty())
-        .map(|scope| access_scope_json(scope, None))
+        .map(str::to_string)
+        .collect()
+}
+
+fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+    access_scope_handles_from_header(header)
+        .into_iter()
+        .map(|scope| access_scope_json(&scope, None))
         .collect()
 }
 

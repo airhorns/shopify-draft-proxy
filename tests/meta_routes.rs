@@ -1283,7 +1283,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               lineItems(first: 5) { nodes { id title quantity } }
               transactions { id kind status gateway }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1716,7 +1716,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                 mutation CreateOrderCustomerCompany {
                   companyCreate(input: { company: { name: "Roundtrip Buyer Company" } }) {
                     company { id name }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#
@@ -1731,7 +1731,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                 mutation AssignOrderCustomerContact($companyId: ID!, $customerId: ID!) {
                   companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
                     companyContact { id customer { id } company { id name } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,

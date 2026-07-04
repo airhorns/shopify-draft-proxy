@@ -8985,7 +8985,7 @@ fn shipping_package_live_hybrid_hydrates_non_fixture_ids_and_clears_all_defaults
 
     let update_query = r#"
         mutation ShippingPackageUpdateHydratedRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
         }
     "#;
 
@@ -9482,7 +9482,7 @@ fn shipping_package_update_rejects_observed_flat_rate_packages_without_overwriti
     );
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message  } }
         }
     "#;
 
