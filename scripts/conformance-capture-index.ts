@@ -1621,6 +1621,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-filename-extension-case-sensitivity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-filename-extension-case-sensitivity-conformance.ts',
+    purpose:
+      'Files API fileCreate and fileUpdate filename extension validation when the only mismatch is extension letter case.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-filename-extension-case-sensitivity.json`,
+      'config/parity-specs/media/media-file-filename-extension-case-sensitivity.json',
+    ],
+    cleanupBehavior:
+      'Records one validation-only fileCreate rejection, creates one disposable image file with an uppercase extension for READY fileUpdate validation, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-fabricated-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-fabricated-validation.ts',

@@ -1004,6 +1004,7 @@ fn product_media_local_ready_url(node: &Value) -> String {
     let token = product_media_url_token(&format!("{resource_type}-{tail}"));
     let extension = product_media_original_source_url(node)
         .map(file_extension)
+        .map(|extension| extension.to_ascii_lowercase())
         .filter(|extension| !extension.is_empty() && extension.chars().all(token_char))
         .unwrap_or_else(|| "png".to_string());
     format!("https://shopify-draft-proxy.local/media/{token}.{extension}")
@@ -1026,7 +1027,10 @@ fn infer_product_media_content_type(original_source: &str) -> &'static str {
     if product_media_source_is_external_video(original_source) {
         return "EXTERNAL_VIDEO";
     }
-    match file_extension(original_source).as_str() {
+    match file_extension(original_source)
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         "glb" | "gltf" | "usdz" => "MODEL_3D",
         _ => "IMAGE",
