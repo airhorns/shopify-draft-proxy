@@ -5022,6 +5022,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-read-connections',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-read-connections-conformance.mts',
+    purpose:
+      'Price-list root connection windows and PriceList.prices read-time product-id/originType/window filtering.',
+    requiredAuthScopes: ['read_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-lists-window-first-page.json`,
+      `${CAPTURE_ROOT}price-lists-window-after.json`,
+      `${CAPTURE_ROOT}price-list-prices-window-filtered.json`,
+      'config/parity-specs/markets/price-lists-window-first-page.json',
+      'config/parity-specs/markets/price-lists-window-after.json',
+      'config/parity-specs/markets/price-list-prices-window-filtered.json',
+      'config/parity-requests/markets/price-lists-window-first-page.graphql',
+      'config/parity-requests/markets/price-lists-window-first-page.variables.json',
+      'config/parity-requests/markets/price-lists-window-after.graphql',
+      'config/parity-requests/markets/price-lists-window-after.variables.json',
+      'config/parity-requests/markets/price-list-prices-window-filtered.graphql',
+      'config/parity-requests/markets/price-list-prices-window-filtered.variables.json',
+    ],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'markets-legacy-parity-fixtures',
     scriptPath: 'scripts/capture-market-orphan-fixture-replacements-conformance.mts',
     purpose:

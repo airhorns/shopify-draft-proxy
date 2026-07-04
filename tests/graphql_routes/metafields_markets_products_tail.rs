@@ -224,6 +224,301 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
 }
 
 #[test]
+fn price_lists_read_connection_windows_staged_records() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation PriceListsConnectionSeed($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    for (name, currency) in [
+        ("Denmark", "DKK"),
+        ("United States", "USD"),
+        ("Canada", "CAD"),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({
+                "input": {
+                    "name": name,
+                    "currency": currency,
+                    "parent": { "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 } }
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["priceListCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListsConnectionFirstPage {
+          priceLists(first: 2) {
+            nodes { id name currency }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["priceLists"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK" },
+                { "id": "gid://shopify/PriceList/2", "name": "United States", "currency": "USD" }
+            ],
+            "edges": [
+                { "cursor": "gid://shopify/PriceList/1", "node": { "id": "gid://shopify/PriceList/1" } },
+                { "cursor": "gid://shopify/PriceList/2", "node": { "id": "gid://shopify/PriceList/2" } }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/PriceList/1",
+                "endCursor": "gid://shopify/PriceList/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListsConnectionSecondPage($after: String!) {
+          priceLists(first: 1, after: $after) {
+            nodes { id name currency }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": "gid://shopify/PriceList/2"}),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["priceLists"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/PriceList/3", "name": "Canada", "currency": "CAD" }
+            ],
+            "edges": [
+                { "cursor": "gid://shopify/PriceList/3", "node": { "id": "gid://shopify/PriceList/3" } }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/PriceList/3",
+                "endCursor": "gid://shopify/PriceList/3"
+            }
+        })
+    );
+}
+
+#[test]
+fn price_list_prices_read_filters_and_windows_staged_fixed_prices() {
+    let mut proxy = fixed_price_validation_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PriceListPricesConnectionSeed($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id sku } originType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let first_fixed = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesFirstFixed($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 1, originType: FIXED) {
+              edges { cursor node { originType variant { id sku } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(first_fixed.status, 200);
+    assert_eq!(
+        first_fixed.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "sku": "FIXED-COMPARE-A" }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID
+            }
+        })
+    );
+
+    let product_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesProductFilter($priceListId: ID!, $query: String!) {
+          priceList(id: $priceListId) {
+            prices(first: 1, query: $query, originType: FIXED) {
+              edges { cursor node { originType variant { id sku product { id } } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "query": "product_id:1817001"
+        }),
+    ));
+    assert_eq!(product_filtered.status, 200);
+    assert_eq!(
+        product_filtered.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": {
+                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                        "sku": "FIXED-COMPARE-A",
+                        "product": { "id": FIXED_PRICE_VALIDATION_PRODUCT_ID }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID
+            }
+        })
+    );
+
+    let variant_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesVariantFilter($priceListId: ID!, $query: String!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, query: $query, originType: FIXED) {
+              edges { cursor node { originType variant { id sku } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "query": "variant_id:1817002"
+        }),
+    ));
+    assert_eq!(variant_filtered.status, 200);
+    assert_eq!(
+        variant_filtered.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "sku": "FIXED-COMPARE-B" }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID
+            }
+        })
+    );
+
+    let relative_only = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesRelativeFilter($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, originType: RELATIVE) {
+              edges { cursor node { originType variant { id } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(relative_only.status, 200);
+    assert_eq!(
+        relative_only.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+
+    let unsupported_filter = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesUnsupportedFilter($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, query: "sku:FIXED-COMPARE-A", originType: FIXED) {
+              edges { cursor node { originType variant { id } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(unsupported_filter.status, 200);
+    assert_eq!(
+        unsupported_filter.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+}
+
+#[test]
 fn price_list_fixed_prices_add_short_circuits_currency_after_missing_variant() {
     let mut proxy = fixed_price_validation_proxy();
 
