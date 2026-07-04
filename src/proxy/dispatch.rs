@@ -171,18 +171,17 @@ impl DraftProxy {
                 let fields = try_root_fields!(query, variables);
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
-            "collections" => {
-                // The catalog's opaque cursors and server-side query filtering
-                // cannot be reconstructed from local state, so a de-seeded
-                // scenario forwards the top-level `collections` list read upstream
-                // (the proxy reads it from real Shopify rather than replaying a
-                // `/__meta/seed` snapshot). A scenario that still seeds the
-                // recorded connections is served locally.
-                if self.store.staged.collection_catalog.is_empty() {
-                    (self.upstream_transport)(request.clone())
-                } else {
+            "collections" | "collectionsCount" => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.store.has_collection_state()
+                {
+                    self.hydrate_collections_for_read(request);
+                }
+                if self.store.has_collection_state() {
                     let fields = try_root_fields!(query, variables);
-                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                    ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
+                } else {
+                    (self.upstream_transport)(request.clone())
                 }
             }
             "publication"
@@ -1805,10 +1804,16 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
-                    return quantity_pricing_by_variant_update_response(&query, &variables);
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
+                    return quantity_pricing_by_variant_update_response(
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
                     return quantity_rules_mutation_response(
                         root_field,
                         &query,
@@ -2606,7 +2611,7 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
-                self.media_files_read(&query, &variables)
+                self.media_files_read(request, &query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>

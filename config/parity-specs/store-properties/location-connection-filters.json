@@ -1,0 +1,141 @@
+{
+  "scenarioId": "location-connection-filters",
+  "operationNames": ["locationAdd", "fulfillmentServiceCreate", "locationDeactivate", "locations", "locationsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "connection-parity",
+    "filtered-count-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-connection-filters.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-connection-location-add.graphql",
+    "variablesCapturePath": "$.workflow.alphaLocationAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "alpha-location-add",
+        "capturePath": "$.workflow.alphaLocationAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "selectedPaths": ["$.location.name", "$.location.isActive", "$.location.fulfillsOnlineOrders", "$.userErrors"]
+      },
+      {
+        "name": "zulu-location-add",
+        "capturePath": "$.workflow.zuluLocationAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-connection-location-add.graphql",
+          "variablesCapturePath": "$.workflow.zuluLocationAdd.variables"
+        },
+        "selectedPaths": ["$.location.name", "$.location.isActive", "$.location.fulfillsOnlineOrders", "$.userErrors"]
+      },
+      {
+        "name": "beta-location-add",
+        "capturePath": "$.workflow.betaLocationAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-connection-location-add.graphql",
+          "variablesCapturePath": "$.workflow.betaLocationAdd.variables"
+        },
+        "selectedPaths": ["$.location.name", "$.location.isActive", "$.location.fulfillsOnlineOrders", "$.userErrors"]
+      },
+      {
+        "name": "fulfillment-service-create",
+        "capturePath": "$.workflow.fulfillmentServiceCreate.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-connection-fulfillment-service-create.graphql",
+          "variablesCapturePath": "$.workflow.fulfillmentServiceCreate.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentService.serviceName",
+          "$.fulfillmentService.location.name",
+          "$.fulfillmentService.location.isActive",
+          "$.fulfillmentService.location.isFulfillmentService",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "beta-deactivate",
+        "capturePath": "$.workflow.betaDeactivate.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-connection-deactivate.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "beta-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "idempotencyKey": {
+              "fromCapturePath": "$.workflow.betaDeactivate.variables.idempotencyKey"
+            }
+          }
+        },
+        "selectedPaths": ["$.location.name", "$.location.isActive", "$.locationDeactivateUserErrors"]
+      },
+      {
+        "name": "connection-filtered-read",
+        "capturePath": "$.workflow.connectionRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-connection-filtered-read.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.workflow.connectionRead.variables.query"
+            },
+            "alphaQuery": {
+              "fromCapturePath": "$.workflow.connectionRead.variables.alphaQuery"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.filteredDefault.nodes[0].name",
+          "$.filteredDefault.nodes[0].isActive",
+          "$.filteredDefault.nodes[0].isFulfillmentService",
+          "$.filteredDefault.nodes[1].name",
+          "$.filteredDefault.nodes[1].isActive",
+          "$.filteredDefault.nodes[1].isFulfillmentService",
+          "$.filteredDefault.pageInfo.hasNextPage",
+          "$.filteredDefault.pageInfo.hasPreviousPage",
+          "$.filteredIncludeInactive.nodes[0].name",
+          "$.filteredIncludeInactive.nodes[0].isActive",
+          "$.filteredIncludeInactive.nodes[1].name",
+          "$.filteredIncludeInactive.nodes[1].isActive",
+          "$.filteredIncludeInactive.nodes[2].name",
+          "$.filteredIncludeInactive.nodes[2].isActive",
+          "$.filteredIncludeLegacy.nodes[0].name",
+          "$.filteredIncludeLegacy.nodes[0].isFulfillmentService",
+          "$.filteredIncludeLegacy.nodes[1].name",
+          "$.filteredIncludeLegacy.nodes[1].isFulfillmentService",
+          "$.filteredIncludeLegacy.nodes[2].name",
+          "$.filteredIncludeLegacy.nodes[2].isFulfillmentService",
+          "$.queryAlpha.nodes[0].name",
+          "$.queryAlpha.nodes[0].isActive",
+          "$.nameFirst.nodes[0].name",
+          "$.nameFirst.pageInfo.hasNextPage",
+          "$.nameFirst.pageInfo.hasPreviousPage",
+          "$.reversed.nodes[0].name",
+          "$.reversed.nodes[1].name",
+          "$.filteredCount",
+          "$.limitedCount"
+        ]
+      }
+    ]
+  },
+  "notes": "Records Admin API 2026-04 top-level locations connection behavior against disposable merchant locations and a fulfillment-service legacy location. The captured read uses a unique exact-name OR query to prove query filtering, default active/non-legacy connection filtering, includeInactive/includeLegacy, NAME sort, reverse, first-page pageInfo booleans/emitted cursors, and locationsCount(query:, limit:) without depending on unrelated shop locations. Current live locationsCount(query:) counts every matching location, including inactive and fulfillment-service legacy locations, even though the connection defaults exclude them. Runtime tests cover local after/before cursor windowing."
+}

@@ -1,0 +1,820 @@
+{
+  "scenarioId": "customer-update-inline-address-id-semantics",
+  "capturedAt": "2026-07-03T18:55:49.616Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "create": {
+    "variables": {
+      "input": {
+        "email": "hermes-inline-address-id-1783104948159@example.com",
+        "firstName": "Hermes",
+        "lastName": "InlineAddressIds",
+        "addresses": [
+          {
+            "firstName": "Hermes",
+            "lastName": "Removed",
+            "address1": "100 Removed St",
+            "address2": "Suite A",
+            "city": "Ottawa",
+            "company": "Removed Co",
+            "countryCode": "CA",
+            "provinceCode": "ON",
+            "zip": "K1A 0B1",
+            "phone": "+14155550121"
+          },
+          {
+            "firstName": "Hermes",
+            "lastName": "Target",
+            "address1": "200 Target Ave",
+            "address2": "Floor 2",
+            "city": "Toronto",
+            "company": "Target Co",
+            "countryCode": "CA",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550122"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10890094248242",
+            "email": "hermes-inline-address-id-1783104948159@example.com",
+            "firstName": "Hermes",
+            "lastName": "InlineAddressIds",
+            "displayName": "Hermes InlineAddressIds",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12270127317298?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "Removed",
+              "address1": "100 Removed St",
+              "address2": "Suite A",
+              "city": "Ottawa",
+              "company": "Removed Co",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "K1A 0B1",
+              "phone": "+14155550121",
+              "name": "Hermes Removed",
+              "formattedArea": "Ottawa ON, Canada"
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12270127317298?model_name=CustomerAddress",
+                  "firstName": "Hermes",
+                  "lastName": "Removed",
+                  "address1": "100 Removed St",
+                  "address2": "Suite A",
+                  "city": "Ottawa",
+                  "company": "Removed Co",
+                  "country": "Canada",
+                  "countryCodeV2": "CA",
+                  "province": "Ontario",
+                  "provinceCode": "ON",
+                  "zip": "K1A 0B1",
+                  "phone": "+14155550121",
+                  "name": "Hermes Removed",
+                  "formattedArea": "Ottawa ON, Canada"
+                },
+                {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "firstName": "Hermes",
+                  "lastName": "Target",
+                  "address1": "200 Target Ave",
+                  "address2": "Floor 2",
+                  "city": "Toronto",
+                  "company": "Target Co",
+                  "country": "Canada",
+                  "countryCodeV2": "CA",
+                  "province": "Ontario",
+                  "provinceCode": "ON",
+                  "zip": "M5H 2N2",
+                  "phone": "+14155550122",
+                  "name": "Hermes Target",
+                  "formattedArea": "Toronto ON, Canada"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzMxNzI5OCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzE3Mjk4In0=",
+                  "node": {
+                    "id": "gid://shopify/MailingAddress/12270127317298?model_name=CustomerAddress",
+                    "address1": "100 Removed St",
+                    "city": "Ottawa",
+                    "zip": "K1A 0B1"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                  "node": {
+                    "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                    "address1": "200 Target Ave",
+                    "city": "Toronto",
+                    "zip": "M5H 2N2"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzMxNzI5OCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzE3Mjk4In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateInPlace": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/10890094248242",
+        "addresses": [
+          {
+            "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+            "address1": "999 Bryant St"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10890094248242",
+            "email": "hermes-inline-address-id-1783104948159@example.com",
+            "firstName": "Hermes",
+            "lastName": "InlineAddressIds",
+            "displayName": "Hermes InlineAddressIds",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "Target",
+              "address1": "999 Bryant St",
+              "address2": "Floor 2",
+              "city": "Toronto",
+              "company": "Target Co",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "M5H 2N2",
+              "phone": "+14155550122",
+              "name": "Hermes Target",
+              "formattedArea": "Toronto ON, Canada"
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "firstName": "Hermes",
+                  "lastName": "Target",
+                  "address1": "999 Bryant St",
+                  "address2": "Floor 2",
+                  "city": "Toronto",
+                  "company": "Target Co",
+                  "country": "Canada",
+                  "countryCodeV2": "CA",
+                  "province": "Ontario",
+                  "provinceCode": "ON",
+                  "zip": "M5H 2N2",
+                  "phone": "+14155550122",
+                  "name": "Hermes Target",
+                  "formattedArea": "Toronto ON, Canada"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                  "node": {
+                    "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                    "address1": "999 Bryant St",
+                    "city": "Toronto",
+                    "zip": "M5H 2N2"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUpdate": {
+    "variables": {
+      "id": "gid://shopify/Customer/10890094248242",
+      "identifier": {
+        "emailAddress": "hermes-inline-address-id-1783104948159@example.com"
+      }
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Target",
+            "address1": "999 Bryant St",
+            "address2": "Floor 2",
+            "city": "Toronto",
+            "company": "Target Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550122",
+            "name": "Hermes Target",
+            "formattedArea": "Toronto ON, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Target",
+                "address1": "999 Bryant St",
+                "address2": "Floor 2",
+                "city": "Toronto",
+                "company": "Target Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2",
+                "phone": "+14155550122",
+                "name": "Hermes Target",
+                "formattedArea": "Toronto ON, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "address1": "999 Bryant St",
+                  "city": "Toronto",
+                  "zip": "M5H 2N2"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+            }
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Target",
+            "address1": "999 Bryant St",
+            "address2": "Floor 2",
+            "city": "Toronto",
+            "company": "Target Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550122",
+            "name": "Hermes Target",
+            "formattedArea": "Toronto ON, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Target",
+                "address1": "999 Bryant St",
+                "address2": "Floor 2",
+                "city": "Toronto",
+                "company": "Target Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2",
+                "phone": "+14155550122",
+                "name": "Hermes Target",
+                "formattedArea": "Toronto ON, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "address1": "999 Bryant St",
+                  "city": "Toronto",
+                  "zip": "M5H 2N2"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknownId": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/10890094248242",
+        "addresses": [
+          {
+            "id": "gid://shopify/MailingAddress/1783104948159999999?model_name=CustomerAddress",
+            "address1": "Should Not Stage"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["addresses", "0", "id"],
+              "message": "Customer address does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUnknownId": {
+    "variables": {
+      "id": "gid://shopify/Customer/10890094248242",
+      "identifier": {
+        "emailAddress": "hermes-inline-address-id-1783104948159@example.com"
+      }
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Target",
+            "address1": "999 Bryant St",
+            "address2": "Floor 2",
+            "city": "Toronto",
+            "company": "Target Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550122",
+            "name": "Hermes Target",
+            "formattedArea": "Toronto ON, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Target",
+                "address1": "999 Bryant St",
+                "address2": "Floor 2",
+                "city": "Toronto",
+                "company": "Target Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2",
+                "phone": "+14155550122",
+                "name": "Hermes Target",
+                "formattedArea": "Toronto ON, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "address1": "999 Bryant St",
+                  "city": "Toronto",
+                  "zip": "M5H 2N2"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+            }
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Target",
+            "address1": "999 Bryant St",
+            "address2": "Floor 2",
+            "city": "Toronto",
+            "company": "Target Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550122",
+            "name": "Hermes Target",
+            "formattedArea": "Toronto ON, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Target",
+                "address1": "999 Bryant St",
+                "address2": "Floor 2",
+                "city": "Toronto",
+                "company": "Target Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2",
+                "phone": "+14155550122",
+                "name": "Hermes Target",
+                "formattedArea": "Toronto ON, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127350066?model_name=CustomerAddress",
+                  "address1": "999 Bryant St",
+                  "city": "Toronto",
+                  "zip": "M5H 2N2"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM1MDA2NiwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzUwMDY2In0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createWithoutId": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/10890094248242",
+        "addresses": [
+          {
+            "firstName": "Hermes",
+            "lastName": "Created",
+            "address1": "300 Created Way",
+            "address2": "Unit 3",
+            "city": "Montreal",
+            "company": "Created Co",
+            "countryCode": "CA",
+            "provinceCode": "QC",
+            "zip": "H2Y 1C6",
+            "phone": "+14155550125"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10890094248242",
+            "email": "hermes-inline-address-id-1783104948159@example.com",
+            "firstName": "Hermes",
+            "lastName": "InlineAddressIds",
+            "displayName": "Hermes InlineAddressIds",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "Created",
+              "address1": "300 Created Way",
+              "address2": "Unit 3",
+              "city": "Montreal",
+              "company": "Created Co",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": "Quebec",
+              "provinceCode": "QC",
+              "zip": "H2Y 1C6",
+              "phone": "+14155550125",
+              "name": "Hermes Created",
+              "formattedArea": "Montreal QC, Canada"
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                  "firstName": "Hermes",
+                  "lastName": "Created",
+                  "address1": "300 Created Way",
+                  "address2": "Unit 3",
+                  "city": "Montreal",
+                  "company": "Created Co",
+                  "country": "Canada",
+                  "countryCodeV2": "CA",
+                  "province": "Quebec",
+                  "provinceCode": "QC",
+                  "zip": "H2Y 1C6",
+                  "phone": "+14155550125",
+                  "name": "Hermes Created",
+                  "formattedArea": "Montreal QC, Canada"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+                  "node": {
+                    "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                    "address1": "300 Created Way",
+                    "city": "Montreal",
+                    "zip": "H2Y 1C6"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0="
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreateWithoutId": {
+    "variables": {
+      "id": "gid://shopify/Customer/10890094248242",
+      "identifier": {
+        "emailAddress": "hermes-inline-address-id-1783104948159@example.com"
+      }
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Created",
+            "address1": "300 Created Way",
+            "address2": "Unit 3",
+            "city": "Montreal",
+            "company": "Created Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Quebec",
+            "provinceCode": "QC",
+            "zip": "H2Y 1C6",
+            "phone": "+14155550125",
+            "name": "Hermes Created",
+            "formattedArea": "Montreal QC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Created",
+                "address1": "300 Created Way",
+                "address2": "Unit 3",
+                "city": "Montreal",
+                "company": "Created Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "zip": "H2Y 1C6",
+                "phone": "+14155550125",
+                "name": "Hermes Created",
+                "formattedArea": "Montreal QC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                  "address1": "300 Created Way",
+                  "city": "Montreal",
+                  "zip": "H2Y 1C6"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0="
+            }
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10890094248242",
+          "email": "hermes-inline-address-id-1783104948159@example.com",
+          "firstName": "Hermes",
+          "lastName": "InlineAddressIds",
+          "displayName": "Hermes InlineAddressIds",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+            "firstName": "Hermes",
+            "lastName": "Created",
+            "address1": "300 Created Way",
+            "address2": "Unit 3",
+            "city": "Montreal",
+            "company": "Created Co",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Quebec",
+            "provinceCode": "QC",
+            "zip": "H2Y 1C6",
+            "phone": "+14155550125",
+            "name": "Hermes Created",
+            "formattedArea": "Montreal QC, Canada"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                "firstName": "Hermes",
+                "lastName": "Created",
+                "address1": "300 Created Way",
+                "address2": "Unit 3",
+                "city": "Montreal",
+                "company": "Created Co",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "zip": "H2Y 1C6",
+                "phone": "+14155550125",
+                "name": "Hermes Created",
+                "formattedArea": "Montreal QC, Canada"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+                "node": {
+                  "id": "gid://shopify/MailingAddress/12270127382834?model_name=CustomerAddress",
+                  "address1": "300 Created Way",
+                  "city": "Montreal",
+                  "zip": "H2Y 1C6"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3MDEyNzM4MjgzNCwibGFzdF92YWx1ZSI6IjEyMjcwMTI3MzgyODM0In0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

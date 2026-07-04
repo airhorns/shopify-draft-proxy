@@ -3,14 +3,40 @@ mutation MetafieldDefinitionValidationsInput(
   $targetDefinitionId: String!
   $replacementDefinitionId: String!
 ) {
-  unknown: metafieldDefinitionCreate(
+  textUnsupportedOption: metafieldDefinitionCreate(
     definition: {
-      name: "Unknown validation option"
+      name: "Unsupported text validation option"
       namespace: $namespace
-      key: "unknown"
+      key: "text_unsupported_option"
       ownerType: PRODUCT
       type: "single_line_text_field"
-      validations: [{ name: "totally_unknown_option", value: "x" }]
+      validations: [{ name: "scale_max", value: "5" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  booleanUnsupportedOption: metafieldDefinitionCreate(
+    definition: {
+      name: "Unsupported boolean validation option"
+      namespace: $namespace
+      key: "boolean_unsupported_option"
+      ownerType: PRODUCT
+      type: "boolean"
+      validations: [{ name: "max", value: "1" }]
     }
   ) {
     createdDefinition {

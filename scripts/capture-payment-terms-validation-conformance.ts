@@ -180,6 +180,13 @@ const cases: Record<string, PaymentTermsCase> = {
       paymentSchedules: [{ dueAt: '2026-01-01T00:00:00Z' }],
     },
   },
+  fulfillmentExtraDueAt: {
+    purpose: 'FULFILLMENT template rejects supplied dueAt.',
+    attrs: {
+      paymentTermsTemplateId: 'gid://shopify/PaymentTermsTemplate/9',
+      paymentSchedules: [{ dueAt: '2026-01-01T00:00:00Z' }],
+    },
+  },
   happyPath: {
     purpose: 'Sanity success path; primary lifecycle parity reuses the existing payment-terms lifecycle cassette.',
     attrs: {
@@ -292,7 +299,7 @@ const fixture = {
   },
   cases: capturedCases,
   notes:
-    'Captured on disposable draft orders. Validation cases assert Shopify paymentTermsCreate userErrors for unknown template ids and template/schedule mismatches; the happy path is retained as a sanity capture while executable lifecycle parity continues to cover success behavior.',
+    'Captured on disposable draft orders. Validation cases assert Shopify paymentTermsCreate userErrors for unknown template ids and template/schedule mismatches, including event-template dueAt rejection for RECEIPT and FULFILLMENT; the happy path is retained as a sanity capture while executable lifecycle parity continues to cover success behavior.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

@@ -55,7 +55,7 @@ Mutation import behavior:
 - For locally executable roots, each JSONL line is parsed as variables, stages through the same domain handler used by normal GraphQL mutations, and writes one result JSONL row.
 - Accepted roots without a local executor still create an observable local BulkOperation job, but each JSONL line is sent upstream through the unsupported-mutation passthrough escape hatch and logged as `Proxied`. Those lines are Shopify-side effects and do not create local downstream read-after-write state.
 - The proxy records one staged mutation-log entry per locally handled JSONL line, in original line order, with replay bodies containing the inner mutation and that line's variables. The outer bulk request is retained as audit metadata rather than as an additional commit entry.
-- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, zero-byte uploads, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Zero-byte uploads return `field: null`, message `The input file is empty.`, `code: INVALID_STAGED_UPLOAD_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
+- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, zero-byte uploads, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Missing staged uploads return `field: null`, the `NO_SUCH_FILE` message, `code: NO_SUCH_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Zero-byte uploads return `field: null`, message `The input file is empty.`, `code: INVALID_STAGED_UPLOAD_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
 
 Cancel behavior:
 
@@ -98,6 +98,7 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-empty-file.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -119,6 +120,7 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-empty-file.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json`
@@ -132,6 +134,7 @@ Meta API behavior:
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
 - `corepack pnpm parity -- bulk-operation-run-mutation-connection-validators`
+- `corepack pnpm parity -- bulk-operation-run-mutation-no-such-file-precedence`
 - `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`
 - `corepack pnpm parity -- bulk-operation-run-mutation-concurrency-limit`
 - `corepack pnpm parity -- bulk-operations-read-arg-validation`
