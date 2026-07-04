@@ -215,7 +215,7 @@ impl DraftProxy {
                 );
             }
         }
-        if let Some(node_data) = self.shop_policy_node_read_data(&fields) {
+        if let Some(node_data) = self.shop_property_node_read_data(&fields) {
             if let Some(node_data) = node_data.as_object() {
                 data.extend(node_data.clone());
             }
@@ -245,21 +245,24 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn shop_policy_node_read_data(
+    pub(in crate::proxy) fn shop_property_node_read_data(
         &self,
         fields: &[RootFieldSelection],
     ) -> Option<Value> {
         let mut data = serde_json::Map::new();
-        let mut saw_shop_policy = false;
+        let mut saw_shop_property = false;
         for field in fields {
             match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if shopify_gid_resource_type(&id) == Some("ShopPolicy") {
-                        saw_shop_policy = true;
+                    if matches!(
+                        shopify_gid_resource_type(&id),
+                        Some("ShopAddress" | "ShopPolicy")
+                    ) {
+                        saw_shop_property = true;
                         data.insert(
                             field.response_key.clone(),
-                            self.shop_policy_node_value(&id, &field.selection)
+                            self.shop_property_node_value_by_id(&id, &field.selection)
                                 .unwrap_or(Value::Null),
                         );
                     } else {
@@ -276,19 +279,27 @@ impl DraftProxy {
                 }
                 "nodes" => {
                     let ids = resolved_string_list_arg(&field.arguments, "ids");
-                    if ids
-                        .iter()
-                        .any(|id| shopify_gid_resource_type(id) == Some("ShopPolicy"))
-                    {
-                        saw_shop_policy = true;
+                    if ids.iter().any(|id| {
+                        matches!(
+                            shopify_gid_resource_type(id),
+                            Some("ShopAddress" | "ShopPolicy")
+                        )
+                    }) {
+                        saw_shop_property = true;
                         data.insert(
                             field.response_key.clone(),
                             Value::Array(
                                 ids.into_iter()
                                     .map(|id| {
-                                        if shopify_gid_resource_type(&id) == Some("ShopPolicy") {
-                                            self.shop_policy_node_value(&id, &field.selection)
-                                                .unwrap_or(Value::Null)
+                                        if matches!(
+                                            shopify_gid_resource_type(&id),
+                                            Some("ShopAddress" | "ShopPolicy")
+                                        ) {
+                                            self.shop_property_node_value_by_id(
+                                                &id,
+                                                &field.selection,
+                                            )
+                                            .unwrap_or(Value::Null)
                                         } else {
                                             local_node_value(
                                                 &id,
@@ -306,14 +317,58 @@ impl DraftProxy {
                 _ => {}
             }
         }
-        saw_shop_policy.then_some(Value::Object(data))
+        saw_shop_property.then_some(Value::Object(data))
     }
 
-    fn shop_policy_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
-        self.store
-            .shop_policy_by_id(id)
-            .map(|policy| shop_policy_json(policy, selection))
-            .or_else(|| local_node_value(id, selection, Some(&self.store.staged.backup_region)))
+    pub(in crate::proxy) fn shop_property_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id)? {
+            "ShopAddress" => self.shop_address_node_value(id, selection),
+            "ShopPolicy" => self
+                .store
+                .shop_policy_by_id(id)
+                .map(|policy| shop_policy_json(policy, selection)),
+            _ => None,
+        }
+    }
+
+    fn shop_address_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+        let shop = self.store.effective_shop();
+        let address = shop.get("shopAddress")?;
+        if address.get("id").and_then(Value::as_str) != Some(id) {
+            return None;
+        }
+        Some(shop_address_json(address, selection))
+    }
+
+    pub(in crate::proxy) fn observe_shop_property_node(&mut self, node: &Value) {
+        let Some(id) = node.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        match shopify_gid_resource_type(id) {
+            Some("ShopAddress") => {
+                let mut address = node.clone();
+                if let Some(object) = address.as_object_mut() {
+                    object.remove("__typename");
+                }
+                if !self.store.base.shop.is_object() {
+                    self.store.base.shop = json!({});
+                }
+                self.store.base.shop["shopAddress"] = address;
+            }
+            Some("ShopPolicy") => {
+                if let Some(policy) = shop_policy_record_from_json(node) {
+                    self.store
+                        .base
+                        .shop_policies
+                        .insert(policy.id.clone(), policy);
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -411,6 +466,14 @@ fn shop_policy_record_from_json(value: &Value) -> Option<ShopPolicyRecord> {
 
 fn shop_policy_json(policy: &ShopPolicyRecord, selection: &[SelectedField]) -> Value {
     selected_json(&shop_policy_record_json(policy), selection)
+}
+
+fn shop_address_json(address: &Value, selection: &[SelectedField]) -> Value {
+    let mut address = address.clone();
+    if let Some(object) = address.as_object_mut() {
+        object.insert("__typename".to_string(), json!("ShopAddress"));
+    }
+    selected_json(&address, selection)
 }
 
 fn shop_policy_update_invalid_variable_response(

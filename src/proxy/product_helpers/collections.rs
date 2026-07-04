@@ -1174,7 +1174,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
-        let nodes = response
+        let mut nodes = response
             .body
             .pointer("/data/nodes")
             .and_then(Value::as_array)
@@ -1182,6 +1182,13 @@ impl DraftProxy {
             .flatten()
             .cloned()
             .collect::<Vec<_>>();
+        if let Some(node) = response
+            .body
+            .pointer("/data/node")
+            .filter(|node| node.is_object())
+        {
+            nodes.push(node.clone());
+        }
         for node in &nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
             if id.starts_with("gid://shopify/Product/") {
@@ -1219,6 +1226,11 @@ impl DraftProxy {
                 self.observe_inventory_item_node(node);
             } else if id.starts_with("gid://shopify/InventoryLevel/") {
                 self.observe_inventory_level_node(node);
+            } else if matches!(
+                shopify_gid_resource_type(id),
+                Some("ShopAddress" | "ShopPolicy")
+            ) {
+                self.observe_shop_property_node(node);
             }
         }
         for node in nodes {

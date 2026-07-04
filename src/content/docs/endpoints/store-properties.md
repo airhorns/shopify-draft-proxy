@@ -53,7 +53,12 @@ synthetic `Shopify Draft Proxy` shop identity instead of a captured real store.
 `shopPolicyUpdate` is dispatched by root field, stages
 policy body/title/URL/timestamps in the Rust store, preserves the original raw
 mutation for commit replay, and exposes read-after-write behavior through
-`shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
+`shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` shop-policy
+dispatch. Generic `node(id:)` / `nodes(ids:)` also resolve `ShopAddress` records
+from the effective shop state (`shop.shopAddress`) when that baseline has been
+restored, snapshotted, or hydrated from upstream; unknown shop-address and
+shop-policy IDs return the standard local no-data `null` instead of a canned
+store-specific record.
 The local model uses Shopify's deprecated policy title map (`Privacy Policy`,
 `Refund Policy`, `Terms of Service`, `Shipping Policy`, `Subscription Policy`,
 `Contact Information`, `Legal Notice`, and `Terms of Sale`), derives URLs from

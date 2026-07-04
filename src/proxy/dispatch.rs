@@ -486,6 +486,9 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
+        if let Some(data) = self.shop_property_node_value_by_id(id, selection) {
+            return Some(data);
+        }
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
