@@ -42,6 +42,20 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductSetInput,
+        );
+        if !length_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                length_errors,
+            ));
+        }
+
         let variant_input_errors = product_set_variant_input_errors(&input);
         if !variant_input_errors.is_empty() {
             return MutationOutcome::response(self.product_set_user_error_response(

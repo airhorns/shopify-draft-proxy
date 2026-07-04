@@ -1,0 +1,154 @@
+{
+  "capturedAt": "2026-07-03T01:18:15.850Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scenarios": {
+    "tooLongTitle": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+          "vendor": "Hermes"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": null,
+            "productSetOperation": null,
+            "userErrors": [
+              {
+                "field": ["input", "title"],
+                "message": "is too long (maximum is 255 characters)"
+              },
+              {
+                "field": ["input"],
+                "message": "Handle is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooLongHandle": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Hermes Set Handle Length 1783041495850",
+          "handle": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+          "vendor": "Hermes"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": null,
+            "productSetOperation": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Handle is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooLongVendor": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Hermes Set Vendor Length 1783041495850",
+          "vendor": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": null,
+            "productSetOperation": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Vendor is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooLongProductType": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Hermes Set Product Type Length 1783041495850",
+          "vendor": "Hermes",
+          "productType": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": null,
+            "productSetOperation": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Product type is too long (maximum is 255 characters)"
+              },
+              {
+                "field": ["input"],
+                "message": "Custom product type is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

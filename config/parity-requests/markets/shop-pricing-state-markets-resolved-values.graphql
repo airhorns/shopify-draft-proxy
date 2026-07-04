@@ -1,0 +1,9 @@
+query ShopPricingStateMarketsResolvedValues($buyerSignal: BuyerSignalInput!) {
+  marketsResolvedValues(buyerSignal: $buyerSignal) {
+    currencyCode
+    priceInclusivity {
+      dutiesIncluded
+      taxesIncluded
+    }
+  }
+}
