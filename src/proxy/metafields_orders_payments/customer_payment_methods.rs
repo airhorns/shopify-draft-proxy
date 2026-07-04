@@ -230,18 +230,6 @@ impl DraftProxy {
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
         let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        // `showRevoked` is an argument on the nested `paymentMethods` connection,
-        // not on the `customer` root field, so read it from that selection.
-        let show_revoked = field
-            .selection
-            .iter()
-            .find(|selection| selection.name == "paymentMethods")
-            .is_some_and(|selection| {
-                matches!(
-                    selection.arguments.get("showRevoked"),
-                    Some(ResolvedValue::Bool(true))
-                )
-            });
         let mut ids = self
             .store
             .staged
@@ -263,18 +251,31 @@ impl DraftProxy {
                 (None, None) => std::cmp::Ordering::Equal,
             }
         });
-        let methods = ids
-            .into_iter()
-            .filter_map(|id| self.store.staged.customer_payment_methods.get(&id).cloned())
-            .filter(|record| show_revoked || record["revokedAt"].is_null())
-            .collect::<Vec<_>>();
-        selected_json(
-            &json!({
-                "id": customer_id,
-                "paymentMethods": { "nodes": methods, "pageInfo": empty_page_info() }
-            }),
-            &field.selection,
-        )
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "id" => Some(json!(customer_id)),
+                "paymentMethods" => {
+                    let show_revoked = matches!(
+                        selection.arguments.get("showRevoked"),
+                        Some(ResolvedValue::Bool(true))
+                    );
+                    let methods = ids
+                        .iter()
+                        .filter_map(|id| {
+                            self.store.staged.customer_payment_methods.get(id).cloned()
+                        })
+                        .filter(|record| show_revoked || record["revokedAt"].is_null())
+                        .collect::<Vec<_>>();
+                    Some(selected_connection_json_with_args(
+                        methods,
+                        &selection.arguments,
+                        &selection.selection,
+                        value_id_cursor,
+                    ))
+                }
+                _ => None,
+            }
+        })
     }
 
     fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {

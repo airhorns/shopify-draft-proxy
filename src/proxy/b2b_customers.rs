@@ -322,10 +322,13 @@ impl DraftProxy {
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
             "orders" => Some(match mapped_orders {
-                Some(orders) => selected_connection_json_with_args(
+                Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
                     &field.arguments,
                     &field.selection,
+                    order_search_decision,
+                    order_staged_sort_key,
+                    selected_json,
                     order_connection_cursor,
                 ),
                 None if connection_has_nodes(&customer["orders"]) => project_seeded_connection(
@@ -340,6 +343,7 @@ impl DraftProxy {
                     order_connection_cursor,
                 ),
             }),
+            "addressesV2" => Some(selected_customer_addresses_connection(customer, field)),
             // The `storeCreditAccounts` connection is resolved from the staged
             // store-credit accounts indexed by owner, so a customer read reflects
             // credit/debit mutations (and locally minted accounts) immediately.
@@ -464,7 +468,9 @@ impl DraftProxy {
         if is_credit
             && resolved_string_field(&input, "expiresAt")
                 .as_deref()
-                .map(store_credit_expires_at_in_past)
+                .map(|expires_at| {
+                    store_credit_expires_at_in_past(expires_at, self.current_epoch_seconds())
+                })
                 .unwrap_or(false)
         {
             return self.store_credit_error_outcome(
@@ -795,7 +801,15 @@ impl DraftProxy {
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
             .cloned()
             .collect::<Vec<_>>();
-        selected_connection_json_with_args(accounts, arguments, selection, value_id_cursor)
+        selected_staged_connection_with_args(
+            accounts,
+            arguments,
+            selection,
+            store_credit_account_search_decision,
+            store_credit_account_sort_key,
+            selected_json,
+            value_id_cursor,
+        )
     }
 
     fn store_credit_account_id_for_owner_currency(
@@ -1359,17 +1373,16 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((customer_first, customer_last, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((customer_first, customer_last, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| customer_address_payload(Value::Null, errors),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1415,17 +1428,16 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((_, _, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((_, _, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1463,10 +1475,6 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
         // Return the full staged customer record; the field's `customer`
         // sub-selection is applied by `selected_json` at the call site.
         let render_customer = |me: &Self| {
@@ -1497,10 +1505,14 @@ impl DraftProxy {
                 )],
             )
         };
-        let Some((_, _, existing_nodes, _)) = context else {
-            // Unknown customer: treat the address as not found.
-            return missing_address_result(self);
+        let Some((_, _, existing_nodes, _)) = self.customer_address_context(&customer_id) else {
+            return self.customer_address_missing_customer_result(
+                &address_id,
+                &field.response_key,
+                |errors| json!({ "customer": Value::Null, "userErrors": errors }),
+            );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             // Address belongs to another customer (exists somewhere) → userError,
             // but the customer record is still returned. Truly unknown ids return
@@ -1550,6 +1562,31 @@ impl DraftProxy {
         self.store.staged.customers.values().any(|customer| {
             customer_address_node_index(&customer_address_nodes(customer), address_id).is_some()
         })
+    }
+
+    fn customer_address_missing_customer_result(
+        &self,
+        address_id: &str,
+        response_key: &str,
+        build_payload: impl Fn(Vec<Value>) -> Value,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        if self.customer_address_exists_anywhere(address_id) {
+            (
+                build_payload(vec![user_error_omit_code(
+                    json!(["customerId"]),
+                    "Customer does not exist",
+                    None,
+                )]),
+                Vec::new(),
+                Vec::new(),
+            )
+        } else {
+            (
+                Value::Null,
+                Vec::new(),
+                vec![customer_address_resource_not_found_error(response_key)],
+            )
+        }
     }
 
     /// Shared "addressId not present on this customer" branch for update/delete.
@@ -3489,6 +3526,15 @@ fn customer_address_cursor(address: &Value) -> Option<String> {
         .map(|id| format!("cursor:{id}"))
 }
 
+fn selected_customer_addresses_connection(customer: &Value, field: &SelectedField) -> Value {
+    selected_connection_json_with_args(
+        connection_nodes(&customer["addressesV2"]),
+        &field.arguments,
+        &field.selection,
+        |address| customer_address_cursor(address).unwrap_or_default(),
+    )
+}
+
 fn customer_mailing_addresses(
     values: &[ResolvedValue],
     customer_set: bool,
@@ -4984,11 +5030,13 @@ impl DraftProxy {
         // order transferred from the merged-away source, mirroring Shopify reparenting
         // the source's orders under the resulting customer's identity.
         let result_email = result["email"].as_str().map(str::to_string);
+        let result_metafields = result["metafields"].clone();
 
         self.store
             .staged
             .customers
             .insert(result_id.clone(), result);
+        self.replace_owner_metafields_from_connection(&result_id, &result_metafields);
         self.store.staged.customers.remove(&source_id);
         self.store.staged.customers.tombstone(source_id.clone());
         self.store
@@ -5587,6 +5635,87 @@ fn empty_orders_connection() -> Value {
     })
 }
 
+fn store_credit_account_currency(account: &Value) -> &str {
+    account["balance"]["currencyCode"]
+        .as_str()
+        .unwrap_or_default()
+}
+
+fn store_credit_account_matches_id(account: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    account
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn store_credit_account_search_decision(
+    account: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        let term = term.trim().trim_matches('"').trim_matches('\'');
+        if term.is_empty() {
+            continue;
+        }
+        let decision = if let Some((key, value)) = term.split_once(':') {
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "id" => {
+                    StagedSearchDecision::from_bool(store_credit_account_matches_id(account, value))
+                }
+                "currency"
+                | "currency_code"
+                | "currencyCode"
+                | "balance.currency_code"
+                | "balance.currencyCode" => StagedSearchDecision::from_bool(
+                    store_credit_account_currency(account).eq_ignore_ascii_case(value),
+                ),
+                _ => StagedSearchDecision::Unsupported,
+            }
+        } else {
+            let needle = term.to_ascii_lowercase();
+            let currency = store_credit_account_currency(account).to_ascii_lowercase();
+            StagedSearchDecision::from_bool(
+                currency.contains(&needle) || store_credit_account_matches_id(account, term),
+            )
+        };
+        match decision {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+    let tail = account
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    let id_value = tail
+        .parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
+    vec![
+        id_value,
+        StagedSortValue::String(store_credit_account_currency(account).to_ascii_lowercase()),
+    ]
+}
+
 /// Shopify rejects a credit/debit that would push an account past this hard cap.
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
@@ -5626,12 +5755,10 @@ fn resolved_money_amount_text(
     }
 }
 
-fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
-}
-
-fn store_credit_synthetic_today() -> String {
-    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
+fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
+    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+        .map(|expires_at| expires_at <= now_epoch)
+        .unwrap_or(false)
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {

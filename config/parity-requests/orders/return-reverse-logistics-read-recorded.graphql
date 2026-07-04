@@ -29,6 +29,34 @@ query ReturnReverseLogisticsReadRecorded(
         totalQuantity
       }
     }
+    returnsFirst: returns(first: 1) {
+      nodes {
+        id
+        name
+        status
+        totalQuantity
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    returnsFiltered: returns(first: 5, query: "status:OPEN") {
+      nodes {
+        id
+        name
+        status
+        totalQuantity
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
   }
   reverseDelivery(id: $reverseDeliveryId) {
     id

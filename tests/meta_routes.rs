@@ -689,8 +689,18 @@ fn log_draft_enforcement_supported_domains_record_entries() {
                 "backupRegionUpdate log enforcement setup should stage a covering market"
             );
         }
-        let response =
-            proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
+        let mut request = graphql_request(&json!({ "query": query }).to_string());
+        if root == "taxAppConfigure" {
+            request.headers.insert(
+                "x-shopify-draft-proxy-access-scopes".to_string(),
+                "write_taxes".to_string(),
+            );
+            request.headers.insert(
+                "x-shopify-draft-proxy-tax-calculations-app".to_string(),
+                "true".to_string(),
+            );
+        }
+        let response = proxy.process_request(request);
         assert_eq!(
             response.status, 200,
             "log-draft enforcement case {domain} should return HTTP 200; body={}",
@@ -850,6 +860,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 },
                 "stagedState": {
                     "createdPublicationIds": [],
+                    "currentChannelPublicationId": null,
+                    "currentChannelPublicationResolved": false,
                     "customerAddressOrder": {},
                     "customerAddressOwners": {},
                     "customerAddresses": {},
