@@ -1,0 +1,39 @@
+{
+  "scenarioId": "publishable-current-channel-no-current-channel",
+  "operationNames": ["publishablePublishToCurrentChannel", "publishableUnpublishToCurrentChannel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "store-property-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-current-channel-no-current-channel.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 capture for publishable current-channel mutations when the calling app has no current publication/channel. The recorder temporarily deletes the current app channel, captures CHANNEL_DOES_NOT_EXIST on an ACTIVE product, and recreates the same channel in finally. Replay earns product existence and current-app publication context through the recorded upstreamCalls cassette.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish current channel with no current channel",
+        "capturePath": "$.cases.publishCurrentNoChannel.response.payload.data.publishablePublishToCurrentChannel",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-no-current-channel-publish.graphql",
+          "variablesCapturePath": "$.cases.publishCurrentNoChannel.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unpublish current channel with no current channel",
+        "capturePath": "$.cases.unpublishCurrentNoChannel.response.payload.data.publishableUnpublishToCurrentChannel",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-no-current-channel-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishCurrentNoChannel.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

@@ -16,6 +16,21 @@ query StoreCreditAccountReadbackParity($customerId: ID!, $accountId: ID!) {
         hasPreviousPage
       }
     }
+    queriedStoreCreditAccounts: storeCreditAccounts(first: 5, query: "currency_code:CHF") {
+      nodes {
+        id
+        balance {
+          amount
+          currencyCode
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
   }
   storeCreditAccount(id: $accountId) {
     id

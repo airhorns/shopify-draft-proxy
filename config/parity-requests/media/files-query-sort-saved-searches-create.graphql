@@ -1,0 +1,14 @@
+mutation MediaFilesQuerySortCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      __typename
+      id
+      alt
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1417,7 +1417,9 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    restored["state"]["baseState"]["shop"]["myshopifyDomain"] =
+        json!("backup-region-gb.myshopify.com");
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("GB");
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -1483,7 +1485,7 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     let current_country = proxy.process_request(json_graphql_request(
         r#"
         mutation BackupRegionUpdateCurrentCountry {
-          backupRegionUpdate(region: { countryCode: CA }) {
+          backupRegionUpdate(region: { countryCode: GB }) {
             backupRegion { __typename id name ... on MarketRegionCountry { code } }
             userErrors { field message code }
           }
@@ -1496,9 +1498,9 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         json!({
             "backupRegion": {
                 "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/local-CA",
-                "name": "Canada",
-                "code": "CA"
+                "id": "gid://shopify/MarketRegionCountry/local-GB",
+                "name": "United Kingdom",
+                "code": "GB"
             },
             "userErrors": []
         })
@@ -1721,6 +1723,47 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     assert_ne!(
         invalid_country_location.body["errors"][0]["locations"][0],
         json!({ "line": 2, "column": 30 })
+    );
+}
+
+#[test]
+fn backup_region_update_does_not_infer_country_from_shop_domain() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/1991",
+        "name": "Domain-only shop",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateDomainOnlyCanada {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        response.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
     );
 }
 
@@ -3060,6 +3103,249 @@ fn generic_location_add_stages_location_and_downstream_reads() {
 }
 
 #[test]
+fn top_level_locations_connection_filters_sorts_windows_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let zulu_id = add_platform_location(&mut proxy, "Zulu Connection", false);
+    let alpha_id = add_platform_location(&mut proxy, "Alpha Connection", false);
+    let beta_id = add_platform_location(&mut proxy, "Beta Connection", false);
+    let fulfillment_service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLegacyLocation($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService {
+              location { id name isActive isFulfillmentService }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Carrier Connection" }),
+    ));
+    assert_eq!(
+        fulfillment_service.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    let legacy_location_id = fulfillment_service.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateConnectionLocation($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "locations-connection-filter") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": beta_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["location"],
+        json!({
+            "id": beta_id,
+            "name": "Beta Connection",
+            "isActive": false
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationConnectionRead($alphaCursor: String!, $zuluCursor: String!) {
+          defaultLocations: locations(first: 10) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeInactive: locations(first: 10, includeInactive: true) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeLegacy: locations(first: 10, includeLegacy: true) {
+            nodes { id name isActive isFulfillmentService }
+          }
+          queryAlpha: locations(first: 10, query: "name:Alpha") {
+            nodes { id name isActive }
+          }
+          nameFirst: locations(first: 1, sortKey: NAME) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterAlpha: locations(first: 1, after: $alphaCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          beforeZulu: locations(last: 1, before: $zuluCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: locations(first: 10, reverse: true) {
+            nodes { id name }
+          }
+          activeCount: locationsCount { count precision }
+          inactiveCount: locationsCount(includeInactive: true) { count precision }
+          legacyCount: locationsCount(includeLegacy: true) { count precision }
+          limitedCount: locationsCount(includeInactive: true, includeLegacy: true, limit: 3) { count precision }
+          queryCount: locationsCount(query: "name:Alpha") { count precision }
+        }
+        "#,
+        json!({
+            "alphaCursor": alpha_id,
+            "zuluCursor": zulu_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["defaultLocations"],
+        json!({
+            "nodes": [
+                {
+                    "id": alpha_id,
+                    "name": "Alpha Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                },
+                {
+                    "id": zulu_id,
+                    "name": "Zulu Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["includeInactive"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": beta_id,
+                "name": "Beta Connection",
+                "isActive": false,
+                "isFulfillmentService": false
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["includeLegacy"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": legacy_location_id,
+                "name": "Carrier Connection",
+                "isActive": true,
+                "isFulfillmentService": true
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["queryAlpha"]["nodes"],
+        json!([{ "id": alpha_id, "name": "Alpha Connection", "isActive": true }])
+    );
+    assert_eq!(
+        read.body["data"]["nameFirst"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterAlpha"],
+        json!({
+            "nodes": [{ "id": zulu_id, "name": "Zulu Connection" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": zulu_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["beforeZulu"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversed"]["nodes"],
+        json!([
+            { "id": zulu_id, "name": "Zulu Connection" },
+            { "id": alpha_id, "name": "Alpha Connection" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["inactiveCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["legacyCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["limitedCount"],
+        json!({ "count": 3, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        read.body["data"]["queryCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn generic_location_edit_stages_location_validates_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let primary = proxy.process_request(json_graphql_request(
@@ -3266,8 +3552,11 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
     assert_eq!(
-        read.body["data"]["locations"]["nodes"][0],
-        json!({ "id": primary_id, "name": "Edited Primary" })
+        read.body["data"]["locations"]["nodes"],
+        json!([
+            { "id": backup_id, "name": "Edit Backup" },
+            { "id": primary_id, "name": "Edited Primary" }
+        ])
     );
 
     let log = log_snapshot(&proxy);
@@ -4660,6 +4949,46 @@ fn location_deactivate_state_machine_errors_match_captured_codes_fields_and_loca
 }
 
 #[test]
+fn location_deactivate_rejects_unknown_non_fixture_location_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_location_id = "gid://shopify/Location/424242424244";
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationDeactivate($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "unknown-location") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["locationDeactivate"],
+        json!({
+            "location": null,
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location not found.",
+                "code": "LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownLocationRead($locationId: ID!) {
+          location(id: $locationId) { id name isActive }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+    assert_eq!(read.body["data"]["location"], Value::Null);
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -4854,7 +5183,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation OpenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4979,7 +5308,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation ReopenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5129,7 +5458,7 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
               fulfillBy
               assignedLocation { location { id } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5171,7 +5500,7 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
         mutation CloseNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderClose(id: $id, message: "done") {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5371,7 +5700,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
         mutation OpenAlreadyOpenFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5383,8 +5712,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             "fulfillmentOrder": null,
             "userErrors": [{
                 "field": null,
-                "message": "Expected fulfillment order status to be valid but it was open.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "message": "Expected fulfillment order status to be valid but it was open."
             }]
         })
     );
@@ -5460,7 +5788,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
             mutation FulfillmentOrderInvalidStateOpen($id: ID!) {
               fulfillmentOrderOpen(id: $id) {
                 fulfillmentOrder { id status updatedAt supportedActions { action } }
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
             "#,
@@ -5472,8 +5800,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
                 "fulfillmentOrder": null,
                 "userErrors": [{
                     "field": null,
-                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
-                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}.")
                 }]
             })
         );
@@ -5575,7 +5902,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
 }
 
 #[test]
-fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
+fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids() {
     let order_id = "gid://shopify/Order/7005001";
     let open_a_id = "gid://shopify/FulfillmentOrder/70050011";
     let open_b_id = "gid://shopify/FulfillmentOrder/70050012";
@@ -5651,9 +5978,9 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         json!({
             "success": false,
             "userErrors": [{
-                "field": ["base"],
-                "message": "The fulfillment orders could not be found.",
-                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+                "field": null,
+                "message": "Fulfillment orders could not be found.",
+                "code": null
             }]
         })
     );
@@ -5667,18 +5994,18 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     ));
     assert_eq!(
         mixed.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
+        json!({ "success": true, "userErrors": [] })
     );
 
     let after_mixed =
         proxy.process_request(json_graphql_request(read_query, json!({ "id": order_id })));
     assert_eq!(
         after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
-        json!(null)
+        json!("2026-12-01T00:00:00Z")
     );
 
     for id in [closed_id, cancelled_id] {
-        let rejected = proxy.process_request(json_graphql_request(
+        let set_deadline = proxy.process_request(json_graphql_request(
             mutation,
             json!({
                 "fulfillmentOrderIds": [id],
@@ -5686,15 +6013,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
             }),
         ));
         assert_eq!(
-            rejected.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-            json!({
-                "success": false,
-                "userErrors": [{
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                }]
-            })
+            set_deadline.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+            json!({ "success": true, "userErrors": [] })
         );
     }
 
@@ -5721,8 +6041,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     for (id, status, fulfill_by) in [
         (open_a_id, "OPEN", json!("2026-12-01T00:00:00Z")),
         (open_b_id, "OPEN", json!("2026-12-01T00:00:00Z")),
-        (closed_id, "CLOSED", Value::Null),
-        (cancelled_id, "CANCELLED", Value::Null),
+        (closed_id, "CLOSED", json!("2026-12-01T00:00:00Z")),
+        (cancelled_id, "CANCELLED", json!("2026-12-01T00:00:00Z")),
     ] {
         let node = nodes
             .iter()
@@ -5759,7 +6079,7 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
             fulfillmentOrderLineItems: $lineItems
           ) {
             submittedFulfillmentOrder { id requestStatus }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5801,52 +6121,182 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
 }
 
 #[test]
-fn store_property_node_reads_resolve_known_shop_records_locally() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+fn store_property_node_reads_resolve_shop_records_from_store_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["myshopifyDomain"] = json!("state-shop.myshopify.com");
+    restored["state"]["baseState"]["shop"]["shopAddress"] = json!({
+        "id": "gid://shopify/ShopAddress/900001",
+        "address1": "55 Store State Ave",
+        "address2": null,
+        "city": "Hamilton",
+        "company": "Stateful Shop",
+        "coordinatesValidated": true,
+        "country": "Canada",
+        "countryCodeV2": "CA",
+        "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"],
+        "formattedArea": "Hamilton ON, Canada",
+        "latitude": 43.2557,
+        "longitude": -79.8711,
+        "phone": "+1 555 0100",
+        "province": "Ontario",
+        "provinceCode": "ON",
+        "zip": "L8P1A1"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedShopPolicyForNodeRead($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type title body url }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "shopPolicy": {
+                "type": "CONTACT_INFORMATION",
+                "body": "<p>Use the store-state contact channel.</p>"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    let policy_id = update.body["data"]["shopPolicyUpdate"]["shopPolicy"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(policy_id, "gid://shopify/ShopPolicy/42438689001");
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedProductVariantForMixedNodeRead($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              variants(first: 1) { nodes { id title } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Mixed node resolver product" } }),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let variant_id = product.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
     let query = r#"
-        query AdminPlatformStorePropertyNodeReads {
-          shopAddressNode: node(id: "gid://shopify/ShopAddress/63755419881") { ... on ShopAddress { id address1 city country formatted } }
-          shopPolicyNode: node(id: "gid://shopify/ShopPolicy/42438689001") { ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } } }
-          nodes(ids: ["gid://shopify/ShopAddress/63755419881", "gid://shopify/ShopPolicy/42438689001"]) {
+        query AdminPlatformStorePropertyNodeReads($policyId: ID!, $variantId: ID!) {
+          shop { myshopifyDomain }
+          shopAddressNode: node(id: "gid://shopify/ShopAddress/900001") {
+            __typename
             ... on ShopAddress { id address1 city country formatted }
-            ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } }
+          }
+          shopPolicyNode: node(id: $policyId) {
+            __typename
+            ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
+          }
+          productVariantNode: node(id: $variantId) {
+            __typename
+            ... on ProductVariant { id title product { id title } }
+          }
+          nodes(ids: ["gid://shopify/ShopAddress/900001", $policyId, $variantId]) {
+            __typename
+            ... on ShopAddress { id address1 city country formatted }
+            ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
+            ... on ProductVariant { id title product { id title } }
           }
         }
     "#;
 
-    let response = proxy.process_request(json_graphql_request(query, json!({})));
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "policyId": policy_id.clone(), "variantId": variant_id.clone() }),
+    ));
 
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body,
         json!({
             "data": {
+                "shop": {
+                    "myshopifyDomain": "state-shop.myshopify.com"
+                },
                 "shopAddressNode": {
-                    "id": "gid://shopify/ShopAddress/63755419881",
-                    "address1": "103 ossington",
-                    "city": "Ottawa",
+                    "__typename": "ShopAddress",
+                    "id": "gid://shopify/ShopAddress/900001",
+                    "address1": "55 Store State Ave",
+                    "city": "Hamilton",
                     "country": "Canada",
-                    "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                    "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"]
                 },
                 "shopPolicyNode": {
-                    "id": "gid://shopify/ShopPolicy/42438689001",
-                    "title": "Contact",
+                    "__typename": "ShopPolicy",
+                    "id": policy_id,
+                    "title": "Contact Information",
                     "type": "CONTACT_INFORMATION",
+                    "body": "<p>Use the store-state contact channel.</p>",
+                    "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                     "translations": []
+                },
+                "productVariantNode": {
+                    "__typename": "ProductVariant",
+                    "id": variant_id,
+                    "title": "Default Title",
+                    "product": {
+                        "id": product_id,
+                        "title": "Mixed node resolver product"
+                    }
                 },
                 "nodes": [
                     {
-                        "id": "gid://shopify/ShopAddress/63755419881",
-                        "address1": "103 ossington",
-                        "city": "Ottawa",
+                        "__typename": "ShopAddress",
+                        "id": "gid://shopify/ShopAddress/900001",
+                        "address1": "55 Store State Ave",
+                        "city": "Hamilton",
                         "country": "Canada",
-                        "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                        "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"]
                     },
                     {
-                        "id": "gid://shopify/ShopPolicy/42438689001",
-                        "title": "Contact",
+                        "__typename": "ShopPolicy",
+                        "id": policy_id,
+                        "title": "Contact Information",
                         "type": "CONTACT_INFORMATION",
+                        "body": "<p>Use the store-state contact channel.</p>",
+                        "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                         "translations": []
+                    },
+                    {
+                        "__typename": "ProductVariant",
+                        "id": variant_id,
+                        "title": "Default Title",
+                        "product": {
+                            "id": product_id,
+                            "title": "Mixed node resolver product"
+                        }
                     }
                 ]
             }

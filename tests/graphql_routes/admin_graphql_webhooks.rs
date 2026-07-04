@@ -16,7 +16,7 @@ fn event_empty_read_shapes_match_current_behavior() {
           }
           nodeOnlyEvents: events(first: 5) { nodes { id } }
           eventsCount(query: $query) { count precision }
-          looseCount: eventsCount { count whatever }
+          looseCount: eventsCount { count }
         }
         "#,
         json!({
@@ -51,11 +51,142 @@ fn event_empty_read_shapes_match_current_behavior() {
                     "precision": "EXACT"
                 },
                 "looseCount": {
-                    "count": 0,
-                    "whatever": null
+                    "count": 0
                 }
             }
         })
+    );
+}
+
+#[test]
+fn event_reads_forward_upstream_in_live_hybrid() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: [("x-test-upstream".to_string(), "events-read".to_string())].into(),
+                body: json!({
+                    "data": {
+                        "event": {
+                            "id": "gid://shopify/BasicEvent/1",
+                            "action": "created",
+                            "message": "from upstream"
+                        },
+                        "events": {
+                            "nodes": [{
+                                "id": "gid://shopify/BasicEvent/1",
+                                "action": "created",
+                                "message": "from upstream"
+                            }],
+                            "edges": [{
+                                "cursor": "cursor-1",
+                                "node": {
+                                    "id": "gid://shopify/BasicEvent/1",
+                                    "action": "created",
+                                    "message": "from upstream"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-1"
+                            }
+                        },
+                        "eventsCount": {
+                            "count": 1,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query EventColdRead($eventId: ID!, $first: Int!, $query: String!) {
+          event(id: $eventId) { id action message }
+          events(first: $first, query: $query, sortKey: ID, reverse: true) {
+            nodes { id action message }
+            edges { cursor node { id action message } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventsCount(query: $query) { count precision }
+        }
+    "#;
+    let body = json!({
+        "query": query,
+        "variables": {
+            "eventId": "gid://shopify/BasicEvent/1",
+            "first": 1,
+            "query": "id:1"
+        }
+    })
+    .to_string();
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer events-read-token".to_string(),
+        )]
+        .into(),
+        body: body.clone(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.headers.get("x-test-upstream"),
+        Some(&"events-read".to_string())
+    );
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "event": {
+                    "id": "gid://shopify/BasicEvent/1",
+                    "action": "created",
+                    "message": "from upstream"
+                },
+                "events": {
+                    "nodes": [{
+                        "id": "gid://shopify/BasicEvent/1",
+                        "action": "created",
+                        "message": "from upstream"
+                    }],
+                    "edges": [{
+                        "cursor": "cursor-1",
+                        "node": {
+                            "id": "gid://shopify/BasicEvent/1",
+                            "action": "created",
+                            "message": "from upstream"
+                        }
+                    }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "cursor-1",
+                        "endCursor": "cursor-1"
+                    }
+                },
+                "eventsCount": {
+                    "count": 1,
+                    "precision": "EXACT"
+                }
+            }
+        })
+    );
+
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].method, "POST");
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+    assert_eq!(forwarded[0].body, body);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer events-read-token".to_string())
     );
 }
 
@@ -341,6 +472,138 @@ fn admin_graphql_rejects_unknown_api_versions() {
 }
 
 #[test]
+fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_connections() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_order_field = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"query Repro { orders(first: 1) { nodes { id definitelyNotAnOrderField } } }"}"#,
+    ));
+
+    assert_eq!(unknown_order_field.status, 200);
+    assert_eq!(
+        unknown_order_field.body,
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+                "locations": [{ "line": 1, "column": 45 }],
+                "path": ["query Repro", "orders", "nodes", "definitelyNotAnOrderField"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "Order",
+                    "fieldName": "definitelyNotAnOrderField"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_validates_inline_fragment_fields_against_type_condition() {
+    let custom_app_id = "gid://shopify/App/347082227713";
+    let mut proxy = snapshot_proxy();
+
+    let mut valid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { id handle } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    valid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let valid = proxy.process_request(valid_request);
+
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["node"],
+        json!({ "id": custom_app_id, "handle": "shopify-draft-proxy" })
+    );
+    assert!(valid.body.get("errors").is_none());
+
+    let mut invalid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { definitelyNotAnAppField } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    invalid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let invalid = proxy.process_request(invalid_request);
+
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "App",
+            "fieldName": "definitelyNotAnAppField"
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_plain_user_error_code_selection_for_any_schema_payload() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_create_user_error_code = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { customerCreate(input: {}) { userErrors { code message } } }"}"#,
+    ));
+
+    assert_eq!(customer_create_user_error_code.status, 200);
+    assert_eq!(
+        customer_create_user_error_code.body,
+        json!({
+            "errors": [{
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": 1, "column": 59 }],
+                "path": ["mutation Repro", "customerCreate", "userErrors", "code"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_schema_enum_literals_without_root_specific_allowlists() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_publication_default_state = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { publicationCreate(input: { defaultState: NOPE }) { userErrors { field message } } }"}"#,
+    ));
+
+    assert_eq!(invalid_publication_default_state.status, 200);
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["message"],
+        json!("Argument 'defaultState' on InputObject 'PublicationCreateInput' has an invalid value (NOPE). Expected type 'PublicationCreateInputPublicationDefaultState'.")
+    );
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "defaultState"
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
     let mut proxy = snapshot_proxy();
 
@@ -518,6 +781,89 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
         json!({ "errors": [{ "message": "Unsupported mutation rejected by configuration: urlRedirectCreate" }] })
     );
     assert_eq!(*reject_hits.lock().unwrap(), 0);
+}
+
+#[test]
+fn url_redirect_reads_are_unimplemented_passthrough_roots() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let forwarded_capture = Arc::clone(&forwarded);
+    let mut live_hybrid =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            forwarded_capture.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "urlRedirects": {
+                            "nodes": [{
+                                "id": "gid://shopify/UrlRedirect/1",
+                                "path": "/old",
+                                "target": "/new"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-1"
+                            }
+                        },
+                        "urlRedirectsCount": {
+                            "count": 1,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query UrlRedirectPassthrough($query: String) {
+          urlRedirects(first: 10, query: $query) {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          urlRedirectsCount(query: $query) { count precision }
+        }
+    "#;
+    let live_response =
+        live_hybrid.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+
+    assert_eq!(live_response.status, 200);
+    assert_eq!(
+        live_response.body["data"]["urlRedirects"]["nodes"][0]["path"],
+        json!("/old")
+    );
+    assert_eq!(
+        live_response.body["data"]["urlRedirectsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+    assert!(forwarded[0].body.contains("UrlRedirectPassthrough"));
+
+    let mut snapshot = snapshot_proxy();
+    let snapshot_response =
+        snapshot.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+    assert_eq!(snapshot_response.status, 400);
+    assert_eq!(
+        snapshot_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirects" }] })
+    );
+
+    let mut count_only = snapshot_proxy();
+    let count_only_response = count_only.process_request(json_graphql_request(
+        r#"query UrlRedirectCountOnly($query: String) {
+          urlRedirectsCount(query: $query) { count precision }
+        }"#,
+        json!({ "query": "target:/new" }),
+    ));
+    assert_eq!(count_only_response.status, 400);
+    assert_eq!(
+        count_only_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirectsCount" }] })
+    );
 }
 
 #[test]
@@ -2876,17 +3222,37 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helper
         json!([{ "topic": "ORDERS_PAID", "format": "XML" }])
     );
 
-    let reverse_topic = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, sortKey: TOPIC, reverse: true) { nodes { topic } } }",
+    let reverse_id = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, sortKey: ID, reverse: true) { nodes { legacyResourceId topic } } }",
         json!({}),
     ));
     assert_eq!(
-        reverse_topic.body["data"]["webhookSubscriptions"]["nodes"],
+        reverse_id.body["data"]["webhookSubscriptions"]["nodes"],
         json!([
-            { "topic": "PRODUCTS_CREATE" },
-            { "topic": "ORDERS_PAID" },
-            { "topic": "ORDERS_CREATE" }
+            { "legacyResourceId": "3", "topic": "PRODUCTS_CREATE" },
+            { "legacyResourceId": "2", "topic": "ORDERS_PAID" },
+            { "legacyResourceId": "1", "topic": "ORDERS_CREATE" }
         ])
+    );
+
+    let invalid_sort_key = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery InvalidWebhookSubscriptionSortKey { webhookSubscriptions(first: 1, sortKey: TOPIC) { nodes { id } pageInfo { hasNextPage } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_sort_key.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'sortKey' on Field 'webhookSubscriptions' has an invalid value (TOPIC). Expected type 'WebhookSubscriptionSortKeys'.",
+                "locations": [{ "line": 2, "column": 43 }],
+                "path": ["query InvalidWebhookSubscriptionSortKey", "webhookSubscriptions", "sortKey"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "sortKey"
+                }
+            }]
+        })
     );
 
     let count = proxy.process_request(json_graphql_request(
@@ -2896,6 +3262,172 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helper
     assert_eq!(
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 1, "precision": "AT_LEAST" })
+    );
+}
+
+#[test]
+fn webhook_subscriptions_connection_windows_and_date_query_filters() {
+    let mut proxy = snapshot_proxy();
+    let mut ids = Vec::new();
+
+    for (topic, uri) in [
+        ("ORDERS_CREATE", "https://window-1.example.com"),
+        ("ORDERS_PAID", "https://window-2.example.com"),
+        ("PRODUCTS_CREATE", "https://window-3.example.com"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            &format!(
+                "# RustWebhookLocalRuntime\nmutation {{ webhookSubscriptionCreate(topic: {topic}, webhookSubscription: {{ uri: \"{uri}\", format: JSON }}) {{ webhookSubscription {{ id createdAt updatedAt }} userErrors {{ message }} }} }}"
+            ),
+            json!({}),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+        ids.push(
+            create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(first: 2) {
+    nodes { id topic createdAt }
+    edges { cursor node { id } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[0], "topic": "ORDERS_CREATE", "createdAt": "2024-01-01T00:00:01.000Z" },
+                { "id": ids[1], "topic": "ORDERS_PAID", "createdAt": "2024-01-01T00:00:02.000Z" }
+            ],
+            "edges": [
+                { "cursor": ids[0], "node": { "id": ids[0] } },
+                { "cursor": ids[1], "node": { "id": ids[1] } }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": ids[0],
+                "endCursor": ids[1]
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($after: String!) {
+  webhookSubscriptions(first: 2, after: $after) {
+    nodes { id topic }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({ "after": ids[1] }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[2], "topic": "PRODUCTS_CREATE" }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": ids[2],
+                "endCursor": ids[2]
+            }
+        })
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($before: String!) {
+  webhookSubscriptions(last: 1, before: $before) {
+    nodes { id topic }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({ "before": ids[2] }),
+    ));
+    assert_eq!(
+        before_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[1], "topic": "ORDERS_PAID" }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": ids[1],
+                "endCursor": ids[1]
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  webhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: { uri: "https://window-2-updated.example.com", format: JSON }
+  ) {
+    webhookSubscription { id updatedAt }
+    userErrors { message }
+  }
+}"#,
+        json!({ "id": ids[1] }),
+    ));
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({ "id": ids[1], "updatedAt": "2024-01-01T00:00:04.000Z" })
+    );
+
+    let created_at_filter = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(
+    first: 5,
+    query: "created_at:>=2024-01-01T00:00:02.000Z"
+  ) {
+    nodes { id createdAt }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        created_at_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            { "id": ids[1], "createdAt": "2024-01-01T00:00:02.000Z" },
+            { "id": ids[2], "createdAt": "2024-01-01T00:00:03.000Z" }
+        ])
+    );
+
+    let updated_at_filter = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(
+    first: 5,
+    query: "updated_at:>=2024-01-01T00:00:04.000Z"
+  ) {
+    nodes { id updatedAt }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        updated_at_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "id": ids[1], "updatedAt": "2024-01-01T00:00:04.000Z" }])
     );
 }
 

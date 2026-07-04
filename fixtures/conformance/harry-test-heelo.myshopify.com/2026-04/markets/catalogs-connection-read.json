@@ -1,0 +1,440 @@
+{
+  "capturedAt": "2026-07-04T02:41:00.659Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "AlphaMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalogs Connection Alpha catalogs-connection-20260704024053"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98773565746",
+                "name": "Catalogs Connection Alpha catalogs-connection-20260704024053",
+                "handle": "catalogs-connection-alpha-catalogs-connection-20260704024053",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "BetaMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalogs Connection Beta catalogs-connection-20260704024053"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98773598514",
+                "name": "Catalogs Connection Beta catalogs-connection-20260704024053",
+                "handle": "catalogs-connection-beta-catalogs-connection-20260704024053",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "AlphaCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalogs Connection Alpha catalogs-connection-20260704024053",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/98773565746"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154199097650",
+                "title": "Catalogs Connection Alpha catalogs-connection-20260704024053",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/98773565746",
+                      "name": "Catalogs Connection Alpha catalogs-connection-20260704024053"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "BetaCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalogs Connection Beta catalogs-connection-20260704024053",
+          "status": "DRAFT",
+          "context": {
+            "marketIds": ["gid://shopify/Market/98773598514"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154199130418",
+                "title": "Catalogs Connection Beta catalogs-connection-20260704024053",
+                "status": "DRAFT",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/98773598514",
+                      "name": "Catalogs Connection Beta catalogs-connection-20260704024053"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogsConnectionFirstPage",
+      "query": "fragment CatalogsConnectionFields on Catalog {\n  __typename\n  id\n  title\n  status\n  ... on MarketCatalog {\n    markets(first: 2) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n}\n\nquery CatalogsConnectionRead($query: String!, $first: Int!, $countLimit: Int) {\n  firstPage: catalogs(first: $first, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      ...CatalogsConnectionFields\n    }\n    edges {\n      cursor\n      node {\n        ...CatalogsConnectionFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  wrongType: catalogs(first: 5, type: COMPANY_LOCATION, query: $query, sortKey: TITLE) {\n    nodes {\n      ...CatalogsConnectionFields\n    }\n    edges {\n      cursor\n      node {\n        ...CatalogsConnectionFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedCount: catalogsCount(type: MARKET, query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n  wrongTypeCount: catalogsCount(type: COMPANY_LOCATION, query: $query, limit: 10) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "title:catalogs-connection-20260704024053",
+        "first": 1,
+        "countLimit": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "firstPage": {
+              "nodes": [
+                {
+                  "__typename": "MarketCatalog",
+                  "id": "gid://shopify/MarketCatalog/154199130418",
+                  "title": "Catalogs Connection Beta catalogs-connection-20260704024053",
+                  "status": "DRAFT",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98773598514",
+                        "name": "Catalogs Connection Beta catalogs-connection-20260704024053"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxNTQxOTkxMzA0MTgsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGJldGEgY2F0YWxvZ3MtY29ubmVjdGlvbi0yMDI2MDcwNDAyNDA1MyJ9",
+                  "node": {
+                    "__typename": "MarketCatalog",
+                    "id": "gid://shopify/MarketCatalog/154199130418",
+                    "title": "Catalogs Connection Beta catalogs-connection-20260704024053",
+                    "status": "DRAFT",
+                    "markets": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Market/98773598514",
+                          "name": "Catalogs Connection Beta catalogs-connection-20260704024053"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNTQxOTkxMzA0MTgsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGJldGEgY2F0YWxvZ3MtY29ubmVjdGlvbi0yMDI2MDcwNDAyNDA1MyJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxNTQxOTkxMzA0MTgsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGJldGEgY2F0YWxvZ3MtY29ubmVjdGlvbi0yMDI2MDcwNDAyNDA1MyJ9"
+              }
+            },
+            "wrongType": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "limitedCount": {
+              "count": 1,
+              "precision": "AT_LEAST"
+            },
+            "wrongTypeCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 56,
+              "actualQueryCost": 37,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogsConnectionNextPage",
+      "query": "fragment CatalogsConnectionNextPageFields on Catalog {\n  __typename\n  id\n  title\n  status\n  ... on MarketCatalog {\n    markets(first: 2) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n}\n\nquery CatalogsConnectionNextPage($query: String!, $first: Int!, $after: String!) {\n  nextPage: catalogs(first: $first, after: $after, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      ...CatalogsConnectionNextPageFields\n    }\n    edges {\n      cursor\n      node {\n        ...CatalogsConnectionNextPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "title:catalogs-connection-20260704024053",
+        "first": 1,
+        "after": "eyJsYXN0X2lkIjoxNTQxOTkxMzA0MTgsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGJldGEgY2F0YWxvZ3MtY29ubmVjdGlvbi0yMDI2MDcwNDAyNDA1MyJ9"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "nextPage": {
+              "nodes": [
+                {
+                  "__typename": "MarketCatalog",
+                  "id": "gid://shopify/MarketCatalog/154199097650",
+                  "title": "Catalogs Connection Alpha catalogs-connection-20260704024053",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98773565746",
+                        "name": "Catalogs Connection Alpha catalogs-connection-20260704024053"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxNTQxOTkwOTc2NTAsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGFscGhhIGNhdGFsb2dzLWNvbm5lY3Rpb24tMjAyNjA3MDQwMjQwNTMifQ==",
+                  "node": {
+                    "__typename": "MarketCatalog",
+                    "id": "gid://shopify/MarketCatalog/154199097650",
+                    "title": "Catalogs Connection Alpha catalogs-connection-20260704024053",
+                    "status": "ACTIVE",
+                    "markets": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Market/98773565746",
+                          "name": "Catalogs Connection Alpha catalogs-connection-20260704024053"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxNTQxOTkwOTc2NTAsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGFscGhhIGNhdGFsb2dzLWNvbm5lY3Rpb24tMjAyNjA3MDQwMjQwNTMifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNTQxOTkwOTc2NTAsImxhc3RfdmFsdWUiOiJjYXRhbG9ncyBjb25uZWN0aW9uIGFscGhhIGNhdGFsb2dzLWNvbm5lY3Rpb24tMjAyNjA3MDQwMjQwNTMifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/154199130418",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/154199130418",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/154199097650",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/154199097650",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/98773598514",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98773598514",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/98773565746",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98773565746",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Creates two disposable MarketCatalog records, captures filtered reverse-title pagination and count/type filters, then deletes the disposable records."
+}

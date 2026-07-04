@@ -1,0 +1,50 @@
+{
+  "scenarioId": "inventory-transfer-zero-origin-read",
+  "operationNames": ["inventoryTransferCreate", "inventoryItem"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "inventory-quantity-side-effect",
+    "selected-fields",
+    "no-upstream-passthrough"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-transfer-create.graphql",
+    "variablesCapturePath": "$.workflow.createDraft.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "draft-create-mutation-data",
+        "capturePath": "$.draftCreate.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "excludedPaths": ["$.inventoryTransfer.id"],
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.name",
+            "matcher": "non-empty-string",
+            "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence during parity replay."
+          }
+        ]
+      },
+      {
+        "name": "draft-create-zero-origin-location-names-and-quantities",
+        "capturePath": "$.draftInventoryReadAfterCreateGraphql.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-inventory-read-with-location-names.graphql",
+          "variablesCapturePath": "$.workflow.afterDraftInventoryRead.variables"
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-zero-origin-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "notes": "Records a disposable tracked product stocked at a real origin and destination location with zero available/on_hand quantities, creates a draft transfer from that origin, then compares the downstream inventoryItem read with location names and selected quantity rows. This target protects against transfer create fabricating 5/0/5 origin quantities and against inventory-level location serialization falling back to a canned name when captured location data is available."
+}

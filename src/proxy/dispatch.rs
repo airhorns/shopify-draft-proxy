@@ -9,21 +9,15 @@ macro_rules! try_root_fields {
     };
 }
 
-/// Catalog-aggregate search predicates that the local product overlay cannot
-/// faithfully evaluate from its partial staged state, because they depend on
-/// store-wide aggregates computed across every location (e.g. `inventory_total:`
-/// sums inventory across all locations). A `products`/`productsCount` search
-/// carrying one of these must be answered upstream against the full catalog —
-/// serving it from the overlay would fabricate wrong matches.
-///
-/// Everything else is locally servable. The overlay applies the modeled
-/// Shopify-style product search subset against observed/staged store state, and
-/// unsupported fielded filters resolve as explicit local no-matches instead of
-/// surfacing the full local catalog. Malformed search syntax stays forgiving for
-/// the cases covered by live evidence (for example a bare leading `(` or
-/// dangling `OR`) rather than returning top-level GraphQL errors.
+/// Catalog search predicates that the local product overlay cannot faithfully
+/// evaluate from observed/staged state alone. Store-wide aggregate predicates
+/// such as `inventory_total:` and `variants.price:` need Shopify's full catalog
+/// index; serving them from a partial overlay fabricates wrong matches.
 fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
+    let predicate = predicate.to_ascii_lowercase();
     predicate.contains("inventory_total:")
+        || predicate.contains("variants.price:")
+        || predicate.contains("metafields.")
 }
 
 fn no_dispatcher(domain: &str, root_field: &str) -> Response {
@@ -31,6 +25,40 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
         501,
         &format!("No Rust {domain} dispatcher implemented for root field: {root_field}"),
     )
+}
+
+fn customer_payment_methods_only_read(fields: &[RootFieldSelection]) -> bool {
+    !fields.is_empty()
+        && fields.iter().all(|field| {
+            field.name == "customer"
+                && field
+                    .selection
+                    .iter()
+                    .any(|selection| selection.name == "paymentMethods")
+                && field
+                    .selection
+                    .iter()
+                    .all(|selection| matches!(selection.name.as_str(), "id" | "paymentMethods"))
+        })
+}
+
+fn observed_node_values(response: &Response) -> Vec<Value> {
+    let mut nodes = response
+        .body
+        .pointer("/data/nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Some(node) = response
+        .body
+        .pointer("/data/node")
+        .filter(|node| node.is_object())
+    {
+        nodes.push(node.clone());
+    }
+    nodes
 }
 
 fn changed_draft_order_tag_ids(
@@ -74,13 +102,7 @@ impl DraftProxy {
     /// wrong matches, so such a query is forwarded upstream where the real
     /// backend (or a recorded cassette) resolves it authoritatively, even when
     /// unrelated overlay state has been staged.
-    fn product_query_needs_upstream_catalog_search(
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
-            return false;
-        };
+    fn product_query_needs_upstream_catalog_search(fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| {
             matches!(
                 field.name.as_str(),
@@ -91,6 +113,44 @@ impl DraftProxy {
                     if catalog_search_predicate_requires_full_catalog(predicate)
             )
         })
+    }
+
+    fn product_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        if Self::product_query_needs_upstream_catalog_search(fields) {
+            return true;
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        fields
+            .iter()
+            .any(|field| self.live_hybrid_product_field_needs_upstream(field))
+    }
+
+    fn live_hybrid_product_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "products" | "productsCount" => true,
+            "product" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty()
+                    || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+            }
+            "productByIdentifier" => !self.product_identifier_has_local_answer(field),
+            _ => false,
+        }
+    }
+
+    fn product_identifier_has_local_answer(&self, field: &RootFieldSelection) -> bool {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+            return false;
+        };
+        if let Some(id) = resolved_string_field(&identifier, "id") {
+            return self.store.has_product(&id) || self.store.product_is_tombstoned(&id);
+        }
+        if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            return self.store.product_by_handle(&handle).is_some();
+        }
+        false
     }
 
     fn should_route_owner_metafields_read(
@@ -135,11 +195,16 @@ impl DraftProxy {
             | "productFeed"
             | "productFeeds"
             | "productVariant" => {
-                if Self::product_query_needs_upstream_catalog_search(query, variables) {
+                let fields = root_fields(query, variables).unwrap_or_default();
+                if self.product_read_needs_upstream(&fields) {
                     (self.upstream_transport)(request.clone())
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
+                    let fields = root_fields(query, variables).unwrap_or_default();
+                    if product_root_fields_select_shop_currency_money(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                    }
                     // An overlay read reproduces staged inventory levels but not the
                     // opaque pagination cursors Shopify assigns each level edge: the
                     // node-hydrate warm path selects `inventoryLevels { nodes }`, never
@@ -149,7 +214,6 @@ impl DraftProxy {
                     // before serving, so the overlay read can fill them in for real
                     // instead of relying on seeded cursor state.
                     self.hydrate_inventory_level_cursors_for_read(request, query);
-                    let fields = root_fields(query, variables).unwrap_or_default();
                     ok_json(json!({
                         "data": self.product_overlay_read_data(&fields)
                     }))
@@ -169,20 +233,22 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                if product_root_fields_select_shop_currency_money(&fields) {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
-            "collections" => {
-                // The catalog's opaque cursors and server-side query filtering
-                // cannot be reconstructed from local state, so a de-seeded
-                // scenario forwards the top-level `collections` list read upstream
-                // (the proxy reads it from real Shopify rather than replaying a
-                // `/__meta/seed` snapshot). A scenario that still seeds the
-                // recorded connections is served locally.
-                if self.store.staged.collection_catalog.is_empty() {
-                    (self.upstream_transport)(request.clone())
-                } else {
+            "collections" | "collectionsCount" => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.store.has_collection_state()
+                {
+                    self.hydrate_collections_for_read(request);
+                }
+                if self.store.has_collection_state() {
                     let fields = try_root_fields!(query, variables);
-                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                    ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
+                } else {
+                    (self.upstream_transport)(request.clone())
                 }
             }
             "publication"
@@ -487,14 +553,48 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
+        if let Some(data) = self.shop_property_node_value_by_id(id, selection) {
+            return Some(data);
+        }
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
+        }
+        if shopify_gid_resource_type(id) == Some("Product") {
+            if self.store.product_is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(product) = self.store.product_by_id(id) {
+                let variants = self.store.product_variants_for_product(id);
+                let shop_currency_code = self.store.shop_currency_code();
+                return Some(product_json_with_variants_and_currency(
+                    product,
+                    &variants,
+                    selection,
+                    &shop_currency_code,
+                ));
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("Collection") {
+            if self.store.collection_is_deleted(id) {
+                return Some(Value::Null);
+            }
+            if let Some(collection) = self.store.collection_by_id(id) {
+                return Some(self.collection_json_with_publication_fields(collection, selection));
+            }
         }
         if shopify_gid_resource_type(id) == Some("ProductVariant") {
             let value = self.product_variant_by_id_value(id, selection);
             if !value.is_null() {
                 return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("Location") {
+            if self.store.staged.locations.is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(location) = self.location_for_read(id) {
+                return Some(selected_json(&location, selection));
             }
         }
         if shopify_gid_resource_type(id) == Some("ProductFeed") {
@@ -581,6 +681,15 @@ impl DraftProxy {
                 selection,
             ));
         }
+        if let Some(configuration) = self
+            .store
+            .staged
+            .tax_app_configuration
+            .as_ref()
+            .filter(|configuration| configuration["id"].as_str() == Some(id))
+        {
+            return Some(selected_json(configuration, selection));
+        }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
@@ -601,6 +710,66 @@ impl DraftProxy {
             return Some(value);
         }
         None
+    }
+
+    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
+        let nodes = observed_node_values(response);
+        for node in &nodes {
+            self.observe_node_response_value(node);
+        }
+        for node in nodes {
+            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+            if id.starts_with("gid://shopify/Collection/") {
+                self.stage_collection_from_observed_json(&node);
+            }
+        }
+    }
+
+    fn observe_node_response_value(&mut self, node: &Value) {
+        let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        if id.starts_with("gid://shopify/Product/") {
+            self.store.stage_observed_product_json(node);
+            if let Some(product_id) = node.get("id").and_then(Value::as_str) {
+                for variant in node
+                    .get("variants")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let mut variant_value = variant.clone();
+                    if let Some(object) = variant_value.as_object_mut() {
+                        object.insert("productId".to_string(), json!(product_id));
+                    }
+                    if let Some(mut variant) =
+                        product_variant_state_from_observed_json(&variant_value)
+                    {
+                        variant.product_id = product_id.to_string();
+                        self.store.stage_product_variant(variant);
+                    }
+                }
+            }
+        } else if id.starts_with("gid://shopify/Collection/") {
+            self.stage_collection_from_observed_json(node);
+        } else if id.starts_with("gid://shopify/ProductVariant/") {
+            if let Some(variant) = product_variant_state_from_observed_json(node) {
+                self.store.stage_product_variant(variant);
+            }
+            if let Some(product) = node.get("product").and_then(product_state_from_json) {
+                self.store.stage_observed_product(product);
+            }
+        } else if id.starts_with("gid://shopify/InventoryItem/") {
+            self.observe_inventory_item_node(node);
+        } else if id.starts_with("gid://shopify/InventoryLevel/") {
+            self.observe_inventory_level_node(node);
+        } else if shopify_gid_resource_type(id) == Some("Location") {
+            self.merge_staged_location(node, &[]);
+        } else if matches!(
+            shopify_gid_resource_type(id),
+            Some("ShopAddress" | "ShopPolicy")
+        ) {
+            self.observe_shop_property_node(node);
+        }
     }
 
     fn app_node_value_by_id(
@@ -778,6 +947,12 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        if capability.domain == CapabilityDomain::Products
+            && operation.operation_type == OperationType::Mutation
+            && product_operation_selects_shop_currency_money(&query, &variables)
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the
@@ -1081,9 +1256,9 @@ impl DraftProxy {
                 let outcome = self.inventory_mutation_data(request, &fields);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(request, &query, &variables)
-            })),
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
+                self.saved_search_overlay_read_response(request, &query, &variables)
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
@@ -1119,10 +1294,8 @@ impl DraftProxy {
                     .uninstalled_app_ids
                     .contains(&request_app_id)
                     || self
-                        .store
-                        .staged
-                        .installed_apps
-                        .contains_key(&request_app_id)
+                        .current_app_installation_app_id_for_request(&request_app_id)
+                        .is_some()
                     || !self.store.staged.app_subscriptions.is_empty()
                     || !self.store.staged.app_one_time_purchases.is_empty()
                     || self
@@ -1265,6 +1438,11 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                if let Some(data) =
+                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
+                {
+                    return ok_json(data);
+                }
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
                 }
@@ -1676,8 +1854,16 @@ impl DraftProxy {
             (CapabilityDomain::Webhooks, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.webhook_subscriptions_query_data(&fields) }))
+                let Some(document) = parsed_document(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
+                    ok_json(json!({ "errors": [error] }))
+                } else {
+                    ok_json(json!({
+                        "data": self.webhook_subscriptions_query_data(&document.root_fields)
+                    }))
+                }
             }
             (CapabilityDomain::Webhooks, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
@@ -1687,6 +1873,9 @@ impl DraftProxy {
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                if self.config.read_mode == ReadMode::LiveHybrid {
+                    return (self.upstream_transport)(request.clone());
+                }
                 let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": event_empty_read_data(&fields) }))
             }
@@ -1759,6 +1948,7 @@ impl DraftProxy {
                 {
                     return self.web_presence_helper_query(&query);
                 }
+                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
                 // A market-localizable resource read carries request-scoped
                 // staging (content/digest hydration), so it keeps its
                 // dedicated handler. Every other markets-domain read — even
@@ -1783,6 +1973,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.hydrate_market_currency_defaults_if_needed(request, &fields);
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
@@ -1805,10 +1996,16 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
-                    return quantity_pricing_by_variant_update_response(&query, &variables);
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
+                    return quantity_pricing_by_variant_update_response(
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
                     return quantity_rules_mutation_response(
                         root_field,
                         &query,
@@ -1866,9 +2063,24 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let data = self.functions_metadata_mutation_data(request, &fields);
-                self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
-                ok_json(json!({ "data": data }))
+                let (data, errors) = self.functions_metadata_mutation_data(request, &fields);
+                if data
+                    .as_object()
+                    .is_some_and(|fields| fields.values().any(|value| !value.is_null()))
+                {
+                    self.record_mutation_log_entry(
+                        request,
+                        &query,
+                        &variables,
+                        root_field,
+                        Vec::new(),
+                    );
+                }
+                if errors.is_empty() {
+                    ok_json(json!({ "data": data }))
+                } else {
+                    ok_json(json!({ "data": data, "errors": errors }))
+                }
             }
             (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
@@ -1945,12 +2157,13 @@ impl DraftProxy {
                     // / tombstoned policies); otherwise the live shop response is
                     // replayed verbatim so unrelated shop fields stay authentic.
                     if self.should_handle_shop_policy_query_locally() {
-                        if let Some(data) = self.shop_query_data(&query, &variables) {
+                        if let Some(data) = self.shop_query_data(&fields, Some(request)) {
                             ok_json(json!({ "data": data }))
                         } else {
                             let response = (self.upstream_transport)(request.clone());
                             if (200..300).contains(&response.status) {
                                 self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                                self.observe_nodes_response(&response);
                             }
                             response
                         }
@@ -1958,6 +2171,7 @@ impl DraftProxy {
                         let response = (self.upstream_transport)(request.clone());
                         if (200..300).contains(&response.status) {
                             self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                            self.observe_nodes_response(&response);
                         }
                         response
                     }
@@ -2239,15 +2453,23 @@ impl DraftProxy {
             (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                if self.should_route_owner_metafields_read(&query, &variables) {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
                 let fields = try_root_fields!(&query, &variables);
+                if customer_payment_methods_only_read(&fields) {
+                    if let Some(data) =
+                        self.customer_payment_method_local_data(request, &query, &variables)
+                    {
+                        return ok_json(data);
+                    }
+                }
                 // A query may combine `customer*` reads with a standalone
                 // `storeCreditAccount(id:)` read (or carry only the latter).
                 // Each is served from its own staged overlay and the two field
                 // maps are merged into one `data` object.
                 let handle_customers = self.should_handle_customer_overlay_read(&fields);
+                if !handle_customers && self.should_route_owner_metafields_read(&query, &variables)
+                {
+                    return self.owner_metafields_read(request, &query, &variables);
+                }
                 let handle_store_credit = fields
                     .iter()
                     .any(|field| field.name == "storeCreditAccount");
@@ -2606,7 +2828,7 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
-                self.media_files_read(&query, &variables)
+                self.media_files_read(request, &query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>

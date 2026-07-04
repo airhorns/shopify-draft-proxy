@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-24T01:56:13.365Z",
+  "capturedAt": "2026-07-04T03:29:48.571Z",
   "source": "live-shopify-admin-graphql",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
@@ -10,7 +10,7 @@
       "description": "Syntactically invalid GraphQL document.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-invalid-syntax.graphql",
-        "query": "query GraphqlBaseValidationInvalidSyntax {\n  shop {\n    id\n\n",
+        "query": "query GraphqlBaseValidationInvalidSyntax {\n  shop {\n    id\n",
         "variables": {}
       },
       "response": {
@@ -55,7 +55,7 @@
       "description": "Object field selected without the required subselection.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql",
-        "query": "query GraphqlBaseValidationMissingSubselection {\n  shop\n}\n\n",
+        "query": "query GraphqlBaseValidationMissingSubselection {\n  shop\n}\n",
         "variables": {}
       },
       "response": {
@@ -106,7 +106,7 @@
       "description": "Required variable declared by the operation but omitted from request variables.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql",
-        "query": "mutation GraphqlBaseValidationMissingRequiredVariable($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "query": "mutation GraphqlBaseValidationMissingRequiredVariable($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {}
       },
       "response": {
@@ -165,7 +165,7 @@
       "description": "Mutation root selected without its required argument.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-argument.graphql",
-        "query": "mutation GraphqlBaseValidationMissingRequiredArgument {\n  productCreate {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "query": "mutation GraphqlBaseValidationMissingRequiredArgument {\n  productCreate {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {}
       },
       "response": {
@@ -240,7 +240,7 @@
       "description": "Query root that does not exist in the Admin GraphQL schema.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql",
-        "query": "query GraphqlBaseValidationUnknownQueryRoot {\n  definitelyNotAShopifyQueryRoot {\n    id\n  }\n}\n\n",
+        "query": "query GraphqlBaseValidationUnknownQueryRoot {\n  definitelyNotAShopifyQueryRoot {\n    id\n  }\n}\n",
         "variables": {}
       },
       "response": {
@@ -291,7 +291,7 @@
       "description": "Mutation root that does not exist in the Admin GraphQL schema.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql",
-        "query": "mutation GraphqlBaseValidationUnknownMutationRoot {\n  definitelyNotAShopifyMutationRoot(input: {}) {\n    id\n  }\n}\n\n",
+        "query": "mutation GraphqlBaseValidationUnknownMutationRoot {\n  definitelyNotAShopifyMutationRoot(input: {}) {\n    id\n  }\n}\n",
         "variables": {}
       },
       "response": {
@@ -342,7 +342,7 @@
       "description": "Known query root selecting a field that does not exist on the backend type.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql",
-        "query": "query GraphqlBaseValidationUnknownProductField {\n  products(first: 1) {\n    nodes {\n      id\n      definitelyNotAProductField\n    }\n  }\n}\n\n",
+        "query": "query GraphqlBaseValidationUnknownProductField {\n  products(first: 1) {\n    nodes {\n      id\n      definitelyNotAProductField\n    }\n  }\n}\n",
         "variables": {}
       },
       "response": {
@@ -399,11 +399,62 @@
         }
       }
     },
+    "unknownOrderField": {
+      "description": "Known non-product connection root selecting a field that does not exist on the backend node type.",
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-order-field.graphql",
+        "query": "query GraphqlBaseValidationUnknownOrderField {\n  orders(first: 1) {\n    nodes {\n      id\n      definitelyNotAnOrderField\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 7
+                }
+              ],
+              "path": ["query GraphqlBaseValidationUnknownOrderField", "orders", "nodes", "definitelyNotAnOrderField"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Order",
+                "fieldName": "definitelyNotAnOrderField"
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "body": {
+          "errors": [
+            {
+              "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 7
+                }
+              ],
+              "path": ["query GraphqlBaseValidationUnknownOrderField", "orders", "nodes", "definitelyNotAnOrderField"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "Order",
+                "fieldName": "definitelyNotAnOrderField"
+              }
+            }
+          ]
+        }
+      }
+    },
     "missingInputRequiredProperty": {
       "description": "Mutation input object variable missing a required input property.",
       "request": {
         "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-input-required-property.graphql",
-        "query": "mutation GraphqlBaseValidationMissingInputRequiredProperty(\n  $webhookSubscription: PubSubWebhookSubscriptionInput!\n) {\n  pubSubWebhookSubscriptionCreate(\n    topic: ORDERS_CREATE\n    webhookSubscription: $webhookSubscription\n  ) {\n    webhookSubscription {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n\n",
+        "query": "mutation GraphqlBaseValidationMissingInputRequiredProperty(\n  $webhookSubscription: PubSubWebhookSubscriptionInput!\n) {\n  pubSubWebhookSubscriptionCreate(\n    topic: ORDERS_CREATE\n    webhookSubscription: $webhookSubscription\n  ) {\n    webhookSubscription {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "webhookSubscription": {
             "pubSubProject": "shopify-draft-proxy-validation"

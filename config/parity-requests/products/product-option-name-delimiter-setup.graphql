@@ -1,0 +1,33 @@
+mutation ProductOptionNameDelimiterSetup($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

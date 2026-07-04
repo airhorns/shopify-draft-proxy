@@ -107,6 +107,7 @@ impl DraftProxy {
                         "userErrors",
                         "field",
                         "message",
+                        "code",
                     ],
                 )
         });
@@ -131,6 +132,7 @@ impl DraftProxy {
                         "userErrors",
                         "field",
                         "message",
+                        "code",
                     ],
                 )
         });
@@ -165,7 +167,11 @@ impl DraftProxy {
                                 field.response_key.clone(): refund_input_error(
                                     field,
                                     None,
-                                    refund_user_error(json!(["orderId"]), "Order does not exist"),
+                                    refund_user_error_with_code(
+                                        json!(["orderId"]),
+                                        "Order does not exist",
+                                        "NOT_FOUND",
+                                    ),
                                     &shop_currency_code,
                                 )
                             }
@@ -302,8 +308,8 @@ impl DraftProxy {
         let default_currency =
             resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string());
         let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
-            line_item_price_set_values(
-                &first_line,
+            line_items_price_set_values(
+                &order_input,
                 ["0.0", &default_currency, "0.0", &default_currency],
                 ["0.0", &default_currency],
                 None,

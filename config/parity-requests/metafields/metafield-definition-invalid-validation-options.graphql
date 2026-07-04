@@ -1,0 +1,211 @@
+mutation MetafieldDefinitionInvalidValidationOptions($namespace: String!) {
+  unsupportedNotRealOption: metafieldDefinitionCreate(
+    definition: {
+      name: "Unsupported validation option"
+      namespace: $namespace
+      key: "not_real_option"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      validations: [{ name: "not_a_real_option", value: "x" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  unsupportedPattern: metafieldDefinitionCreate(
+    definition: {
+      name: "Unsupported pattern option"
+      namespace: $namespace
+      key: "pattern_option"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      validations: [{ name: "pattern", value: ".*" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  decimalBadMin: metafieldDefinitionCreate(
+    definition: {
+      name: "Invalid decimal min"
+      namespace: $namespace
+      key: "decimal_bad_min"
+      ownerType: PRODUCT
+      type: "number_decimal"
+      validations: [{ name: "min", value: "not-a-number" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  decimalValidRange: metafieldDefinitionCreate(
+    definition: {
+      name: "Valid decimal range"
+      namespace: $namespace
+      key: "decimal_valid_range"
+      ownerType: PRODUCT
+      type: "number_decimal"
+      validations: [{ name: "min", value: "1.5" }, { name: "max", value: "9.9" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateUnsupportedSetup: metafieldDefinitionCreate(
+    definition: {
+      name: "Update unsupported target"
+      namespace: $namespace
+      key: "update_unsupported"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateUnsupportedOption: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "update_unsupported"
+      ownerType: PRODUCT
+      validations: [{ name: "not_a_real_option", value: "x" }]
+    }
+  ) {
+    updatedDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+  updateDecimalSetup: metafieldDefinitionCreate(
+    definition: {
+      name: "Update decimal target"
+      namespace: $namespace
+      key: "update_decimal"
+      ownerType: PRODUCT
+      type: "number_decimal"
+      validations: [{ name: "min", value: "1.5" }, { name: "max", value: "9.9" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateDecimalBadMin: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "update_decimal"
+      ownerType: PRODUCT
+      validations: [{ name: "min", value: "not-a-number" }]
+    }
+  ) {
+    updatedDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}

@@ -3,8 +3,11 @@ use crate::graphql::ParsedDocument;
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-resource-type-limit.json
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-pin-limit-and-constraint-guard.json
 const PINNED_DEFINITION_LIMIT: usize = 20;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-capability-eligibility.json
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
@@ -16,7 +19,7 @@ fn pinned_definition_limit_message() -> String {
 
 fn metafield_definition_resource_type_limit_message() -> String {
     format!(
-        "You can only have {METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT} definitions per resource type."
+        "Stores can only have {METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT} definitions for each store resource."
     )
 }
 
@@ -1284,21 +1287,6 @@ impl DraftProxy {
                         .cloned()
                         .map(|definition| self.metafield_definition_with_derived_fields(definition))
                         .collect::<Vec<_>>();
-                    definitions.sort_by(|a, b| {
-                        let ap = a
-                            .get("pinnedPosition")
-                            .and_then(Value::as_i64)
-                            .unwrap_or(-1);
-                        let bp = b
-                            .get("pinnedPosition")
-                            .and_then(Value::as_i64)
-                            .unwrap_or(-1);
-                        bp.cmp(&ap).then_with(|| {
-                            b.get("key")
-                                .and_then(Value::as_str)
-                                .cmp(&a.get("key").and_then(Value::as_str))
-                        })
-                    });
                     if pinned_status.as_deref() == Some("PINNED") {
                         definitions.retain(|definition| {
                             !definition.get("pinnedPosition").is_none_or(Value::is_null)
@@ -1308,27 +1296,23 @@ impl DraftProxy {
                             definition.get("pinnedPosition").is_none_or(Value::is_null)
                         });
                     }
-                    let nodes = definitions
-                        .into_iter()
-                        .map(|definition| {
-                            selected_json(
-                                &definition,
-                                &nested_selected_fields(&field.selection, &["nodes"]),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let connection = json!({
-                        "nodes": nodes,
-                        "pageInfo": connection_page_info(
-                            false,
-                            false,
-                            Some("cursor:metafield-definition:start".to_string()),
-                            Some("cursor:metafield-definition:end".to_string())
-                        )
-                    });
                     data.insert(
                         field.response_key,
-                        selected_json(&connection, &field.selection),
+                        selected_staged_connection_with_args(
+                            definitions,
+                            &field.arguments,
+                            &field.selection,
+                            metafield_definition_search_decision,
+                            |definition, sort_key| {
+                                metafield_definition_sort_key(
+                                    definition,
+                                    sort_key,
+                                    resolved_string_field(&field.arguments, "query").as_deref(),
+                                )
+                            },
+                            selected_json,
+                            value_id_cursor,
+                        ),
                     );
                 }
                 _ => {}
@@ -2198,6 +2182,41 @@ fn metafield_definition_create_errors_for_namespace(
     errors
 }
 
+fn metafield_definition_validation_scalar_type(metafield_type: &str) -> &str {
+    metafield_type
+        .strip_prefix("list.")
+        .unwrap_or(metafield_type)
+}
+
+fn metafield_definition_validation_integer_type(metafield_type: &str) -> bool {
+    matches!(
+        metafield_definition_validation_scalar_type(metafield_type),
+        "number_integer" | "integer"
+    )
+}
+
+fn metafield_definition_validation_decimal_type(metafield_type: &str) -> bool {
+    matches!(
+        metafield_definition_validation_scalar_type(metafield_type),
+        "number_decimal" | "float"
+    )
+}
+
+fn parse_finite_decimal(value: &str) -> Option<f64> {
+    let parsed = value.parse::<f64>().ok()?;
+    parsed.is_finite().then_some(parsed)
+}
+
+fn metafield_definition_validation_comparable_min_max(
+    metafield_type: &str,
+    value: &str,
+) -> Option<f64> {
+    if metafield_definition_validation_decimal_type(metafield_type) {
+        return parse_finite_decimal(value);
+    }
+    value.parse::<i64>().ok().map(|value| value as f64)
+}
+
 fn metafield_definition_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     typename: &str,
@@ -2224,7 +2243,7 @@ fn metafield_definition_validation_errors(
             ));
             return errors;
         }
-        if name == "totally_unknown_option" {
+        if !metafield_definition_validation_name_allowed(&metafield_type, &name) {
             errors.push(metafield_definition_user_error(
                 typename,
                 json!(["definition", "validations"]),
@@ -2235,29 +2254,45 @@ fn metafield_definition_validation_errors(
             ));
             return errors;
         }
-        if matches!(name.as_str(), "min" | "max")
-            && metafield_type == "number_integer"
-            && value.parse::<i64>().is_err()
-        {
-            errors.push(metafield_definition_user_error(
-                typename,
-                json!(["definition", "validations"]),
-                &format!("Validations value for option {name} must be an integer."),
-                "INVALID_OPTION",
-            ));
-            return errors;
+        if matches!(name.as_str(), "min" | "max") {
+            if metafield_definition_validation_integer_type(&metafield_type)
+                && value.parse::<i64>().is_err()
+            {
+                errors.push(metafield_definition_user_error(
+                    typename,
+                    json!(["definition", "validations"]),
+                    &format!("Validations value for option {name} must be an integer."),
+                    "INVALID_OPTION",
+                ));
+                return errors;
+            }
+            if metafield_definition_validation_decimal_type(&metafield_type)
+                && parse_finite_decimal(&value).is_none()
+            {
+                errors.push(metafield_definition_user_error(
+                    typename,
+                    json!(["definition", "validations"]),
+                    &format!("Validations value for option {name} must be a decimal."),
+                    "INVALID_OPTION",
+                ));
+                return errors;
+            }
         }
     }
     let min = validations
         .iter()
         .find(|validation| resolved_string_field(validation, "name").as_deref() == Some("min"))
         .and_then(|validation| resolved_string_field(validation, "value"))
-        .and_then(|value| value.parse::<i64>().ok());
+        .and_then(|value| {
+            metafield_definition_validation_comparable_min_max(&metafield_type, &value)
+        });
     let max = validations
         .iter()
         .find(|validation| resolved_string_field(validation, "name").as_deref() == Some("max"))
         .and_then(|validation| resolved_string_field(validation, "value"))
-        .and_then(|value| value.parse::<i64>().ok());
+        .and_then(|value| {
+            metafield_definition_validation_comparable_min_max(&metafield_type, &value)
+        });
     if min.zip(max).is_some_and(|(min, max)| min > max) {
         errors.push(metafield_definition_user_error(
             typename,
@@ -2339,6 +2374,47 @@ fn metafield_definition_validation_errors(
         }
     }
     errors
+}
+
+fn metafield_definition_validation_name_allowed(metafield_type: &str, name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    if metafield_type.starts_with("list.") && matches!(name, "list.min" | "list.max") {
+        return true;
+    }
+    let element_type = metafield_type
+        .strip_prefix("list.")
+        .unwrap_or(metafield_type);
+    match name {
+        "min" | "max" => {
+            matches!(
+                element_type,
+                "single_line_text_field"
+                    | "multi_line_text_field"
+                    | "integer"
+                    | "number_integer"
+                    | "float"
+                    | "number_decimal"
+                    | "date"
+                    | "date_time"
+                    | "json"
+            ) || is_measurement_metafield_type_name(element_type)
+        }
+        "regex" => matches!(
+            element_type,
+            "single_line_text_field" | "multi_line_text_field"
+        ),
+        "choices" => matches!(element_type, "single_line_text_field"),
+        "schema" => element_type == "json",
+        "scale_min" | "scale_max" => element_type == "rating",
+        "metaobject_definition_id" => element_type == "metaobject_reference",
+        "metaobject_definition_ids" => element_type == "mixed_reference",
+        "file_type_options" | "file_type" => element_type == "file_reference",
+        "allowed_domains" => element_type == "link",
+        "product_taxonomy_attribute_handle" => element_type == "product_taxonomy_value_reference",
+        _ => false,
+    }
 }
 
 pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
@@ -2783,4 +2859,358 @@ fn standard_metafield_definition_template_by_selector(
         ));
     }
     Ok(template)
+}
+
+fn metafield_definition_search_decision(
+    definition: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+
+    for token in query.split_whitespace() {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        if let Some((field, expected)) = token.split_once(':') {
+            let field = field.trim().to_ascii_lowercase();
+            if !metafield_definition_query_field_supported(&field) {
+                continue;
+            }
+            let expected = metafield_definition_query_value(expected);
+            if !metafield_definition_matches_field(definition, &field, &expected) {
+                return StagedSearchDecision::NoMatch;
+            }
+            continue;
+        }
+
+        let expected = metafield_definition_query_value(token);
+        if !metafield_definition_search_values(definition)
+            .iter()
+            .any(|value| value.contains(&expected))
+        {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+
+    StagedSearchDecision::Match
+}
+
+fn metafield_definition_sort_key(
+    definition: &Value,
+    sort_key: Option<&str>,
+    query: Option<&str>,
+) -> StagedSortKey {
+    match sort_key.unwrap_or("ID") {
+        "NAME" => vec![StagedSortValue::String(metafield_definition_string_field(
+            definition, "name",
+        ))],
+        "PINNED_POSITION" => vec![StagedSortValue::I64(
+            definition
+                .get("pinnedPosition")
+                .and_then(Value::as_i64)
+                .map(|position| -position)
+                .unwrap_or(i64::MAX),
+        )],
+        "RELEVANCE" => vec![
+            StagedSortValue::I64(metafield_definition_relevance(definition, query)),
+            StagedSortValue::String(metafield_definition_string_field(definition, "name")),
+        ],
+        "ID" => vec![StagedSortValue::String(value_id_cursor(definition))],
+        _ => vec![StagedSortValue::String(value_id_cursor(definition))],
+    }
+}
+
+fn metafield_definition_query_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase()
+}
+
+fn metafield_definition_query_field_supported(field: &str) -> bool {
+    matches!(
+        field,
+        "id" | "namespace" | "key" | "owner_type" | "ownertype" | "type" | "name"
+    )
+}
+
+fn metafield_definition_matches_field(definition: &Value, field: &str, expected: &str) -> bool {
+    match field {
+        "id" => value_id_cursor(definition).to_ascii_lowercase() == expected,
+        "namespace" | "key" | "name" => {
+            metafield_definition_string_field(definition, field).contains(expected)
+        }
+        "owner_type" | "ownertype" => {
+            metafield_definition_string_field(definition, "ownerType") == expected
+        }
+        "type" => metafield_definition_type_name(definition).contains(expected),
+        _ => false,
+    }
+}
+
+fn metafield_definition_relevance(definition: &Value, query: Option<&str>) -> i64 {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return 0;
+    };
+    query
+        .split_whitespace()
+        .filter(|token| !token.trim().is_empty())
+        .map(|token| {
+            let token = token.trim();
+            if let Some((field, expected)) = token.split_once(':') {
+                let field = field.trim().to_ascii_lowercase();
+                let expected = metafield_definition_query_value(expected);
+                if metafield_definition_matches_field_exact(definition, &field, &expected) {
+                    0
+                } else if metafield_definition_matches_field(definition, &field, &expected) {
+                    1
+                } else {
+                    100
+                }
+            } else {
+                let expected = metafield_definition_query_value(token);
+                if metafield_definition_string_field(definition, "key") == expected
+                    || metafield_definition_string_field(definition, "name") == expected
+                {
+                    0
+                } else if metafield_definition_search_values(definition)
+                    .iter()
+                    .any(|value| value.contains(&expected))
+                {
+                    1
+                } else {
+                    100
+                }
+            }
+        })
+        .min()
+        .unwrap_or(0)
+}
+
+fn metafield_definition_matches_field_exact(
+    definition: &Value,
+    field: &str,
+    expected: &str,
+) -> bool {
+    match field {
+        "id" => value_id_cursor(definition).to_ascii_lowercase() == expected,
+        "namespace" | "key" | "name" => {
+            metafield_definition_string_field(definition, field) == expected
+        }
+        "owner_type" | "ownertype" => {
+            metafield_definition_string_field(definition, "ownerType") == expected
+        }
+        "type" => metafield_definition_type_name(definition) == expected,
+        _ => false,
+    }
+}
+
+fn metafield_definition_search_values(definition: &Value) -> Vec<String> {
+    vec![
+        value_id_cursor(definition).to_ascii_lowercase(),
+        metafield_definition_string_field(definition, "namespace"),
+        metafield_definition_string_field(definition, "key"),
+        metafield_definition_string_field(definition, "name"),
+        metafield_definition_string_field(definition, "ownerType"),
+        metafield_definition_type_name(definition),
+    ]
+}
+
+fn metafield_definition_string_field(definition: &Value, field: &str) -> String {
+    definition
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+fn metafield_definition_type_name(definition: &Value) -> String {
+    definition
+        .get("type")
+        .and_then(|value| value.get("name").or(Some(value)))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(|_| panic!("metafield definition tests should stay local"))
+    }
+
+    fn graphql_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    fn create_definition(proxy: &mut DraftProxy, namespace: &str, key: &str, name: &str) -> Value {
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateDefinition($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { id namespace key name ownerType pinnedPosition }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": namespace,
+                    "key": key,
+                    "name": name,
+                    "type": "single_line_text_field"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"].clone()
+    }
+
+    fn definition_keys(connection: &Value) -> Vec<String> {
+        connection["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["key"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn metafield_definitions_windows_default_id_order_with_node_cursors() {
+        let mut proxy = test_proxy();
+        let namespace = "catalog_windowing";
+        let beta = create_definition(&mut proxy, namespace, "beta", "Beta");
+        let alpha = create_definition(&mut proxy, namespace, "alpha", "Alpha");
+        create_definition(&mut proxy, namespace, "gamma", "Gamma");
+
+        let first_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitions($namespace: String!) {
+              metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 1) {
+                nodes { id key }
+                edges { cursor node { id key } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({ "namespace": namespace }),
+        ));
+
+        assert_eq!(first_page.status, 200);
+        let first_connection = &first_page.body["data"]["metafieldDefinitions"];
+        assert_eq!(definition_keys(first_connection), vec!["beta"]);
+        assert_eq!(
+            first_connection["edges"][0]["cursor"], beta["id"],
+            "cursors should be derived from the windowed definition node"
+        );
+        assert_eq!(
+            first_connection["pageInfo"],
+            json!({
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": beta["id"],
+                "endCursor": beta["id"]
+            })
+        );
+
+        let second_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitions($namespace: String!, $after: String!) {
+              metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 1, after: $after) {
+                nodes { id key }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({ "namespace": namespace, "after": beta["id"] }),
+        ));
+
+        assert_eq!(second_page.status, 200);
+        let second_connection = &second_page.body["data"]["metafieldDefinitions"];
+        assert_eq!(definition_keys(second_connection), vec!["alpha"]);
+        assert_eq!(second_connection["pageInfo"]["hasNextPage"], json!(true));
+        assert_eq!(second_connection["pageInfo"]["startCursor"], alpha["id"]);
+    }
+
+    #[test]
+    fn metafield_definitions_filters_query_and_honors_sort_reverse() {
+        let mut proxy = test_proxy();
+        let namespace = "catalog_filtering";
+        create_definition(&mut proxy, namespace, "beta", "Zulu");
+        create_definition(&mut proxy, namespace, "alpha", "Alpha");
+        create_definition(&mut proxy, namespace, "gamma", "Mike");
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitions($namespace: String!) {
+              matching: metafieldDefinitions(
+                ownerType: PRODUCT
+                namespace: $namespace
+                first: 10
+                query: "key:alpha"
+                sortKey: NAME
+              ) {
+                nodes { key name }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              unknownFilter: metafieldDefinitions(
+                ownerType: PRODUCT
+                namespace: $namespace
+                first: 10
+                query: "unknown:value"
+              ) {
+                nodes { key }
+              }
+              nameDescending: metafieldDefinitions(
+                ownerType: PRODUCT
+                namespace: $namespace
+                first: 10
+                sortKey: NAME
+                reverse: true
+              ) {
+                nodes { key name }
+              }
+            }
+            "#,
+            json!({ "namespace": namespace }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            definition_keys(&response.body["data"]["matching"]),
+            vec!["alpha"]
+        );
+        assert_eq!(
+            definition_keys(&response.body["data"]["unknownFilter"]),
+            vec!["beta", "alpha", "gamma"]
+        );
+        assert_eq!(
+            definition_keys(&response.body["data"]["nameDescending"]),
+            vec!["beta", "gamma", "alpha"]
+        );
+    }
 }

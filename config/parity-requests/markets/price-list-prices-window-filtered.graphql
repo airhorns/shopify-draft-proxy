@@ -1,0 +1,43 @@
+query PriceListPricesWindowFiltered(
+  $priceListId: ID!
+  $first: Int!
+  $priceQuery: String
+  $originType: PriceListPriceOriginType
+) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    prices(first: $first, query: $priceQuery, originType: $originType) {
+      edges {
+        cursor
+        node {
+          price {
+            amount
+            currencyCode
+          }
+          compareAtPrice {
+            amount
+            currencyCode
+          }
+          originType
+          variant {
+            id
+            sku
+            product {
+              id
+              title
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

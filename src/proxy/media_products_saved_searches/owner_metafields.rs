@@ -23,7 +23,6 @@ impl DraftProxy {
             self.hydrate_metafield_reference_ids(
                 request,
                 self.metafields_set_reference_values(&inputs, api_client_id.as_deref()),
-                metafields_set_product_owner_ids(&inputs),
             )
         } else {
             BTreeSet::new()
@@ -528,7 +527,6 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         ids: Vec<String>,
-        product_owner_ids: BTreeSet<String>,
     ) -> BTreeSet<String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return BTreeSet::new();
@@ -551,7 +549,6 @@ impl DraftProxy {
                 _ => generic_ids.push(id),
             }
         }
-        let mut fallback_reference_ids = BTreeSet::new();
         if !product_domain_ids.is_empty() {
             let response = self.upstream_post(
                 request,
@@ -562,15 +559,13 @@ impl DraftProxy {
                 }),
             );
             if response.status >= 400 {
-                fallback_reference_ids.extend(product_domain_ids.iter().filter_map(|id| {
-                    metafield_product_domain_reference_fallback(id, &product_owner_ids)
-                }));
+                return BTreeSet::new();
             } else {
                 self.observe_nodes_response(&response);
             }
         }
         if generic_ids.is_empty() {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         let response = self.upstream_post(
             request,
@@ -581,14 +576,14 @@ impl DraftProxy {
             }),
         );
         if response.status >= 400 {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
             for node in nodes {
                 self.stage_metafield_reference_node(node);
             }
         }
-        fallback_reference_ids
+        BTreeSet::new()
     }
 
     fn stage_metafield_reference_node(&mut self, node: &Value) {
@@ -782,6 +777,28 @@ impl DraftProxy {
                 records.push(value.clone());
             }
         }
+        for record in records {
+            self.upsert_owner_metafield_record(owner_id, record);
+        }
+    }
+
+    pub(in crate::proxy) fn replace_owner_metafields_from_connection(
+        &mut self,
+        owner_id: &str,
+        connection: &Value,
+    ) {
+        let mut records = connection
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if let Some(page_info) = connection.get("pageInfo") {
+            apply_metafield_connection_cursors(&mut records, page_info);
+        }
+        self.store
+            .staged
+            .owner_metafields
+            .insert(owner_id.to_string(), Vec::new());
         for record in records {
             self.upsert_owner_metafield_record(owner_id, record);
         }
@@ -1176,40 +1193,30 @@ impl DraftProxy {
         selection: &SelectedField,
     ) -> Value {
         let namespace = resolved_string_field(&selection.arguments, "namespace");
-        let mut records = self.owner_metafields(owner_id, namespace.as_deref());
-
-        // Relay pagination over the owner's metafields (stored id-ascending, which
-        // mirrors Shopify's default metafield ordering). `after` drops everything up
-        // to and including the cursor record; `first` truncates and drives
-        // hasNextPage so chained `metafields(first:n, after:)` reads page correctly.
-        let mut has_previous_page = false;
-        if let Some(after) = resolved_string_field(&selection.arguments, "after") {
-            if let Some(index) = records
-                .iter()
-                .position(|record| metafield_cursor(record).as_deref() == Some(after.as_str()))
-            {
-                records = records.split_off(index + 1);
-                has_previous_page = true;
-            }
-        }
-        let total_after_cursor = records.len();
-        let mut has_next_page = false;
-        if let Some(first) = resolved_int_field(&selection.arguments, "first") {
-            if first >= 0 {
-                let limit = first as usize;
-                has_next_page = total_after_cursor > limit;
-                records.truncate(limit);
-            }
+        let keys = owner_metafields_connection_keys(&selection.arguments);
+        let mut records = self.owner_metafields(owner_id, namespace.as_deref(), keys.as_deref());
+        if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
         }
 
-        let start_cursor = records.first().and_then(metafield_cursor);
-        let end_cursor = records.last().and_then(metafield_cursor);
+        let (records, page_info) = connection_window(&records, &selection.arguments, |record| {
+            metafield_cursor(record).unwrap_or_default()
+        });
+
+        let records_for_output = if keys.is_some() {
+            records
+                .into_iter()
+                .map(owner_metafield_with_connection_key)
+                .collect()
+        } else {
+            records
+        };
         selected_typed_connection_with_page_info(
-            &records,
+            &records_for_output,
             &selection.selection,
             selected_json,
             |metafield| metafield_cursor(metafield).unwrap_or_default(),
-            connection_page_info(has_next_page, has_previous_page, start_cursor, end_cursor),
+            page_info,
         )
     }
 
@@ -1319,8 +1326,14 @@ impl DraftProxy {
         }
     }
 
-    fn owner_metafields(&self, owner_id: &str, namespace: Option<&str>) -> Vec<Value> {
-        self.store
+    fn owner_metafields(
+        &self,
+        owner_id: &str,
+        namespace: Option<&str>,
+        keys: Option<&[(String, String)]>,
+    ) -> Vec<Value> {
+        let mut records = self
+            .store
             .staged
             .owner_metafields
             .get(owner_id)
@@ -1331,6 +1344,15 @@ impl DraftProxy {
                 let metafield_namespace = metafield.get("namespace").and_then(Value::as_str);
                 let metafield_key = metafield.get("key").and_then(Value::as_str);
                 namespace.is_none_or(|namespace| metafield_namespace == Some(namespace))
+                    && keys.is_none_or(|keys| {
+                        matches!(
+                            (metafield_namespace, metafield_key),
+                            (Some(namespace), Some(key))
+                                if keys.iter().any(|(filter_namespace, filter_key)| {
+                                    filter_namespace == namespace && filter_key == key
+                                })
+                        )
+                    })
                     && !matches!(
                         (metafield_namespace, metafield_key),
                         (Some(namespace), Some(key))
@@ -1342,7 +1364,11 @@ impl DraftProxy {
                     )
             })
             .map(|metafield| self.owner_metafield_with_effective_definition(owner_id, metafield))
-            .collect()
+            .collect::<Vec<_>>();
+        if let Some(keys) = keys {
+            records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
+        }
+        records
     }
 
     pub(in crate::proxy) fn owner_metafield_definition(
@@ -1509,6 +1535,52 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
     })
 }
 
+fn owner_metafields_connection_keys(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Vec<(String, String)>> {
+    match arguments.get("keys") {
+        None | Some(ResolvedValue::Null) => None,
+        Some(_) => Some(
+            list_string_field(arguments, "keys")
+                .into_iter()
+                .filter_map(|key| {
+                    let (namespace, key) = key.split_once('.')?;
+                    if namespace.is_empty() || key.is_empty() {
+                        return None;
+                    }
+                    Some((namespace.to_string(), key.to_string()))
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn owner_metafield_key_position(metafield: &Value, keys: &[(String, String)]) -> usize {
+    let namespace = metafield.get("namespace").and_then(Value::as_str);
+    let key = metafield.get("key").and_then(Value::as_str);
+    keys.iter()
+        .position(|(filter_namespace, filter_key)| {
+            namespace == Some(filter_namespace.as_str()) && key == Some(filter_key.as_str())
+        })
+        .unwrap_or(usize::MAX)
+}
+
+fn owner_metafield_with_connection_key(mut metafield: Value) -> Value {
+    if let (Some(namespace), Some(key)) = (
+        metafield
+            .get("namespace")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        metafield
+            .get("key")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    ) {
+        metafield["key"] = json!(format!("{namespace}.{key}"));
+    }
+    metafield
+}
+
 fn metafield_delete_id(query: &str, variables: &BTreeMap<String, ResolvedValue>) -> String {
     root_fields(query, variables)
         .unwrap_or_default()
@@ -1570,32 +1642,6 @@ fn owner_metafield_compare_digest(metafield: &Value) -> Option<String> {
                 .and_then(Value::as_str)
                 .map(metafield_compare_digest)
         })
-}
-
-fn metafields_set_product_owner_ids(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-) -> BTreeSet<String> {
-    inputs
-        .iter()
-        .filter_map(|input| resolved_string_field(input, "ownerId"))
-        .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
-        .collect()
-}
-
-fn metafield_product_domain_reference_fallback(
-    id: &str,
-    product_owner_ids: &BTreeSet<String>,
-) -> Option<String> {
-    if resource_id_tail(id).parse::<u64>().is_err() {
-        return None;
-    }
-    match shopify_gid_resource_type(id) {
-        Some("Product") if product_owner_ids.contains(id) => Some(id.to_string()),
-        Some("ProductVariant" | "Collection") if !product_owner_ids.is_empty() => {
-            Some(id.to_string())
-        }
-        _ => None,
-    }
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {

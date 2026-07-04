@@ -37,12 +37,37 @@ impl DraftProxy {
 
     fn ensure_current_app_installation(&mut self, request: &Request) -> String {
         let app_id = request_app_gid(request);
+        if let Some(observed_app_id) = self.current_app_installation_app_id_for_request(&app_id) {
+            return observed_app_id;
+        }
         self.store
             .staged
             .installed_apps
             .entry(app_id.clone())
             .or_insert_with(|| current_app_installation_from_request(request));
         app_id
+    }
+
+    pub(in crate::proxy) fn current_app_installation_app_id_for_request(
+        &self,
+        request_app_id: &str,
+    ) -> Option<String> {
+        if self
+            .store
+            .staged
+            .installed_apps
+            .contains_key(request_app_id)
+        {
+            return Some(request_app_id.to_string());
+        }
+        self.store
+            .staged
+            .installed_apps
+            .iter()
+            .find_map(|(app_id, installation)| {
+                (request_app_id_from_installation(installation).as_deref() == Some(request_app_id))
+                    .then(|| app_id.clone())
+            })
     }
 
     fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {
@@ -239,7 +264,7 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or(false);
-        let line_items = app_subscription_line_items_from_arguments(&arguments, Vec::new());
+        let line_items = app_subscription_line_items_from_arguments(&arguments, &[]);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
             user_errors.push(user_error(
                 ["lineItems"],
@@ -263,7 +288,7 @@ impl DraftProxy {
             .iter()
             .map(|_| self.next_proxy_synthetic_gid("AppSubscriptionLineItem"))
             .collect::<Vec<_>>();
-        let line_items = app_subscription_line_items_from_arguments(&arguments, line_item_ids);
+        let line_items = app_subscription_line_items_from_arguments(&arguments, &line_item_ids);
         let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let subscription = json!({
             "__typename": "AppSubscription",

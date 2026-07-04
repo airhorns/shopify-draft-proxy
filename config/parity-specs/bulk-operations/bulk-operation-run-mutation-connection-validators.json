@@ -42,8 +42,62 @@
           "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
           "variablesCapturePath": "$.validations.nestingTooDeep.variables"
         }
+      },
+      {
+        "name": "nested-shop-products-variants-count-precedence-user-errors",
+        "capturePath": "$.validations.productShopProductsVariantsNested.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.productShopProductsVariantsNested.variables"
+        }
+      },
+      {
+        "name": "nested-shop-products-variants-count-precedence-bulk-operation-null",
+        "capturePath": "$.validations.productShopProductsVariantsNested.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.productShopProductsVariantsNested.variables"
+        }
+      },
+      {
+        "name": "nested-product-collections-products-count-precedence-user-errors",
+        "capturePath": "$.validations.productCollectionsProductsNested.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.productCollectionsProductsNested.variables"
+        }
+      },
+      {
+        "name": "nested-product-collections-products-count-precedence-bulk-operation-null",
+        "capturePath": "$.validations.productCollectionsProductsNested.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.productCollectionsProductsNested.variables"
+        }
+      },
+      {
+        "name": "nested-customer-orders-line-items-count-precedence-user-errors",
+        "capturePath": "$.validations.customerOrdersLineItemsNested.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.customerOrdersLineItemsNested.variables"
+        }
+      },
+      {
+        "name": "nested-customer-orders-line-items-count-precedence-bulk-operation-null",
+        "capturePath": "$.validations.customerOrdersLineItemsNested.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.customerOrdersLineItemsNested.variables"
+        }
       }
     ]
   },
-  "notes": "Captures Shopify Admin GraphQL 2026-04 validation-only bulkOperationRunMutation branches for inner mutation connection count and a nested connection document. Live Shopify returns the count error before the nesting-depth message for the nested document, so the proxy preserves that public response order. These paths return userErrors without staging or returning a BulkOperation."
+  "notes": "Captures Shopify Admin GraphQL 2026-04 validation-only bulkOperationRunMutation branches for inner mutation connection count and multiple public nested-connection documents. Live Shopify returns the count error before the nesting-depth message for every captured nested document, so the proxy preserves that public response order. These paths return userErrors without staging or returning a BulkOperation."
 }

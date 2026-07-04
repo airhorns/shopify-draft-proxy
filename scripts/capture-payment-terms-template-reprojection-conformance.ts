@@ -174,15 +174,29 @@ async function captureCase(name: string, spec: PaymentTermsCase, runId: number) 
       presentmentCurrency: 'CAD',
       lineItems: [
         {
-          title: `Payment terms template reprojection ${name}`,
-          quantity: 1,
+          title: `Payment terms template reprojection ${name} first`,
+          quantity: 2,
           priceSet: {
             shopMoney: {
-              amount: '18.50',
+              amount: '3.25',
               currencyCode: 'USD',
             },
             presentmentMoney: {
-              amount: '18.50',
+              amount: '4.50',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+        {
+          title: `Payment terms template reprojection ${name} second`,
+          quantity: 3,
+          priceSet: {
+            shopMoney: {
+              amount: '4.50',
+              currencyCode: 'USD',
+            },
+            presentmentMoney: {
+              amount: '6.00',
               currencyCode: 'CAD',
             },
           },
@@ -308,7 +322,7 @@ const fixture = {
     },
   },
   notes:
-    'Captured against disposable Orders. The scenario verifies successful paymentTermsCreate reprojects name/type/dueInDays/translatedName from FIXED, Net 7, and FULFILLMENT templates and preserves the captured schedule-node cardinality.',
+    'Captured against disposable Orders. The scenario verifies successful paymentTermsCreate reprojects name/type/dueInDays/translatedName from FIXED, Net 7, and FULFILLMENT templates, preserves the captured schedule-node cardinality, and records multi-line order totals used by Order-owned payment terms.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

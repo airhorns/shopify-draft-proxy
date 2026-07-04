@@ -61,6 +61,263 @@ fn create_metaobject_definition_for_test(
 }
 
 #[test]
+fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
+    let mut proxy = snapshot_proxy();
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "redirect_definition_test",
+            "name": "Redirect definition test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "old-redirect-definition"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["capabilities"]["onlineStore"]["data"],
+        json!({"urlHandle": "old-redirect-definition", "canCreateRedirects": true})
+    );
+    let definition_id = definition_create.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_entry = r#"
+        mutation CreateRedirectEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (handle, title) in [
+        ("first-redirect-row", "First redirect row"),
+        ("second-redirect-row", "Second redirect row"),
+    ] {
+        let entry = proxy.process_request(json_graphql_request(
+            create_entry,
+            json!({"metaobject": {
+                "type": "redirect_definition_test",
+                "handle": handle,
+                "capabilities": {
+                    "publishable": {"status": "ACTIVE"},
+                    "onlineStore": {"templateSuffix": ""}
+                },
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            entry.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "capabilities": {
+                    "onlineStore": {
+                        "enabled": true,
+                        "data": {"urlHandle": "new-redirect-definition", "createRedirects": true}
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirects($pathQuery: String!, $targetQuery: String!) {
+          byPath: urlRedirects(first: 1, query: $pathQuery) {
+            nodes { id path target }
+          }
+          reverseByTarget: urlRedirects(first: 1, sortKey: TARGET, reverse: true) {
+            nodes { path target }
+          }
+          matchingTargetCount: urlRedirectsCount(query: $targetQuery) { count precision }
+        }
+        "#,
+        json!({
+            "pathQuery": "path:/pages/old-redirect-definition/first-redirect-row",
+            "targetQuery": "target:/pages/new-redirect-definition/first-redirect-row"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["target"],
+        json!("/pages/new-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["reverseByTarget"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/second-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["matchingTargetCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+
+    let redirect_id = read.body["data"]["byPath"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirect($id: ID!) {
+          urlRedirect(id: $id) { path target }
+        }
+        "#,
+        json!({"id": redirect_id}),
+    ));
+    assert_eq!(
+        singular.body["data"]["urlRedirect"],
+        json!({
+            "path": "/pages/old-redirect-definition/first-redirect-row",
+            "target": "/pages/new-redirect-definition/first-redirect-row"
+        })
+    );
+
+    let handle_entry = proxy.process_request(json_graphql_request(
+        create_entry,
+        json!({"metaobject": {
+            "type": "redirect_definition_test",
+            "handle": "handle-redirect-old",
+            "capabilities": {
+                "publishable": {"status": "ACTIVE"},
+                "onlineStore": {"templateSuffix": ""}
+            },
+            "fields": [{"key": "title", "value": "Handle redirect row"}]
+        }}),
+    ));
+    let handle_entry_id = handle_entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let handle_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectHandle($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": handle_entry_id,
+            "metaobject": {
+                "handle": "handle-redirect-new",
+                "redirectNewHandle": true,
+                "fields": [{"key": "title", "value": "Handle redirect row"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        handle_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let handle_redirect = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHandleRedirect($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "path:/pages/new-redirect-definition/handle-redirect-old"}),
+    ));
+    assert_eq!(
+        handle_redirect.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-07-04T20:40:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirects"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirectOrder"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredRedirects($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "target:/pages/new-redirect-definition/handle-redirect-new"}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -99,6 +356,91 @@ fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
             {"key": "dates", "type": {"name": "list.date", "category": "DATE_TIME"}},
             {"key": "references", "type": {"name": "list.metaobject_reference", "category": "REFERENCE"}}
         ])
+    );
+}
+
+#[test]
+fn metaobject_definition_has_thumbnail_field_tracks_file_reference_on_create_and_update() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateThumbnailDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id hasThumbnailField fieldDefinitions { key type { name } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let created_with_thumbnail = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "thumbnail_create_definition",
+            "name": "Thumbnail create definition",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": false},
+                {"key": "hero_image", "name": "Hero image", "type": "file_reference", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        created_with_thumbnail.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_with_thumbnail.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["hasThumbnailField"],
+        json!(true)
+    );
+
+    let created_without_thumbnail = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "thumbnail_update_definition",
+            "name": "Thumbnail update definition",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]
+            ["metaobjectDefinition"]["hasThumbnailField"],
+        json!(false)
+    );
+    let definition_id = created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap();
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateThumbnailDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { hasThumbnailField fieldDefinitions { key type { name } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{
+                "create": {"key": "thumbnail", "name": "Thumbnail", "type": "file_reference", "required": false}
+            }]
+        }}),
+    ));
+    assert_eq!(
+        updated.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["hasThumbnailField"],
+        json!(true)
     );
 }
 
@@ -236,6 +578,232 @@ fn marketing_empty_reads_keep_shopify_connection_shapes() {
     assert_eq!(
         response.body["data"]["marketingActivities"]["pageInfo"],
         json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null})
+    );
+}
+
+#[test]
+fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records() {
+    let mut proxy = snapshot_proxy();
+    let mut create_alpha_request = json_graphql_request(
+        r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title createdAt marketingEvent { id type } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+                "title": "Alpha launch",
+                "remoteId": "alpha-launch",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/alpha",
+                "tactic": "NEWSLETTER",
+                "marketingChannelType": "EMAIL",
+                "scheduledEnd": "2024-01-03T00:00:00.000Z",
+                "utm": {"campaign": "alpha", "source": "email", "medium": "newsletter"}
+        }}),
+    );
+    create_alpha_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "gid://shopify/App/42".to_string(),
+    );
+    let create_alpha = proxy.process_request(create_alpha_request);
+    let mut create_zulu_request = json_graphql_request(
+        r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title createdAt marketingEvent { id type } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+                "title": "Zulu launch",
+                "remoteId": "zulu-launch",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/zulu",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "scheduledEnd": "2024-01-04T00:00:00.000Z",
+                "utm": {"campaign": "zulu", "source": "search", "medium": "ad"}
+        }}),
+    );
+    create_zulu_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "gid://shopify/App/42".to_string(),
+    );
+    let create_zulu = proxy.process_request(create_zulu_request);
+    assert_eq!(
+        create_alpha.body["data"]["created"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(create_zulu.body["data"]["created"]["userErrors"], json!([]));
+
+    let alpha_id = create_alpha.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let zulu_id = create_zulu.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let alpha_event_id = create_alpha.body["data"]["created"]["marketingActivity"]
+        ["marketingEvent"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let zulu_event_id = create_zulu.body["data"]["created"]["marketingActivity"]["marketingEvent"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityConnectionRead(
+          $activityCursor: String!
+          $activityQuery: String!
+          $eventQuery: String!
+          $titleQuery: String!
+          $createdAtQuery: String!
+          $idRangeQuery: String!
+          $scheduledEndQuery: String!
+          $appIdQuery: String!
+          $appNameQuery: String!
+          $unknownFieldQuery: String!
+        ) {
+          latestActivity: marketingActivities(first: 1, sortKey: CREATED_AT, reverse: true) {
+            nodes { id title createdAt }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterLatest: marketingActivities(first: 1, after: $activityCursor, sortKey: CREATED_AT, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          titleSearch: marketingActivities(first: 5, sortKey: TITLE, query: $activityQuery) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          titleFilter: marketingActivities(first: 5, sortKey: ID, query: $titleQuery) {
+            nodes { id title }
+          }
+          createdAtFilter: marketingActivities(first: 5, sortKey: ID, query: $createdAtQuery) {
+            nodes { id title }
+          }
+          idRangeFilter: marketingActivities(first: 5, sortKey: ID, query: $idRangeQuery) {
+            nodes { id title }
+          }
+          scheduledEndFilter: marketingActivities(first: 5, sortKey: ID, query: $scheduledEndQuery) {
+            nodes { id title }
+          }
+          appIdFilter: marketingActivities(first: 5, sortKey: ID, query: $appIdQuery) {
+            nodes { id title }
+          }
+          appNameFilter: marketingActivities(first: 5, sortKey: ID, query: $appNameQuery) {
+            nodes { id title }
+          }
+          unknownFieldFallback: marketingActivities(first: 5, sortKey: ID, query: $unknownFieldQuery) {
+            nodes { id title }
+          }
+          latestEvent: marketingEvents(first: 1, sortKey: ID, reverse: true) {
+            nodes { id type }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventSearch: marketingEvents(first: 5, query: $eventQuery) {
+            nodes { id type }
+          }
+        }
+        "#,
+        json!({
+            "activityCursor": format!("cursor:{zulu_id}"),
+            "activityQuery": "launch",
+            "eventQuery": "tactic:newsletter",
+            "titleQuery": "title:\"Zulu launch\"",
+            "createdAtQuery": "created_at:>=2024-01-01T00:00:02.000Z",
+            "idRangeQuery": "id:>1",
+            "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
+            "appIdQuery": "app_id:42",
+            "appNameQuery": "app_name:42",
+            "unknownFieldQuery": "unknown_field:\"Alpha launch\""
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["latestActivity"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch", "createdAt": "2024-01-01T00:00:02.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestActivity"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": format!("cursor:{zulu_id}"),
+            "endCursor": format!("cursor:{zulu_id}")
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterLatest"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["afterLatest"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["titleSearch"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["titleFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["createdAtFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["idRangeFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["scheduledEndFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["appIdFilter"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["appNameFilter"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["unknownFieldFallback"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestEvent"]["nodes"],
+        json!([{ "id": zulu_event_id, "type": "AD" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestEvent"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["eventSearch"]["nodes"],
+        json!([{ "id": alpha_event_id, "type": "NEWSLETTER" }])
     );
 }
 
@@ -1347,7 +1915,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
         ) {
           native: marketingActivityUpdate(input: $nativeInput) {
             marketingActivity { id isExternal }
-            userErrors { field message code }
+            userErrors { field message  }
           }
           external: marketingActivityCreateExternal(input: $externalInput) {
             marketingActivity { id remoteId isExternal }
@@ -1886,6 +2454,110 @@ fn inventory_items_connection_lists_staged_inventory_item() {
             {"name": "on_hand", "quantity": 6}
         ])
     );
+}
+
+#[test]
+fn inventory_items_query_filters_window_and_rejects_unknown_tokens() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) = create_inventory_test_item(&mut proxy, "FILTER-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "FILTER-BETA");
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
+
+    let mark_second_untracked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkInventoryItemUntracked($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id tracked }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": second_item_id, "input": {"tracked": false}}),
+    ));
+    assert_eq!(
+        mark_second_untracked.body["data"]["inventoryItemUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsFiltered($after: String, $idRange: String!) {
+          firstPage: inventoryItems(first: 1) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryItems(first: 1, after: $after) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unknownFilter: inventoryItems(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+          invalidTracked: inventoryItems(first: 10, query: "tracked:notaboolean") {
+            nodes { id }
+          }
+          skuQuoted: inventoryItems(first: 10, query: "sku:'FILTER-ALPHA'") {
+            nodes { id }
+          }
+          idRange: inventoryItems(first: 10, query: $idRange) {
+            nodes { id }
+          }
+          trackedFalse: inventoryItems(first: 10, query: "tracked:false") {
+            nodes { id tracked }
+          }
+          updatedBefore: inventoryItems(first: 10, query: "updated_at:<2024-01-01T00:00:00.000Z") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_item_id,
+            "idRange": format!("id:>={second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_item_id}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_item_id,
+                "endCursor": first_item_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["invalidTracked"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["skuQuoted"]["nodes"],
+        json!([{ "id": first_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["idRange"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["trackedFalse"]["nodes"],
+        json!([{ "id": second_item_id, "tracked": false }])
+    );
+    assert_eq!(read.body["data"]["updatedBefore"]["nodes"], json!([]));
 }
 
 #[test]
@@ -2499,7 +3171,7 @@ fn inventory_adjust_quantities_mirrors_on_hand_for_captured_non_available_names(
 #[test]
 fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
     let mut proxy = inventory_seed_proxy();
-    let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";
+    let unknown_inventory_item_id = "gid://shopify/InventoryItem/424242424242";
     let location_id = add_inventory_test_location(&mut proxy, "Known location");
 
     let set = proxy.process_request(json_graphql_request(
@@ -2597,7 +3269,7 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) =
         create_inventory_test_item(&mut proxy, "UNKNOWN-LOCATION");
-    let unknown_location_id = "gid://shopify/Location/999999999999";
+    let unknown_location_id = "gid://shopify/Location/515151515151";
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -2702,6 +3374,89 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
         .iter()
         .any(|level| level["location"]["id"] == json!(unknown_location_id)));
     assert_no_inventory_quantity_logs(&proxy);
+}
+
+#[test]
+fn inventory_level_reads_preserve_fulfillment_service_location_names() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "FS-LOCATION-NAME");
+
+    let service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInventoryFulfillmentService($name: String!) {
+          fulfillmentServiceCreate(name: $name, inventoryManagement: true) {
+            fulfillmentService { location { id name } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"name": "Named Fulfillment Stockroom"}),
+    ));
+    assert_eq!(
+        service.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    let location =
+        &service.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"];
+    let location_id = location["id"].as_str().unwrap().to_string();
+    assert_eq!(location["name"], json!("Named Fulfillment Stockroom"));
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetAtFulfillmentLocation($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name location { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0]
+            ["location"],
+        json!({"id": location_id, "name": "Named Fulfillment Stockroom"})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentLocationInventoryLevelName($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 5) {
+              nodes {
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    let level = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|level| level["location"]["id"] == json!(location_id))
+        .expect("inventory level at fulfillment service location should be readable");
+    assert_eq!(
+        level["location"],
+        json!({"id": location_id, "name": "Named Fulfillment Stockroom"})
+    );
+    assert_eq!(
+        level["quantities"],
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4}
+        ])
+    );
 }
 
 #[test]
@@ -2988,7 +3743,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         }
         "#,
         json!({"idempotencyKey": "set-on-hand-unknown-item", "input": {"reason": "correction", "setQuantities": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/999999999999", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+            {"inventoryItemId": "gid://shopify/InventoryItem/626262626262", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -3013,7 +3768,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         }
         "#,
         json!({"idempotencyKey": "set-on-hand-unknown-location", "input": {"reason": "correction", "setQuantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "quantity": 1, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/737373737373", "quantity": 1, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -3470,7 +4225,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
               countryHarmonizedSystemCodes { countryCode harmonizedSystemCode }
               variant { id inventoryQuantity }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3748,7 +4503,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
           }
         }
         "#,
-        json!({"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "available": -1}),
+        json!({"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/848484848484", "available": -1}),
     ));
     let activate_errors = invalid_activate.body["data"]["inventoryActivate"]["userErrors"]
         .as_array()
@@ -3797,7 +4552,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }])
     );
 
-    let activate_code_selection = proxy.process_request(json_graphql_request(
+    let mut activate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
@@ -3806,7 +4561,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
-    ));
+    );
+    activate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let activate_code_selection = proxy.process_request(activate_code_selection_request);
     assert_eq!(
         activate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -3825,7 +4582,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         ])
     );
 
-    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+    let mut deactivate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
@@ -3834,7 +4591,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryLevelId": level_id}),
-    ));
+    );
+    deactivate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let deactivate_code_selection = proxy.process_request(deactivate_code_selection_request);
     assert_eq!(
         deactivate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -3939,13 +4698,13 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidInventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
         json!({"id": inventory_item_id, "input": {
             "cost": "-5.00",
-            "countryCodeOfOrigin": "ZZZ",
+            "countryCodeOfOrigin": "US",
             "provinceCodeOfOrigin": "ONTARIO",
             "harmonizedSystemCode": "abc",
             "measurement": {"weight": {"value": -1, "unit": "KILOGRAMS"}},
@@ -3960,33 +4719,23 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         .unwrap();
     assert!(item_errors.contains(&json!({
         "field": ["input", "cost"],
-        "message": "Cost must be greater than or equal to 0",
-        "code": "INVALID"
+        "message": "Cost must be greater than or equal to 0"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "measurement", "weight"],
-        "message": "Measurement weight value -1 kg must be >= 0 kg",
-        "code": "INVALID"
-    })));
-    assert!(item_errors.contains(&json!({
-        "field": ["input", "countryCodeOfOrigin"],
-        "message": "Country code of origin is invalid",
-        "code": "INVALID"
+        "message": "Measurement weight value -1 kg must be >= 0 kg"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "provinceCodeOfOrigin"],
-        "message": "Province code of origin is invalid",
-        "code": "INVALID"
+        "message": "Province code of origin is invalid"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "harmonizedSystemCode"],
-        "message": "Harmonized system code must be a number between six and thirteen digits",
-        "code": "INVALID"
+        "message": "Harmonized system code must be a number between six and thirteen digits"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "countryHarmonizedSystemCodes", "1", "countryCode"],
-        "message": "Country code has already been taken",
-        "code": "TAKEN"
+        "message": "Country code has already been taken"
     })));
 
     let invalid_unit = proxy.process_request(json_graphql_request(
@@ -3994,7 +4743,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidWeightUnit($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4012,11 +4761,11 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation MissingInventoryItem($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
-        json!({"id": "gid://shopify/InventoryItem/999999999999", "input": {"tracked": true}}),
+        json!({"id": "gid://shopify/InventoryItem/959595959595", "input": {"tracked": true}}),
     ));
     assert_eq!(
         missing_item.body["data"]["inventoryItemUpdate"]["inventoryItem"],
@@ -4458,7 +5207,7 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
         }
         "#,
         json!({"idempotencyKey": "inventory-adjust-missing-change-from", "input": {"name": "available", "reason": "correction", "changes": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/missing-change", "locationId": "gid://shopify/Location/1", "delta": 1}
+            {"inventoryItemId": "gid://shopify/InventoryItem/474747474747", "locationId": "gid://shopify/Location/1", "delta": 1}
         ]}}),
     ));
 
@@ -4780,6 +5529,83 @@ fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
 }
 
 #[test]
+fn inventory_transfer_create_keeps_empty_hydrated_origin_quantities_zero() {
+    let origin_id = "gid://shopify/Location/111111111111";
+    let destination_id = "gid://shopify/Location/222222222222";
+    let inventory_item_id = "gid://shopify/InventoryItem/333333333333";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"nodes": [
+                {
+                    "__typename": "Location",
+                    "id": "gid://shopify/Location/111111111111",
+                    "name": "Zero Origin",
+                    "isActive": true
+                },
+                {
+                    "__typename": "Location",
+                    "id": "gid://shopify/Location/222222222222",
+                    "name": "Zero Destination",
+                    "isActive": true
+                },
+                {
+                    "__typename": "InventoryItem",
+                    "id": "gid://shopify/InventoryItem/333333333333",
+                    "tracked": true,
+                    "requiresShipping": true,
+                    "variant": {
+                        "id": "gid://shopify/ProductVariant/333333333333",
+                        "title": "Zero Transfer Variant",
+                        "inventoryQuantity": 0,
+                        "product": {
+                            "id": "gid://shopify/Product/333333333333",
+                            "title": "Zero Transfer Product",
+                            "handle": "zero-transfer-product",
+                            "status": "ACTIVE",
+                            "totalInventory": 0,
+                            "tracksInventory": true
+                        }
+                    },
+                    "inventoryLevels": {"nodes": [{
+                        "id": "gid://shopify/InventoryLevel/333333333333-111111111111?inventory_item_id=gid://shopify/InventoryItem/333333333333",
+                        "location": {"id": "gid://shopify/Location/111111111111", "name": "Zero Origin"},
+                        "quantities": []
+                    }]}
+                }
+            ]}}),
+        }
+    });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]["status"],
+        json!("DRAFT")
+    );
+
+    assert_eq!(
+        transfer_level_quantities(&mut proxy, inventory_item_id, origin_id),
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "reserved", "quantity": 0},
+            {"name": "on_hand", "quantity": 0}
+        ])
+    );
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = inventory_seed_proxy();
 
@@ -4942,7 +5768,7 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
             "lineItems": [
                 {"inventoryItemId": inventory_item_id, "quantity": 1},
                 {"inventoryItemId": inventory_item_id, "quantity": -1},
-                {"inventoryItemId": "gid://shopify/InventoryItem/unknown", "quantity": 1}
+                {"inventoryItemId": "gid://shopify/InventoryItem/444444444444", "quantity": 1}
             ]
         }}),
     ));
@@ -5161,6 +5987,206 @@ fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthro
             json!("inventoryTransferDuplicate")
         ]
     );
+}
+
+#[test]
+fn inventory_transfers_connection_filters_sorts_and_windows_staged_records() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Origin Stockroom");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Destination Stockroom");
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-ALPHA");
+    let (second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-BETA");
+
+    let seed_quantities = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryTransferStock($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-transfer-connection-stock", "input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": origin_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": origin_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed_quantities.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let first_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftInventoryTransfer($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-02T00:00:00Z",
+            "tags": ["alpha"],
+            "lineItems": [{"inventoryItemId": first_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        first_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let first_transfer_id = first_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyInventoryTransfer($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-03T00:00:00Z",
+            "tags": ["beta"],
+            "lineItems": [{"inventoryItemId": second_item_id, "quantity": 3}]
+        }}),
+    ));
+    assert_eq!(
+        second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let second_transfer_id = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_transfer_name = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["name"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let origin_location_tail = origin_location_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersConnection($after: String, $readyQuery: String!, $nameQuery: String!, $variantQuery: String!, $originTailQuery: String!, $itemTailQuery: String!) {
+          firstPage: inventoryTransfers(first: 1, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryTransfers(first: 1, after: $after, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversePage: inventoryTransfers(first: 1, sortKey: NAME, reverse: true) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          readyOnly: inventoryTransfers(first: 10, query: $readyQuery, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byName: inventoryTransfers(first: 10, query: $nameQuery) {
+            nodes { id name }
+          }
+          byVariant: inventoryTransfers(first: 10, query: $variantQuery) {
+            nodes { id name }
+          }
+          byOriginTail: inventoryTransfers(first: 10, query: $originTailQuery, sortKey: NAME) {
+            nodes { id name status }
+          }
+          byInventoryItemTail: inventoryTransfers(first: 10, query: $itemTailQuery) {
+            nodes { id name }
+          }
+          unknownFilter: inventoryTransfers(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_transfer_id,
+            "readyQuery": "status:READY_TO_SHIP tag:beta",
+            "nameQuery": second_transfer_name,
+            "variantQuery": format!("product_variant_id:{second_variant_id}"),
+            "originTailQuery": format!("origin_id:{origin_location_tail}"),
+            "itemTailQuery": format!("inventory_item_id:{second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_transfer_id, "name": "#T0001", "status": "DRAFT", "totalQuantity": 2}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_transfer_id,
+                "endCursor": first_transfer_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["pageInfo"],
+        json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": second_transfer_id, "endCursor": second_transfer_id})
+    );
+    assert_eq!(
+        read.body["data"]["byName"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byVariant"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byOriginTail"]["nodes"],
+        json!([
+            {"id": first_transfer_id, "name": "#T0001", "status": "DRAFT"},
+            {"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byInventoryItemTail"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
 }
 
 #[test]
@@ -5669,35 +6695,35 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_validation = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagCreateValidatesSrc {
-          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         script_validation.body["data"]["blank"]["userErrors"][0],
-        json!({"code": "BLANK", "field": ["input", "src"], "message": "Source can't be blank"})
+        json!({"field": ["input", "src"], "message": "Source can't be blank"})
     );
     assert_eq!(
-        script_validation.body["data"]["tooLong"]["userErrors"][0]["code"],
-        json!("TOO_LONG")
+        script_validation.body["data"]["tooLong"]["userErrors"][0]["message"],
+        json!("Source is too long (maximum is 255 characters)")
     );
     assert_eq!(
-        script_validation.body["data"]["invalid"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["invalid"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
     assert_eq!(
-        script_validation.body["data"]["http"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["http"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
 
     let create_script = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidationCreate {
-          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -5710,7 +6736,7 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_update = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateEventForceOnload {
-          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -5728,34 +6754,34 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let invalid_script_updates = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidatesChangedSrc($longSrc: String!) {
-          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors { code field message } }
-          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors { code field message } }
-          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors { code field message } }
-          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors { code field message } }
-          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors { code field message } }
+          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors {  field message } }
+          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors {  field message } }
+          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
+          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors {  field message } }
+          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors {  field message } }
         }
         "#,
         json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
     ));
     assert_eq!(
         invalid_script_updates.body["data"]["blank"],
-        json!({"scriptTag": null, "userErrors": [{"code": "BLANK", "field": ["src"], "message": "Source can't be blank"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source can't be blank"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["tooLong"],
-        json!({"scriptTag": null, "userErrors": [{"code": "TOO_LONG", "field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["invalid"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["http"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["badScope"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["displayScope"], "message": "Display scope is not included in the list"}]})
     );
     assert_eq!(
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
@@ -5826,8 +6852,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation DeliberatelyNotAScriptTagOperationName {
-          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
-          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -5878,8 +6904,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation DeleteStagedScriptTags($firstId: ID!, $missingId: ID!) {
-          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename code field message } }
-          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename code field message } }
+          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename  field message } }
+          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename  field message } }
         }
         "#,
         json!({
@@ -5895,7 +6921,6 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
         delete.body["data"]["deleteMissing"],
         json!({"deletedScriptTagId": null, "userErrors": [{
             "__typename": "ScriptTagUserError",
-            "code": "NOT_FOUND",
             "field": ["id"],
             "message": "Script tag not found"
         }]})
@@ -6074,7 +7099,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         mutation ScriptTagUpdateUnknown {
           scriptTagUpdate(id: "gid://shopify/ScriptTag/999999999", input: { src: "https://cdn.example.test/changed.js" }) {
             scriptTag { id src displayScope event cache }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6086,7 +7111,6 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         json!({
             "scriptTag": null,
             "userErrors": [{
-                "code": "NOT_FOUND",
                 "field": ["id"],
                 "message": "Script tag not found"
             }]
@@ -6105,7 +7129,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6139,7 +7163,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFilteredScopes {
           storefrontAccessTokenCreate(input: { title: "Hydrogen filtered" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6180,7 +7204,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeThird {
           storefrontAccessTokenCreate(input: { title: "Hydrogen third" }) {
             storefrontAccessToken { accessToken }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6204,7 +7228,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "   " }) {
             storefrontAccessToken { id }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6215,7 +7239,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         json!({
             "storefrontAccessToken": null,
             "shop": {},
-            "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
+            "userErrors": [{"field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
 
@@ -6225,7 +7249,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
             mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {
               storefrontAccessTokenCreate(input: { title: $title }) {
                 storefrontAccessToken { id }
-                userErrors { code field message }
+                userErrors {  field message }
               }
             }
             "#,
@@ -6242,7 +7266,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeLimit {
           storefrontAccessTokenCreate(input: { title: "One too many" }) {
             storefrontAccessToken { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6252,7 +7276,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         limit.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
+            "userErrors": [{"field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
         })
     );
 }
@@ -7589,6 +8613,161 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
 }
 
 #[test]
+fn metaobjects_connection_filters_and_sorts_staged_records() {
+    let mut proxy = snapshot_proxy();
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "filter_sort_article",
+        vec![
+            json!({
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+            }),
+            json!({
+                "key": "subtitle",
+                "name": "Subtitle",
+                "type": "single_line_text_field",
+                "required": false
+            }),
+        ],
+    );
+
+    let create_metaobject =
+        |proxy: &mut DraftProxy, handle: &str, title: &str, subtitle: &str| -> String {
+            let response = proxy.process_request(json_graphql_request(
+                r#"
+            mutation CreateFilterSortMetaobject($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+                json!({"metaobject": {
+                    "type": "filter_sort_article",
+                    "handle": handle,
+                    "fields": [
+                        {"key": "title", "value": title},
+                        {"key": "subtitle", "value": subtitle}
+                    ]
+                }}),
+            ));
+            assert_eq!(
+                response.body["data"]["metaobjectCreate"]["userErrors"],
+                json!([])
+            );
+            response.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+    let charlie_id = create_metaobject(&mut proxy, "charlie-handle", "Charlie", "Lake story");
+    let alpha_id = create_metaobject(&mut proxy, "alpha-handle", "Alpha", "River note");
+    let bravo_id = create_metaobject(&mut proxy, "bravo-handle", "Bravo", "Hill note");
+
+    let read_connection =
+        |proxy: &mut DraftProxy, query: Value, sort_key: Value, reverse: bool| -> Vec<String> {
+            let response = proxy.process_request(json_graphql_request(
+                r#"
+                query ReadFilterSortMetaobjects(
+                  $type: String!
+                  $query: String
+                  $sortKey: String
+                  $reverse: Boolean
+                ) {
+                  metaobjects(
+                    type: $type
+                    first: 10
+                    query: $query
+                    sortKey: $sortKey
+                    reverse: $reverse
+                  ) {
+                    nodes {
+                      id
+                      handle
+                      type
+                      displayName
+                      updatedAt
+                      fields { key value jsonValue }
+                    }
+                  }
+                }
+                "#,
+                json!({
+                    "type": "filter_sort_article",
+                    "query": query,
+                    "sortKey": sort_key,
+                    "reverse": reverse
+                }),
+            ));
+            response.body["data"]["metaobjects"]["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|node| node["id"].as_str().unwrap().to_string())
+                .collect()
+        };
+
+    assert_eq!(
+        read_connection(&mut proxy, json!("display_name:Alpha"), Value::Null, false),
+        vec![alpha_id.clone()]
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("fields.subtitle:lake"),
+            Value::Null,
+            false
+        ),
+        vec![charlie_id.clone()]
+    );
+    assert_eq!(
+        read_connection(&mut proxy, json!("handle:bravo-handle"), Value::Null, false),
+        vec![bravo_id.clone()]
+    );
+
+    let alpha_tail = alpha_id.rsplit('/').next().unwrap();
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!(format!("id:>={alpha_tail}")),
+            Value::Null,
+            false
+        ),
+        vec![alpha_id.clone(), bravo_id.clone()]
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("updated_at:<2026-01-01T00:00:00Z"),
+            Value::Null,
+            false
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("unknown_filter:value"),
+            Value::Null,
+            false
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        read_connection(&mut proxy, Value::Null, json!("display_name"), true),
+        vec![charlie_id.clone(), bravo_id.clone(), alpha_id.clone()]
+    );
+    assert_eq!(
+        read_connection(&mut proxy, Value::Null, json!("id"), true),
+        vec![bravo_id, alpha_id, charlie_id]
+    );
+}
+
+#[test]
 fn metaobject_create_rejects_duplicate_field_keys() {
     let mut proxy = snapshot_proxy();
 
@@ -7781,6 +8960,143 @@ fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_ru
         uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
             ["fieldDefinitions"][1]["key"],
         json!("Spec_2")
+    );
+}
+
+#[test]
+fn metaobject_definition_create_limits_field_and_admin_filterable_counts() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key capabilities { adminFilterable { enabled } } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let admin_filterable_field = |index: usize| {
+        json!({
+            "key": format!("field_{index:03}"),
+            "name": format!("Field {index}"),
+            "type": "single_line_text_field",
+            "capabilities": { "adminFilterable": { "enabled": true } }
+        })
+    };
+
+    let accepted_fields = (0..40).map(admin_filterable_field).collect::<Vec<_>>();
+    let accepted = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_40",
+            "name": "Admin Filterable Field Limit 40",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": accepted_fields
+        }}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        40
+    );
+
+    let rejected_fields = (0..41).map(admin_filterable_field).collect::<Vec<_>>();
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_41",
+            "name": "Admin Filterable Field Limit 41",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": rejected_fields
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                },
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 admin filterable fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+}
+
+#[test]
+fn metaobject_definition_create_reports_captured_shop_definition_limit() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let field_definition = json!({
+        "key": "title",
+        "name": "Title",
+        "type": "single_line_text_field"
+    });
+
+    for index in 0..128 {
+        let created = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "type": format!("definition_limit_{index:03}"),
+                "name": format!("Definition Limit {index}"),
+                "displayNameKey": "title",
+                "fieldDefinitions": [field_definition.clone()]
+            }}),
+        ));
+        assert_eq!(
+            created.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([]),
+            "definition {index} should be accepted"
+        );
+    }
+
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "definition_limit_128",
+            "name": "Definition Limit 128",
+            "displayNameKey": "title",
+            "fieldDefinitions": [field_definition]
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Total definition count exceeds the limit of 128",
+                "code": "MAX_DEFINITIONS_EXCEEDED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
     );
 }
 
@@ -8763,7 +10079,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
     let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
     let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_create_handle.is_empty());
+    assert_eq!(blank_create_handle, "blank-create");
     assert_eq!(
         blank_create_metaobject["displayName"],
         json!("Blank create")
@@ -8782,8 +10098,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     );
     let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
     let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_upsert_handle.is_empty());
-    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(blank_upsert_handle, "blank-upsert");
     assert_eq!(
         blank_upsert_metaobject["displayName"],
         json!("Blank upsert")
@@ -9582,7 +10897,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
     );
 
     // Delete the file this test actually created (MediaImage/2). The engine
@@ -9678,7 +10993,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                     "id": "gid://shopify/MediaImage/2",
                     "alt": "Local runtime file",
                     "createdAt": "2024-01-01T00:00:01.000Z",
-                    "fileStatus": "UPLOADED",
+                    "fileStatus": "READY",
                     "filename": "local-runtime.jpg",
                     "image": {
                         "url": "https://cdn.example.com/local-runtime.jpg",
@@ -9708,6 +11023,459 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn media_file_create_poll_ready_then_update_succeeds() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Ready lifecycle", "contentType": "IMAGE", "filename": "ready-lifecycle.jpg", "originalSource": "https://cdn.example.com/ready-lifecycle.jpg"}]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let file_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("fileCreate should return an id")
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["fileStatus"],
+        json!("UPLOADED")
+    );
+
+    let poll = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileReadyLifecyclePoll {
+          files(first: 5) {
+            nodes { id alt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        poll.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": file_id,
+                "alt": "Ready lifecycle",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{file_id}"),
+                "endCursor": format!("cursor:{file_id}")
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": file_id, "alt": "Updated after ready"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": file_id,
+                "alt": "Updated after ready",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searches() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/777",
+                                "alt": "Upstream file",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "upstream-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-file.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }, {
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/778",
+                                "alt": "Upstream processing file",
+                                "createdAt": "2026-07-01T00:00:01Z",
+                                "updatedAt": "2026-07-01T00:00:01Z",
+                                "fileStatus": "PROCESSING",
+                                "filename": "upstream-processing-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                                "endCursor": "cursor:gid://shopify/MediaImage/778"
+                            }
+                        },
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/888",
+                                "name": "Ready files",
+                                "query": "file_status:ready",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesColdRead {
+          files(first: 5) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/777",
+                "alt": "Upstream file",
+                "fileStatus": "READY",
+                "filename": "upstream-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-file.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }, {
+                "id": "gid://shopify/MediaImage/778",
+                "alt": "Upstream processing file",
+                "fileStatus": "PROCESSING",
+                "filename": "upstream-processing-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                "endCursor": "cursor:gid://shopify/MediaImage/778"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/888",
+                "name": "Ready files",
+                "query": "file_status:ready",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        1,
+        "cold media files read should forward upstream"
+    );
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("files") && query.contains("fileSavedSearches")));
+}
+
+#[test]
+fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/889",
+                                "name": "Recent files",
+                                "query": "created_at:>=2026-01-01",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSavedSearchColdRead {
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/889",
+                "name": "Recent files",
+                "query": "created_at:>=2026-01-01",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "standalone fileSavedSearches read should forward upstream"
+    );
+}
+
+#[test]
+fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileQuerySortCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id filename contentType createdAt updatedAt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Zulu image", "contentType": "IMAGE", "filename": "zulu-image.jpg", "originalSource": "https://cdn.example.com/zulu-image.jpg"},
+            {"alt": "Alpha file", "contentType": "FILE", "filename": "alpha-file.pdf", "originalSource": "https://cdn.example.com/alpha-file.pdf"},
+            {"alt": "Middle image", "contentType": "IMAGE", "filename": "middle-image.jpg", "originalSource": "https://cdn.example.com/middle-image.jpg"}
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileQuerySortRead {
+          filename: files(first: 10, query: "filename:alpha-file.pdf") {
+            nodes { id filename contentType fileStatus }
+          }
+          mediaType: files(first: 10, query: "media_type:IMAGE") {
+            nodes { filename contentType }
+          }
+          unknown: files(first: 10, query: "definitely_not_a_file_filter:value") {
+            nodes { filename }
+          }
+          byFilename: files(first: 10, sortKey: FILENAME) {
+            nodes { filename }
+          }
+          byFilenameReverse: files(first: 10, sortKey: FILENAME, reverse: true) {
+            nodes { filename }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["filename"]["nodes"],
+        json!([{
+            "id": "gid://shopify/GenericFile/3",
+            "filename": "alpha-file.pdf",
+            "contentType": "FILE",
+            "fileStatus": "READY"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["mediaType"]["nodes"],
+        json!([
+            {"filename": "zulu-image.jpg", "contentType": "IMAGE"},
+            {"filename": "middle-image.jpg", "contentType": "IMAGE"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknown"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["byFilename"]["nodes"],
+        json!([
+            {"filename": "alpha-file.pdf"},
+            {"filename": "middle-image.jpg"},
+            {"filename": "zulu-image.jpg"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byFilenameReverse"]["nodes"],
+        json!([
+            {"filename": "zulu-image.jpg"},
+            {"filename": "middle-image.jpg"},
+            {"filename": "alpha-file.pdf"}
+        ])
+    );
+}
+
+#[test]
+fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records() {
+    let mut proxy = snapshot_proxy();
+
+    let create_files = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchCreateFiles($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id filename contentType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Alpha file", "contentType": "FILE", "filename": "alpha-file.pdf", "originalSource": "https://cdn.example.com/alpha-file.pdf"},
+            {"alt": "Beta image", "contentType": "IMAGE", "filename": "beta-image.jpg", "originalSource": "https://cdn.example.com/beta-image.jpg"}
+        ]}),
+    ));
+    assert_eq!(
+        create_files.body["data"]["fileCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "FILE",
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf"
+        }}),
+    ));
+    assert_eq!(
+        create_saved_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let saved_search_id = create_saved_search.body["data"]["savedSearchCreate"]["savedSearch"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileSavedSearchRead($savedSearchId: ID!) {
+          files(first: 10, savedSearchId: $savedSearchId) {
+            nodes { filename contentType }
+          }
+          fileSavedSearches(first: 10) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"savedSearchId": saved_search_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"]["nodes"],
+        json!([{
+            "id": saved_search_id,
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf",
+            "resourceType": "FILE"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["files"]["nodes"],
+        json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
     );
 }
 
@@ -9868,8 +11636,8 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     assert_eq!(
         files_read.body["data"]["files"]["nodes"],
         json!([
-            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
-            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "second.jpg"}
         ])
     );
 }
@@ -10043,6 +11811,32 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
         }]})
     );
 
+    let extension_case_mismatch = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.PNG", "filename": "source.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        extension_case_mismatch.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Provided filename extension must match original source.",
+            "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read_after_rejections = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateValidationRead {
+          files(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejections.body["data"]["files"]["nodes"],
+        json!([])
+    );
+
     let duplicate_mode = proxy.process_request(json_graphql_request(
         mutation,
         json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "contentType": "IMAGE", "duplicateResolutionMode": "REPLACE"}]}),
@@ -10172,7 +11966,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "GenericFile",
             "id": "gid://shopify/GenericFile/2",
             "alt": "Omitted GLB",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "model.glb",
             "mimeType": "model/gltf-binary",
             "url": "https://cdn.example.com/model.glb"
@@ -10198,7 +11992,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "Model3d",
             "id": "gid://shopify/Model3d/3",
             "alt": "Explicit model",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "explicit-model.glb",
             "mimeType": "model/gltf-binary",
             "mediaErrors": [],
@@ -10342,6 +12136,125 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
     assert!(bodies[0]["query"]
         .as_str()
         .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
+fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("MediaFileUpdateRejectedRead"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-image.JPG",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": media_id, "filename": "ready-image.jpg"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "The filename extension provided must match the original filename.",
+            "code": "INVALID_FILENAME_EXTENSION"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+    drop(bodies);
+
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileUpdateRejectedRead {
+          files(first: 5) { nodes { id filename } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejected_update.body["data"]["files"]["nodes"],
+        json!([{ "id": media_id, "filename": "ready-image.JPG" }])
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateRejectedRead")));
 }
 
 #[test]
@@ -10875,7 +12788,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
         json!({
             "nodes": [{
                 "id": "gid://shopify/MediaImage/2",
-                "fileStatus": "UPLOADED",
+                "fileStatus": "READY",
                 "__typename": "MediaImage",
                 "mediaErrors": [],
                 "mediaWarnings": []
@@ -11260,11 +13173,11 @@ fn online_store_articles_published_status_query_controls_visibility() {
     let articles = proxy.process_request(json_graphql_request(
         r#"
         mutation ArticleStatusSetup($blogId: ID!) {
-          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, isPublished: true }) {
+          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag"], isPublished: true }) {
             article { id title isPublished }
             userErrors { field message code }
           }
-          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, isPublished: false }) {
+          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag", "draft-tag"], isPublished: false }) {
             article { id title isPublished }
             userErrors { field message code }
           }
@@ -11290,6 +13203,12 @@ fn online_store_articles_published_status_query_controls_visibility() {
           explicitPublished: articles(first: 10, query: "published_status:published") { nodes { id title isPublished } }
           anyStatus: articles(first: 10, query: "published_status:any") { nodes { id title isPublished } }
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
+          byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
+          titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
+          unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
         }
         "#,
         json!({}),
@@ -11297,7 +13216,10 @@ fn online_store_articles_published_status_query_controls_visibility() {
 
     assert_eq!(
         read.body["data"]["defaultPublished"]["nodes"],
-        json!([{"id": published_id, "title": "Published article", "isPublished": true}])
+        json!([
+            {"id": published_id, "title": "Published article", "isPublished": true},
+            {"id": draft_id, "title": "Draft article", "isPublished": false}
+        ])
     );
     assert_eq!(
         read.body["data"]["explicitPublished"]["nodes"],
@@ -11314,6 +13236,237 @@ fn online_store_articles_published_status_query_controls_visibility() {
         read.body["data"]["unpublishedOnly"]["nodes"],
         json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
     );
+    let published_article =
+        json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
+    assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(
+        read.body["data"]["titleSorted"]["nodes"],
+        json!([
+            {"id": draft_id, "title": "Draft article"},
+            {"id": published_id, "title": "Published article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["titleSortedReverse"]["nodes"],
+        json!([
+            {"id": published_id, "title": "Published article"},
+            {"id": draft_id, "title": "Draft article"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogPageConnectionSetup {
+          zBlog: blogCreate(blog: { title: "Zulu content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          aBlog: blogCreate(blog: { title: "Alpha content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          zPage: pageCreate(page: { title: "Zulu content page", body: "<p>Zulu page body</p>", isPublished: true }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+          aPage: pageCreate(page: { title: "Alpha content page", body: "<p>Alpha page body</p>", isPublished: false }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["zBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["zPage"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aPage"]["userErrors"], json!([]));
+    let z_blog = create.body["data"]["zBlog"]["blog"]["id"].clone();
+    let a_blog = create.body["data"]["aBlog"]["blog"]["id"].clone();
+    let z_page = create.body["data"]["zPage"]["page"]["id"].clone();
+    let a_page = create.body["data"]["aPage"]["page"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BlogPageConnectionFilters {
+          blogsByTitle: blogs(first: 10, query: "title:'Alpha content blog'") { nodes { id title } }
+          blogsSorted: blogs(first: 10, sortKey: TITLE) { nodes { id title } }
+          blogsSortedReverse: blogs(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          blogsUnknownFilter: blogs(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+          pagesByTitle: pages(first: 10, query: "title:'Alpha content page'") { nodes { id title isPublished } }
+          pagesPublished: pages(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          pagesUnpublished: pages(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          pagesSorted: pages(first: 10, sortKey: TITLE) { nodes { id title } }
+          pagesSortedReverse: pages(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          pagesUnknownFilter: pages(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["blogsByTitle"]["nodes"],
+        json!([{"id": a_blog, "title": "Alpha content blog"}])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSorted"]["nodes"],
+        json!([
+            {"id": a_blog, "title": "Alpha content blog"},
+            {"id": z_blog, "title": "Zulu content blog"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSortedReverse"]["nodes"],
+        json!([
+            {"id": z_blog, "title": "Zulu content blog"},
+            {"id": a_blog, "title": "Alpha content blog"}
+        ])
+    );
+    assert_eq!(read.body["data"]["blogsUnknownFilter"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["pagesByTitle"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesPublished"]["nodes"],
+        json!([{"id": z_page, "title": "Zulu content page", "isPublished": true}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesUnpublished"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSorted"]["nodes"],
+        json!([
+            {"id": a_page, "title": "Alpha content page"},
+            {"id": z_page, "title": "Zulu content page"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSortedReverse"]["nodes"],
+        json!([
+            {"id": z_page, "title": "Zulu content page"},
+            {"id": a_page, "title": "Alpha content page"}
+        ])
+    );
+    assert_eq!(read.body["data"]["pagesUnknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_comments_connection_filters_sort_and_reverse_hydrated_state() {
+    let article_id = "gid://shopify/Article/9102";
+    let alpha_comment_id = "gid://shopify/Comment/9103";
+    let zulu_comment_id = "gid://shopify/Comment/9104";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let upstream_calls = upstream_calls.clone();
+            move |_request| {
+                *upstream_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "__typename": "Comment",
+                                        "id": zulu_comment_id,
+                                        "status": "SPAM",
+                                        "body": "Zulu comment body",
+                                        "bodyHtml": "<p>Zulu comment body</p>",
+                                        "isPublished": false,
+                                        "publishedAt": null,
+                                        "createdAt": "2026-01-02T00:00:00Z",
+                                        "updatedAt": "2026-01-02T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    },
+                                    {
+                                        "__typename": "Comment",
+                                        "id": alpha_comment_id,
+                                        "status": "PUBLISHED",
+                                        "body": "Alpha comment body",
+                                        "bodyHtml": "<p>Alpha comment body</p>",
+                                        "isPublished": true,
+                                        "publishedAt": "2026-01-01T00:00:00Z",
+                                        "createdAt": "2026-01-01T00:00:00Z",
+                                        "updatedAt": "2026-01-01T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-a",
+                                    "endCursor": "cursor-z"
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateComments {
+          comments(first: 10) {
+            nodes { id body status isPublished publishedAt createdAt updatedAt article { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CommentConnectionFilters {
+          bodyQuery: comments(first: 10, query: "body:'Alpha comment'") { nodes { id body status } }
+          statusQuery: comments(first: 10, query: "status:SPAM") { nodes { id body status } }
+          createdSorted: comments(first: 10, sortKey: CREATED_AT) { nodes { id body createdAt } }
+          createdSortedReverse: comments(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id body createdAt } }
+          unknownFilter: comments(first: 10, query: "not_a_real_filter:value") { nodes { id body } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["bodyQuery"]["nodes"],
+        json!([{"id": alpha_comment_id, "body": "Alpha comment body", "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["statusQuery"]["nodes"],
+        json!([{"id": zulu_comment_id, "body": "Zulu comment body", "status": "SPAM"}])
+    );
+    assert_eq!(
+        read.body["data"]["createdSorted"]["nodes"],
+        json!([
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"},
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["createdSortedReverse"]["nodes"],
+        json!([
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"},
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]

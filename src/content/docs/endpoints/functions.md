@@ -39,7 +39,7 @@ Function-backed behavior is modeled as Admin metadata/state only:
 - The proxy records Function handles or IDs attached to validations, cart transforms, and fulfillment constraint rules, preserves or hydrates local `ShopifyFunction` rows, and updates relevant detail/catalog roots after staged writes.
 - In LiveHybrid mode, cold `shopifyFunction` / `shopifyFunctions` reads forward upstream and cache observed Function metadata for later local read-after-write behavior. Snapshot mode does not invent Function catalog rows that are absent from local state.
 - Supported mutation roots stage locally, append the original raw GraphQL request body to the mutation log for ordered `__meta/commit` replay, and must not proxy to Shopify at runtime.
-- The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only.
+- The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only, with a synthetic `TaxAppConfiguration` ID that remains stable for later reads in the same staged state.
 
 Validation behavior:
 
@@ -82,6 +82,12 @@ Function catalog and hydration:
 - Unknown Function references in supported create mutations are not satisfied from a baked catalog. Outside snapshot mode, the handler attempts the production upstream Function hydrate path; unresolved hydrate responses return Shopify-shaped not-found or wrong-API userErrors without staging.
 - `validationCreate` with omitted or explicit `null` `title` falls back to the hydrated public Function title available from Admin `shopifyFunctions`; explicit `title: ""` remains empty. Live Shopify can persist a private raw extension name instead (`t:name` in the conformance app), but that value is not exposed by the exact Admin Function hydrate response available to the proxy.
 
+Tax app readiness:
+
+- `taxAppConfigure` requires the local request to declare both `write_taxes` in `x-shopify-draft-proxy-access-scopes` and `x-shopify-draft-proxy-tax-calculations-app: true`. Requests without that posture return Shopify's captured top-level `ACCESS_DENIED` envelope and do not stage tax readiness.
+- Eligible requests allocate a synthetic `TaxAppConfiguration` ID through the proxy synthetic ID allocator, persist `ready`, derived `state`, and `updatedAt` in staged state, and reuse the same configuration ID on later readiness updates.
+- Staged tax configuration is readable through generic `node(id:)` selections for `TaxAppConfiguration` fields and round-trips through dump/restore with the rest of staged state.
+
 ### Boundaries
 
 - Function execution outcomes, checkout validation behavior, cart transform runtime effects, and tax calculation callbacks are out of scope.
@@ -89,6 +95,6 @@ Function catalog and hydration:
 - Cross-app Function reference behavior is limited to the owner metadata available in local/captured state.
 - Private Function extension manifest fields that are not exposed through Admin GraphQL, such as the raw extension name used by Shopify's validation title fallback in the conformance app, are not modeled from fabricated local metadata.
 - Function create guardrails that depend on private Shopify shop/app eligibility state are not modeled from fabricated local catalog rows. When Shopify exposes such a branch only through live mutation behavior, it needs captured live parity before the proxy should claim support for it.
-- Tax-app authority and real tax-service readiness are not emulated beyond local readiness metadata.
+- Tax-app authority is modeled from explicit local request metadata only; the proxy does not infer real app-extension eligibility or call a tax service.
 - Fulfillment constraint success-path live parity requires a released `FULFILLMENT_CONSTRAINT_RULE` Function in the conformance app. The checked-in live fixture covers deterministic validation branches and empty reads because the current conformance app has no released fulfillment-constraint Function.
 - No root listed here is registry-only. Validation-only behavior is limited to captured input coercion, userErrors, and guardrails that fail before local staging.
