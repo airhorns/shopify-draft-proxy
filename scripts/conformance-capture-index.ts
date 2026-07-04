@@ -1458,6 +1458,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
+      'config/parity-specs/store-properties/publishable-current-channel-non-sentinel-membership.json',
       'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
       'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
       'config/parity-requests/store-properties/current-app-publication-hydrate.graphql',
