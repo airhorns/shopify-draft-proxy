@@ -1,0 +1,46 @@
+{
+  "scenarioId": "current-app-installation-observed-identity-local-app-mutation",
+  "operationNames": ["currentAppInstallation", "delegateAccessTokenCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["read-after-write", "payload-shape", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/current-app-installation-observed-identity-local-app-mutation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/currentAppInstallation-observed-identity-read.graphql",
+    "apiVersion": "2025-01"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "observed-current-installation-identity",
+        "capturePath": "$.scenarios.observedCurrentInstallation.response.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation"
+      },
+      {
+        "name": "local-delegate-token-create-user-errors",
+        "capturePath": "$.scenarios.createDelegateToken.response.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "readback-preserves-observed-installation-identity",
+        "capturePath": "$.scenarios.readAfterCreate.response.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/currentAppInstallation-observed-identity-read.graphql",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live 2025-01 currentAppInstallation identity before and after a real delegateAccessTokenCreate call. The parity runner first hydrates the observed upstream installation identity, stages the app-domain mutation locally, and then requires the locally served readback id and app handle to match the captured Shopify identity. Billing API mutation capture was not available on the conformance custom app."
+}

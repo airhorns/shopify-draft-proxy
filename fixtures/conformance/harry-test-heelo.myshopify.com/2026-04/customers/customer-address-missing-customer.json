@@ -1,0 +1,300 @@
+{
+  "capturedAt": "2026-07-03T18:52:45.517Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "foreignCustomer": {
+      "variables": {
+        "input": {
+          "email": "hermes-address-missing-customer-1783104764709@example.com",
+          "firstName": "Hermes",
+          "lastName": "AddressMissingCustomer"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10890073243954",
+              "email": "hermes-address-missing-customer-1783104764709@example.com"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "foreignAddress": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10890073243954",
+        "address": {
+          "address1": "1 Missing Customer Foreign Address Rd",
+          "city": "Ottawa",
+          "countryCode": "CA",
+          "provinceCode": "ON",
+          "zip": "K1A 0B1"
+        },
+        "setAsDefault": true
+      },
+      "response": {
+        "data": {
+          "customerAddressCreate": {
+            "address": {
+              "id": "gid://shopify/MailingAddress/12270122762546?model_name=CustomerAddress",
+              "firstName": "Hermes",
+              "lastName": "AddressMissingCustomer",
+              "address1": "1 Missing Customer Foreign Address Rd",
+              "address2": null,
+              "city": "Ottawa",
+              "company": null,
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "K1A 0B1",
+              "phone": null,
+              "name": "Hermes AddressMissingCustomer",
+              "formattedArea": "Ottawa ON, Canada"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingCustomerUnknownAddress": {
+    "update": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/999999999999999",
+        "address": {
+          "address1": "Updated Missing Customer"
+        },
+        "setAsDefault": false
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid id: gid://shopify/MailingAddress/999999999999999",
+            "locations": [
+              {
+                "line": 8,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["customerAddressUpdate"]
+          }
+        ],
+        "data": {
+          "customerAddressUpdate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/999999999999999"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid id: gid://shopify/MailingAddress/999999999999999",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["customerAddressDelete"]
+          }
+        ],
+        "data": {
+          "customerAddressDelete": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "defaultAddress": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/999999999999999"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid id: gid://shopify/MailingAddress/999999999999999",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["customerUpdateDefaultAddress"]
+          }
+        ],
+        "data": {
+          "customerUpdateDefaultAddress": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingCustomerForeignAddress": {
+    "update": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/12270122762546?model_name=CustomerAddress",
+        "address": {
+          "address1": "Updated Missing Customer Foreign"
+        },
+        "setAsDefault": false
+      },
+      "response": {
+        "data": {
+          "customerAddressUpdate": {
+            "address": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/12270122762546?model_name=CustomerAddress"
+      },
+      "response": {
+        "data": {
+          "customerAddressDelete": {
+            "deletedAddressId": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "defaultAddress": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999",
+        "addressId": "gid://shopify/MailingAddress/12270122762546?model_name=CustomerAddress"
+      },
+      "response": {
+        "data": {
+          "customerUpdateDefaultAddress": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["customerId"],
+                "message": "Customer does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -239,11 +239,6 @@ impl DraftProxy {
                 shop.pointer("/shopAddress/countryCode")
                     .and_then(Value::as_str)
             })
-            .or_else(|| {
-                (shop.get("myshopifyDomain").and_then(Value::as_str)
-                    == Some("harry-test-heelo.myshopify.com"))
-                .then_some("CA")
-            })
             .map(str::to_ascii_uppercase)
     }
 

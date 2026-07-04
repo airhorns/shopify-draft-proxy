@@ -38,11 +38,12 @@ impl DraftProxy {
             ));
         };
 
+        let timestamp = self.next_mutation_timestamp();
         let customer_id = self
             .data_sale_opt_out_find_customer_id_by_email(&email)
-            .or_else(|| self.data_sale_opt_out_upstream_customer_id(request, &email))
-            .unwrap_or_else(|| self.data_sale_opt_out_stage_new_customer(&email));
-        self.data_sale_opt_out_mark_customer(&customer_id, &email);
+            .or_else(|| self.data_sale_opt_out_upstream_customer_id(request, &email, &timestamp))
+            .unwrap_or_else(|| self.data_sale_opt_out_stage_new_customer(&email, &timestamp));
+        self.data_sale_opt_out_mark_customer(&customer_id, &email, &timestamp);
 
         MutationOutcome::staged(
             data_sale_opt_out_response(
@@ -74,6 +75,7 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         email: &str,
+        timestamp: &str,
     ) -> Option<String> {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
@@ -89,7 +91,7 @@ impl DraftProxy {
         }
         let customer = response.body.pointer("/data/customerByIdentifier")?;
         let id = customer.get("id").and_then(Value::as_str)?.to_string();
-        self.data_sale_opt_out_stage_upstream_customer(&id, email, customer);
+        self.data_sale_opt_out_stage_upstream_customer(&id, email, customer, timestamp);
         Some(id)
     }
 
@@ -98,8 +100,9 @@ impl DraftProxy {
         id: &str,
         email: &str,
         customer: &Value,
+        timestamp: &str,
     ) {
-        let mut record = data_sale_opt_out_customer_defaults(id, email);
+        let mut record = data_sale_opt_out_customer_defaults(id, email, timestamp);
         if let (Some(target), Some(source)) = (record.as_object_mut(), customer.as_object()) {
             for (key, value) in source {
                 target.insert(key.clone(), value.clone());
@@ -113,26 +116,30 @@ impl DraftProxy {
         self.store.staged.customers.insert(id.to_string(), record);
     }
 
-    fn data_sale_opt_out_stage_new_customer(&mut self, email: &str) -> String {
+    fn data_sale_opt_out_stage_new_customer(&mut self, email: &str, timestamp: &str) -> String {
         let id = self.next_proxy_synthetic_gid("Customer");
-        self.store
-            .staged
-            .customers
-            .insert(id.clone(), data_sale_opt_out_customer_defaults(&id, email));
+        self.store.staged.customers.insert(
+            id.clone(),
+            data_sale_opt_out_customer_defaults(&id, email, timestamp),
+        );
         id
     }
 
-    fn data_sale_opt_out_mark_customer(&mut self, id: &str, email: &str) {
+    fn data_sale_opt_out_mark_customer(&mut self, id: &str, email: &str, timestamp: &str) {
         let customer = self
             .store
             .staged
             .customers
             .entry(id.to_string())
-            .or_insert_with(|| data_sale_opt_out_customer_defaults(id, email));
+            .or_insert_with(|| data_sale_opt_out_customer_defaults(id, email, timestamp));
         if let Some(object) = customer.as_object_mut() {
             object.insert("id".to_string(), json!(id));
             object.insert("email".to_string(), json!(email));
             object.insert("dataSaleOptOut".to_string(), json!(true));
+            object
+                .entry("createdAt".to_string())
+                .or_insert_with(|| json!(timestamp));
+            object.insert("updatedAt".to_string(), json!(timestamp));
             object.insert(
                 "defaultEmailAddress".to_string(),
                 json!({ "emailAddress": email }),
@@ -188,6 +195,8 @@ fn data_sale_opt_out_valid_email(email: &str) -> bool {
     // components/platform/essentials/app/validators/email_address_validator.rb
     // EmailAddress#strict_regexp sub-rules (`atom_char`, `local_part_pattern`,
     // `tld_label_pattern`) after dataSaleOptOut's observed whitespace stripping.
+    // Core uses Unicode-aware POSIX `alpha`/`alnum` classes, so use Rust char
+    // classifications here instead of ASCII byte predicates.
     !domain.contains('@')
         && data_sale_opt_out_valid_local_part(local)
         && data_sale_opt_out_valid_domain(domain)
@@ -195,17 +204,17 @@ fn data_sale_opt_out_valid_email(email: &str) -> bool {
 
 fn data_sale_opt_out_valid_local_part(local: &str) -> bool {
     !local.is_empty()
-        && local.len() <= 128
+        && local.chars().count() <= 128
         && !local.starts_with('.')
         && !local.ends_with('.')
         && !local.contains("..")
         && local
             .split('.')
-            .all(|atom| !atom.is_empty() && atom.bytes().all(data_sale_opt_out_valid_atom_byte))
+            .all(|atom| !atom.is_empty() && atom.chars().all(data_sale_opt_out_valid_atom_char))
 }
 
-fn data_sale_opt_out_valid_atom_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || b"!\"#$%&'*+-/=?^_`{|}~".contains(&byte)
+fn data_sale_opt_out_valid_atom_char(character: char) -> bool {
+    character.is_alphanumeric() || "!\"#$%&'*+-/=?^_`{|}~".contains(character)
 }
 
 fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
@@ -222,19 +231,18 @@ fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
     };
     labels.len() >= 2
         && labels.iter().all(|label| {
-            let bytes = label.as_bytes();
-            !bytes.is_empty()
-                && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
-                && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
-                && bytes
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+            !label.is_empty()
+                && label.chars().next().is_some_and(char::is_alphanumeric)
+                && label.chars().last().is_some_and(char::is_alphanumeric)
+                && label
+                    .chars()
+                    .all(|character| character.is_alphanumeric() || character == '-')
         })
-        && (1..=64).contains(&tld.len())
-        && tld.as_bytes().iter().all(u8::is_ascii_alphabetic)
+        && (1..=64).contains(&tld.chars().count())
+        && tld.chars().all(char::is_alphabetic)
 }
 
-fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {
+fn data_sale_opt_out_customer_defaults(id: &str, email: &str, timestamp: &str) -> Value {
     json!({
         "id": id,
         "firstName": "",
@@ -257,7 +265,7 @@ fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {
         "defaultEmailAddress": { "emailAddress": email },
         "defaultPhoneNumber": Value::Null,
         "defaultAddress": Value::Null,
-        "createdAt": "2026-04-25T01:41:06Z",
-        "updatedAt": "2026-04-25T01:41:06Z"
+        "createdAt": timestamp,
+        "updatedAt": timestamp
     })
 }
