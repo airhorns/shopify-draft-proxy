@@ -9582,7 +9582,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
     );
 
     // Delete the file this test actually created (MediaImage/2). The engine
@@ -9678,7 +9678,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                     "id": "gid://shopify/MediaImage/2",
                     "alt": "Local runtime file",
                     "createdAt": "2024-01-01T00:00:01.000Z",
-                    "fileStatus": "UPLOADED",
+                    "fileStatus": "READY",
                     "filename": "local-runtime.jpg",
                     "image": {
                         "url": "https://cdn.example.com/local-runtime.jpg",
@@ -9708,6 +9708,302 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn media_file_create_poll_ready_then_update_succeeds() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Ready lifecycle", "contentType": "IMAGE", "filename": "ready-lifecycle.jpg", "originalSource": "https://cdn.example.com/ready-lifecycle.jpg"}]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let file_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("fileCreate should return an id")
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["fileStatus"],
+        json!("UPLOADED")
+    );
+
+    let poll = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileReadyLifecyclePoll {
+          files(first: 5) {
+            nodes { id alt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        poll.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": file_id,
+                "alt": "Ready lifecycle",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{file_id}"),
+                "endCursor": format!("cursor:{file_id}")
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": file_id, "alt": "Updated after ready"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": file_id,
+                "alt": "Updated after ready",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searches() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/777",
+                                "alt": "Upstream file",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "upstream-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-file.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }, {
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/778",
+                                "alt": "Upstream processing file",
+                                "createdAt": "2026-07-01T00:00:01Z",
+                                "updatedAt": "2026-07-01T00:00:01Z",
+                                "fileStatus": "PROCESSING",
+                                "filename": "upstream-processing-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                                "endCursor": "cursor:gid://shopify/MediaImage/778"
+                            }
+                        },
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/888",
+                                "name": "Ready files",
+                                "query": "file_status:ready",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesColdRead {
+          files(first: 5) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/777",
+                "alt": "Upstream file",
+                "fileStatus": "READY",
+                "filename": "upstream-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-file.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }, {
+                "id": "gid://shopify/MediaImage/778",
+                "alt": "Upstream processing file",
+                "fileStatus": "PROCESSING",
+                "filename": "upstream-processing-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                "endCursor": "cursor:gid://shopify/MediaImage/778"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/888",
+                "name": "Ready files",
+                "query": "file_status:ready",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        1,
+        "cold media files read should forward upstream"
+    );
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("files") && query.contains("fileSavedSearches")));
+}
+
+#[test]
+fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/889",
+                                "name": "Recent files",
+                                "query": "created_at:>=2026-01-01",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSavedSearchColdRead {
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/889",
+                "name": "Recent files",
+                "query": "created_at:>=2026-01-01",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "standalone fileSavedSearches read should forward upstream"
     );
 }
 
@@ -9868,8 +10164,8 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     assert_eq!(
         files_read.body["data"]["files"]["nodes"],
         json!([
-            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
-            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "second.jpg"}
         ])
     );
 }
@@ -10172,7 +10468,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "GenericFile",
             "id": "gid://shopify/GenericFile/2",
             "alt": "Omitted GLB",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "model.glb",
             "mimeType": "model/gltf-binary",
             "url": "https://cdn.example.com/model.glb"
@@ -10198,7 +10494,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "Model3d",
             "id": "gid://shopify/Model3d/3",
             "alt": "Explicit model",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "explicit-model.glb",
             "mimeType": "model/gltf-binary",
             "mediaErrors": [],
@@ -10875,7 +11171,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
         json!({
             "nodes": [{
                 "id": "gid://shopify/MediaImage/2",
-                "fileStatus": "UPLOADED",
+                "fileStatus": "READY",
                 "__typename": "MediaImage",
                 "mediaErrors": [],
                 "mediaWarnings": []

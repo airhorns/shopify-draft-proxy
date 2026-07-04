@@ -524,7 +524,7 @@ impl DraftProxy {
                 None,
                 Some(&original_source),
             ));
-            staged.push(product_media_node_with_type(
+            let mut staged_node = product_media_node_with_type(
                 &id,
                 &alt,
                 &media_content_type,
@@ -535,7 +535,9 @@ impl DraftProxy {
                 },
                 None,
                 Some(&original_source),
-            ));
+            );
+            staged_node["__draftProxyReadyOnRead"] = json!(true);
+            staged.push(staged_node);
         }
 
         if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
@@ -780,6 +782,42 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
+    pub(in crate::proxy) fn promote_product_media_ready_on_read(
+        &mut self,
+        root_fields: &[RootFieldSelection],
+    ) {
+        if !root_fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "product" | "products" | "productByIdentifier" | "node" | "nodes"
+            )
+        }) {
+            return;
+        }
+
+        let product_ids = self
+            .store
+            .staged
+            .products
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for product_id in product_ids {
+            let Some(product) = self.store.staged.products.get_mut(&product_id) else {
+                continue;
+            };
+            for node in &mut product.media {
+                if node.get("__draftProxyReadyOnRead").and_then(Value::as_bool) != Some(true) {
+                    continue;
+                }
+                promote_product_media_node_to_ready(node);
+                if let Some(object) = node.as_object_mut() {
+                    object.remove("__draftProxyReadyOnRead");
+                }
+            }
+        }
+    }
+
     /// Confirm a product exists, hydrating it from upstream when it has no
     /// overlay yet. Returns true when an overlay is present afterwards — a
     /// hydration that observes no node leaves the product absent, which the
@@ -825,6 +863,9 @@ impl DraftProxy {
             product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
         });
         node["status"] = json!("PROCESSING");
+        if let Some(object) = node.as_object_mut() {
+            object.remove("__draftProxyReadyOnRead");
+        }
         node
     }
 }
@@ -887,6 +928,18 @@ fn product_media_ready_url(node: &Value) -> String {
     product_media_image_url(node)
         .map(str::to_string)
         .unwrap_or_else(|| product_media_local_ready_url(node))
+}
+
+fn promote_product_media_node_to_ready(node: &mut Value) {
+    let ready_url = product_media_ready_url(node);
+    node["status"] = json!("READY");
+    node["preview"] = json!({ "image": { "url": ready_url.clone() } });
+    if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
+        match node.get("image").and_then(|image| image.get("id")).cloned() {
+            Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
+            None => node["image"] = json!({ "url": ready_url }),
+        }
+    }
 }
 
 fn product_media_image_url(node: &Value) -> Option<&str> {

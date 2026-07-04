@@ -1081,9 +1081,9 @@ impl DraftProxy {
                 let outcome = self.inventory_mutation_data(request, &fields);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(request, &query, &variables)
-            })),
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
+                self.saved_search_overlay_read_response(request, &query, &variables)
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
@@ -2606,7 +2606,7 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
-                self.media_files_read(&query, &variables)
+                self.media_files_read(request, &query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
