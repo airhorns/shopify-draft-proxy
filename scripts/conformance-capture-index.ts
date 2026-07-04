@@ -2623,6 +2623,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-validation-option-names',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-option-names-conformance.ts',
+    purpose:
+      'metafieldDefinitionCreate/metafieldDefinitionUpdate validations[] unsupported option-name rejection and number_decimal option coercion.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-option-names.json`,
+      'config/parity-specs/metafields/metafield-definition-validation-option-names.json',
+      'config/parity-requests/metafields/metafield-definition-invalid-validation-options.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable product metafield definitions in a unique namespace, records invalid validation-option branches and a valid decimal control, then deletes every created definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafields-set-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafields-set-validation-gaps-conformance.ts',
