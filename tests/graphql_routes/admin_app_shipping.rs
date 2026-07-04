@@ -4268,6 +4268,109 @@ fn customer_delete_shop_payload_uses_restored_shop_state() {
 }
 
 #[test]
+fn customer_delete_shop_payload_hydrates_live_shop_state_when_selected() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/customer-delete-live-hydrate";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.lock().unwrap().push(request.body.clone());
+            if request.body.contains("CustomerHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": customer_id,
+                                "firstName": "Live",
+                                "lastName": "Delete",
+                                "displayName": "Live Delete",
+                                "email": "customer-delete-live-hydrate@example.test",
+                                "phone": null,
+                                "locale": "en",
+                                "note": null,
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "dataSaleOptOut": false,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "state": "DISABLED",
+                                "tags": [],
+                                "createdAt": "2026-07-04T00:00:00Z",
+                                "updatedAt": "2026-07-04T00:00:00Z",
+                                "defaultEmailAddress": {
+                                    "emailAddress": "customer-delete-live-hydrate@example.test"
+                                },
+                                "defaultPhoneNumber": null,
+                                "defaultAddress": null,
+                                "addressesV2": { "nodes": [] }
+                            }
+                        }
+                    }),
+                };
+            }
+            if request.body.contains("CustomerDeleteShopHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "id": "gid://shopify/Shop/customer-delete-live-shop",
+                                "name": "Customer delete live shop",
+                                "myshopifyDomain": "customer-delete-live-shop.myshopify.com",
+                                "currencyCode": "CAD",
+                                "primaryDomain": {
+                                    "id": "gid://shopify/Domain/customer-delete-live-shop",
+                                    "host": "customer-delete-live-shop.myshopify.com",
+                                    "url": "https://customer-delete-live-shop.myshopify.com",
+                                    "sslEnabled": true
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            panic!("unexpected upstream request: {}", request.body);
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteLiveHydrateShop($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            shop { id name myshopifyDomain currencyCode primaryDomain { host } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": customer_id,
+            "shop": {
+                "id": "gid://shopify/Shop/customer-delete-live-shop",
+                "name": "Customer delete live shop",
+                "myshopifyDomain": "customer-delete-live-shop.myshopify.com",
+                "currencyCode": "CAD",
+                "primaryDomain": {
+                    "host": "customer-delete-live-shop.myshopify.com"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0].contains("CustomerHydrate"));
+    assert!(calls[1].contains("CustomerDeleteShopHydrate"));
+}
+
+#[test]
 fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let mut proxy = snapshot_proxy();
 

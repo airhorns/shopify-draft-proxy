@@ -32,6 +32,8 @@ const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
 // `CustomerMergeHydrate` cassettes byte-match what `hydrate_customer_for_merge` forwards.
 const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/customer-merge-hydrate.graphql");
+const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
 
 impl DraftProxy {
     pub(in crate::proxy) fn dispatch_unknown_passthrough_or_legacy_error(
@@ -1683,11 +1685,13 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let shop = self.customer_delete_shop_payload();
-        let mut payload = if id.is_empty() || !self.customer_exists_for_mutation(request, &id) {
+        let customer_exists = !id.is_empty() && self.customer_exists_for_mutation(request, &id);
+        self.hydrate_customer_delete_shop_if_selected(request, &field.selection);
+        let selected_shop = self.customer_delete_shop_payload(&field.selection);
+        let mut payload = if !customer_exists {
             json!({
                 "deletedCustomerId": null,
-                "shop": shop,
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
@@ -1700,7 +1704,7 @@ impl DraftProxy {
         {
             json!({
                 "deletedCustomerId": null,
-                "shop": shop,
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
@@ -1708,7 +1712,7 @@ impl DraftProxy {
             self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
-                "shop": shop,
+                "shop": selected_shop,
                 "userErrors": []
             })
         };
@@ -1727,15 +1731,68 @@ impl DraftProxy {
         (payload, staged_ids, Vec::new())
     }
 
-    fn customer_delete_shop_payload(&self) -> Value {
+    fn customer_delete_shop_payload(&self, payload_selection: &[SelectedField]) -> Value {
+        if selected_child_selection(payload_selection, "shop").is_none() {
+            return Value::Null;
+        }
+        if !self.customer_delete_shop_has_real_identity() {
+            return Value::Null;
+        }
+        self.store.effective_shop()
+    }
+
+    fn hydrate_customer_delete_shop_if_selected(
+        &mut self,
+        request: &Request,
+        payload_selection: &[SelectedField],
+    ) {
+        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
+            return;
+        };
+        if !self.customer_delete_shop_needs_hydration(&shop_selection) {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_DELETE_SHOP_HYDRATE_QUERY,
+                "operationName": "CustomerDeleteShopHydrate",
+                "variables": {},
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        }
+    }
+
+    fn customer_delete_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
+            return false;
+        }
+        let has_default_shop = self
+            .store
+            .base
+            .shop
+            .get("myshopifyDomain")
+            .and_then(Value::as_str)
+            == Some("shopify-draft-proxy.local");
+        !self.customer_delete_shop_has_real_identity()
+            || has_default_shop
+            || shop_selection
+                .iter()
+                .any(|field| self.store.base.shop.get(&field.name).is_none())
+    }
+
+    fn customer_delete_shop_has_real_identity(&self) -> bool {
         self.store
             .base
             .shop
             .get("id")
             .and_then(Value::as_str)
-            .filter(|id| !id.trim().is_empty())
-            .map(|id| json!({ "id": id }))
-            .unwrap_or(Value::Null)
+            .is_some_and(|id| {
+                let id = id.trim();
+                !id.is_empty() && !id.contains("shopify-draft-proxy=synthetic")
+            })
     }
 
     fn customer_set_payload(

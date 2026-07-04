@@ -12703,6 +12703,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customer-mutation-hydrate.graphql',
       'config/parity-requests/customers/customer-count-hydrate.graphql',
       'config/parity-requests/customers/customer-duplicate-hydrate.graphql',
+      'config/parity-requests/customers/customer-delete-shop-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers and deletes them in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
