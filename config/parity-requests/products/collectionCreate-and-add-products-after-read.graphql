@@ -1,0 +1,24 @@
+query CollectionMembershipProductsWindowAfter($id: ID!, $first: Int!, $after: String!) {
+  collection(id: $id) {
+    id
+    products(first: $first, after: $after, sortKey: MANUAL) {
+      edges {
+        cursor
+        node {
+          id
+          title
+        }
+      }
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -1239,6 +1239,39 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
         json!(["input", "customerSince"])
     );
 
+    let html_note = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id note }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "note": "<b>merchant update note</b>" } }),
+    ));
+    assert_eq!(
+        html_note.body["data"]["companyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        html_note.body["data"]["companyUpdate"]["company"]["note"],
+        json!("<b>merchant update note</b>")
+    );
+
+    let read_after_note = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyNoteRead($id: ID!) {
+          company(id: $id) { note }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_note.body["data"]["company"]["note"],
+        json!("<b>merchant update note</b>")
+    );
+
     let invalid_note = format!("<script>{}</script>", "x".repeat(6000));
     let note_reject = proxy.process_request(json_graphql_request(
         r#"
@@ -1257,20 +1290,12 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
     );
     assert_eq!(
         note_reject.body["data"]["companyUpdate"]["userErrors"],
-        json!([
-            {
-                "field": ["input", "notes"],
-                "message": "Note contains HTML tags",
-                "code": "INVALID",
-                "detail": "contains_html_tags"
-            },
-            {
-                "field": ["input", "notes"],
-                "message": "Notes is too long (maximum is 5000 characters)",
-                "code": "TOO_LONG",
-                "detail": Value::Null
-            }
-        ])
+        json!([{
+            "field": ["input", "notes"],
+            "message": "Notes is too long (maximum is 5000 characters)",
+            "code": "TOO_LONG",
+            "detail": Value::Null
+        }])
     );
 }
 
@@ -1862,7 +1887,7 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
         r#"
         mutation B2BContactValidationHtml($companyId: ID!, $input: CompanyContactInput!) {
           companyContactCreate(companyId: $companyId, input: $input) {
-            companyContact { id }
+            companyContact { id title }
             userErrors { field message code }
           }
         }
@@ -1874,11 +1899,37 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
     ));
     assert_eq!(
         html_title.body["data"]["companyContactCreate"]["userErrors"],
-        json!([{
-            "field": ["input", "title"],
-            "message": "Title contains HTML tags",
-            "code": "CONTAINS_HTML_TAGS"
-        }])
+        json!([])
+    );
+    assert_eq!(
+        html_title.body["data"]["companyContactCreate"]["companyContact"]["title"],
+        json!("<b>VP</b>")
+    );
+
+    let html_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationHtmlName($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "<b>Ada</b>", "lastName": "Buyer", "email": "ada-html@example.com" }
+        }),
+    ));
+    assert_eq!(
+        html_name.body["data"]["companyContactCreate"],
+        json!({
+            "companyContact": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Invalid input.",
+                "code": "INVALID_INPUT"
+            }]
+        })
     );
 
     let long_name = "x".repeat(256);

@@ -267,6 +267,13 @@ try {
     },
   });
 
+  const companyUpdateHtmlNote = await runOperation(companyUpdateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      note: '<b>merchant update note</b>',
+    },
+  });
+
   const companyUpdateHtmlAndTooLongNote = await runOperation(companyUpdateDocument, {
     companyId: setupCompanyId,
     input: {
@@ -348,7 +355,7 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      plan: 'Record B2B string length, blank-name, and HTML validation branches that the current live Admin API target reproduces, plus live mismatch probes for HTML branches that currently succeed.',
+      plan: 'Record B2B string length, blank-name, HTML acceptance, and note-length validation branches that the current live Admin API target reproduces.',
     },
     companyCreateLongName,
     companyCreateLongNote,
@@ -358,6 +365,7 @@ try {
     companyCreateBlankLocationRead,
     setupCompany,
     companyUpdateBlankName,
+    companyUpdateHtmlNote,
     companyUpdateHtmlAndTooLongNote,
     contactCreateLongTitle,
     contactCreateHtmlTitle,

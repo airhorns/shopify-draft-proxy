@@ -1,0 +1,80 @@
+query LocationConnectionFilteredRead(
+  $query: String!
+  $alphaQuery: String!
+) {
+  filteredDefault: locations(first: 10, query: $query, sortKey: NAME) {
+    edges {
+      cursor
+    }
+    nodes {
+      id
+      name
+      isActive
+      isFulfillmentService
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  filteredIncludeInactive: locations(first: 10, query: $query, sortKey: NAME, includeInactive: true) {
+    nodes {
+      id
+      name
+      isActive
+      isFulfillmentService
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  filteredIncludeLegacy: locations(first: 10, query: $query, sortKey: NAME, includeLegacy: true) {
+    nodes {
+      id
+      name
+      isActive
+      isFulfillmentService
+    }
+  }
+  queryAlpha: locations(first: 10, query: $alphaQuery) {
+    nodes {
+      id
+      name
+      isActive
+    }
+  }
+  nameFirst: locations(first: 1, query: $query, sortKey: NAME) {
+    edges {
+      cursor
+    }
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reversed: locations(first: 10, query: $query, sortKey: NAME, reverse: true) {
+    nodes {
+      id
+      name
+    }
+  }
+  filteredCount: locationsCount(query: $query) {
+    count
+    precision
+  }
+  limitedCount: locationsCount(query: $query, limit: 1) {
+    count
+    precision
+  }
+}

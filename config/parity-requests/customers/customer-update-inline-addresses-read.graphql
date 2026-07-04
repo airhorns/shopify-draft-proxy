@@ -1,0 +1,119 @@
+#graphql
+query CustomerUpdateInlineAddressesRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+  customer(id: $id) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    defaultAddress {
+      id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      company
+      country
+      countryCodeV2
+      province
+      provinceCode
+      zip
+      phone
+      name
+      formattedArea
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        company
+        country
+        countryCodeV2
+        province
+        provinceCode
+        zip
+        phone
+        name
+        formattedArea
+      }
+      edges {
+        cursor
+        node {
+          id
+          address1
+          city
+          zip
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    defaultAddress {
+      id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      company
+      country
+      countryCodeV2
+      province
+      provinceCode
+      zip
+      phone
+      name
+      formattedArea
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        company
+        country
+        countryCodeV2
+        province
+        provinceCode
+        zip
+        phone
+        name
+        formattedArea
+      }
+      edges {
+        cursor
+        node {
+          id
+          address1
+          city
+          zip
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

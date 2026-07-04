@@ -2910,6 +2910,27 @@ fn extend_publication_input_schema(schema: &mut AdminInputSchema) {
         "publicationDelete".to_string(),
         BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
     );
+    for root in ["publishablePublish", "publishableUnpublish"] {
+        schema.mutation_fields.insert(
+            root.to_string(),
+            BTreeMap::from([
+                ("id".to_string(), mutation_arg(non_null("ID"))),
+                (
+                    "input".to_string(),
+                    mutation_arg(non_null_list_of_non_null("PublicationInput")),
+                ),
+            ]),
+        );
+    }
+    for root in [
+        "publishablePublishToCurrentChannel",
+        "publishableUnpublishToCurrentChannel",
+    ] {
+        schema.mutation_fields.insert(
+            root.to_string(),
+            BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+        );
+    }
 }
 
 fn extend_saved_search_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
