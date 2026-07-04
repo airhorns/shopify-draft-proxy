@@ -1621,6 +1621,7 @@ fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
     let product_id = "gid://shopify/Product/1";
     let mut proxy =
         snapshot_proxy().with_base_products(vec![seeded_product(product_id, "Seed product")]);
+    restore_shop_currency(&mut proxy, "CAD");
     let variant = create_legacy_variant(&mut proxy, product_id, "DEFAULT", "1.00");
     let variant_id = variant["id"].as_str().unwrap().to_string();
 
@@ -1692,7 +1693,16 @@ fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
         query ReadSellingPlanMembership($groupId: ID!, $productId: ID!, $variantId: ID!) {
           sellingPlanGroup(id: $groupId) {
             id
-            products(first: 5) { nodes { id title } }
+            products(first: 5) {
+              nodes {
+                id
+                title
+                priceRangeV2 {
+                  minVariantPrice { amount currencyCode }
+                  maxVariantPrice { amount currencyCode }
+                }
+              }
+            }
             productVariants(first: 5) { nodes { id title } }
           }
           product(id: $productId) {
@@ -1717,8 +1727,22 @@ fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
 
     assert_eq!(read.status, 200);
     assert_eq!(
-        read.body["data"]["sellingPlanGroup"]["products"]["nodes"][0],
-        json!({ "id": product_id, "title": "Seed product" })
+        read.body["data"]["sellingPlanGroup"]["products"]["nodes"][0]["id"],
+        json!(product_id)
+    );
+    assert_eq!(
+        read.body["data"]["sellingPlanGroup"]["products"]["nodes"][0]["title"],
+        json!("Seed product")
+    );
+    assert_eq!(
+        read.body["data"]["sellingPlanGroup"]["products"]["nodes"][0]["priceRangeV2"]
+            ["minVariantPrice"]["currencyCode"],
+        json!("CAD")
+    );
+    assert_eq!(
+        read.body["data"]["sellingPlanGroup"]["products"]["nodes"][0]["priceRangeV2"]
+            ["maxVariantPrice"]["currencyCode"],
+        json!("CAD")
     );
     assert_eq!(
         read.body["data"]["product"]["sellingPlanGroupsCount"],

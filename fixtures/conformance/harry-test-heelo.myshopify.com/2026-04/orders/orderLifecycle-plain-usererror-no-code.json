@@ -1,0 +1,98 @@
+{
+  "capturedAt": "2026-07-02T23:06:24.456Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "liveGatewaySideEffects": false,
+  "rootAvailability": {
+    "mutations": ["orderClose", "orderMarkAsPaid", "orderOpen", "orderUpdate"]
+  },
+  "notes": "Validation-only GraphQL request. Selecting userErrors.code fails before resolver execution and does not create or mutate Shopify resources.",
+  "codeSelection": {
+    "query": "mutation OrderLifecyclePlainUserErrorNoCode(\n  $updateInput: OrderInput!\n  $closeInput: OrderCloseInput!\n  $openInput: OrderOpenInput!\n  $markAsPaidInput: OrderMarkAsPaidInput!\n) {\n  update: orderUpdate(input: $updateInput) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  close: orderClose(input: $closeInput) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  open: orderOpen(input: $openInput) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  markAsPaid: orderMarkAsPaid(input: $markAsPaidInput) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "request": {
+      "variables": {
+        "updateInput": {
+          "id": "gid://shopify/Order/999999999999"
+        },
+        "closeInput": {
+          "id": "gid://shopify/Order/999999999999"
+        },
+        "openInput": {
+          "id": "gid://shopify/Order/999999999999"
+        },
+        "markAsPaidInput": {
+          "id": "gid://shopify/Order/999999999999"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 14,
+                "column": 7
+              }
+            ],
+            "path": ["mutation OrderLifecyclePlainUserErrorNoCode", "update", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 24,
+                "column": 7
+              }
+            ],
+            "path": ["mutation OrderLifecyclePlainUserErrorNoCode", "close", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 34,
+                "column": 7
+              }
+            ],
+            "path": ["mutation OrderLifecyclePlainUserErrorNoCode", "open", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 44,
+                "column": 7
+              }
+            ],
+            "path": ["mutation OrderLifecyclePlainUserErrorNoCode", "markAsPaid", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

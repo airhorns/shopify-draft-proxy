@@ -184,10 +184,12 @@ fn data_sale_opt_out_valid_email(email: &str) -> bool {
     let Some((local, domain)) = email.split_once('@') else {
         return false;
     };
-    // Approximate Shopify Core's
-    // areas/core/shopify/components/platform/essentials/app/validators/email_address_validator.rb
-    // EmailAddress#strict_regexp: RFC-ish dot-atom local part plus host-label/TLD
-    // domain validation after dataSaleOptOut's observed whitespace stripping.
+    // Mirrors Shopify Core's
+    // components/platform/essentials/app/validators/email_address_validator.rb
+    // EmailAddress#strict_regexp sub-rules (`atom_char`, `local_part_pattern`,
+    // `tld_label_pattern`) after dataSaleOptOut's observed whitespace stripping.
+    // Core uses Unicode-aware POSIX `alpha`/`alnum` classes, so use Rust char
+    // classifications here instead of ASCII byte predicates.
     !domain.contains('@')
         && data_sale_opt_out_valid_local_part(local)
         && data_sale_opt_out_valid_domain(domain)
@@ -195,16 +197,17 @@ fn data_sale_opt_out_valid_email(email: &str) -> bool {
 
 fn data_sale_opt_out_valid_local_part(local: &str) -> bool {
     !local.is_empty()
+        && local.chars().count() <= 128
         && !local.starts_with('.')
         && !local.ends_with('.')
         && !local.contains("..")
         && local
             .split('.')
-            .all(|atom| !atom.is_empty() && atom.bytes().all(data_sale_opt_out_valid_atom_byte))
+            .all(|atom| !atom.is_empty() && atom.chars().all(data_sale_opt_out_valid_atom_char))
 }
 
-fn data_sale_opt_out_valid_atom_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || b"!#$%&'*+-/=?^_`{|}~".contains(&byte)
+fn data_sale_opt_out_valid_atom_char(character: char) -> bool {
+    character.is_alphanumeric() || "!\"#$%&'*+-/=?^_`{|}~".contains(character)
 }
 
 fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
@@ -221,16 +224,15 @@ fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
     };
     labels.len() >= 2
         && labels.iter().all(|label| {
-            let bytes = label.as_bytes();
-            !bytes.is_empty()
-                && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
-                && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
-                && bytes
-                    .iter()
-                    .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+            !label.is_empty()
+                && label.chars().next().is_some_and(char::is_alphanumeric)
+                && label.chars().last().is_some_and(char::is_alphanumeric)
+                && label
+                    .chars()
+                    .all(|character| character.is_alphanumeric() || character == '-')
         })
-        && tld.len() >= 2
-        && tld.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+        && (1..=64).contains(&tld.chars().count())
+        && tld.chars().all(char::is_alphabetic)
 }
 
 fn data_sale_opt_out_customer_defaults(id: &str, email: &str) -> Value {

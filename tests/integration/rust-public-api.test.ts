@@ -8,10 +8,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
 
 describe('public TS API Rust runtime', () => {
-  it('does not import Gleam-emitted build artifacts from the public runtime shim', () => {
+  it('does not import removed generated build artifacts from the public runtime shim', () => {
     const runtimeSource = readFileSync(resolve(repoRoot, 'js/src/runtime.ts'), 'utf8');
     expect(runtimeSource).not.toContain('build/dev/javascript');
-    expect(runtimeSource).not.toContain('GleamDraftProxy');
   });
 
   it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {

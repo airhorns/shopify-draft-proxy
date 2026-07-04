@@ -1,0 +1,237 @@
+{
+  "setup": {
+    "seededCustomers": false,
+    "note": "Strict-format residual capture. Rejected branches require no setup; the quoted local atom success creates a disposable opted-out customer and deletes it during cleanup."
+  },
+  "mutation": {
+    "variables": {
+      "email": "foo@bar.co2"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Data sale opt out failed.",
+              "code": "FAILED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "residualFormats": {
+      "digitTld": {
+        "variables": {
+          "email": "foo@bar.co2"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "digitInTld": {
+        "variables": {
+          "email": "user@example.c0m"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "hyphenInTld": {
+        "variables": {
+          "email": "user@example.c-o"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "localOver128": {
+        "variables": {
+          "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@e.co"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Data sale opt out failed.",
+                  "code": "FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "quotedLocalAtom": {
+        "variables": {
+          "email": "ab\"cd@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": "gid://shopify/Customer/10886319538482",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "quotedLocalAtomCustomer": {
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10886319538482",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "ab\"cd@example.com"
+        }
+      },
+      "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {\n  customerByIdentifier(identifier: $identifier) {\n    id\n    email\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

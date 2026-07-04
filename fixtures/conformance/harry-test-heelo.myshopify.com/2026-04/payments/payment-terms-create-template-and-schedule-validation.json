@@ -1,7 +1,8 @@
 {
-  "capturedAt": "2026-05-05T16:40:55.630Z",
+  "capturedAt": "2026-07-04T01:09:53.839Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
+  "upstreamCalls": [],
   "templates": {
     "query": "#graphql\n  query PaymentTermsTemplatesRead($type: PaymentTermsType) {\n    all: paymentTermsTemplates {\n      id\n      name\n      description\n      dueInDays\n      paymentTermsType\n      translatedName\n    }\n    filtered: paymentTermsTemplates(paymentTermsType: $type) {\n      id\n      name\n      description\n      dueInDays\n      paymentTermsType\n      translatedName\n    }\n  }\n",
     "variables": {
@@ -155,7 +156,7 @@
           "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
           "variables": {
             "input": {
-              "email": "har674-payment-terms-unknownTemplate-1777999251622@example.com",
+              "email": "har674-payment-terms-unknownTemplate-1783127389617@example.com",
               "lineItems": [
                 {
                   "title": "HAR-674 payment terms unknownTemplate",
@@ -169,8 +170,8 @@
             "data": {
               "draftOrderCreate": {
                 "draftOrder": {
-                  "id": "gid://shopify/DraftOrder/1250609529138",
-                  "name": "#D86"
+                  "id": "gid://shopify/DraftOrder/1275258601778",
+                  "name": "#D285"
                 },
                 "userErrors": []
               }
@@ -191,7 +192,7 @@
       },
       "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "referenceId": "gid://shopify/DraftOrder/1250609529138",
+        "referenceId": "gid://shopify/DraftOrder/1275258601778",
         "attrs": {
           "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
           "paymentSchedules": [
@@ -230,7 +231,7 @@
         "draftOrderDelete": {
           "data": {
             "draftOrderDelete": {
-              "deletedId": "gid://shopify/DraftOrder/1250609529138",
+              "deletedId": "gid://shopify/DraftOrder/1275258601778",
               "userErrors": []
             }
           },
@@ -255,7 +256,7 @@
           "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
           "variables": {
             "input": {
-              "email": "har674-payment-terms-fixedMissingDueAt-1777999251622@example.com",
+              "email": "har674-payment-terms-fixedMissingDueAt-1783127389617@example.com",
               "lineItems": [
                 {
                   "title": "HAR-674 payment terms fixedMissingDueAt",
@@ -269,8 +270,8 @@
             "data": {
               "draftOrderCreate": {
                 "draftOrder": {
-                  "id": "gid://shopify/DraftOrder/1250609561906",
-                  "name": "#D87"
+                  "id": "gid://shopify/DraftOrder/1275258634546",
+                  "name": "#D286"
                 },
                 "userErrors": []
               }
@@ -291,7 +292,7 @@
       },
       "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "referenceId": "gid://shopify/DraftOrder/1250609561906",
+        "referenceId": "gid://shopify/DraftOrder/1275258634546",
         "attrs": {
           "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
           "paymentSchedules": [{}]
@@ -326,7 +327,7 @@
         "draftOrderDelete": {
           "data": {
             "draftOrderDelete": {
-              "deletedId": "gid://shopify/DraftOrder/1250609561906",
+              "deletedId": "gid://shopify/DraftOrder/1275258634546",
               "userErrors": []
             }
           },
@@ -345,13 +346,13 @@
       }
     },
     "receiptExtraIssuedAt": {
-      "purpose": "RECEIPT template rejects supplied issuedAt.",
+      "purpose": "RECEIPT template accepts supplied issuedAt and returns no schedule nodes.",
       "setup": {
         "draftOrderCreate": {
           "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
           "variables": {
             "input": {
-              "email": "har674-payment-terms-receiptExtraIssuedAt-1777999251622@example.com",
+              "email": "har674-payment-terms-receiptExtraIssuedAt-1783127389617@example.com",
               "lineItems": [
                 {
                   "title": "HAR-674 payment terms receiptExtraIssuedAt",
@@ -365,8 +366,8 @@
             "data": {
               "draftOrderCreate": {
                 "draftOrder": {
-                  "id": "gid://shopify/DraftOrder/1250609594674",
-                  "name": "#D88"
+                  "id": "gid://shopify/DraftOrder/1275258667314",
+                  "name": "#D287"
                 },
                 "userErrors": []
               }
@@ -387,7 +388,7 @@
       },
       "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "referenceId": "gid://shopify/DraftOrder/1250609594674",
+        "referenceId": "gid://shopify/DraftOrder/1275258667314",
         "attrs": {
           "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
           "paymentSchedules": [
@@ -401,7 +402,7 @@
         "data": {
           "paymentTermsCreate": {
             "paymentTerms": {
-              "id": "gid://shopify/PaymentTerms/145683480882",
+              "id": "gid://shopify/PaymentTerms/160718913842",
               "due": false,
               "overdue": false,
               "dueInDays": null,
@@ -437,7 +438,7 @@
         "paymentTermsDelete": {
           "data": {
             "paymentTermsDelete": {
-              "deletedId": "gid://shopify/PaymentTerms/145683480882",
+              "deletedId": "gid://shopify/PaymentTerms/160718913842",
               "userErrors": []
             }
           },
@@ -456,7 +457,7 @@
         "draftOrderDelete": {
           "data": {
             "draftOrderDelete": {
-              "deletedId": "gid://shopify/DraftOrder/1250609594674",
+              "deletedId": "gid://shopify/DraftOrder/1275258667314",
               "userErrors": []
             }
           },
@@ -481,7 +482,7 @@
           "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
           "variables": {
             "input": {
-              "email": "har674-payment-terms-receiptExtraDueAt-1777999251622@example.com",
+              "email": "har674-payment-terms-receiptExtraDueAt-1783127389617@example.com",
               "lineItems": [
                 {
                   "title": "HAR-674 payment terms receiptExtraDueAt",
@@ -495,8 +496,8 @@
             "data": {
               "draftOrderCreate": {
                 "draftOrder": {
-                  "id": "gid://shopify/DraftOrder/1250609627442",
-                  "name": "#D89"
+                  "id": "gid://shopify/DraftOrder/1275258700082",
+                  "name": "#D288"
                 },
                 "userErrors": []
               }
@@ -517,7 +518,7 @@
       },
       "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "referenceId": "gid://shopify/DraftOrder/1250609627442",
+        "referenceId": "gid://shopify/DraftOrder/1275258700082",
         "attrs": {
           "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
           "paymentSchedules": [
@@ -556,7 +557,7 @@
         "draftOrderDelete": {
           "data": {
             "draftOrderDelete": {
-              "deletedId": "gid://shopify/DraftOrder/1250609627442",
+              "deletedId": "gid://shopify/DraftOrder/1275258700082",
               "userErrors": []
             }
           },
@@ -574,17 +575,17 @@
         }
       }
     },
-    "happyPath": {
-      "purpose": "Sanity success path; primary lifecycle parity reuses the existing payment-terms lifecycle cassette.",
+    "fulfillmentExtraDueAt": {
+      "purpose": "FULFILLMENT template rejects supplied dueAt.",
       "setup": {
         "draftOrderCreate": {
           "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
           "variables": {
             "input": {
-              "email": "har674-payment-terms-happyPath-1777999251622@example.com",
+              "email": "har674-payment-terms-fulfillmentExtraDueAt-1783127389617@example.com",
               "lineItems": [
                 {
-                  "title": "HAR-674 payment terms happyPath",
+                  "title": "HAR-674 payment terms fulfillmentExtraDueAt",
                   "quantity": 1,
                   "originalUnitPrice": "18.50"
                 }
@@ -595,8 +596,8 @@
             "data": {
               "draftOrderCreate": {
                 "draftOrder": {
-                  "id": "gid://shopify/DraftOrder/1250609660210",
-                  "name": "#D90"
+                  "id": "gid://shopify/DraftOrder/1275258732850",
+                  "name": "#D289"
                 },
                 "userErrors": []
               }
@@ -617,7 +618,107 @@
       },
       "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "referenceId": "gid://shopify/DraftOrder/1250609660210",
+        "referenceId": "gid://shopify/DraftOrder/1275258732850",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9",
+          "paymentSchedules": [
+            {
+              "dueAt": "2026-01-01T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "A due date cannot be set with event payment terms.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "draftOrderDelete": {
+          "data": {
+            "draftOrderDelete": {
+              "deletedId": "gid://shopify/DraftOrder/1275258732850",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "happyPath": {
+      "purpose": "Sanity success path; primary lifecycle parity reuses the existing payment-terms lifecycle cassette.",
+      "setup": {
+        "draftOrderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsValidationDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "email": "har674-payment-terms-happyPath-1783127389617@example.com",
+              "lineItems": [
+                {
+                  "title": "HAR-674 payment terms happyPath",
+                  "quantity": 1,
+                  "originalUnitPrice": "18.50"
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1275258765618",
+                  "name": "#D290"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation PaymentTermsValidationCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1275258765618",
         "attrs": {
           "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
           "paymentSchedules": [
@@ -631,7 +732,7 @@
         "data": {
           "paymentTermsCreate": {
             "paymentTerms": {
-              "id": "gid://shopify/PaymentTerms/145683513650",
+              "id": "gid://shopify/PaymentTerms/160718946610",
               "due": true,
               "overdue": true,
               "dueInDays": 30,
@@ -641,7 +742,7 @@
               "paymentSchedules": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/PaymentSchedule/177775837490",
+                    "id": "gid://shopify/PaymentSchedule/201404776754",
                     "issuedAt": "2026-01-01T00:00:00Z",
                     "dueAt": "2026-01-31T00:00:00Z",
                     "completedAt": null,
@@ -663,8 +764,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxNzc3NzU4Mzc0OTAsImxhc3RfdmFsdWUiOjE3Nzc3NTgzNzQ5MH0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxNzc3NzU4Mzc0OTAsImxhc3RfdmFsdWUiOjE3Nzc3NTgzNzQ5MH0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMDE0MDQ3NzY3NTQsImxhc3RfdmFsdWUiOjIwMTQwNDc3Njc1NH0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMDE0MDQ3NzY3NTQsImxhc3RfdmFsdWUiOjIwMTQwNDc3Njc1NH0="
                 }
               }
             },
@@ -687,7 +788,7 @@
         "paymentTermsDelete": {
           "data": {
             "paymentTermsDelete": {
-              "deletedId": "gid://shopify/PaymentTerms/145683513650",
+              "deletedId": "gid://shopify/PaymentTerms/160718946610",
               "userErrors": []
             }
           },
@@ -706,7 +807,7 @@
         "draftOrderDelete": {
           "data": {
             "draftOrderDelete": {
-              "deletedId": "gid://shopify/DraftOrder/1250609660210",
+              "deletedId": "gid://shopify/DraftOrder/1275258765618",
               "userErrors": []
             }
           },
@@ -725,6 +826,5 @@
       }
     }
   },
-  "notes": "Captured on disposable draft orders. Validation cases assert Shopify paymentTermsCreate userErrors for unknown template ids and template/schedule mismatches; the happy path is retained as a sanity capture while executable lifecycle parity continues to cover success behavior.",
-  "upstreamCalls": []
+  "notes": "Captured on disposable draft orders. Validation cases assert Shopify paymentTermsCreate userErrors for unknown template ids and template/schedule mismatches, including event-template dueAt rejection for RECEIPT and FULFILLMENT; the happy path is retained as a sanity capture while executable lifecycle parity continues to cover success behavior."
 }

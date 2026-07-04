@@ -1,0 +1,81 @@
+{
+  "scenarioId": "segment-create-name-failure-short-circuits-query-grammar",
+  "operationNames": ["segmentCreate", "segmentUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-name-failure-short-circuits-query-grammar.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence that segmentCreate and segmentUpdate run Change-level name/query presence and length validation before CDP query grammar validation. Invalid grammar is not reported when the name fails presence or length validation; query blank/too-long remains a Change-level error.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-blank-name-invalid-query",
+        "capturePath": "$.cases[0].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate"
+      },
+      {
+        "name": "segment-create-long-name-invalid-query",
+        "capturePath": "$.cases[1].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      },
+      {
+        "name": "segment-create-blank-name-and-query",
+        "capturePath": "$.cases[2].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-setup",
+        "capturePath": "$.cases[3].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-blank-name-invalid-query",
+        "capturePath": "$.cases[4].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-name-query-validation-order.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "name": {
+              "fromCapturePath": "$.cases[4].request.variables.name"
+            },
+            "query": {
+              "fromCapturePath": "$.cases[4].request.variables.query"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

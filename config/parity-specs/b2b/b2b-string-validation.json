@@ -1,6 +1,13 @@
 {
   "scenarioId": "b2b-string-validation",
-  "operationNames": ["company", "companyCreate", "companyUpdate", "companyLocationCreate", "companyLocationUpdate"],
+  "operationNames": [
+    "company",
+    "companyCreate",
+    "companyUpdate",
+    "companyContactCreate",
+    "companyLocationCreate",
+    "companyLocationUpdate"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-string-validation.json"],
@@ -10,8 +17,8 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "Executable parity coverage for B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, companyLocationCreate long name, explicit blank name rejection on companyCreate, companyUpdate, and companyLocationUpdate, plus the captured fallback behavior for explicit blank companyLocation create inputs. The same capture records probe-only mismatches where live Admin currently accepts HTML in company notes/contact titles and accepts 300-character contact titles, so those branches remain covered by runtime tests instead of misleading parity specs.",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, companyLocationCreate long name, explicit blank name rejection on companyCreate, companyUpdate, and companyLocationUpdate, success for companyUpdate note HTML, success for companyContactCreate title HTML and 300-character titles, plus the captured fallback behavior for explicit blank companyLocation create inputs. The same capture records that live Admin currently ignores HTML in company notes/contact titles while still enforcing note length.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -106,6 +113,95 @@
           },
           "apiVersion": "2026-04"
         }
+      },
+      {
+        "name": "company-update-html-note-success",
+        "capturePath": "$.companyUpdateHtmlNote.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateHtmlNote.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          }
+        ]
+      },
+      {
+        "name": "company-update-html-too-long-note-user-errors",
+        "capturePath": "$.companyUpdateHtmlAndTooLongNote.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateHtmlAndTooLongNote.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "contact-create-long-title-success",
+        "capturePath": "$.contactCreateLongTitle.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-contact-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactCreateLongTitle.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable company contact IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-create-html-title-success",
+        "capturePath": "$.contactCreateHtmlTitle.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-contact-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactCreateHtmlTitle.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable company contact IDs."
+          }
+        ]
       },
       {
         "name": "location-create-long-name-user-errors",

@@ -1,11 +1,11 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-06T23:12:08.800Z",
+  "capturedAt": "2026-07-03T23:45:09.537Z",
   "variables": {
-    "namespace": "validations_input_mouo9jo2",
-    "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17912365362",
-    "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/17912398130"
+    "namespace": "validations_input_mr5kzeoc",
+    "targetDefinitionId": "gid://shopify/MetaobjectDefinition/19581960498",
+    "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/19581993266"
   },
   "setup": {
     "target": {
@@ -13,8 +13,8 @@
         "query": "#graphql\n  mutation CreateMetaobjectDefinitionForMetafieldValidation($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "validations_input_target_mouo9jo2",
-            "name": "Validation Target mouo9jo2",
+            "type": "validations_input_target_mr5kzeoc",
+            "name": "Validation Target mr5kzeoc",
             "fieldDefinitions": [
               {
                 "key": "title",
@@ -30,8 +30,8 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17912365362",
-              "type": "validations_input_target_mouo9jo2"
+              "id": "gid://shopify/MetaobjectDefinition/19581960498",
+              "type": "validations_input_target_mr5kzeoc"
             },
             "userErrors": []
           }
@@ -54,8 +54,8 @@
         "query": "#graphql\n  mutation CreateMetaobjectDefinitionForMetafieldValidation($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "validations_input_replacement_mouo9jo2",
-            "name": "Validation Replacement mouo9jo2",
+            "type": "validations_input_replacement_mr5kzeoc",
+            "name": "Validation Replacement mr5kzeoc",
             "fieldDefinitions": [
               {
                 "key": "title",
@@ -71,8 +71,8 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17912398130",
-              "type": "validations_input_replacement_mouo9jo2"
+              "id": "gid://shopify/MetaobjectDefinition/19581993266",
+              "type": "validations_input_replacement_mr5kzeoc"
             },
             "userErrors": []
           }
@@ -93,22 +93,32 @@
   },
   "primary": {
     "request": {
-      "query": "mutation MetafieldDefinitionValidationsInput(\n  $namespace: String!\n  $targetDefinitionId: String!\n  $replacementDefinitionId: String!\n) {\n  unknown: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unknown validation option\"\n      namespace: $namespace\n      key: \"unknown\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"totally_unknown_option\", value: \"x\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicate: metafieldDefinitionCreate(\n    definition: {\n      name: \"Duplicate validation option\"\n      namespace: $namespace\n      key: \"duplicate\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"5\" }, { name: \"min\", value: \"10\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  badNumber: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid number validation\"\n      namespace: $namespace\n      key: \"bad_number\"\n      ownerType: PRODUCT\n      type: \"number_integer\"\n      validations: [{ name: \"min\", value: \"not-a-number\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  minMax: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid min max validation\"\n      namespace: $namespace\n      key: \"min_max\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"10\" }, { name: \"max\", value: \"5\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  metaobjectRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing metaobject validation\"\n      namespace: $namespace\n      key: \"metaobject_required\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: []\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  ratingRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing rating validation\"\n      namespace: $namespace\n      key: \"rating_required\"\n      ownerType: PRODUCT\n      type: \"rating\"\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createMetaobjectReference: metafieldDefinitionCreate(\n    definition: {\n      name: \"Metaobject reference\"\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: [{ name: \"metaobject_definition_id\", value: $targetDefinitionId }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateMetaobjectReference: metafieldDefinitionUpdate(\n    definition: {\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      validations: [{ name: \"metaobject_definition_id\", value: $replacementDefinitionId }]\n    }\n  ) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
+      "query": "mutation MetafieldDefinitionValidationsInput(\n  $namespace: String!\n  $targetDefinitionId: String!\n  $replacementDefinitionId: String!\n) {\n  textUnsupportedOption: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unsupported text validation option\"\n      namespace: $namespace\n      key: \"text_unsupported_option\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"scale_max\", value: \"5\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  booleanUnsupportedOption: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unsupported boolean validation option\"\n      namespace: $namespace\n      key: \"boolean_unsupported_option\"\n      ownerType: PRODUCT\n      type: \"boolean\"\n      validations: [{ name: \"max\", value: \"1\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicate: metafieldDefinitionCreate(\n    definition: {\n      name: \"Duplicate validation option\"\n      namespace: $namespace\n      key: \"duplicate\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"5\" }, { name: \"min\", value: \"10\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  badNumber: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid number validation\"\n      namespace: $namespace\n      key: \"bad_number\"\n      ownerType: PRODUCT\n      type: \"number_integer\"\n      validations: [{ name: \"min\", value: \"not-a-number\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  minMax: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid min max validation\"\n      namespace: $namespace\n      key: \"min_max\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"10\" }, { name: \"max\", value: \"5\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  metaobjectRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing metaobject validation\"\n      namespace: $namespace\n      key: \"metaobject_required\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: []\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  ratingRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing rating validation\"\n      namespace: $namespace\n      key: \"rating_required\"\n      ownerType: PRODUCT\n      type: \"rating\"\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createMetaobjectReference: metafieldDefinitionCreate(\n    definition: {\n      name: \"Metaobject reference\"\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: [{ name: \"metaobject_definition_id\", value: $targetDefinitionId }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateMetaobjectReference: metafieldDefinitionUpdate(\n    definition: {\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      validations: [{ name: \"metaobject_definition_id\", value: $replacementDefinitionId }]\n    }\n  ) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
       "variables": {
-        "namespace": "validations_input_mouo9jo2",
-        "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17912365362",
-        "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/17912398130"
+        "namespace": "validations_input_mr5kzeoc",
+        "targetDefinitionId": "gid://shopify/MetaobjectDefinition/19581960498",
+        "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/19581993266"
       }
     },
     "status": 200,
     "response": {
       "data": {
-        "unknown": {
+        "textUnsupportedOption": {
           "createdDefinition": null,
           "userErrors": [
             {
               "field": ["definition", "validations"],
-              "message": "Validations value for option totally_unknown_option contains an invalid value: 'totally_unknown_option' isn't supported for single_line_text_field.",
+              "message": "Validations value for option scale_max contains an invalid value: 'scale_max' isn't supported for single_line_text_field.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "booleanUnsupportedOption": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option max contains an invalid value: 'max' isn't supported for boolean.",
               "code": "INVALID_OPTION"
             }
           ]
@@ -170,13 +180,13 @@
         },
         "createMetaobjectReference": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/207074525490",
-            "namespace": "validations_input_mouo9jo2",
+            "id": "gid://shopify/MetafieldDefinition/223103222066",
+            "namespace": "validations_input_mr5kzeoc",
             "key": "metaobject_reference",
             "validations": [
               {
                 "name": "metaobject_definition_id",
-                "value": "gid://shopify/MetaobjectDefinition/17912365362"
+                "value": "gid://shopify/MetaobjectDefinition/19581960498"
               }
             ],
             "pinnedPosition": null
@@ -197,11 +207,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 88,
-          "actualQueryCost": 81,
+          "requestedQueryCost": 99,
+          "actualQueryCost": 91,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1919,
+            "currentlyAvailable": 1909,
             "restoreRate": 100
           }
         }
@@ -213,14 +223,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetafieldDefinitionForValidationInput($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/207074525490"
+          "id": "gid://shopify/MetafieldDefinition/223103222066"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207074525490",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/223103222066",
             "userErrors": []
           }
         },
@@ -230,7 +240,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1934,
+              "currentlyAvailable": 1927,
               "restoreRate": 100
             }
           }
@@ -241,14 +251,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinitionForMetafieldValidation($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17912365362"
+          "id": "gid://shopify/MetaobjectDefinition/19581960498"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17912365362",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19581960498",
             "userErrors": []
           }
         },
@@ -258,7 +268,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1939,
+              "currentlyAvailable": 1933,
               "restoreRate": 100
             }
           }
@@ -269,14 +279,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinitionForMetafieldValidation($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17912398130"
+          "id": "gid://shopify/MetaobjectDefinition/19581993266"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17912398130",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19581993266",
             "userErrors": []
           }
         },
@@ -286,7 +296,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1943,
+              "currentlyAvailable": 1936,
               "restoreRate": 100
             }
           }

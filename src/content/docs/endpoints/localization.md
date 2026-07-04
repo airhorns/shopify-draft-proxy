@@ -34,7 +34,7 @@ The registry-only mutation roots are:
 ### Local behavior
 
 The Rust runtime has a store-backed locale-catalog slice plus scenario-backed
-translation branches for ported parity requests and runtime tests.
+translation branches for parity requests and runtime tests.
 `availableLocales` and `shopLocales` project from the proxy store's baseline
 locale state plus staged shop-locale rows; plain catalog reads are not selected
 by document name. The runtime stages selected `shopLocaleEnable`,
@@ -65,8 +65,8 @@ enable/update/disable effects are merged with that baseline for subsequent
 `shopLocales` reads.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
-ported product, collection, product-metafield, and market-scoped translation
-scenarios. For Product resource IDs, the local slice validates existence against
+product, collection, product-metafield, and market-scoped translation scenarios.
+For Product resource IDs, the local slice validates existence against
 known localization Product resources plus normalized product state before
 applying translation-specific validation; unknown Product GIDs return
 `RESOURCE_NOT_FOUND` with `field: ["resourceId"]` and `translations: null`. The
@@ -82,20 +82,27 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value in the `translationsRegister` echo and in downstream
 `translatableResource(...).translations` reads; re-registering an existing row
 refreshes that timestamp. `translationsRemove` removes every requested
-translation-key/locale/market combination that exists in staged state.
+translation-key/locale/market combination that exists in staged state. An empty
+`translationKeys` list matches no rows and returns Shopify's no-op
+`translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
-digest validation; the market-scoped value-matches-base-translation check runs
-before digest validation, so the local first `userErrors` entry follows that
-precedence. Captured Shopify behavior accepts a market-scoped value matching the
-source content when no shop-level translation exists for that locale/key.
+digest validation, and market existence wins before locale enablement or
+primary-locale validation when a row violates both. The market-scoped
+value-matches-base-translation check runs before digest validation, so the local
+first `userErrors` entry follows that precedence. Captured Shopify behavior
+accepts a market-scoped value matching the source content when no shop-level
+translation exists for that locale/key.
 Market-scoped `translationsRegister` checks market existence from store state or
 upstream hydration and limits market-customizable translation keys to modeled
 resource/key pairs. Modeled Product keys include `title`, `body_html`, and
 `product_type`; modeled Collection keys include `title` and `body_html`.
 Unmodeled market-custom resources such as `PackingSlipTemplate.body` return
-`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. `translationsRemove` with an unknown
-market ID follows the captured Shopify no-op shape without staging removals.
+`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. Missing Product or Collection IDs, and
+resource types the proxy cannot resolve locally such as absent `Menu` IDs,
+return `RESOURCE_NOT_FOUND` on `translationsRegister` and `translationsRemove`
+before staging any translation rows. `translationsRemove` with an unknown market
+ID follows the captured Shopify no-op shape without staging removals.
 
 For modeled Product resources, `translatableResource`,
 `translatableResources`, and `translatableResourcesByIds` project
@@ -106,9 +113,14 @@ body HTML / SEO source fields, with Shopify key names such as `body_html`,
 shop primary locale, the modeled `LocalizableContentType`, the source value, and
 `sha256(value)` as the digest. The digest emitted by these reads is accepted by
 the local `translationsRegister(translatableContentDigest:)` guard for the same
-resource and key. Modeled Collection resources use the same source-backed
-projection for title, handle, body HTML, and SEO fields that exist in local
-state.
+resource and key. Digest validation compares against known source content only;
+when a resource/key has not been hydrated with source content, the proxy does
+not reject a row by digest prefix or other synthetic sentinel. Modeled
+Collection resources use the same source-backed projection for title, handle,
+body HTML, and SEO fields that exist in local state.
+Unknown or omitted singular `translatableResource` IDs return `null`, and
+empty `translatableResources` connections remain empty instead of fabricating a
+default resource ID.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has
@@ -117,10 +129,10 @@ cleanly.
 
 ### Boundaries
 
-- Localization roots are handled locally for the ported request families and are
+- Localization roots are handled locally for the modeled request families and are
   marked `implemented` in the operation registry (i.e. they answer locally rather
   than 501), but that flag is not a broad-support claim: documents outside the
-  ported request families fall through to passthrough and must not be treated as
+  modeled request families fall through to passthrough and must not be treated as
   supported local behavior.
 - `TranslatableResource` support is limited to product, collection, and
   product-metafield evidence. Product existence checks use localization baseline
@@ -137,25 +149,3 @@ cleanly.
 - Supported mutation slices stage locally and do not update Shopify at runtime;
   unmatched unsupported mutation documents follow the configured unsupported
   path.
-
-### Evidence
-
-- Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes.rs`, including store-backed
-  `availableLocales` / `shopLocales` catalog reads without ported document-name
-  markers
-- Product translatable-content parity:
-  `config/parity-specs/localization/localization-translatable-content-product.json`
-- Shop-locale plain `UserError` parity:
-  `config/parity-specs/localization/localization-shop-locale-usererror-no-code.json`
-- Parity specs: `config/parity-specs/localization/*.json`
-- Market-scoped translation parity:
-  `config/parity-specs/localization/localization-translations-market-scoped.json`
-- Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
-
-### Validation
-
-- `corepack pnpm lint`
-- `corepack pnpm parity -- --spec config/parity-specs/localization/localization-translatable-content-product.json`
-- `corepack pnpm parity -- localization-translations-market-scoped`
-- `corepack pnpm rust:test`

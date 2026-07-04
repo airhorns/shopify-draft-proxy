@@ -196,8 +196,8 @@ fn metaobject_definition_record(
         "displayNameKey": display_name_key,
         "access": metaobject_definition_access(input, meta_type),
         "capabilities": metaobject_definition_capabilities(input),
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": 0,
         "standardTemplate": Value::Null,
         "createdAt": "2024-01-01T00:00:00.000Z",
@@ -206,6 +206,12 @@ fn metaobject_definition_record(
 }
 
 fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
+    if let Some(definition) = record
+        .get("definition")
+        .filter(|definition| definition.is_object())
+    {
+        return Some(definition.clone());
+    }
     let meta_type = record.get("type").and_then(Value::as_str)?;
     let field_definitions = record["fields"]
         .as_array()
@@ -236,15 +242,15 @@ fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
         "name": metaobject_field_name(meta_type),
         "description": Value::Null,
         "displayNameKey": display_name_key,
-        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "access": Value::Null,
         "capabilities": {
             "publishable": {"enabled": !record["capabilities"]["publishable"].is_null()},
             "onlineStore": {"enabled": !record["capabilities"]["onlineStore"].is_null(), "data": Value::Null},
             "renderable": {"enabled": false},
             "translatable": {"enabled": false}
         },
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": Value::Null,
         "standardTemplate": Value::Null,
         "createdAt": Value::Null,
@@ -267,6 +273,12 @@ fn metaobject_definition_access(input: &BTreeMap<String, ResolvedValue>, meta_ty
         "storefront": resolved_string_field(&access, "storefront").unwrap_or_else(|| "NONE".to_string()),
         "customerAccount": resolved_string_field(&access, "customerAccount").unwrap_or_else(|| "NONE".to_string())
     })
+}
+
+fn metaobject_definition_has_thumbnail_field(field_definitions: &[Value]) -> bool {
+    field_definitions
+        .iter()
+        .any(|field| field["type"]["name"].as_str() == Some("file_reference"))
 }
 
 fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -391,13 +403,29 @@ fn resolved_metaobject_definition_type_arg(
 
 fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String {
     let resolved = if let Some(suffix) = raw.strip_prefix("$app:") {
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "347082227713".to_string());
-        format!("app--{api_client_id}--{suffix}")
+        request_app_namespace_api_client_id(request)
+            .map(|api_client_id| format!("app--{api_client_id}--{suffix}"))
+            .unwrap_or_else(|| raw.to_string())
     } else {
         raw.to_string()
     };
     resolved.to_lowercase()
+}
+
+fn metaobject_definition_type_identity_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    request: &Request,
+) -> Option<Value> {
+    let raw_type = resolved_string_field(input, "type")?;
+    (raw_type.starts_with("$app:") && request_app_namespace_api_client_id(request).is_none()).then(
+        || {
+            metaobject_field_error(
+                vec!["definition", "type"],
+                APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+                "NOT_AUTHORIZED",
+            )
+        },
+    )
 }
 
 const MIN_FIELD_KEY_LENGTH: usize = 2;
@@ -560,6 +588,14 @@ fn metaobject_definition_create_validation_errors(
                     metafield_definition_valid_type_message()
                 ),
                 "INCLUSION",
+                json!(key),
+                Value::Null,
+            ));
+        } else if metafield_definition_type_is_standard_definition_only(&field_type) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                metafield_definition_standard_only_type_message(),
+                "INVALID",
                 json!(key),
                 Value::Null,
             ));
@@ -1009,6 +1045,7 @@ fn apply_metaobject_definition_field_operations(
                 .unwrap_or(usize::MAX)
         });
     }
+    definition["hasThumbnailField"] = json!(metaobject_definition_has_thumbnail_field(&fields));
     definition["fieldDefinitions"] = json!(fields);
 }
 
@@ -2487,6 +2524,226 @@ pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
     )
 }
 
+fn metaobject_string_value(record: &Value, field: &str) -> String {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn metaobject_normalized_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(metaobject_string_value(record, field).to_ascii_lowercase())
+}
+
+fn metaobject_id_sort_value(record: &Value) -> StagedSortValue {
+    let tail = record
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let sort_key = sort_key
+        .unwrap_or("id")
+        .replace('-', "_")
+        .to_ascii_lowercase();
+    let primary = match sort_key.as_str() {
+        "display_name" | "displayname" => metaobject_normalized_sort_value(record, "displayName"),
+        "type" => metaobject_normalized_sort_value(record, "type"),
+        "updated_at" | "updatedat" => StagedSortValue::String(
+            metaobject_string_value(record, "updatedAt").to_ascii_lowercase(),
+        ),
+        "id" => metaobject_id_sort_value(record),
+        _ => metaobject_id_sort_value(record),
+    };
+    vec![primary, metaobject_id_sort_value(record)]
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MetaobjectSearchOperator {
+    Eq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+}
+
+fn metaobject_search_value(raw_value: &str) -> (MetaobjectSearchOperator, String) {
+    let value = raw_value.trim().trim_matches('"').trim_matches('\'');
+    if let Some(value) = value.strip_prefix(">=") {
+        (MetaobjectSearchOperator::Gte, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix('>') {
+        (MetaobjectSearchOperator::Gt, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix("<=") {
+        (MetaobjectSearchOperator::Lte, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix('<') {
+        (MetaobjectSearchOperator::Lt, value.trim().to_string())
+    } else {
+        (MetaobjectSearchOperator::Eq, value.to_string())
+    }
+}
+
+fn metaobject_compare_order<T: Ord>(
+    actual: T,
+    expected: T,
+    operator: MetaobjectSearchOperator,
+) -> bool {
+    match operator {
+        MetaobjectSearchOperator::Eq => actual == expected,
+        MetaobjectSearchOperator::Gt => actual > expected,
+        MetaobjectSearchOperator::Gte => actual >= expected,
+        MetaobjectSearchOperator::Lt => actual < expected,
+        MetaobjectSearchOperator::Lte => actual <= expected,
+    }
+}
+
+fn metaobject_text_matches(actual: Option<&str>, raw_value: &str) -> bool {
+    let (_, value) = metaobject_search_value(raw_value);
+    let needle = value.to_ascii_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    let actual = actual.unwrap_or_default().to_ascii_lowercase();
+    if let Some(prefix) = needle.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&needle)
+}
+
+fn metaobject_id_matches(record: &Value, raw_value: &str) -> bool {
+    let (operator, value) = metaobject_search_value(raw_value);
+    let actual = record.get("id").and_then(Value::as_str).unwrap_or_default();
+    let actual_tail = resource_id_tail(actual);
+    let expected_tail = resource_id_tail(&value);
+    if operator == MetaobjectSearchOperator::Eq {
+        return actual == value || actual_tail == expected_tail;
+    }
+    let Ok(actual_id) = actual_tail.parse::<i64>() else {
+        return false;
+    };
+    let Ok(expected_id) = expected_tail.parse::<i64>() else {
+        return false;
+    };
+    metaobject_compare_order(actual_id, expected_id, operator)
+}
+
+fn metaobject_updated_at_matches(record: &Value, raw_value: &str) -> bool {
+    let (operator, value) = metaobject_search_value(raw_value);
+    let actual = record
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    metaobject_compare_order(actual, value, operator)
+}
+
+fn metaobject_field_search_text(field: &Value) -> Option<String> {
+    field
+        .get("value")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            field.get("jsonValue").map(|value| match value {
+                Value::String(value) => value.clone(),
+                Value::Null => String::new(),
+                value => value.to_string(),
+            })
+        })
+}
+
+fn metaobject_field_matches(record: &Value, key: &str, raw_value: &str) -> bool {
+    record
+        .get("fields")
+        .and_then(Value::as_array)
+        .map(|fields| {
+            fields.iter().any(|field| {
+                field.get("key").and_then(Value::as_str) == Some(key)
+                    && metaobject_text_matches(
+                        metaobject_field_search_text(field).as_deref(),
+                        raw_value,
+                    )
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn metaobject_free_text_matches(record: &Value, raw_value: &str) -> bool {
+    metaobject_text_matches(record.get("displayName").and_then(Value::as_str), raw_value)
+        || metaobject_text_matches(record.get("handle").and_then(Value::as_str), raw_value)
+        || metaobject_text_matches(record.get("type").and_then(Value::as_str), raw_value)
+        || record
+            .get("fields")
+            .and_then(Value::as_array)
+            .map(|fields| {
+                fields.iter().any(|field| {
+                    metaobject_text_matches(
+                        metaobject_field_search_text(field).as_deref(),
+                        raw_value,
+                    )
+                })
+            })
+            .unwrap_or(false)
+}
+
+fn metaobject_search_term_decision(record: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    let Some((raw_key, raw_value)) = term.split_once(':') else {
+        return StagedSearchDecision::from_bool(metaobject_free_text_matches(record, term));
+    };
+    let key = raw_key.trim();
+    if key.is_empty() || raw_value.trim().is_empty() {
+        return StagedSearchDecision::Unsupported;
+    }
+    let key_normalized = key.replace('-', "_").to_ascii_lowercase();
+    let matches = match key_normalized.as_str() {
+        "display_name" | "displayname" => {
+            metaobject_text_matches(record.get("displayName").and_then(Value::as_str), raw_value)
+        }
+        "handle" => {
+            metaobject_text_matches(record.get("handle").and_then(Value::as_str), raw_value)
+        }
+        "id" => metaobject_id_matches(record, raw_value),
+        "updated_at" | "updatedat" => metaobject_updated_at_matches(record, raw_value),
+        field_key if field_key.starts_with("fields.") => {
+            let field_key = key.trim_start_matches("fields.");
+            !field_key.is_empty() && metaobject_field_matches(record, field_key, raw_value)
+        }
+        _ => return StagedSearchDecision::Unsupported,
+    };
+    StagedSearchDecision::from_bool(matches)
+}
+
+fn metaobject_search_decision(record: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in saved_search_query_tokens(query) {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        match metaobject_search_term_decision(record, &term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn has_local_metaobject_entry_state(&self) -> bool {
         !self.store.staged.metaobjects.is_empty()
@@ -2662,7 +2919,7 @@ impl DraftProxy {
         if !staged_ids.is_empty() {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
-            // the Gleam reference's id bookkeeping (e.g. a definition lands on /1 and
+            // the current synthetic-id bookkeeping (e.g. a definition lands on /1 and
             // the next entry on /3 because the definition's log entry consumed /2).
             self.reserve_synthetic_log_id();
             self.record_mutation_log_entry(
@@ -2941,7 +3198,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
-        let mut records: Vec<Value> =
+        let records: Vec<Value> =
             self.store
                 .staged
                 .metaobjects
@@ -2957,27 +3214,12 @@ impl DraftProxy {
                 // by the Admin search index that backs `metaobjects(type:)`.
                 .filter(|record| self.metaobject_visible_in_catalog(record))
                 .collect();
-        // Shopify's default `metaobjects(type:)` ordering is ascending by
-        // creation, which corresponds to ascending numeric id. A lexicographic
-        // sort on the full gid is wrong once ids cross a digit boundary
-        // (".../10" sorts before ".../8" as strings), so compare the trailing
-        // numeric id, falling back to the full string when it is not numeric.
-        fn metaobject_id_sort_key(record: &Value) -> (u64, String) {
-            let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
-            let numeric = id
-                .parse::<u64>()
-                .ok()
-                .or_else(|| resource_id_tail(id).parse::<u64>().ok())
-                .unwrap_or(u64::MAX);
-            (numeric, id.to_string())
-        }
-        records.sort_by(|left, right| {
-            metaobject_id_sort_key(left).cmp(&metaobject_id_sort_key(right))
-        });
-        selected_typed_connection_with_args(
-            &records,
+        selected_staged_connection_with_args(
+            records,
             &field.arguments,
             &field.selection,
+            metaobject_search_decision,
+            metaobject_staged_sort_key,
             |record, selection| self.selected_metaobject(record, selection),
             metaobject_cursor,
         )
@@ -3128,6 +3370,14 @@ impl DraftProxy {
         if upsert_required_errors {
             validation_errors =
                 metaobject_required_field_errors_for_upsert(validation_errors, &definition);
+        }
+        if let Some(handle) = resolved_string_field(input, "handle") {
+            if !handle.is_empty() {
+                validation_errors.extend(metaobject_handle_validation_errors(
+                    &handle,
+                    vec!["metaobject", "handle"],
+                ));
+            }
         }
         if !validation_errors.is_empty() {
             return self.selected_metaobject_payload(
@@ -3387,6 +3637,16 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        if !meta_handle_input.is_empty() {
+            let locator_errors =
+                metaobject_handle_validation_errors(&meta_handle_input, vec!["handle", "handle"]);
+            if !locator_errors.is_empty() {
+                return self.selected_metaobject_payload(
+                    &json!({"metaobject": null, "userErrors": locator_errors}),
+                    &field.selection,
+                );
+            }
+        }
         if let Some(existing) = self
             .metaobject_by_type_and_handle(&meta_type, &meta_handle)
             .or_else(|| self.hydrate_metaobject_by_handle(request, &meta_type, &meta_handle))
@@ -3883,11 +4143,17 @@ impl DraftProxy {
             .iter()
             .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
             .count();
-        let validation_errors = metaobject_definition_create_validation_errors(
-            &definition_input,
-            &meta_type,
-            existing_definitions,
-        );
+        let validation_errors = if let Some(error) =
+            metaobject_definition_type_identity_error(&definition_input, request)
+        {
+            vec![error]
+        } else {
+            metaobject_definition_create_validation_errors(
+                &definition_input,
+                &meta_type,
+                existing_definitions,
+            )
+        };
         if !validation_errors.is_empty() {
             return selected_json(
                 &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),
@@ -4261,4 +4527,63 @@ fn url_redirect_matches_query(redirect: &Value, query: &str) -> bool {
             .get("target")
             .and_then(Value::as_str)
             .is_some_and(|target| target.contains(query))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metaobject_definition_from_record_preserves_real_or_unknown_access() {
+        let hydrated_record = json!({
+            "type": "restricted_article",
+            "definition": {
+                "id": "gid://shopify/MetaobjectDefinition/1",
+                "type": "restricted_article",
+                "access": {
+                    "admin": "MERCHANT_READ",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                },
+                "fieldDefinitions": [{
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }]
+            },
+            "fields": [{
+                "key": "title",
+                "value": "Hidden",
+                "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }
+            }]
+        });
+        let definition = metaobject_definition_from_record(&hydrated_record)
+            .expect("hydrated definition should be reused");
+        assert_eq!(definition["access"]["admin"], json!("MERCHANT_READ"));
+
+        let inferred_record = json!({
+            "type": "observed_article",
+            "titleField": { "key": "title" },
+            "capabilities": {},
+            "fields": [{
+                "key": "title",
+                "value": "Observed",
+                "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }
+            }]
+        });
+        let inferred = metaobject_definition_from_record(&inferred_record)
+            .expect("field definitions should still infer a definition shell");
+        assert_eq!(inferred["access"], Value::Null);
+    }
 }

@@ -1,0 +1,331 @@
+{
+  "scenarioId": "marketing-activity-connection-window",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-07-03T21:44:15.403Z",
+  "setup": {
+    "disposableRemoteIds": {
+      "alpha": "marketing-connection-alpha-1783115053447pr0e8b",
+      "zulu": "marketing-connection-zulu-1783115053447pr0e8b"
+    },
+    "activityIds": {
+      "alpha": "gid://shopify/MarketingActivity/198229721394",
+      "zulu": "gid://shopify/MarketingActivity/198229754162"
+    },
+    "titles": {
+      "alpha": "Alphaconnwindow1783115053447pr0e8b",
+      "zulu": "Zuluconnwindow1783115053447pr0e8b"
+    },
+    "cleanup": "Deletes both disposable external marketing activities by remote ID."
+  },
+  "operations": {
+    "createAlpha": {
+      "request": {
+        "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "Alphaconnwindow1783115053447pr0e8b",
+            "remoteId": "marketing-connection-alpha-1783115053447pr0e8b",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-connection-alpha-1783115053447pr0e8b",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "scheduledEnd": "2026-05-31T00:00:00Z",
+            "utm": {
+              "campaign": "marketing-connection-alpha-1783115053447pr0e8b",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "created": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/198229721394",
+                "title": "Alphaconnwindow1783115053447pr0e8b",
+                "createdAt": "2026-07-03T21:44:13Z",
+                "marketingEvent": {
+                  "id": "gid://shopify/MarketingEvent/243585745202",
+                  "type": "NEWSLETTER",
+                  "scheduledToEndAt": "2026-05-31T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createZulu": {
+      "request": {
+        "query": "mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {\n  created: marketingActivityCreateExternal(input: $input) {\n    marketingActivity {\n      id\n      title\n      createdAt\n      marketingEvent {\n        id\n        type\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "Zuluconnwindow1783115053447pr0e8b",
+            "remoteId": "marketing-connection-zulu-1783115053447pr0e8b",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-connection-zulu-1783115053447pr0e8b",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "scheduledEnd": "2026-06-01T00:00:00Z",
+            "utm": {
+              "campaign": "marketing-connection-zulu-1783115053447pr0e8b",
+              "source": "search",
+              "medium": "ad"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "created": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/198229754162",
+                "title": "Zuluconnwindow1783115053447pr0e8b",
+                "createdAt": "2026-07-03T21:44:14Z",
+                "marketingEvent": {
+                  "id": "gid://shopify/MarketingEvent/243585777970",
+                  "type": "AD",
+                  "scheduledToEndAt": "2026-06-01T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readFirst": {
+      "request": {
+        "query": "query MarketingActivityConnectionWindowReadFirst(\n  $first: Int!\n  $activityQuery: String!\n  $titleQuery: String!\n  $createdAtQuery: String!\n  $idRangeQuery: String!\n  $scheduledEndQuery: String!\n) {\n  latestActivity: marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      createdAt\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  titleSearch: marketingActivities(first: 5, sortKey: TITLE, query: $activityQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  titleFilter: marketingActivities(first: 5, sortKey: ID, query: $titleQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  createdAtFilter: marketingActivities(first: 5, sortKey: ID, query: $createdAtQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  idRangeFilter: marketingActivities(first: 5, sortKey: ID, query: $idRangeQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  scheduledEndFilter: marketingActivities(first: 5, sortKey: ID, query: $scheduledEndQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  latestEvent: marketingEvents(first: $first, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      type\n    }\n    edges {\n      cursor\n      node {\n        id\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "first": 1,
+          "activityQuery": "title:Zuluconnwindow1783115053447pr0e8b",
+          "titleQuery": "title:Zuluconnwindow1783115053447pr0e8b",
+          "createdAtQuery": "created_at:\">=2026-07-03T21:44:14Z\" title:Zuluconnwindow1783115053447pr0e8b",
+          "idRangeQuery": "id:>198229721394 title:Zuluconnwindow1783115053447pr0e8b",
+          "scheduledEndQuery": "scheduled_to_end_at:\"2026-06-01T00:00:00Z\" title:Zuluconnwindow1783115053447pr0e8b"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "latestActivity": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b",
+                  "createdAt": "2026-07-03T21:44:14Z"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgyMjk3NTQxNjIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjE0LjAwMDAwMCJ9",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198229754162",
+                    "title": "Zuluconnwindow1783115053447pr0e8b"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgyMjk3NTQxNjIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjE0LjAwMDAwMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgyMjk3NTQxNjIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjE0LjAwMDAwMCJ9"
+              }
+            },
+            "titleSearch": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b"
+                }
+              ]
+            },
+            "titleFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b"
+                }
+              ]
+            },
+            "createdAtFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b"
+                }
+              ]
+            },
+            "idRangeFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b"
+                }
+              ]
+            },
+            "scheduledEndFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229754162",
+                  "title": "Zuluconnwindow1783115053447pr0e8b"
+                }
+              ]
+            },
+            "latestEvent": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingEvent/243585777970",
+                  "type": "AD"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyNDM1ODU3Nzc5NzAsImxhc3RfdmFsdWUiOiIyNDM1ODU3Nzc5NzAifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingEvent/243585777970",
+                    "type": "AD"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNDM1ODU3Nzc5NzAsImxhc3RfdmFsdWUiOiIyNDM1ODU3Nzc5NzAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyNDM1ODU3Nzc5NzAsImxhc3RfdmFsdWUiOiIyNDM1ODU3Nzc5NzAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 33,
+              "actualQueryCost": 23,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfter": {
+      "request": {
+        "query": "query MarketingActivityConnectionWindowReadAfter($activityCursor: String!) {\n  afterLatest: marketingActivities(first: 1, after: $activityCursor, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "activityCursor": "eyJsYXN0X2lkIjoxOTgyMjk3NTQxNjIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjE0LjAwMDAwMCJ9"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "afterLatest": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198229721394",
+                  "title": "Alphaconnwindow1783115053447pr0e8b"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgyMjk3MjEzOTQsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjEzLjAwMDAwMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgyMjk3MjEzOTQsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTAzIDIxOjQ0OjEzLjAwMDAwMCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "alpha": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198229721394",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "zulu": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198229754162",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

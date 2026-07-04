@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for the B2B billingSameAsShipping validation branches reproduced by the active 2026-04 Admin target: companyCreate/companyLocationCreate reject billingSameAsShipping=true with explicit billingAddress, reject billingSameAsShipping=true with missing or null shippingAddress, and reject taxExempt:null. The same capture records ticket-required branches that the live target does not currently replay as payload userErrors: companyCreate/companyLocationCreate accept billingSameAsShipping=false without billingAddress, and CompanyLocationUpdateInput rejects billingSameAsShipping/billingAddress/taxExempt as undefined variable fields. Those branches remain covered by focused runtime tests because the ticket cites internal Shopify mutation guardrails beyond the active public schema.",
   "comparison": {
     "mode": "strict-json",

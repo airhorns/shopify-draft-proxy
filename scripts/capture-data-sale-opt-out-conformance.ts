@@ -32,6 +32,9 @@ const customerLookupDocument = await readFile(
 // poll), so this run regenerates only the missing-email / parity / whitespace 2025-01 fixtures.
 const skipNewCustomerDefaults = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_SKIP_NEW_DEFAULTS === 'true';
 const invalidFormatOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_INVALID_FORMAT_ONLY === 'true';
+const strictFormatResidualOnly =
+  process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_STRICT_FORMAT_RESIDUAL_ONLY === 'true';
+const unicodeLetterOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_UNICODE_LETTER_ONLY === 'true';
 
 async function captureCustomerLookup(emailAddress, context) {
   const result = await runGraphql(customerLookupDocument, { identifier: { emailAddress } });
@@ -67,6 +70,17 @@ function assertDataSaleOptOutFailed(payload, context) {
   };
   if (JSON.stringify(payload) !== JSON.stringify(expected)) {
     throw new Error(`${context} did not return FAILED payload: ${JSON.stringify(payload, null, 2)}`);
+  }
+}
+
+function assertDataSaleOptOutSucceeded(payload, context) {
+  if (
+    typeof payload?.customerId !== 'string' ||
+    payload.customerId.length === 0 ||
+    !Array.isArray(payload?.userErrors) ||
+    payload.userErrors.length !== 0
+  ) {
+    throw new Error(`${context} did not return SUCCESS payload: ${JSON.stringify(payload, null, 2)}`);
   }
 }
 
@@ -317,8 +331,254 @@ async function writeInvalidFormatCapture() {
   return invalidFormatCapture;
 }
 
+const strictFormatResidualCases = [
+  {
+    name: 'digitTld',
+    variables: { email: 'foo@bar.co2' },
+    expected: 'failed',
+  },
+  {
+    name: 'digitInTld',
+    variables: { email: 'user@example.c0m' },
+    expected: 'failed',
+  },
+  {
+    name: 'hyphenInTld',
+    variables: { email: 'user@example.c-o' },
+    expected: 'failed',
+  },
+  {
+    name: 'localOver128',
+    variables: { email: `${'a'.repeat(200)}@e.co` },
+    expected: 'failed',
+  },
+  {
+    name: 'quotedLocalAtom',
+    variables: { email: 'ab"cd@example.com' },
+    expected: 'success',
+  },
+];
+
+async function deleteCustomerIfPresent(customerId, context) {
+  if (typeof customerId !== 'string' || customerId.length === 0) {
+    return null;
+  }
+  const result = await runGraphql(deleteMutation, { input: { id: customerId } });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+async function captureStrictFormatResidualCases() {
+  const residualFormats = {};
+  const cleanup = {};
+  const upstreamCalls = [];
+  let createdCustomerId = null;
+
+  for (const testCase of strictFormatResidualCases) {
+    if (testCase.expected === 'success') {
+      const setupLookup = await captureCustomerLookup(
+        testCase.variables.email,
+        `dataSaleOptOut strict format residual ${testCase.name} setup lookup`,
+      );
+      const setupCustomerId = setupLookup?.data?.customerByIdentifier?.id;
+      const setupCleanup = await deleteCustomerIfPresent(
+        setupCustomerId,
+        `dataSaleOptOut strict format residual ${testCase.name} setup cleanup`,
+      );
+      if (setupCleanup) {
+        cleanup[`${testCase.name}PreexistingCustomer`] = { response: setupCleanup };
+      }
+
+      const lookupPayload = await captureCustomerLookup(
+        testCase.variables.email,
+        `dataSaleOptOut strict format residual ${testCase.name} lookup`,
+      );
+      upstreamCalls.push(customerLookupUpstreamCall(testCase.variables.email, lookupPayload));
+      const result = await runGraphql(dataSaleOptOutMutation, testCase.variables);
+      assertNoTopLevelErrors(result, `dataSaleOptOut strict format residual ${testCase.name}`);
+      const payload = result.payload?.data?.dataSaleOptOut;
+      assertDataSaleOptOutSucceeded(payload, `dataSaleOptOut strict format residual ${testCase.name}`);
+      createdCustomerId = payload.customerId;
+      residualFormats[testCase.name] = {
+        variables: testCase.variables,
+        response: result.payload,
+      };
+      continue;
+    }
+
+    const result = await runGraphql(dataSaleOptOutMutation, testCase.variables);
+    assertNoTopLevelErrors(result, `dataSaleOptOut strict format residual ${testCase.name}`);
+    const payload = result.payload?.data?.dataSaleOptOut;
+    assertDataSaleOptOutFailed(payload, `dataSaleOptOut strict format residual ${testCase.name}`);
+    residualFormats[testCase.name] = {
+      variables: testCase.variables,
+      response: result.payload,
+    };
+  }
+
+  try {
+    const response = await deleteCustomerIfPresent(
+      createdCustomerId,
+      'dataSaleOptOut strict format residual quoted local customer cleanup',
+    );
+    if (response) {
+      cleanup.quotedLocalAtomCustomer = { response };
+    }
+  } finally {
+    createdCustomerId = null;
+  }
+
+  return {
+    setup: {
+      seededCustomers: false,
+      note: 'Strict-format residual capture. Rejected branches require no setup; the quoted local atom success creates a disposable opted-out customer and deletes it during cleanup.',
+    },
+    mutation: residualFormats.digitTld,
+    validation: {
+      residualFormats,
+    },
+    cleanup,
+    upstreamCalls,
+  };
+}
+
+async function writeStrictFormatResidualCapture() {
+  const strictFormatResidualCapture = await captureStrictFormatResidualCases();
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-strict-format-residual.json'),
+    `${JSON.stringify(strictFormatResidualCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return strictFormatResidualCapture;
+}
+
+async function deletePreexistingCustomerByEmail(emailAddress, context) {
+  const lookupPayload = await captureCustomerLookup(emailAddress, `${context} preexisting lookup`);
+  const customerId = lookupPayload?.data?.customerByIdentifier?.id;
+  const response = await deleteCustomerIfPresent(customerId, `${context} preexisting customer cleanup`);
+  return response ? { customerId, response } : null;
+}
+
+async function captureUnicodeLetterEmailCase({ name, emailAddress }) {
+  const preexistingCleanup = await deletePreexistingCustomerByEmail(
+    emailAddress,
+    `dataSaleOptOut unicode letter ${name}`,
+  );
+  const lookupPayload = await captureCustomerLookup(emailAddress, `dataSaleOptOut unicode letter ${name} lookup`);
+  const mutationVariables = { email: emailAddress };
+  const mutationResult = await runGraphql(dataSaleOptOutMutation, mutationVariables);
+  assertNoTopLevelErrors(mutationResult, `dataSaleOptOut unicode letter ${name} mutation`);
+  const payload = mutationResult.payload?.data?.dataSaleOptOut;
+  assertDataSaleOptOutSucceeded(payload, `dataSaleOptOut unicode letter ${name}`);
+  const customerId = payload.customerId;
+
+  try {
+    const downstreamReadVariables = {
+      id: customerId,
+      identifier: { id: customerId },
+      query: '__customer_parity_no_match__',
+      first: 5,
+    };
+    const downstreamReadResult = await runGraphql(downstreamReadQuery, downstreamReadVariables);
+    assertNoTopLevelErrors(downstreamReadResult, `dataSaleOptOut unicode letter ${name} downstream read`);
+    const customer = downstreamReadResult.payload?.data?.customer;
+    const byIdentifier = downstreamReadResult.payload?.data?.customerByIdentifier;
+    if (customer?.dataSaleOptOut !== true || byIdentifier?.dataSaleOptOut !== true) {
+      throw new Error(
+        `dataSaleOptOut unicode letter ${name} downstream read did not show opt-out: ${JSON.stringify(
+          downstreamReadResult.payload,
+          null,
+          2,
+        )}`,
+      );
+    }
+
+    const cleanup = await deleteCustomerIfPresent(customerId, `dataSaleOptOut unicode letter ${name} cleanup`);
+    return {
+      setup: {
+        preexistingCleanup,
+      },
+      mutation: {
+        variables: mutationVariables,
+        response: mutationResult.payload,
+      },
+      downstreamRead: {
+        variables: downstreamReadVariables,
+        response: downstreamReadResult.payload,
+      },
+      cleanup: {
+        customer: {
+          response: cleanup,
+        },
+      },
+      upstreamCall: customerLookupUpstreamCall(emailAddress, lookupPayload),
+    };
+  } catch (error) {
+    await deleteCustomerIfPresent(customerId, `dataSaleOptOut unicode letter ${name} cleanup after failure`);
+    throw error;
+  }
+}
+
+async function captureUnicodeLetterEmailCases() {
+  const accentedLatin = await captureUnicodeLetterEmailCase({
+    name: 'accented latin',
+    emailAddress: 'héllo@example.com',
+  });
+  const cjk = await captureUnicodeLetterEmailCase({
+    name: 'cjk local',
+    emailAddress: '日本@example.com',
+  });
+  return {
+    setup: {
+      seededCustomers: false,
+      note: 'Unicode-letter email capture. Fixed test emails are cleaned up before mutation, Shopify creates disposable opted-out customers, and the script deletes them after downstream reads.',
+      accentedLatin: accentedLatin.setup,
+      cjk: cjk.setup,
+    },
+    mutation: accentedLatin.mutation,
+    downstreamRead: accentedLatin.downstreamRead,
+    validation: {
+      cjk: {
+        mutation: cjk.mutation,
+        downstreamRead: cjk.downstreamRead,
+      },
+    },
+    cleanup: {
+      accentedLatin: accentedLatin.cleanup,
+      cjk: cjk.cleanup,
+    },
+    upstreamCalls: [accentedLatin.upstreamCall, cjk.upstreamCall],
+  };
+}
+
+async function writeUnicodeLetterEmailCapture() {
+  const unicodeLetterEmailCapture = await captureUnicodeLetterEmailCases();
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-unicode-letter-email.json'),
+    `${JSON.stringify(unicodeLetterEmailCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return unicodeLetterEmailCapture;
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
+
+  if (unicodeLetterOnly) {
+    await writeUnicodeLetterEmailCapture();
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-unicode-letter-email.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   if (invalidFormatOnly) {
     await writeInvalidFormatCapture();
@@ -328,6 +588,21 @@ async function main() {
           ok: true,
           outputDir,
           files: ['data-sale-opt-out-invalid-format.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  if (strictFormatResidualOnly) {
+    await writeStrictFormatResidualCapture();
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-strict-format-residual.json'],
         },
         null,
         2,
@@ -374,6 +649,7 @@ async function main() {
     return;
   }
   await writeInvalidFormatCapture();
+  await writeStrictFormatResidualCapture();
 
   const stamp = Date.now();
   const emailAddress = `hermes-data-sale-${stamp}@example.com`;
@@ -634,6 +910,7 @@ async function main() {
           outputDir,
           files: [
             'data-sale-opt-out-invalid-format.json',
+            'data-sale-opt-out-strict-format-residual.json',
             'data-sale-opt-out-parity.json',
             'data-sale-opt-out-whitespace-email.json',
             ...(newCustomerDefaultsCapture ? ['data-sale-opt-out-new-customer-defaults.json'] : []),

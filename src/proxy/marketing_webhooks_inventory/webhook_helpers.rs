@@ -177,6 +177,37 @@ pub(in crate::proxy) fn webhook_uri_host(uri: &str) -> Option<String> {
     )
 }
 
+fn webhook_uri_unsupported_protocol(uri: &str) -> Option<&str> {
+    if uri.trim().is_empty()
+        || uri.starts_with("https://")
+        || uri.starts_with("http://")
+        || uri.starts_with("kafka://")
+        || uri.starts_with("pubsub://")
+        || uri.starts_with("arn:aws:events:")
+    {
+        return None;
+    }
+
+    let (scheme, _) = uri.split_once("://")?;
+    (!scheme.is_empty()
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.')))
+    .then_some(scheme)
+}
+
+fn webhook_https_uri_is_invalid(uri: &str) -> bool {
+    if !uri.starts_with("https://") {
+        return false;
+    }
+
+    url::Url::parse(uri)
+        .ok()
+        .filter(|parsed| parsed.scheme() == "https")
+        .and_then(|parsed| parsed.host_str().map(str::to_string))
+        .is_none_or(|host| host.is_empty())
+}
+
 pub(in crate::proxy) fn webhook_subscription_legacy_id(id: &str) -> String {
     resource_id_tail(id).to_string()
 }
@@ -565,6 +596,7 @@ impl DraftProxy {
             .or_else(|| record["callbackUrl"].as_str())
             .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
+        let address_err = |message| user_error_omit_code(address_field.clone(), message, None);
         let callback_err =
             |message| user_error_omit_code(["webhookSubscription", "callbackUrl"], message, None);
         if uri.trim().is_empty() {
@@ -576,6 +608,20 @@ impl DraftProxy {
         if uri.starts_with("kafka://") {
             errors.push(callback_err("Address protocol kafka:// is not supported"));
             errors.push(callback_err("Address is not a valid kafka topic"));
+        }
+        let invalid_http_address = webhook_https_uri_is_invalid(uri)
+            || (!uri.trim().is_empty()
+                && !uri.starts_with("http://")
+                && !uri.starts_with("kafka://")
+                && !uri.starts_with("pubsub://")
+                && !uri.starts_with("arn:aws:events:")
+                && !uri.starts_with("https://"));
+        if let Some(protocol) = webhook_uri_unsupported_protocol(uri) {
+            errors.push(address_err(&format!(
+                "Address protocol {protocol}:// is not supported"
+            )));
+        } else if invalid_http_address {
+            errors.push(address_err("Address is invalid"));
         }
         if uri.len() > 65_535 {
             errors.push(callback_err("Address is too big (maximum is 64 KB)"));
@@ -591,28 +637,27 @@ impl DraftProxy {
             if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
                 errors.push(callback_err("Address protocol pubsub:// is not supported"));
                 errors.push(callback_err("Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"));
-            } else if !valid_gcp_project_id(project) {
-                if root_field.starts_with("pubSubWebhookSubscription") {
+            } else if root_field.starts_with("pubSubWebhookSubscription") {
+                if !valid_gcp_project_id(project) {
                     errors.push(user_error_omit_code(
                         ["webhookSubscription", "pubSubProject"],
                         "Google Cloud Pub/Sub project ID is not valid",
                         None,
                     ));
-                } else {
-                    errors.push(callback_err("Address is invalid"));
-                    errors.push(callback_err("Address is not a valid GCP project id."));
                 }
-            } else if !valid_gcp_pubsub_topic_id(topic) {
-                if root_field.starts_with("pubSubWebhookSubscription") {
+                if !valid_gcp_pubsub_topic_id(topic) {
                     errors.push(user_error_omit_code(
                         ["webhookSubscription", "pubSubTopic"],
                         "Google Cloud Pub/Sub topic ID is not valid",
                         None,
                     ));
-                } else {
-                    errors.push(callback_err("Address is invalid"));
-                    errors.push(callback_err("Address is not a valid GCP topic id."));
                 }
+            } else if !valid_gcp_project_id(project) {
+                errors.push(callback_err("Address is invalid"));
+                errors.push(callback_err("Address is not a valid GCP project id."));
+            } else if !valid_gcp_pubsub_topic_id(topic) {
+                errors.push(callback_err("Address is invalid"));
+                errors.push(callback_err("Address is not a valid GCP topic id."));
             }
         }
         if uri.starts_with("arn:aws:events:") {
@@ -1131,16 +1176,24 @@ fn webhook_subscription_effective_api_version(request: &Request) -> Option<Strin
 }
 
 fn webhook_subscription_api_version_record(handle: Option<&str>) -> Value {
-    let handle = handle
-        .map(str::trim)
-        .filter(|handle| !handle.is_empty())
-        .unwrap_or("2026-04")
-        .to_string();
-    let (display_name, supported) = match handle.as_str() {
-        "2026-04" => ("2026-04 (Latest)".to_string(), true),
-        "2026-07" => ("2026-07 (Release candidate)".to_string(), false),
-        "unstable" => ("unstable".to_string(), false),
-        _ => (handle.clone(), true),
+    let handle = match handle.map(str::trim).filter(|handle| !handle.is_empty()) {
+        Some(handle) => handle.to_string(),
+        None => latest_supported_admin_graphql_version()
+            .unwrap_or("2026-04")
+            .to_string(),
+    };
+    let (display_name, supported) = if supported_admin_graphql_version(&handle) {
+        if Some(handle.as_str()) == latest_supported_admin_graphql_version() {
+            (format!("{handle} (Latest)"), true)
+        } else {
+            (handle.clone(), true)
+        }
+    } else {
+        match handle.as_str() {
+            "2026-07" => ("2026-07 (Release candidate)".to_string(), false),
+            "unstable" => ("unstable".to_string(), false),
+            _ => (handle.clone(), false),
+        }
     };
     json!({
         "handle": handle,
@@ -1167,10 +1220,10 @@ fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&s
     }
 }
 
-/// A webhook filter is a search-query string that must reference at least one
-/// field via `field:value` syntax. A non-empty filter that names no field
-/// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
-/// mean "no filter" and are accepted.
+/// A webhook filter is a search-query string where every non-boolean term must
+/// reference a field via `field:value` syntax. A non-empty filter containing any
+/// bare/default term (e.g. `customer_id:123 bareword`) is rejected by Shopify.
+/// Empty/blank filters mean "no filter" and are accepted.
 fn webhook_filter_exceeds_byte_size_limit(filter: &str) -> bool {
     filter.len() > WEBHOOK_FILTER_MAX_BYTE_SIZE
 }
@@ -1180,11 +1233,24 @@ fn webhook_filter_is_invalid(filter: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    !trimmed.split_whitespace().any(|token| {
-        token
-            .split_once(':')
-            .is_some_and(|(field, _)| !field.is_empty() && field.chars().all(graphql_name_char))
-    })
+    let mut saw_field_term = false;
+    for token in trimmed.split_whitespace() {
+        if token.eq_ignore_ascii_case("AND") || token.eq_ignore_ascii_case("OR") {
+            continue;
+        }
+
+        let term = token.strip_prefix('-').unwrap_or(token);
+        let Some((field, _)) = term.split_once(':') else {
+            return true;
+        };
+        if field.is_empty() || !field.chars().all(graphql_name_char) {
+            return true;
+        }
+
+        saw_field_term = true;
+    }
+
+    !saw_field_term
 }
 
 fn is_known_webhook_subscription_topic(topic: &str) -> bool {

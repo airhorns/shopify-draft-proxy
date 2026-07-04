@@ -113,7 +113,10 @@ impl DraftProxy {
                     let segment_query =
                         resolved_string_field(&arguments, "query").unwrap_or_default();
                     let mut user_errors = segment_name_user_errors(&name_input);
-                    user_errors.extend(segment_query_user_errors(&segment_query));
+                    user_errors.extend(segment_query_change_user_errors(&segment_query));
+                    if user_errors.is_empty() {
+                        user_errors.extend(segment_query_grammar_user_errors(&segment_query));
+                    }
                     let name = name_input.trim().to_string();
                     if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
                         user_errors.push(segment_user_error(
@@ -191,7 +194,13 @@ impl DraftProxy {
                             user_errors.extend(segment_name_user_errors(name));
                         }
                         if let Some(segment_query) = query_input.as_deref() {
-                            user_errors.extend(segment_query_user_errors(segment_query));
+                            user_errors.extend(segment_query_change_user_errors(segment_query));
+                        }
+                        if user_errors.is_empty() {
+                            if let Some(segment_query) = query_input.as_deref() {
+                                user_errors
+                                    .extend(segment_query_grammar_user_errors(segment_query));
+                            }
                         }
                         let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
                         if user_errors.is_empty() {
@@ -437,7 +446,7 @@ fn segment_name_user_errors(name: &str) -> Vec<Value> {
     }
 }
 
-fn segment_query_user_errors(query: &str) -> Vec<Value> {
+fn segment_query_change_user_errors(query: &str) -> Vec<Value> {
     if query.trim().is_empty() {
         return vec![segment_presence_user_error(["query"], "Query")];
     }
@@ -448,7 +457,7 @@ fn segment_query_user_errors(query: &str) -> Vec<Value> {
             LengthUserErrorBound::TooLong { maximum: 5000 },
         )];
     }
-    segment_query_grammar_user_errors(query)
+    Vec::new()
 }
 
 /// A `CustomerSegmentMembersQueryUserError` (the CDP member-query surface),
@@ -591,7 +600,18 @@ fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
 fn segment_query_token_is_operator(token: &str) -> bool {
     matches!(
         token.to_ascii_uppercase().as_str(),
-        "=" | "!=" | ">" | "<" | ">=" | "<=" | "CONTAINS" | "IS" | "NOT" | "STARTS" | "AND" | "OR"
+        "=" | "!="
+            | ">"
+            | "<"
+            | ">="
+            | "<="
+            | "BETWEEN"
+            | "CONTAINS"
+            | "IS"
+            | "NOT"
+            | "STARTS"
+            | "AND"
+            | "OR"
     )
 }
 
@@ -650,9 +670,16 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
     if let Some((left, right)) = split_segment_query_boolean(query, " OR ") {
         return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
     }
+    if segment_query_predicate_accepts(query) {
+        return true;
+    }
     if let Some((left, right)) = split_segment_query_boolean(query, " AND ") {
         return segment_query_grammar_accepts(left) && segment_query_grammar_accepts(right);
     }
+    false
+}
+
+fn segment_query_predicate_accepts(query: &str) -> bool {
     let filters = [
         "number_of_orders",
         "amount_spent",
@@ -662,15 +689,19 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
         "last_order_date",
         "companies",
     ];
-    let Some(filter) = filters
-        .iter()
-        .copied()
-        .find(|filter| query.starts_with(*filter) && query[filter.len()..].starts_with(' '))
-    else {
+
+    let Some((filter, rest)) = split_segment_query_filter(query) else {
         return false;
     };
-    let rest = query[filter.len()..].trim();
-    if matches!(filter, "companies") {
+    if !segment_query_filter_name_is_valid(filter) {
+        return false;
+    }
+    let is_known_filter = filters.contains(&filter);
+    if !is_known_filter {
+        return segment_query_unknown_filter_accepts(rest);
+    }
+
+    if filter == "companies" {
         return matches!(rest, "IS NULL" | "IS NOT NULL");
     }
     if let Some(value) = rest.strip_prefix("NOT CONTAINS ") {
@@ -681,17 +712,69 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
         return matches!(filter, "customer_tags" | "customer_countries")
             && segment_query_value_is_quoted(value);
     }
-    if let Some((operator, value)) = split_segment_query_operator(rest) {
+    if let Some((lower, upper)) = split_segment_query_between(rest) {
         return match filter {
-            "number_of_orders" | "amount_spent" => value.parse::<i64>().is_ok(),
-            "email_subscription_status" => operator == "=" && segment_query_value_is_quoted(value),
+            "number_of_orders" => {
+                segment_query_value_is_integer(lower) && segment_query_value_is_integer(upper)
+            }
+            "amount_spent" => {
+                segment_query_value_is_decimal(lower) && segment_query_value_is_decimal(upper)
+            }
             "last_order_date" => {
-                matches!(operator, "=" | ">" | ">=" | "<" | "<=")
-                    && (value.starts_with('-') && value.ends_with('d')
-                        || segment_query_value_is_quoted(value))
+                segment_query_value_is_date_like(lower) && segment_query_value_is_date_like(upper)
             }
             _ => false,
         };
+    }
+    if let Some((operator, value)) = split_segment_query_operator(rest) {
+        return match filter {
+            "number_of_orders" => segment_query_value_is_integer(value),
+            "amount_spent" => segment_query_value_is_decimal(value),
+            "email_subscription_status" => operator == "=" && segment_query_value_is_quoted(value),
+            "last_order_date" => {
+                matches!(operator, "=" | ">" | ">=" | "<" | "<=")
+                    && segment_query_value_is_date_like(value)
+            }
+            _ => false,
+        };
+    }
+    false
+}
+
+fn split_segment_query_filter(query: &str) -> Option<(&str, &str)> {
+    let index = query.find(char::is_whitespace)?;
+    let filter = &query[..index];
+    let rest = query[index..].trim();
+    if rest.is_empty() {
+        return None;
+    }
+    Some((filter, rest))
+}
+
+fn segment_query_filter_name_is_valid(filter: &str) -> bool {
+    let mut chars = filter.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn segment_query_unknown_filter_accepts(rest: &str) -> bool {
+    if matches!(rest, "IS NULL" | "IS NOT NULL") {
+        return true;
+    }
+    if let Some(value) = rest.strip_prefix("NOT CONTAINS ") {
+        return segment_query_value_is_quoted(value);
+    }
+    if let Some(value) = rest.strip_prefix("CONTAINS ") {
+        return segment_query_value_is_quoted(value);
+    }
+    if let Some((lower, upper)) = split_segment_query_between(rest) {
+        return segment_query_value_is_literal(lower) && segment_query_value_is_literal(upper);
+    }
+    if let Some((_, value)) = split_segment_query_operator(rest) {
+        return segment_query_value_is_literal(value);
     }
     false
 }
@@ -712,7 +795,7 @@ fn split_segment_query_boolean<'a>(query: &'a str, operator: &str) -> Option<(&'
 }
 
 fn split_segment_query_operator(rest: &str) -> Option<(&str, &str)> {
-    for operator in [">=", "<=", ">", "<", "="] {
+    for operator in [">=", "<=", "!=", ">", "<", "="] {
         if let Some(value) = rest.strip_prefix(operator) {
             return Some((operator, value.trim()));
         }
@@ -720,8 +803,66 @@ fn split_segment_query_operator(rest: &str) -> Option<(&str, &str)> {
     None
 }
 
+fn split_segment_query_between(rest: &str) -> Option<(&str, &str)> {
+    let values = rest.strip_prefix("BETWEEN ")?;
+    let (lower, upper) = values.split_once(" AND ")?;
+    if upper.contains(" AND ") {
+        return None;
+    }
+    let lower = lower.trim();
+    let upper = upper.trim();
+    if lower.is_empty() || upper.is_empty() {
+        return None;
+    }
+    Some((lower, upper))
+}
+
 fn segment_query_value_is_quoted(value: &str) -> bool {
     value.len() >= 2 && value.starts_with('\'') && value.ends_with('\'')
+}
+
+fn segment_query_value_is_literal(value: &str) -> bool {
+    segment_query_value_is_quoted(value)
+        || segment_query_value_is_decimal(value)
+        || segment_query_value_is_relative_date(value)
+        || segment_query_value_is_bare(value)
+}
+
+fn segment_query_value_is_date_like(value: &str) -> bool {
+    segment_query_value_is_relative_date(value) || segment_query_value_is_quoted(value)
+}
+
+fn segment_query_value_is_integer(value: &str) -> bool {
+    let value = value.strip_prefix('-').unwrap_or(value);
+    !value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn segment_query_value_is_decimal(value: &str) -> bool {
+    let value = value.strip_prefix('-').unwrap_or(value);
+    let Some((whole, fraction)) = value.split_once('.') else {
+        return segment_query_value_is_integer(value);
+    };
+    !whole.is_empty()
+        && !fraction.is_empty()
+        && whole.chars().all(|ch| ch.is_ascii_digit())
+        && fraction.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn segment_query_value_is_relative_date(value: &str) -> bool {
+    let Some(value) = value.strip_prefix('-') else {
+        return false;
+    };
+    let Some(days) = value.strip_suffix('d') else {
+        return false;
+    };
+    !days.is_empty() && days.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn segment_query_value_is_bare(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '.'))
 }
 
 fn segment_name_suffix_base(name: &str) -> (&str, u32) {

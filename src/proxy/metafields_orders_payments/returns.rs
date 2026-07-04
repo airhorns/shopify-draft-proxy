@@ -9,8 +9,15 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
+const RETURN_NOT_FOUND_MESSAGE: &str = "Return not found.";
+const RETURN_NOT_FOUND_CODE: &str = "NOT_FOUND";
+
 fn return_request_not_found_error() -> Value {
-    user_error(["input", "id"], "Return not found.", Some("NOT_FOUND"))
+    user_error(
+        ["input", "id"],
+        RETURN_NOT_FOUND_MESSAGE,
+        Some(RETURN_NOT_FOUND_CODE),
+    )
 }
 
 fn return_not_approvable_error() -> Value {
@@ -722,8 +729,8 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "Return does not exist.",
-                    Some("INVALID"),
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );
@@ -765,8 +772,8 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["returnId"],
-                    "Return does not exist.",
-                    Some("INVALID"),
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );
@@ -1225,9 +1232,9 @@ impl DraftProxy {
             return self.return_payload(
                 Value::Null,
                 vec![user_error(
-                    ["returnId"],
-                    "Return does not exist",
-                    Some("NOT_FOUND"),
+                    ["input", "returnId"],
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );

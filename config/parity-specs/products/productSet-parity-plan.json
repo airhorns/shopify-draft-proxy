@@ -274,7 +274,9 @@
               }
             },
             "input": {
-              "title": "Hermes Product Graph Updated 1777158209644",
+              "title": {
+                "fromCapturePath": "$.update.mutation.variables.input.title"
+              },
               "status": "DRAFT",
               "productOptions": [
                 {
@@ -304,7 +306,9 @@
                       "name": "Blue"
                     }
                   ],
-                  "sku": "GRAPH-BLUE-UPDATED-1777158209644",
+                  "sku": {
+                    "fromCapturePath": "$.update.mutation.variables.input.variants[0].sku"
+                  },
                   "price": "89.99",
                   "inventoryQuantities": [
                     {
@@ -333,7 +337,9 @@
                       "name": "Black"
                     }
                   ],
-                  "sku": "GRAPH-BLACK-UPDATED-1777158209644",
+                  "sku": {
+                    "fromCapturePath": "$.update.mutation.variables.input.variants[1].sku"
+                  },
                   "price": "59.99",
                   "inventoryQuantities": [
                     {
