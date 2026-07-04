@@ -9509,7 +9509,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-validation-conformance.ts',
     purpose:
-      'paymentTermsCreate template lookup, unknown template, and template-specific schedule validation branches.',
+      'paymentTermsCreate template lookup, unknown template, and template-type schedule validation branches including FULFILLMENT dueAt rejection.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-terms-create-template-and-schedule-validation.json`,
@@ -9543,7 +9543,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'payment-terms-create-template-reprojection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-template-reprojection-conformance.ts',
-    purpose: 'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates.',
+    purpose:
+      'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates plus Order currentTotalPriceSet computation from line prices.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-terms-create-template-reprojection.json`,
