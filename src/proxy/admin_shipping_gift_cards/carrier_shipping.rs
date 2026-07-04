@@ -1,5 +1,22 @@
 use super::*;
 
+const SHIPPING_PACKAGE_HYDRATE_QUERY: &str = r#"query ShippingPackageHydrate($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on ShippingPackage {
+      id
+      name
+      type
+      boxType
+      default
+      weight { value unit }
+      dimensions { length width height unit }
+      createdAt
+      updatedAt
+    }
+  }
+}"#;
+
 impl DraftProxy {
     pub(in crate::proxy) fn shipping_settings_read_response(
         &mut self,
@@ -817,10 +834,11 @@ impl DraftProxy {
             );
         };
         let id = id.clone();
-        if !is_known_shipping_package_id(&id) {
+        let package = self.shipping_package_for_mutation(&id, request);
+        if package.is_none() {
             return ok_json(json!({
                 "errors": [{
-                    "message": "invalid id",
+                    "message": format!("Invalid id: {id}"),
                     "extensions": { "code": "RESOURCE_NOT_FOUND" },
                     "path": [root_field]
                 }],
@@ -835,7 +853,7 @@ impl DraftProxy {
                         json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
-                let mut package = self.effective_shipping_package(&id);
+                let mut package = package.expect("shipping package existence checked");
                 if package.get("boxType") == Some(&json!("FLAT_RATE")) {
                     return ok_json(json!({
                         "data": {
@@ -859,7 +877,7 @@ impl DraftProxy {
             }
             "shippingPackageMakeDefault" => {
                 self.clear_default_shipping_packages_except(&id);
-                let mut package = self.effective_shipping_package(&id);
+                let mut package = package.expect("shipping package existence checked");
                 package["default"] = json!(true);
                 package["updatedAt"] = json!(self.next_shipping_package_timestamp());
                 self.store
@@ -880,30 +898,55 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: payload } }))
     }
 
-    pub(in crate::proxy) fn effective_shipping_package(&self, id: &str) -> Value {
-        self.store
-            .staged
-            .shipping_packages
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| seed_shipping_package(id))
+    pub(in crate::proxy) fn shipping_package_for_mutation(
+        &mut self,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if self.store.staged.shipping_packages.is_tombstoned(id) {
+            return None;
+        }
+        if let Some(package) = self.store.staged.shipping_packages.get(id).cloned() {
+            return Some(package);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+
+        self.hydrate_shipping_package(request, id)
+    }
+
+    fn hydrate_shipping_package(&self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHIPPING_PACKAGE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        normalize_hydrated_shipping_package(&response.body["data"]["node"], id)
     }
 
     pub(in crate::proxy) fn clear_default_shipping_packages_except(&mut self, default_id: &str) {
-        for id in [
-            "gid://shopify/ShippingPackage/1",
-            "gid://shopify/ShippingPackage/2",
-        ] {
-            if id == default_id || self.store.staged.shipping_packages.is_tombstoned(id) {
+        let ids: Vec<String> = self
+            .store
+            .staged
+            .shipping_packages
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in ids {
+            if id == default_id {
                 continue;
             }
-            let mut package = self.effective_shipping_package(id);
-            package["default"] = json!(false);
-            package["updatedAt"] = json!(self.next_shipping_package_timestamp());
-            self.store
-                .staged
-                .shipping_packages
-                .insert(id.to_string(), package);
+            let updated_at = self.next_shipping_package_timestamp();
+            if let Some(package) = self.store.staged.shipping_packages.get_mut(&id) {
+                package["default"] = json!(false);
+                package["updatedAt"] = json!(updated_at);
+            }
         }
     }
 
@@ -956,6 +999,23 @@ impl DraftProxy {
             }
         }));
     }
+}
+
+fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Option<Value> {
+    let mut package = package.clone();
+    let object = package.as_object_mut()?;
+    if object.get("id").and_then(Value::as_str) != Some(expected_id) {
+        return None;
+    }
+    if object
+        .get("__typename")
+        .and_then(Value::as_str)
+        .is_some_and(|typename| typename != "ShippingPackage")
+    {
+        return None;
+    }
+    object.remove("__typename");
+    Some(package)
 }
 
 fn fulfillment_service_name_user_errors(name: &str) -> Vec<Value> {

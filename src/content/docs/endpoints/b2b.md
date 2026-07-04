@@ -77,8 +77,9 @@ fixture-backed read path.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
-character set, length, and duplicates, reject HTML or overlong notes, and
-reject `companyUpdate(input.customerSince)` without mutating the staged company.
+character set, length, and duplicates, validate note length while preserving
+note HTML verbatim, and reject `companyUpdate(input.customerSince)` without
+mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
 role setup when those input objects are present. Its nested
 `input.companyLocation` name follows Shopify's create-time fallback of
@@ -90,11 +91,13 @@ role setup when those input objects are present. Its nested
 company-contact lifecycle and keep company `contactIds`, contact customer data,
 role assignments, and downstream contact reads in sync. Deleting or removing
 the current main contact clears the company's `mainContact`. `companyContactCreate`
-requires an email-backed customer reference; omitting `input.email` returns
-`INVALID` at `["input"]` without staging a contact or customer. The nested
-`companyCreate(input.companyContact)` path applies the same requirement at
-`["input", "companyContact"]` before staging any company, location, role, contact,
-or assignment rows.
+stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
+`lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
+email-backed customer reference; omitting `input.email` returns `INVALID` at
+`["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies contact validation under
+`["input", "companyContact"]` before staging any company, location, role,
+contact, or assignment rows.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from

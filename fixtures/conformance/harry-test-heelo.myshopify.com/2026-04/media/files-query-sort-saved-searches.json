@@ -1,0 +1,214 @@
+{
+  "capturedAt": "2026-07-03T20:52:44.767Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-files-query-sort-saved-searches",
+  "create": {
+    "request": {
+      "query": "mutation MediaFilesQuerySortCreate($files: [FileCreateInput!]!) {\n  fileCreate(files: $files) {\n    files {\n      __typename\n      id\n      alt\n      fileStatus\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "files": [
+          {
+            "alt": "Files query sort zulu image",
+            "contentType": "IMAGE",
+            "filename": "files_query_sort_1783111958878_zulu.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg"
+          },
+          {
+            "alt": "Files query sort alpha file",
+            "contentType": "FILE",
+            "filename": "files_query_sort_1783111958878_alpha.pdf",
+            "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+          },
+          {
+            "alt": "Files query sort middle image",
+            "contentType": "IMAGE",
+            "filename": "files_query_sort_1783111958878_middle.jpg",
+            "originalSource": "https://placehold.co/800x600.jpg"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "__typename": "MediaImage",
+              "id": "gid://shopify/MediaImage/43991791698226",
+              "alt": "Files query sort zulu image",
+              "fileStatus": "UPLOADED"
+            },
+            {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43991791763762",
+              "alt": "Files query sort alpha file",
+              "fileStatus": "UPLOADED"
+            },
+            {
+              "__typename": "MediaImage",
+              "id": "gid://shopify/MediaImage/43991791730994",
+              "alt": "Files query sort middle image",
+              "fileStatus": "UPLOADED"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreate": {
+    "request": {
+      "query": "mutation MediaFilesQuerySortSavedSearchCreate($input: SavedSearchCreateInput!) {\n  savedSearchCreate(input: $input) {\n    savedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "resourceType": "FILE",
+          "name": "Files query sort 1783111958878",
+          "query": "filename:files_query_sort_1783111958878*"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080031203634",
+            "name": "Files query sort 1783111958878",
+            "query": "filename:files_query_sort_1783111958878*",
+            "resourceType": "FILE"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "request": {
+      "query": "query MediaFilesQuerySortSavedSearchesRead(\n  $exactFilenameQuery: String!\n  $imageQuery: String!\n  $prefixQuery: String!\n  $savedSearchId: ID!\n) {\n  filename: files(first: 10, query: $exactFilenameQuery) {\n    nodes {\n      __typename\n      id\n      alt\n      fileStatus\n    }\n  }\n  imageType: files(first: 10, query: $imageQuery, sortKey: FILENAME) {\n    nodes {\n      __typename\n      alt\n    }\n  }\n  byFilename: files(first: 10, query: $prefixQuery, sortKey: FILENAME) {\n    nodes {\n      __typename\n      alt\n    }\n  }\n  byFilenameReverse: files(first: 10, query: $prefixQuery, sortKey: FILENAME, reverse: true) {\n    nodes {\n      __typename\n      alt\n    }\n  }\n  savedSearchFiles: files(first: 10, savedSearchId: $savedSearchId, sortKey: FILENAME) {\n    nodes {\n      __typename\n      alt\n    }\n  }\n  fileSavedSearches(first: 10) {\n    nodes {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}\n",
+      "variables": {
+        "exactFilenameQuery": "filename:files_query_sort_1783111958878_alpha*",
+        "imageQuery": "filename:files_query_sort_1783111958878* media_type:IMAGE",
+        "prefixQuery": "filename:files_query_sort_1783111958878*",
+        "savedSearchId": "gid://shopify/SavedSearch/4080031203634"
+      }
+    },
+    "response": {
+      "data": {
+        "filename": {
+          "nodes": [
+            {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43991791763762",
+              "alt": "Files query sort alpha file",
+              "fileStatus": "READY"
+            }
+          ]
+        },
+        "imageType": {
+          "nodes": [
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort middle image"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort zulu image"
+            }
+          ]
+        },
+        "byFilename": {
+          "nodes": [
+            {
+              "__typename": "GenericFile",
+              "alt": "Files query sort alpha file"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort middle image"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort zulu image"
+            }
+          ]
+        },
+        "byFilenameReverse": {
+          "nodes": [
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort zulu image"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort middle image"
+            },
+            {
+              "__typename": "GenericFile",
+              "alt": "Files query sort alpha file"
+            }
+          ]
+        },
+        "savedSearchFiles": {
+          "nodes": [
+            {
+              "__typename": "GenericFile",
+              "alt": "Files query sort alpha file"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort middle image"
+            },
+            {
+              "__typename": "MediaImage",
+              "alt": "Files query sort zulu image"
+            }
+          ]
+        },
+        "fileSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4080031203634",
+              "name": "Files query sort 1783111958878",
+              "query": "filename:files_query_sort_1783111958878*",
+              "resourceType": "FILE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 36,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

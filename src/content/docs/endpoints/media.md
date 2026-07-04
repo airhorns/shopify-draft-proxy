@@ -30,14 +30,26 @@ Local staged mutations:
   after local file mutations. In LiveHybrid mode, cold reads forward upstream,
   hydrate observed real Files API records, then apply local staged overlays so
   real store files are not hidden by an empty local session. The local
-  connection uses shared cursor/pageInfo helpers, applies the `reverse`
-  argument over effective in-memory order, and omits files marked deleted by
-  staged `fileDelete`. Full Shopify file search and sort-key semantics are not
-  modeled yet.
+  connection uses shared staged-connection helpers for filtering, sort-key
+  ordering, `reverse`, cursor windows, and pageInfo, and omits files marked
+  deleted by staged `fileDelete`. The local `files(query:)` path supports the
+  documented file filters for staged records: free text, `created_at`,
+  `filename`, `id`, `ids`, `media_type`, `original_source`,
+  `original_upload_size`, `product_id`, `status`, `updated_at`, and `used_in`.
+  Unknown file filters do not fail open; they match no staged files.
+
+- `files(sortKey:)` honors `CREATED_AT`, `FILENAME`, `ID`,
+  `ORIGINAL_UPLOAD_SIZE`, `RELEVANCE`, and `UPDATED_AT` for staged records.
+  `RELEVANCE` falls back to stable ID order because the local query parser does
+  not compute Shopify search relevance scores.
 - `fileSavedSearches` returns an empty Shopify-like connection in snapshot
-  no-data mode. In LiveHybrid `files` reads that also select `fileSavedSearches`,
-  the proxy forwards upstream and hydrates observed FILE saved searches into the
-  saved-search model instead of fabricating an empty connection.
+  no-data mode. In LiveHybrid `files` reads that also select
+  `fileSavedSearches`, the proxy forwards upstream and hydrates observed FILE
+  saved searches into the saved-search model instead of fabricating an empty
+  connection. Staged FILE saved searches appear in combined `files` /
+  `fileSavedSearches` reads, and `files(savedSearchId:)` resolves the saved
+  search query before applying local filters. Unknown saved-search ids match no
+  staged files rather than returning the full file set.
 - `stagedUploadsCreate` returns inert draft-proxy target metadata so clients can
   observe the mutation payload shape without the proxy creating cloud storage
   objects. Returned URLs use `shopify-draft-proxy.local` placeholders. The JS

@@ -1257,29 +1257,51 @@ fn product_collections_connection_json(
     product: &ProductRecord,
     selection: &SelectedField,
 ) -> Value {
-    let mut collections = product.collections.clone();
-    if selection.arguments.get("sortKey") == Some(&ResolvedValue::String("TITLE".to_string())) {
-        collections.sort_by(|left, right| {
-            let left_title = left
-                .get("title")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let right_title = right
-                .get("title")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            left_title.cmp(right_title)
-        });
-    }
-    if selection.arguments.get("reverse") == Some(&ResolvedValue::Bool(true)) {
-        collections.reverse();
-    }
+    let collections =
+        sorted_product_collection_nodes_for_connection(product.collections.clone(), selection);
     selected_connection_json_with_args(
         collections,
         &selection.arguments,
         &selection.selection,
         value_id_cursor,
     )
+}
+
+fn sorted_product_collection_nodes_for_connection(
+    collections: Vec<Value>,
+    selection: &SelectedField,
+) -> Vec<Value> {
+    let sort_key_name = resolved_string_field(&selection.arguments, "sortKey");
+    let mut indexed = collections.into_iter().enumerate().collect::<Vec<_>>();
+    indexed.sort_by(|left, right| {
+        product_collection_sort_key(&left.1, sort_key_name.as_deref(), left.0)
+            .cmp(&product_collection_sort_key(
+                &right.1,
+                sort_key_name.as_deref(),
+                right.0,
+            ))
+            .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
+    });
+    if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
+        indexed.reverse();
+    }
+    indexed
+        .into_iter()
+        .map(|(_, collection)| collection)
+        .collect()
+}
+
+fn product_collection_sort_key(
+    collection: &Value,
+    sort_key: Option<&str>,
+    index: usize,
+) -> StagedSortKey {
+    match sort_key {
+        Some("ID") | Some("RELEVANCE") => value_gid_sort_key(collection),
+        Some("TITLE") => value_string_field_sort_key(collection, "title"),
+        Some("CREATED") => value_string_field_sort_key(collection, "createdAt"),
+        _ => vec![StagedSortValue::I64(index as i64)],
+    }
 }
 
 /// `Product.hasOnlyDefaultVariant` is true exactly when the product has a single variant
@@ -1461,6 +1483,7 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
             selected_connection_json(product.variants.clone(), &selection.selection)
         } else {
             product_variant_connection_with_fallback_json(
+                product,
                 variants,
                 &product.variants,
                 &selection.arguments,
@@ -1468,8 +1491,9 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
             )
         }),
         "collections" => Some(product_collections_connection_json(product, selection)),
-        "media" => Some(selected_connection_json(
+        "media" => Some(product_media_connection_json(
             product.media.clone(),
+            &selection.arguments,
             &selection.selection,
         )),
         "images" => Some(selected_empty_connection_json(&selection.selection)),
@@ -1499,13 +1523,15 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
 }
 
 pub(in crate::proxy) fn product_variant_connection_with_fallback_json(
+    _product: &ProductRecord,
     variants: &[ProductVariantRecord],
     fallback_variants: &[Value],
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
+    let variants = sorted_product_variant_records_for_connection(variants.to_vec(), arguments);
     let (variant_records, page_info) =
-        connection_window(variants, arguments, |variant| variant.id.clone());
+        connection_window(&variants, arguments, |variant| variant.id.clone());
     let variant_nodes = variant_records
         .iter()
         .map(product_variant_state_json)
@@ -1527,6 +1553,53 @@ pub(in crate::proxy) fn product_variant_connection_with_fallback_json(
         &connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info),
         selections,
     )
+}
+
+fn sorted_product_variant_records_for_connection(
+    variants: Vec<ProductVariantRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<ProductVariantRecord> {
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    if sort_key_name.as_deref() == Some("INVENTORY_LEVELS_AVAILABLE") {
+        return Vec::new();
+    }
+    let mut indexed = variants.into_iter().enumerate().collect::<Vec<_>>();
+    indexed.sort_by(|left, right| {
+        product_variant_connection_sort_key(&left.1, sort_key_name.as_deref(), left.0)
+            .cmp(&product_variant_connection_sort_key(
+                &right.1,
+                sort_key_name.as_deref(),
+                right.0,
+            ))
+            .then_with(|| left.1.id.cmp(&right.1.id))
+    });
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        indexed.reverse();
+    }
+    indexed.into_iter().map(|(_, variant)| variant).collect()
+}
+
+fn product_variant_connection_sort_key(
+    variant: &ProductVariantRecord,
+    sort_key: Option<&str>,
+    index: usize,
+) -> StagedSortKey {
+    match sort_key {
+        Some("ID") => gid_string_sort_key(&variant.id),
+        Some("INVENTORY_QUANTITY") => vec![StagedSortValue::I64(variant.inventory_quantity)],
+        Some("INVENTORY_MANAGEMENT") => {
+            vec![StagedSortValue::I64(variant.inventory_item.tracked as i64)]
+        }
+        Some("INVENTORY_POLICY") => vec![sort_string_value(&variant.inventory_policy)],
+        Some("NAME") | Some("TITLE") => vec![sort_string_value(&variant.title)],
+        Some("SKU") => vec![sort_string_value(&variant.sku)],
+        Some("FULL_TITLE") | Some("POPULAR") | Some("POSITION") | Some("RELEVANCE") => {
+            vec![StagedSortValue::I64(
+                product_variant_position(variant).unwrap_or(index as i64),
+            )]
+        }
+        _ => vec![StagedSortValue::I64(index as i64)],
+    }
 }
 
 pub(in crate::proxy) fn product_variant_json(
@@ -1584,8 +1657,9 @@ pub(in crate::proxy) fn product_variant_json(
         // A variant's `media` is the subset of the owning product's media library
         // that has been attached to the variant (via productVariantAppendMedia),
         // rendered in attachment order.
-        "media" => Some(selected_connection_json(
+        "media" => Some(product_media_connection_json(
             variant_attached_media_nodes(variant, product),
+            &selection.arguments,
             &selection.selection,
         )),
         _ => variant
@@ -1617,6 +1691,69 @@ pub(in crate::proxy) fn variant_attached_media_nodes(
             .collect(),
         None => Vec::new(),
     }
+}
+
+fn product_media_connection_json(
+    media: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let media = sorted_product_media_nodes_for_connection(media, arguments);
+    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
+}
+
+fn sorted_product_media_nodes_for_connection(
+    media: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    let mut indexed = media.into_iter().enumerate().collect::<Vec<_>>();
+    indexed.sort_by(|left, right| {
+        product_media_sort_key(&left.1, sort_key_name.as_deref(), left.0)
+            .cmp(&product_media_sort_key(
+                &right.1,
+                sort_key_name.as_deref(),
+                right.0,
+            ))
+            .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
+    });
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        indexed.reverse();
+    }
+    indexed.into_iter().map(|(_, media)| media).collect()
+}
+
+fn product_media_sort_key(media: &Value, sort_key: Option<&str>, index: usize) -> StagedSortKey {
+    match sort_key {
+        Some("ID") => value_gid_sort_key(media),
+        Some("POSITION") | Some("RELEVANCE") | None => vec![StagedSortValue::I64(index as i64)],
+        _ => vec![StagedSortValue::I64(index as i64)],
+    }
+}
+
+fn value_gid_sort_key(value: &Value) -> StagedSortKey {
+    value
+        .get("id")
+        .and_then(Value::as_str)
+        .map_or_else(|| vec![StagedSortValue::Null], gid_string_sort_key)
+}
+
+fn gid_string_sort_key(id: &str) -> StagedSortKey {
+    match resource_id_tail(id).parse::<i64>() {
+        Ok(tail) => vec![StagedSortValue::I64(tail)],
+        Err(_) => vec![sort_string_value(id)],
+    }
+}
+
+fn value_string_field_sort_key(value: &Value, field: &str) -> StagedSortKey {
+    value.get(field).and_then(Value::as_str).map_or_else(
+        || vec![StagedSortValue::Null],
+        |field_value| vec![sort_string_value(field_value)],
+    )
+}
+
+fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
+    StagedSortValue::String(value.as_ref().to_ascii_lowercase())
 }
 
 pub(in crate::proxy) fn product_variant_inventory_item_json(
