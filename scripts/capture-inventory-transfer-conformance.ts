@@ -56,6 +56,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const validationOutputPath = path.join(outputDir, 'inventory-transfer-create-validation.json');
 const lifecycleOutputPath = path.join(outputDir, 'inventory-transfer-lifecycle-local-staging.json');
+const zeroOriginOutputPath = path.join(outputDir, 'inventory-transfer-zero-origin-read.json');
 
 const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -453,6 +454,28 @@ const inventoryTransferInventoryReadQuery = `#graphql
   }
 `;
 
+const inventoryTransferInventoryReadWithLocationNamesQuery = `#graphql
+  query InventoryTransferInventoryReadWithNamesParity($id: ID!) {
+    inventoryItem(id: $id) {
+      variant {
+        inventoryQuantity
+      }
+      inventoryLevels(first: 50) {
+        nodes {
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "reserved", "on_hand"]) {
+            name
+            quantity
+          }
+        }
+      }
+    }
+  }
+`;
+
 const inventoryTransferCancelMutation = `#graphql
   mutation InventoryTransferCancelParity($id: ID!) {
     inventoryTransferCancel(id: $id) {
@@ -621,7 +644,7 @@ async function cleanupLocation(locationId: string, runId: string): Promise<JsonR
   return cleanup;
 }
 
-async function createSetup(runId: string): Promise<ProductSetup> {
+async function createSetup(runId: string, originAvailable = 5): Promise<ProductSetup> {
   const origin = await createLocation(runId, 'origin');
   const destination = await createLocation(runId, 'destination');
 
@@ -651,7 +674,7 @@ async function createSetup(runId: string): Promise<ProductSetup> {
   const originActivation = await runGraphqlAllowGraphqlErrors(inventoryActivateMutation, {
     inventoryItemId: product.inventoryItemId,
     locationId: origin.location.id,
-    available: 5,
+    available: originAvailable,
   });
   expectNoUserErrors(originActivation, ['data', 'inventoryActivate', 'userErrors'], 'origin inventoryActivate');
   const destinationActivation = await runGraphqlAllowGraphqlErrors(inventoryActivateMutation, {
@@ -675,7 +698,7 @@ async function createSetup(runId: string): Promise<ProductSetup> {
         {
           inventoryItemId: product.inventoryItemId,
           locationId: origin.location.id,
-          quantity: 5,
+          quantity: originAvailable,
         },
         {
           inventoryItemId: product.inventoryItemId,
@@ -869,6 +892,51 @@ async function captureLifecycle(setup: ProductSetup): Promise<{
   };
 }
 
+async function captureZeroOriginRead(setup: ProductSetup): Promise<{
+  workflow: JsonRecord;
+  draftCreate: GraphqlPayload;
+  draftInventoryReadAfterCreateGraphql: GraphqlPayload;
+  cleanup: JsonRecord;
+}> {
+  let transferId: string | null = null;
+  const createVariables = {
+    input: transferInput(setup, 2),
+  };
+  const draftCreate = await runGraphqlAllowGraphqlErrors(inventoryTransferCreateMutation, createVariables);
+  transferId = readTransferId(draftCreate, ['data', 'inventoryTransferCreate', 'inventoryTransfer', 'id']);
+  const draftInventoryReadAfterCreateGraphql = (await runGraphql(inventoryTransferInventoryReadWithLocationNamesQuery, {
+    id: setup.inventoryItemId,
+  })) as GraphqlPayload;
+  const deleteDraftTransfer = await runGraphqlAllowGraphqlErrors(inventoryTransferDeleteMutation, {
+    id: transferId,
+  });
+
+  return {
+    workflow: {
+      createDraft: {
+        variables: createVariables,
+      },
+      afterDraftInventoryRead: {
+        variables: {
+          id: setup.inventoryItemId,
+        },
+      },
+      deleteDraft: {
+        variables: {
+          id: transferId,
+        },
+      },
+    },
+    draftCreate,
+    draftInventoryReadAfterCreateGraphql,
+    cleanup: {
+      draftTransferDelete: deleteDraftTransfer,
+      draftTransferDeleted:
+        readUserErrors(deleteDraftTransfer, ['data', 'inventoryTransferDelete', 'userErrors']).length === 0,
+    },
+  };
+}
+
 function uniqueIdLists(lists: string[][]): string[][] {
   const seen = new Set<string>();
   const unique: string[][] = [];
@@ -991,8 +1059,52 @@ try {
     productsDeleted: cleanup !== null && readUserErrors(cleanup, ['data', 'productDelete', 'userErrors']).length === 0,
   };
 
+  const zeroOriginSetup = await createSetup(`${runId}-zero-origin`, 0);
+  productIdForCleanup = zeroOriginSetup.productId;
+  locationIdsForCleanup = [zeroOriginSetup.originLocation.id, zeroOriginSetup.destinationLocation.id];
+  const zeroOriginRead = await captureZeroOriginRead(zeroOriginSetup);
+  const zeroOriginFixture = {
+    scenario: 'inventory-transfer-zero-origin-read',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    setup: {
+      productId: zeroOriginSetup.productId,
+      variantId: zeroOriginSetup.variantId,
+      inventoryItemId: zeroOriginSetup.inventoryItemId,
+      originLocation: zeroOriginSetup.originLocation,
+      destinationLocation: zeroOriginSetup.destinationLocation,
+      originLocationCreate: zeroOriginSetup.originLocationCreate,
+      destinationLocationCreate: zeroOriginSetup.destinationLocationCreate,
+      create: zeroOriginSetup.create,
+      track: zeroOriginSetup.track,
+      originActivation: zeroOriginSetup.originActivation,
+      destinationActivation: zeroOriginSetup.destinationActivation,
+      inventorySet: zeroOriginSetup.inventorySet,
+      hydratedItem: zeroOriginSetup.hydratedItem,
+    },
+    ...zeroOriginRead,
+    upstreamCalls: await buildLifecycleUpstreamCalls(zeroOriginSetup),
+  };
+  const zeroProductCleanup = await deleteProduct(zeroOriginSetup.productId);
+  productIdForCleanup = null;
+  const zeroLocationCleanup = {
+    origin: await cleanupLocation(zeroOriginSetup.originLocation.id, `${runId}-zero-origin`),
+    destination: await cleanupLocation(zeroOriginSetup.destinationLocation.id, `${runId}-zero-origin`),
+  };
+  locationIdsForCleanup = [];
+  zeroOriginFixture.cleanup = {
+    ...zeroOriginFixture.cleanup,
+    productDelete: zeroProductCleanup,
+    locationCleanup: zeroLocationCleanup,
+    productsDeleted:
+      zeroProductCleanup !== null &&
+      readUserErrors(zeroProductCleanup, ['data', 'productDelete', 'userErrors']).length === 0,
+  };
+
   await writeFile(validationOutputPath, `${JSON.stringify(validationFixture, null, 2)}\n`, 'utf8');
   await writeFile(lifecycleOutputPath, `${JSON.stringify(lifecycleFixture, null, 2)}\n`, 'utf8');
+  await writeFile(zeroOriginOutputPath, `${JSON.stringify(zeroOriginFixture, null, 2)}\n`, 'utf8');
 
   console.log(
     JSON.stringify(
@@ -1000,7 +1112,7 @@ try {
         ok: true,
         storeDomain,
         apiVersion,
-        outputs: [validationOutputPath, lifecycleOutputPath],
+        outputs: [validationOutputPath, lifecycleOutputPath, zeroOriginOutputPath],
       },
       null,
       2,

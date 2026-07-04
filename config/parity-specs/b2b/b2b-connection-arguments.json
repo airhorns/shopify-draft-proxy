@@ -1,0 +1,191 @@
+{
+  "scenarioId": "b2b-connection-arguments",
+  "operationNames": [
+    "companies",
+    "companiesCount",
+    "company",
+    "companyContact",
+    "companyContactAssignRole",
+    "companyContactCreate",
+    "companyCreate",
+    "companyLocation",
+    "companyLocationCreate",
+    "companyLocations"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "read-after-write", "search-filter", "sort", "pagination"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-connection-arguments.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-connection-args-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Strict parity coverage for staged B2B connection query, sortKey, reverse, cursor-window, companiesCount, and pageInfo behavior. Setup runs through public B2B mutations only; readback targets compare stable names/titles/count/pageInfo booleans while excluding opaque cursor token values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-acme-user-errors",
+        "capturePath": "$.companyCreate.response.data.acme.userErrors",
+        "proxyPath": "$.data.acme.userErrors"
+      },
+      {
+        "name": "primary-zeta-user-errors",
+        "capturePath": "$.companyCreate.response.data.zeta.userErrors",
+        "proxyPath": "$.data.zeta.userErrors"
+      },
+      {
+        "name": "contact-create-user-errors",
+        "capturePath": "$.contactCreate.response.data.companyContactCreate.userErrors",
+        "proxyPath": "$.data.companyContactCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.acme.company.id" },
+            "input": { "fromCapturePath": "$.contactCreate.request.variables.input" }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "location-create-user-errors",
+        "capturePath": "$.locationCreate.response.data.companyLocationCreate.userErrors",
+        "proxyPath": "$.data.companyLocationCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.acme.company.id" },
+            "input": { "fromCapturePath": "$.locationCreate.request.variables.input" }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "secondary-role-assign-user-errors",
+        "capturePath": "$.secondaryRoleAssign.response.data.companyContactAssignRole.userErrors",
+        "proxyPath": "$.data.companyContactAssignRole.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-assign-role.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromProxyResponse": "contact-create-user-errors",
+              "path": "$.data.companyContactCreate.companyContact.id"
+            },
+            "companyContactRoleId": { "fromPrimaryProxyPath": "$.data.acme.company.contactRoles.nodes[0].id" },
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-user-errors",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "main-role-assign-user-errors",
+        "capturePath": "$.mainRoleAssign.response.data.companyContactAssignRole.userErrors",
+        "proxyPath": "$.data.companyContactAssignRole.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-assign-role.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.acme.company.mainContact.id" },
+            "companyContactRoleId": { "fromPrimaryProxyPath": "$.data.acme.company.contactRoles.nodes[0].id" },
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-user-errors",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "connection-page-one-readback",
+        "capturePath": "$.readPageOne.response.data",
+        "proxyPath": "$.data",
+        "excludedPaths": [
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.company.contacts.pageInfo.endCursor",
+          "$.company.locations.pageInfo.endCursor",
+          "$.companyContact.roleAssignments.pageInfo.endCursor",
+          "$.companyLocation.roleAssignments.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-read.graphql",
+          "variables": {
+            "companyQuery": { "fromCapturePath": "$.readPageOne.request.variables.companyQuery" },
+            "locationQuery": { "fromCapturePath": "$.readPageOne.request.variables.locationQuery" },
+            "companyId": { "fromPrimaryProxyPath": "$.data.acme.company.id" },
+            "contactId": { "fromPrimaryProxyPath": "$.data.acme.company.mainContact.id" },
+            "locationId": {
+              "fromProxyResponse": "location-create-user-errors",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "connection-cursor-window-readback",
+        "capturePath": "$.readPageTwo.response.data",
+        "proxyPath": "$.data",
+        "excludedPaths": [
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.company.contacts.pageInfo.endCursor",
+          "$.company.locations.pageInfo.endCursor",
+          "$.companyContact.roleAssignments.pageInfo.endCursor",
+          "$.companyLocation.roleAssignments.pageInfo.endCursor"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocations.pageInfo.hasNextPage",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify 2025-01 kept root companyLocations hasNextPage true on the second freshly indexed name-filtered page even though the captured node window and a wider same-filter probe showed only the two disposable locations. The proxy computes the staged window exactly."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-connection-args-read.graphql",
+          "variables": {
+            "companyQuery": { "fromCapturePath": "$.readPageTwo.request.variables.companyQuery" },
+            "locationQuery": { "fromCapturePath": "$.readPageTwo.request.variables.locationQuery" },
+            "companyId": { "fromPrimaryProxyPath": "$.data.acme.company.id" },
+            "contactId": { "fromPrimaryProxyPath": "$.data.acme.company.mainContact.id" },
+            "locationId": {
+              "fromProxyResponse": "location-create-user-errors",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "afterCompany": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.companies.pageInfo.endCursor"
+            },
+            "afterLocation": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.companyLocations.pageInfo.endCursor"
+            },
+            "afterCompanyLocation": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.company.locations.pageInfo.endCursor"
+            },
+            "afterContact": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.company.contacts.pageInfo.endCursor"
+            },
+            "afterContactAssignment": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.companyContact.roleAssignments.pageInfo.endCursor"
+            },
+            "afterLocationAssignment": {
+              "fromProxyResponse": "connection-page-one-readback",
+              "path": "$.data.companyLocation.roleAssignments.pageInfo.endCursor"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

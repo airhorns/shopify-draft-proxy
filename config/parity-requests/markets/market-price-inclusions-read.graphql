@@ -6,6 +6,14 @@ query MarketPriceInclusionsRead($id: ID!) {
     handle
     status
     type
+    currencySettings {
+      baseCurrency {
+        currencyCode
+        currencyName
+      }
+      localCurrencies
+      roundingEnabled
+    }
     priceInclusions {
       inclusiveDutiesPricingStrategy
       inclusiveTaxPricingStrategy

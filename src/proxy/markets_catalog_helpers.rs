@@ -1314,6 +1314,7 @@ pub(in crate::proxy) fn market_record_from_input(
     name: &str,
     handle: &str,
     region_codes: &[String],
+    shop_currency_code: &str,
 ) -> Value {
     // Defaults for staged market data: status falls
     // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
@@ -1341,7 +1342,7 @@ pub(in crate::proxy) fn market_record_from_input(
         "enabled": enabled,
         "type": market_type,
         "priceInclusions": market_price_inclusions(input),
-        "currencySettings": market_currency_settings_json(input),
+        "currencySettings": market_currency_settings_json(input, shop_currency_code),
         "regionCodes": region_codes,
         "conditions": {
             "regionsCondition": {
@@ -1367,12 +1368,13 @@ pub(in crate::proxy) fn market_price_inclusions(input: &BTreeMap<String, Resolve
 
 pub(in crate::proxy) fn market_currency_settings_json(
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let Some(currency_settings) = resolved_object_field(input, "currencySettings") else {
         return Value::Null;
     };
     let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     json!({
         "baseCurrency": {
             "currencyCode": currency_code,
@@ -1721,11 +1723,16 @@ pub(in crate::proxy) fn default_available_language_subtag_name(
         })
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
+pub(in crate::proxy) fn shop_locale_record(
+    locale: &str,
+    name: &str,
+    published: bool,
+    primary_locale: &str,
+) -> Value {
     json!({
         "locale": locale,
         "name": name,
-        "primary": locale == "en",
+        "primary": locale == primary_locale,
         "published": published,
         "marketWebPresences": []
     })
@@ -1735,11 +1742,14 @@ pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) 
     user_error_omit_code(field, message, None)
 }
 
-pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {
+pub(in crate::proxy) fn shop_locale_market_web_presence_record(
+    id: &str,
+    default_locale: &str,
+) -> Value {
     json!({
         "id": id,
         "__typename": "MarketWebPresence",
-        "defaultLocale": { "locale": "en" }
+        "defaultLocale": { "locale": default_locale }
     })
 }
 

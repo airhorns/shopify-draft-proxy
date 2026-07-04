@@ -22,7 +22,7 @@
     "variablesCapturePath": "$.requestedCase.returnRequest.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live return status precondition capture for returnClose, returnReopen, returnCancel, and removeFromReturn. The scenario covers requested/declined invalid transitions, open/closed close/reopen success and idempotent no-op paths, removeFromReturn rejection on a closed return plus readback no-op state, cancel success/idempotency, and processed-return cancel rejection.",
+  "notes": "Live return status precondition capture for returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess. The scenario covers requested/declined invalid transitions, open/closed close/reopen success and idempotent no-op paths, removeFromReturn rejection on a closed return plus readback no-op state, cancel success/idempotency, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -431,6 +431,90 @@
             "id": {
               "fromProxyResponse": "processed-case-return-process",
               "path": "$.data.returnProcess.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-return-cancel-not-found",
+        "capturePath": "$.notFoundCase.returnCancel.response.payload.data.returnCancel",
+        "proxyPath": "$.data.returnCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-cancel-state-precondition.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.notFoundCase.missingReturnId"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-return-close-not-found",
+        "capturePath": "$.notFoundCase.returnClose.response.payload.data.returnClose",
+        "proxyPath": "$.data.returnClose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-close-state-precondition.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.notFoundCase.missingReturnId"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-return-reopen-not-found",
+        "capturePath": "$.notFoundCase.returnReopen.response.payload.data.returnReopen",
+        "proxyPath": "$.data.returnReopen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-reopen-state-precondition.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.notFoundCase.missingReturnId"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-return-remove-from-return-not-found",
+        "capturePath": "$.notFoundCase.removeFromReturn.response.payload.data.removeFromReturn",
+        "proxyPath": "$.data.removeFromReturn",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/remove-from-return-state-precondition.graphql",
+          "variables": {
+            "returnId": {
+              "fromCapturePath": "$.notFoundCase.missingReturnId"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromCapturePath": "$.notFoundCase.missingReturnLineItemId"
+                },
+                "quantity": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "missing-return-process-not-found",
+        "capturePath": "$.notFoundCase.returnProcess.response.payload.data.returnProcess",
+        "proxyPath": "$.data.returnProcess",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-process-recorded.graphql",
+          "variables": {
+            "input": {
+              "returnId": {
+                "fromCapturePath": "$.notFoundCase.missingReturnId"
+              },
+              "returnLineItems": [
+                {
+                  "id": {
+                    "fromCapturePath": "$.notFoundCase.missingReturnLineItemId"
+                  },
+                  "quantity": 1
+                }
+              ],
+              "notifyCustomer": true
             }
           }
         }

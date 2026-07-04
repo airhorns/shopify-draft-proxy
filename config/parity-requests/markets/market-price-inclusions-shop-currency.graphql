@@ -1,0 +1,6 @@
+#graphql
+query MarketPriceInclusionsShopCurrency {
+  shop {
+    currencyCode
+  }
+}

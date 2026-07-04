@@ -18,9 +18,31 @@
         "proxyPath": "$.data",
         "upstreamCapturePath": null,
         "proxyRequest": {
-          "documentPath": "config/parity-requests/localization/localization-translations-unknown-resource.graphql",
+          "documentPath": "config/parity-requests/localization/localization-unknown-resource-validation.graphql",
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.unknownResource.variables"
+        }
+      },
+      {
+        "name": "translations-register-remove-missing-collection-resource",
+        "capturePath": "$.unknownCollectionResource.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-unknown-resource-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.unknownCollectionResource.variables"
+        }
+      },
+      {
+        "name": "translations-register-remove-absent-menu-resource",
+        "capturePath": "$.unknownMenuResource.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-unknown-resource-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.unknownMenuResource.variables"
         }
       },
       {
@@ -101,5 +123,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product and ensures French is enabled. The unknown-resource target proves translationsRegister and translationsRemove both return RESOURCE_NOT_FOUND for a well-formed absent Product GID. Ordered local parity targets then create a proxy-local product and prove the same translation register/remove lifecycle still succeeds for a known local Product resource without runtime Shopify writes."
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product and ensures French is enabled. The unknown-resource targets prove translationsRegister and translationsRemove both return RESOURCE_NOT_FOUND for a well-formed absent Product GID, a missing Collection GID, and an absent Menu GID. Ordered local parity targets then create a proxy-local product and prove the same translation register/remove lifecycle still succeeds for a known local Product resource without runtime Shopify writes."
 }

@@ -1,0 +1,119 @@
+query SellingPlanGroupConnectionArgs(
+  $productId: ID!
+  $variantId: ID!
+  $matchQuery: String!
+  $betaQuery: String!
+  $percentageQuery: String!
+  $frequencyQuery: String!
+  $categoryQuery: String!
+  $unknownQuery: String!
+) {
+  defaultId: sellingPlanGroups(first: 3, query: $matchQuery) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  nameReverse: sellingPlanGroups(first: 2, query: $matchQuery, sortKey: NAME, reverse: true) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  updatedReverse: sellingPlanGroups(first: 1, query: $matchQuery, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  betaOnly: sellingPlanGroups(first: 5, query: $betaQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  percentageOnly: sellingPlanGroups(first: 5, query: $percentageQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  frequencyMatch: sellingPlanGroups(first: 5, query: $frequencyQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  categoryMatch: sellingPlanGroups(first: 5, query: $categoryQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+  }
+  unknownFilter: sellingPlanGroups(first: 5, query: $unknownQuery) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  product(id: $productId) {
+    id
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+    sellingPlanGroups(first: 2, reverse: true) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+    sellingPlanGroups(first: 2, reverse: true) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}
