@@ -8607,6 +8607,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-created-no-recipient',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-created-no-recipient-conformance.ts',
+    purpose:
+      'Public draftOrderCreate followed by no-recipient draftOrderInvoiceSend, proving the rejected send payload projects the created draft lines, name, and totals from real draft state rather than fixture-title sentinels.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-created-no-recipient.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-created-no-recipient.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-send.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable no-recipient draft order, records the rejected invoice-send payload, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-invoice-errors-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-invoice-errors-local-runtime.ts',
