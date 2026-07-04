@@ -63,27 +63,39 @@ export interface DraftProxyStateDump {
   extensions?: Record<string, unknown>;
 }
 
-export interface DraftProxyCommitAttempt {
-  logEntryId: string;
-  operationName: string | null;
+export interface DraftProxyCommitAttemptRequest {
+  method: string;
   path: string;
-  success: boolean;
+}
+
+export interface DraftProxyCommitAttemptResponse {
+  status: number;
+  body: unknown;
+}
+
+export interface DraftProxyCommitAttempt {
+  index: number;
+  logId: string;
   status: string;
-  upstreamStatus: number | null;
-  upstreamBody: unknown;
-  upstreamError: { message: string } | null;
-  responseBody: unknown;
+  request: DraftProxyCommitAttemptRequest;
+  response: DraftProxyCommitAttemptResponse;
+  mappedIds?: Record<string, string>;
+  error?: string;
 }
 
 export interface DraftProxyCommitResult {
-  stopIndex: null;
+  ok: boolean;
+  committed: number;
+  failed: number;
+  stopIndex: number | null;
   attempts: DraftProxyCommitAttempt[];
+  error?: string;
 }
 
 export class DraftProxyCommitError extends Error {
-  readonly result: { ok: boolean; stopIndex: number | null; attempts: DraftProxyCommitAttempt[] };
+  readonly result: DraftProxyCommitResult;
 
-  constructor(result: { ok: boolean; stopIndex: number | null; attempts: DraftProxyCommitAttempt[] }) {
+  constructor(result: DraftProxyCommitResult) {
     super('DraftProxy commit failed before all staged mutations were replayed.');
     this.name = 'DraftProxyCommitError';
     this.result = result;

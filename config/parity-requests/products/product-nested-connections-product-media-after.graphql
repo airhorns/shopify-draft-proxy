@@ -1,0 +1,12 @@
+#graphql
+query ProductNestedConnectionsProductMediaAfter($productId: ID!, $after: String!) {
+  product(id: $productId) {
+    media(first: 1, after: $after, sortKey: POSITION) {
+      edges {
+        cursor
+        node { alt mediaContentType status }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}

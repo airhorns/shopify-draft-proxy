@@ -37,6 +37,18 @@ const readEvidenceQuery = await readFile(
   path.join('config', 'parity-requests', 'gift-cards', 'gift-card-read-evidence.graphql'),
   'utf8',
 );
+const connectionSetupMutation = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-setup.graphql'),
+  'utf8',
+);
+const connectionFirstPageQuery = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-first-page.graphql'),
+  'utf8',
+);
+const connectionWindowsQuery = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-windows.graphql'),
+  'utf8',
+);
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -66,6 +78,97 @@ function readCreatedGiftCardId(createCapture: CapturedRequest): string | null {
 
   const id = giftCard['id'];
   return typeof id === 'string' ? id : null;
+}
+
+function readAliasedGiftCardId(createCapture: CapturedRequest, alias: string): string | null {
+  const data = createCapture.response.payload.data;
+  if (!isObject(data)) {
+    return null;
+  }
+
+  const payload = data[alias];
+  if (!isObject(payload)) {
+    return null;
+  }
+
+  const giftCard = payload['giftCard'];
+  if (!isObject(giftCard)) {
+    return null;
+  }
+
+  const id = giftCard['id'];
+  return typeof id === 'string' ? id : null;
+}
+
+function readPath(value: unknown, pathParts: string[]): unknown {
+  let cursor = value;
+  for (const part of pathParts) {
+    if (!isObject(cursor)) {
+      return undefined;
+    }
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
+function readStringPath(value: unknown, pathParts: string[], context: string): string {
+  const result = readPath(value, pathParts);
+  if (typeof result !== 'string' || result.length === 0) {
+    throw new Error(`${context} did not resolve to a non-empty string.`);
+  }
+  return result;
+}
+
+function readNumberPath(value: unknown, pathParts: string[], context: string): number {
+  const result = readPath(value, pathParts);
+  if (typeof result !== 'number') {
+    throw new Error(`${context} did not resolve to a number.`);
+  }
+  return result;
+}
+
+function readArrayLengthPath(value: unknown, pathParts: string[], context: string): number {
+  const result = readPath(value, pathParts);
+  if (!Array.isArray(result)) {
+    throw new Error(`${context} did not resolve to an array.`);
+  }
+  return result.length;
+}
+
+async function captureConnectionFirstPageWithRetry(
+  variables: Record<string, unknown>,
+  expectedCount: number,
+): Promise<CapturedRequest> {
+  let lastCapture: CapturedRequest | null = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    lastCapture = await capture('connectionFirstPage', connectionFirstPageQuery, variables);
+    const count = readNumberPath(
+      lastCapture.response.payload,
+      ['data', 'countLimit', 'count'],
+      'connectionFirstPage countLimit.count',
+    );
+    const forwardNodeCount = readArrayLengthPath(
+      lastCapture.response.payload,
+      ['data', 'forward', 'nodes'],
+      'connectionFirstPage forward.nodes',
+    );
+    const reverseNodeCount = readArrayLengthPath(
+      lastCapture.response.payload,
+      ['data', 'reverse', 'nodes'],
+      'connectionFirstPage reverse.nodes',
+    );
+    if (count === 2 && forwardNodeCount === 2 && reverseNodeCount === 2) {
+      return lastCapture;
+    }
+    if (attempt < 5) {
+      await setTimeout(5_000);
+    }
+  }
+  throw new Error(
+    `Connection mechanics giftCards query did not observe ${expectedCount} created cards; last capture: ${JSON.stringify(
+      lastCapture?.response.payload ?? null,
+    )}`,
+  );
 }
 
 function readCreatedCustomerId(createCapture: CapturedRequest): string | null {
@@ -432,6 +535,7 @@ const create = await capture(
 
 const createdId = readCreatedGiftCardId(create);
 const lifecycle: CapturedRequest[] = [];
+const connectionMechanics: CapturedRequest[] = [];
 
 if (createdId !== null) {
   const hydrateAfterCreate = await hydrateGiftCard(createdId);
@@ -815,6 +919,76 @@ if (createdId !== null) {
       },
     ),
   );
+
+  const connectionRunToken = Date.now().toString(36).toUpperCase();
+  const connectionSearchToken = connectionRunToken.slice(-3).padStart(3, 'X');
+  const connectionSetupVariables = {
+    firstCode: `GCM${connectionRunToken}${connectionSearchToken}A`,
+    secondCode: `GCM${connectionRunToken}${connectionSearchToken}B`,
+    thirdCode: `GCM${connectionRunToken}${connectionSearchToken}C`,
+    firstAmount: '41.01',
+    secondAmount: '41.02',
+    thirdAmount: '41.03',
+  };
+  const connectionSetup = await capture('connectionSetup', connectionSetupMutation, connectionSetupVariables);
+  connectionMechanics.push(connectionSetup);
+  const connectionGiftCardIds = ['first', 'second', 'third']
+    .map((alias) => readAliasedGiftCardId(connectionSetup, alias))
+    .filter((id): id is string => id !== null);
+  if (connectionGiftCardIds.length !== 3) {
+    throw new Error(
+      `Connection mechanics setup did not create three gift cards: ${JSON.stringify(connectionSetup.response.payload)}`,
+    );
+  }
+
+  await setTimeout(10_000);
+  const connectionFirstPage = await captureConnectionFirstPageWithRetry(
+    { query: connectionSearchToken },
+    connectionGiftCardIds.length,
+  );
+  connectionMechanics.push(connectionFirstPage);
+  const connectionAfterCursor = readStringPath(
+    connectionFirstPage.response.payload,
+    ['data', 'forward', 'pageInfo', 'endCursor'],
+    'connectionFirstPage forward.pageInfo.endCursor',
+  );
+  const connectionBeforeCursor = connectionAfterCursor;
+  const connectionReverseAfterCursor = readStringPath(
+    connectionFirstPage.response.payload,
+    ['data', 'reverse', 'pageInfo', 'endCursor'],
+    'connectionFirstPage reverse.pageInfo.endCursor',
+  );
+  connectionMechanics.push(
+    await capture('connectionWindows', connectionWindowsQuery, {
+      query: connectionSearchToken,
+      after: connectionAfterCursor,
+      before: connectionBeforeCursor,
+      reverseAfter: connectionReverseAfterCursor,
+    }),
+  );
+  for (const [index, id] of connectionGiftCardIds.entries()) {
+    connectionMechanics.push(
+      await capture(
+        `connectionCleanup${index + 1}`,
+        `#graphql
+          mutation GiftCardConnectionCleanup($id: ID!) {
+            giftCardDeactivate(id: $id) {
+              giftCard {
+                id
+                enabled
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        { id },
+      ),
+    );
+  }
+
   lifecycle.push(
     await capture(
       'deactivate',
@@ -934,7 +1108,7 @@ if (createdId !== null) {
     );
   }
 
-  const operations = Object.fromEntries(lifecycle.map((step) => [step.label, step]));
+  const operations = Object.fromEntries([...lifecycle, ...connectionMechanics].map((step) => [step.label, step]));
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(
@@ -951,6 +1125,7 @@ if (createdId !== null) {
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
           'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
           'The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.',
+          'Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, and giftCardsCount(limit:) precision, then deactivates the created cards.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
         notificationRoots: {
@@ -977,6 +1152,16 @@ if (createdId !== null) {
           readAfterLifecycle: {
             id: createdId,
             query: `id:${giftCardTail(createdId)}`,
+          },
+          connectionSetup: connectionSetupVariables,
+          connectionFirstPage: {
+            query: connectionSearchToken,
+          },
+          connectionWindows: {
+            query: connectionSearchToken,
+            after: connectionAfterCursor,
+            before: connectionBeforeCursor,
+            reverseAfter: connectionReverseAfterCursor,
           },
           searchFilters: {
             partialQuery: `${giftCardIdQuery} AND balance_status:partial`,
@@ -1017,6 +1202,7 @@ if (createdId !== null) {
         configurationRead,
         customerCreate,
         create,
+        connectionMechanics,
         lifecycle,
         lifecycleBlocked: null,
       },
@@ -1026,7 +1212,18 @@ if (createdId !== null) {
     'utf8',
   );
 
-  console.log(JSON.stringify({ outputPath, createdId, lifecycleSteps: lifecycle.map((step) => step.label) }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        outputPath,
+        createdId,
+        lifecycleSteps: lifecycle.map((step) => step.label),
+        connectionMechanicsSteps: connectionMechanics.map((step) => step.label),
+      },
+      null,
+      2,
+    ),
+  );
   process.exit(0);
 }
 

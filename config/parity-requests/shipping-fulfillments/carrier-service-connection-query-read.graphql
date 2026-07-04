@@ -1,0 +1,28 @@
+query CarrierServicesConnectionQuery(
+  $first: Int!
+  $query: String
+  $sortKey: CarrierServiceSortKeys
+  $reverse: Boolean
+) {
+  carrierServices(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      id
+      name
+      active
+    }
+    edges {
+      cursor
+      node {
+        id
+        name
+        active
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

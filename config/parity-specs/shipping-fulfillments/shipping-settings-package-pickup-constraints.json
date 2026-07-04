@@ -26,7 +26,7 @@
   },
   "runtimeTestFiles": ["tests/integration/shipping-settings-flow.test.ts"],
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for shipping settings: the runner seeds captured carrier services and delivery-profile locations, replays availability reads, replays controlled local-pickup enable/read/disable/unknown-location branches, and compares shipping-package unknown-id RESOURCE_NOT_FOUND envelopes. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL exposes no package read root for downstream comparison.",
+  "notes": "Executable parity coverage for shipping settings: the runner seeds captured carrier services and delivery-profile locations, replays availability reads, replays controlled local-pickup enable/read/disable/unknown-location branches, and compares shipping-package RESOURCE_NOT_FOUND envelopes for both unknown ids and a formerly hardcoded sentinel id that Shopify rejects on the live store. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL exposes no package read root for downstream comparison.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -153,6 +153,54 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-delete-unknown.graphql",
           "variablesCapturePath": "$.captures.shippingPackageDeleteUnknown.variables"
+        }
+      },
+      {
+        "name": "shipping-package-update-hardcoded-id-error",
+        "capturePath": "$.captures.shippingPackageUpdateHardcodedId.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.data.shippingPackageUpdate",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-update-unknown.graphql",
+          "variablesCapturePath": "$.captures.shippingPackageUpdateHardcodedId.variables"
+        }
+      },
+      {
+        "name": "shipping-package-make-default-hardcoded-id-error",
+        "capturePath": "$.captures.shippingPackageMakeDefaultHardcodedId.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.data.shippingPackageMakeDefault",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-make-default-unknown.graphql",
+          "variablesCapturePath": "$.captures.shippingPackageMakeDefaultHardcodedId.variables"
+        }
+      },
+      {
+        "name": "shipping-package-delete-hardcoded-id-error",
+        "capturePath": "$.captures.shippingPackageDeleteHardcodedId.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.data.shippingPackageDelete",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-delete-unknown.graphql",
+          "variablesCapturePath": "$.captures.shippingPackageDeleteHardcodedId.variables"
         }
       }
     ]

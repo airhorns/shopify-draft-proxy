@@ -10,12 +10,9 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Value {
-        // Any function mutation marks the session as having local function
-        // state, so later reads serve locally (read-after-write / -delete)
-        // instead of forwarding the cold read to the upstream.
-        self.store.staged.functions_dirty = true;
-        root_payload_json(fields, |field| {
+    ) -> (Value, Vec<Value>) {
+        let mut errors = Vec::new();
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "validationCreate" => self.function_validation_create_payload(request, field),
                 "validationUpdate" => self.function_validation_update_payload(field),
@@ -33,11 +30,23 @@ impl DraftProxy {
                 "fulfillmentConstraintRuleDelete" => {
                     self.function_fulfillment_constraint_rule_delete_payload(field)
                 }
-                "taxAppConfigure" => self.function_tax_app_configure_payload(field),
+                "taxAppConfigure" => {
+                    if tax_app_configure_has_authority(request) {
+                        self.function_tax_app_configure_payload(field)
+                    } else {
+                        errors.push(tax_app_configure_access_denied_error(field));
+                        Value::Null
+                    }
+                }
                 _ => Value::Null,
             };
-            (!value.is_null()).then(|| selected_json(&value, &field.selection))
-        })
+            if value.is_null() {
+                Some(Value::Null)
+            } else {
+                Some(selected_json(&value, &field.selection))
+            }
+        });
+        (data, errors)
     }
 
     pub(in crate::proxy) fn functions_metadata_read_data(
@@ -229,14 +238,15 @@ impl DraftProxy {
         nodes
     }
 
-    /// True when any function lifecycle has been staged locally (a validation or
-    /// cart-transform created/updated this session). Cold function reads with no
-    /// staged state forward to the upstream so `shopifyFunctions` /
-    /// `shopifyFunction` reflect the shop's real installed functions (with app
-    /// ownership metadata) rather than the synthetic staging catalog.
+    /// True when any function lifecycle or tax-app readiness has been staged
+    /// locally. Cold function reads with no staged state forward to the upstream
+    /// so `shopifyFunctions` / `shopifyFunction` reflect the shop's real
+    /// installed functions (with app ownership metadata) rather than the
+    /// synthetic staging catalog.
     pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
         self.store.staged.functions_dirty
             || self.store.staged.function_validation.is_some()
+            || self.store.staged.tax_app_configuration.is_some()
             || !self.store.staged.function_metadata.is_empty()
             || !self.store.staged.function_metadata_order.is_empty()
             || !self.store.staged.function_validations.is_empty()
@@ -383,6 +393,49 @@ impl DraftProxy {
             self.stage_function_metadata(function);
         }
     }
+}
+
+const TAX_APP_CONFIGURE_REQUIRED_ACCESS: &str =
+    "`write_taxes` access scope. Also: The caller must be a tax calculations app.";
+const TAX_CALCULATIONS_APP_HEADER: &str = "x-shopify-draft-proxy-tax-calculations-app";
+
+fn tax_app_configure_has_authority(request: &Request) -> bool {
+    request_has_access_scope(request, "write_taxes")
+        && request_header_truthy(request, TAX_CALCULATIONS_APP_HEADER)
+}
+
+fn request_has_access_scope(request: &Request, expected: &str) -> bool {
+    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some_and(|scopes| {
+        scopes
+            .split(',')
+            .map(str::trim)
+            .any(|scope| scope == expected)
+    })
+}
+
+fn request_header_truthy(request: &Request, header: &str) -> bool {
+    request_header(request, header).is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes"
+        )
+    })
+}
+
+fn tax_app_configure_access_denied_error(field: &RootFieldSelection) -> Value {
+    json!({
+        "message": format!(
+            "Access denied for {} field. Required access: {TAX_APP_CONFIGURE_REQUIRED_ACCESS}",
+            field.name
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": TAX_APP_CONFIGURE_REQUIRED_ACCESS
+        },
+        "path": [field.response_key.clone()]
+    })
 }
 
 fn normalized_function_metadata(function: Value) -> Option<Value> {
@@ -1898,15 +1951,24 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let ready = resolved_bool_field(&field.arguments, "ready").unwrap_or(true);
-        json!({
-            "taxAppConfiguration": {
-                "id": "gid://shopify/TaxAppConfiguration/local",
-                "ready": ready,
-                "state": if ready { "READY" } else { "NOT_READY" },
-                "updatedAt": self.next_product_timestamp()
-            },
-            "userErrors": []
-        })
+        let id = self
+            .store
+            .staged
+            .tax_app_configuration
+            .as_ref()
+            .and_then(|configuration| configuration["id"].as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.next_proxy_synthetic_gid("TaxAppConfiguration"));
+        let configuration = json!({
+            "__typename": "TaxAppConfiguration",
+            "id": id,
+            "ready": ready,
+            "state": if ready { "READY" } else { "NOT_READY" },
+            "updatedAt": self.next_product_timestamp()
+        });
+        self.store.staged.functions_dirty = true;
+        self.store.staged.tax_app_configuration = Some(configuration.clone());
+        json!({ "taxAppConfiguration": configuration, "userErrors": [] })
     }
 
     fn stage_function_validation(&mut self, validation: Value) {

@@ -1,0 +1,258 @@
+{
+  "scenarioId": "draft-orders-search-sort-staged",
+  "operationNames": ["draftOrderCreate", "draftOrderUpdate", "draftOrders", "draftOrdersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "query-filter-parity",
+    "sort-order-parity",
+    "pagination-parity",
+    "count-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-orders-search-sort-staged.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrders-search-sort-create.graphql",
+    "variablesCapturePath": "$.setup.alphaCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "alpha-create-user-errors",
+        "capturePath": "$.setup.alphaCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "beta-create-user-errors",
+        "capturePath": "$.setup.betaCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-create.graphql",
+          "variablesCapturePath": "$.setup.betaCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "alpha-update-user-errors",
+        "capturePath": "$.setup.alphaUpdate.response.data.draftOrderUpdate.userErrors",
+        "proxyPath": "$.data.draftOrderUpdate.userErrors",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "note": "Alpha touched for updatedAt sort 20260704093710"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "default-id-sort-and-count",
+        "capturePath": "$.reads.defaultId.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.defaultId.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "id-reverse-sort",
+        "capturePath": "$.reads.idReverse.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.idReverse.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "updated-at-ascending-sort",
+        "capturePath": "$.reads.updatedAtAsc.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.updatedAtAsc.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "first-page-window",
+        "capturePath": "$.reads.firstPage.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.firstPage.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "second-page-window",
+        "capturePath": "$.reads.secondPage.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variables": {
+            "first": 1,
+            "after": {
+              "fromProxyResponse": "first-page-window",
+              "path": "$.data.draftOrders.pageInfo.endCursor"
+            },
+            "query": "tag:draftsort20260704093710",
+            "sortKey": "ID",
+            "reverse": false
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "status-and-tag-filter",
+        "capturePath": "$.reads.statusTag.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.statusTag.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "created-at-comparator-filter",
+        "capturePath": "$.reads.createdAt.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.createdAt.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "updated-at-comparator-filter",
+        "capturePath": "$.reads.updatedAt.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.updatedAt.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "default-text-filter",
+        "capturePath": "$.reads.freeText.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.freeText.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-field-ignored-with-known-filter",
+        "capturePath": "$.reads.unknownAndKnown.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.draftOrders.nodes[0].email",
+          "$.draftOrders.nodes[1].email",
+          "$.draftOrders.pageInfo.hasNextPage",
+          "$.draftOrders.pageInfo.hasPreviousPage",
+          "$.draftOrdersCount.count",
+          "$.draftOrdersCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrders-search-sort-read.graphql",
+          "variablesCapturePath": "$.reads.unknownAndKnown.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Uses public GraphQL draftOrderCreate/draftOrderUpdate setup, then compares staged draftOrders sortKey/reverse, pagination pageInfo/counts, accepted search filters, and Shopify observed unknown-field-ignore behavior."
+}

@@ -1,0 +1,207 @@
+{
+  "scenarioId": "collection-top-level-staged-read",
+  "operationNames": ["collectionCreate", "collectionUpdate", "collectionDelete", "collections", "collectionsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-top-level-staged-read.json"
+  ],
+  "runtimeTestFiles": ["src/proxy.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collection-top-level-staged-read-create.graphql",
+    "variablesCapturePath": "$.operations.firstCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for top-level collections/collectionsCount read-after-write after two collectionCreate calls, a collectionUpdate, and a collectionDelete. The replay uses only public GraphQL requests; volatile collection ids and cursor strings are path-scoped expected differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local draft proxy allocate collection ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "first-create",
+        "capturePath": "$.operations.firstCreate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "second-create",
+        "capturePath": "$.operations.secondCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-create.graphql",
+          "variablesCapturePath": "$.operations.secondCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local draft proxy allocate collection ids independently."
+          }
+        ]
+      },
+      {
+        "name": "initial-filtered-page-1",
+        "capturePath": "$.operations.initialPage1.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql",
+          "variablesCapturePath": "$.operations.initialPage1.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.firstByHandle.nodes[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.sharedFirstPage.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          },
+          {
+            "path": "$.sharedFirstPage.edges[0].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.sharedFirstPage.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          },
+          {
+            "path": "$.sharedFirstPage.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          }
+        ]
+      },
+      {
+        "name": "initial-filtered-page-2",
+        "capturePath": "$.operations.initialPage2.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-initial-page2.graphql",
+          "variables": {
+            "sharedQuery": {
+              "fromCapturePath": "$.operations.initialPage2.variables.sharedQuery"
+            },
+            "after": {
+              "fromProxyResponse": "initial-filtered-page-1",
+              "path": "$.data.sharedFirstPage.pageInfo.endCursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.sharedSecondPage.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          },
+          {
+            "path": "$.sharedSecondPage.edges[0].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.sharedSecondPage.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          },
+          {
+            "path": "$.sharedSecondPage.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "The local connection cursor is derived from the synthetic collection id."
+          }
+        ]
+      },
+      {
+        "name": "update-first",
+        "capturePath": "$.operations.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id"
+              },
+              "title": {
+                "fromCapturePath": "$.operations.update.variables.input.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.operations.update.variables.input.handle"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionUpdate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The updated collection id differs between live capture and local replay."
+          }
+        ]
+      },
+      {
+        "name": "post-update-filtered-read",
+        "capturePath": "$.operations.postUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-post-update.graphql",
+          "variablesCapturePath": "$.operations.postUpdate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.newByHandle.nodes[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The updated collection id differs between live capture and local replay."
+          }
+        ]
+      },
+      {
+        "name": "delete-second",
+        "capturePath": "$.operations.delete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "second-create",
+                "path": "$.data.collectionCreate.collection.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionDelete.deletedCollectionId",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The deleted collection id differs between live capture and local replay."
+          }
+        ]
+      },
+      {
+        "name": "post-delete-filtered-read",
+        "capturePath": "$.operations.postDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-post-delete.graphql",
+          "variablesCapturePath": "$.operations.postDelete.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.remainingShared.nodes[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The remaining collection id differs between live capture and local replay."
+          }
+        ]
+      }
+    ]
+  }
+}
