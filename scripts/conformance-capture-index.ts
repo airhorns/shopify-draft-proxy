@@ -12351,13 +12351,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'gift-card-recipient-validation',
     scriptPath: 'scripts/capture-gift-card-recipient-validation-conformance.ts',
     purpose:
-      'Gift-card create/update recipientAttributes validation for required recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
+      'Gift-card create/update recipientAttributes validation for required recipient id, nonexistent recipient id, structurally invalid no-contact sentinel recipient id, blank text fields, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-recipient-validation.json`,
       'config/parity-specs/gift-cards/gift-card-recipient-validation.json',
       'config/parity-requests/gift-cards/gift-card-recipient-validation.graphql',
       'config/parity-requests/gift-cards/gift-card-recipient-validation-create-missing-id.graphql',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation-no-contact-sentinel.graphql',
       'config/parity-requests/gift-cards/gift-card-recipient-validation-update-missing-id.graphql',
       'config/parity-requests/gift-cards/gift-card-recipient-validation-customer-create.graphql',
       'config/parity-requests/gift-cards/gift-card-recipient-validation-gift-card-create.graphql',
