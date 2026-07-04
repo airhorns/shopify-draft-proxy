@@ -53,6 +53,18 @@ Historical context: the first product overlay implementation only supported a na
 
 That early subset is not the current product coverage contract. Use `src/content/docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
 
+## Current: Segment Change validation short-circuits CDP query grammar
+
+Admin segment mutations have two validation layers. `segmentCreate` and
+`segmentUpdate` first run Change-level presence and length checks for `name` and
+`query`. CDP query grammar validation only runs after that Change layer passes.
+
+Practical rule: blank or over-long `name` suppresses grammar userErrors for a
+present but malformed query, while blank or over-long `query` remains a
+Change-level error that can be emitted alongside a name error. The checked-in
+anchor is
+`config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
