@@ -135,6 +135,7 @@ impl DraftProxy {
                     "UPLOADED",
                     &created_at,
                 );
+                self.store.staged.media_ready_on_read.insert(id.clone());
                 self.store.staged.media_files.insert(id, file.clone());
                 file
             })
@@ -860,15 +861,31 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn media_files_read(
-        &self,
+        &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let mut response = (self.upstream_transport)(request.clone());
+            if (200..300).contains(&response.status) {
+                self.hydrate_media_files_read_state(request, &fields, &response.body["data"]);
+                response.body["data"] = self.media_files_read_data(request, &fields);
+            }
+            return response;
+        }
+        self.promote_polled_media_files_to_ready(&fields);
+        ok_json(json!({"data": self.media_files_read_data(request, &fields)}))
+    }
+
+    fn media_files_read_data(&self, request: &Request, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for field in fields {
             match field.name.as_str() {
                 "files" => {
-                    let mut files = self
+                    let files = self
                         .store
                         .staged
                         .media_files
@@ -876,47 +893,221 @@ impl DraftProxy {
                         .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
-                    // Order by sortKey: ID (the numeric resource id), then honor
-                    // `reverse`. Synthetic creation order tracks the numeric id,
-                    // so this also approximates the default CREATED_AT ordering. A
-                    // lexicographic string sort over the full gid would interleave
-                    // by typename (GenericFile < MediaImage < Video), so it must be
-                    // numeric.
-                    files.sort_by_key(media_file_numeric_id);
-                    if matches!(
-                        field.arguments.get("reverse"),
-                        Some(ResolvedValue::Bool(true))
-                    ) {
-                        files.reverse();
-                    }
+                    let arguments =
+                        self.media_files_arguments_with_saved_search_query(&field.arguments);
                     data.insert(
-                        field.response_key,
-                        selected_connection_json_with_args(
+                        field.response_key.clone(),
+                        selected_staged_connection_with_args(
                             files,
-                            &field.arguments,
+                            &arguments,
                             &field.selection,
+                            |file, query| self.media_file_search_decision(file, query),
+                            media_file_staged_sort_key,
+                            selected_json,
                             media_file_cursor,
                         ),
                     );
                 }
-                // Saved searches are not modeled yet, so the connection mirrors
-                // Shopify's empty-state shape (no nodes, null cursors) rather than
-                // being dropped from a combined `files`/`fileSavedSearches` read.
                 "fileSavedSearches" => {
                     data.insert(
-                        field.response_key,
-                        selected_connection_json_with_args(
-                            Vec::<Value>::new(),
-                            &field.arguments,
-                            &field.selection,
-                            media_file_cursor,
-                        ),
+                        field.response_key.clone(),
+                        self.saved_search_connection_field(field, &api_client_id),
                     );
                 }
                 _ => continue,
             }
         }
-        ok_json(json!({"data": Value::Object(data)}))
+        Value::Object(data)
+    }
+
+    fn hydrate_media_files_read_state(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+        data: &Value,
+    ) {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for field in fields {
+            let Some(connection) = data.get(&field.response_key) else {
+                continue;
+            };
+            match field.name.as_str() {
+                "files" => self.observe_media_files_connection(connection),
+                "fileSavedSearches" => {
+                    self.observe_file_saved_searches_connection(connection, &api_client_id)
+                }
+                _ => {}
+            }
+        }
+        self.promote_polled_media_files_to_ready(fields);
+    }
+
+    fn observe_media_files_connection(&mut self, connection: &Value) {
+        for node in connection_nodes(connection) {
+            if let Some(record) = media_file_record_from_node(&node) {
+                if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
+                        self.store.staged.media_files.entry(id).or_insert(record);
+                    }
+                }
+            }
+        }
+    }
+
+    fn observe_file_saved_searches_connection(&mut self, connection: &Value, api_client_id: &str) {
+        for node in connection_nodes(connection) {
+            let Some(record) = saved_search_record_from_node(&node, "FILE", api_client_id) else {
+                continue;
+            };
+            if !self.store.staged.saved_searches.is_tombstoned(&record.id) {
+                self.store
+                    .base
+                    .saved_searches
+                    .insert(record.id.clone(), record);
+            }
+        }
+    }
+
+    fn promote_polled_media_files_to_ready(&mut self, fields: &[RootFieldSelection]) {
+        if !fields.iter().any(|field| field.name == "files") {
+            return;
+        }
+        let ids = self
+            .store
+            .staged
+            .media_ready_on_read
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut promoted = Vec::new();
+        for id in ids {
+            if let Some(file) = self.store.staged.media_files.get_mut(&id) {
+                promote_media_file_record_to_ready(file);
+                promoted.push(id);
+            }
+        }
+        for id in promoted {
+            self.store.staged.media_ready_on_read.remove(&id);
+        }
+    }
+
+    fn media_files_arguments_with_saved_search_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return arguments.clone();
+        };
+        let mut merged = arguments.clone();
+        let saved_search_query = self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .filter(|record| record.resource_type == "FILE")
+            .map(|record| record.query);
+        let query = match saved_search_query {
+            Some(saved_search_query) => combine_media_file_queries(
+                resolved_string_field(arguments, "query").as_deref(),
+                Some(&saved_search_query),
+            ),
+            None => "id:__shopify_draft_proxy_no_matching_saved_search__".to_string(),
+        };
+        merged.insert("query".to_string(), ResolvedValue::String(query));
+        merged
+    }
+
+    fn media_file_search_decision(
+        &self,
+        file: &Value,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        for token in saved_search_query_tokens(query) {
+            let token = token.trim();
+            if token.eq_ignore_ascii_case("AND") {
+                continue;
+            }
+            if token.eq_ignore_ascii_case("OR") {
+                return StagedSearchDecision::Unsupported;
+            }
+            let token = token.trim_matches(|ch| ch == '(' || ch == ')');
+            let matches = if let Some((key, value)) = saved_search_filter_from_token(token) {
+                let Some(matches) = self.media_file_matches_filter(file, &key, &value) else {
+                    return StagedSearchDecision::Unsupported;
+                };
+                matches
+            } else {
+                media_file_matches_text(file, token)
+            };
+            if !matches {
+                return StagedSearchDecision::NoMatch;
+            }
+        }
+        StagedSearchDecision::Match
+    }
+
+    fn media_file_matches_filter(&self, file: &Value, key: &str, value: &str) -> Option<bool> {
+        let (key, mode) = media_file_filter_key_mode(key);
+        let matches = match key {
+            "created_at" => media_file_timestamp_matches(file, "createdAt", value, mode),
+            "filename" => Some(media_file_string_matches(&media_file_filename(file), value)),
+            "id" => Some(media_file_id_matches(file, value)),
+            "ids" => Some(media_file_ids_match(file, value)),
+            "media_type" => Some(media_file_media_type_matches(file, value)),
+            "original_source" => media_file_original_source(file)
+                .map(|source| media_file_string_matches(&source, value))
+                .or(Some(false)),
+            "original_upload_size" => media_file_original_upload_size(file)
+                .map(|size| media_file_number_matches(size, value, mode))
+                .or(Some(false)),
+            "product_id" => Some(self.media_file_product_ids_match(file, value)),
+            "status" => Some(media_file_status_matches(file, value)),
+            "updated_at" => media_file_timestamp_matches(file, "updatedAt", value, mode),
+            "used_in" => Some(self.media_file_used_in_matches(file, value)),
+            _ => None,
+        }?;
+        Some(match mode {
+            MediaFileFilterMode::Not => !matches,
+            _ => matches,
+        })
+    }
+
+    fn media_file_product_ids(&self, file: &Value) -> Vec<String> {
+        let Some(file_id) = file.get("id").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let mut product_ids = Vec::new();
+        for product in self.store.products() {
+            let product_has_file = product
+                .media
+                .iter()
+                .any(|media| media.get("id").and_then(Value::as_str) == Some(file_id));
+            let variant_has_file = self
+                .store
+                .product_variants_for_product(&product.id)
+                .iter()
+                .any(|variant| variant.media_ids.iter().any(|id| id == file_id));
+            if product_has_file || variant_has_file {
+                product_ids.push(product.id);
+            }
+        }
+        product_ids
+    }
+
+    fn media_file_product_ids_match(&self, file: &Value, value: &str) -> bool {
+        self.media_file_product_ids(file)
+            .iter()
+            .any(|product_id| shopify_id_matches(product_id, value))
+    }
+
+    fn media_file_used_in_matches(&self, file: &Value, value: &str) -> bool {
+        let value = value.trim_matches('"').trim_matches('\'');
+        match value.to_ascii_lowercase().as_str() {
+            "product" | "products" => !self.media_file_product_ids(file).is_empty(),
+            "none" | "false" => self.media_file_product_ids(file).is_empty(),
+            _ => false,
+        }
     }
 }
 
@@ -1472,12 +1663,264 @@ fn file_create_timestamp_for_index(index: usize) -> String {
     format!("2024-01-01T{hours:02}:{minutes:02}:{seconds:02}.000Z")
 }
 
-fn media_file_numeric_id(file: &Value) -> u64 {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MediaFileFilterMode {
+    Exact,
+    Min,
+    Max,
+    Not,
+}
+
+fn media_file_filter_key_mode(key: &str) -> (&str, MediaFileFilterMode) {
+    if let Some(key) = key.strip_suffix("_not") {
+        (key, MediaFileFilterMode::Not)
+    } else if let Some(key) = key.strip_suffix("_min") {
+        (key, MediaFileFilterMode::Min)
+    } else if let Some(key) = key.strip_suffix("_max") {
+        (key, MediaFileFilterMode::Max)
+    } else {
+        (key, MediaFileFilterMode::Exact)
+    }
+}
+
+fn combine_media_file_queries(
+    argument_query: Option<&str>,
+    saved_search_query: Option<&str>,
+) -> String {
+    match (
+        argument_query
+            .map(str::trim)
+            .filter(|query| !query.is_empty()),
+        saved_search_query
+            .map(str::trim)
+            .filter(|query| !query.is_empty()),
+    ) {
+        (Some(argument_query), Some(saved_search_query)) => {
+            format!("{saved_search_query} {argument_query}")
+        }
+        (Some(argument_query), None) => argument_query.to_string(),
+        (None, Some(saved_search_query)) => saved_search_query.to_string(),
+        (None, None) => String::new(),
+    }
+}
+
+fn media_file_staged_sort_key(file: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = media_file_gid_tail_sort_value(file);
+    let primary = match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => media_file_string_sort_value(file, "createdAt"),
+        "FILENAME" => StagedSortValue::String(media_file_filename(file).to_ascii_lowercase()),
+        "ID" => id.clone(),
+        "ORIGINAL_UPLOAD_SIZE" => media_file_original_upload_size(file)
+            .map(|size| StagedSortValue::I64(size as i64))
+            .unwrap_or(StagedSortValue::Null),
+        "RELEVANCE" => id.clone(),
+        "UPDATED_AT" => media_file_string_sort_value(file, "updatedAt"),
+        _ => id.clone(),
+    };
+    vec![primary, id]
+}
+
+fn media_file_string_sort_value(file: &Value, field: &str) -> StagedSortValue {
+    file.get(field)
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_string()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn media_file_gid_tail_sort_value(file: &Value) -> StagedSortValue {
     file.get("id")
         .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .and_then(|tail| tail.parse::<u64>().ok())
-        .unwrap_or(0)
+        .map(gid_tail_sort_string)
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn media_file_matches_text(file: &Value, value: &str) -> bool {
+    media_file_string_matches(&media_file_filename(file), value)
+        || media_file_string_matches(
+            media_file_value_string(file, "alt")
+                .as_deref()
+                .unwrap_or(""),
+            value,
+        )
+        || media_file_original_source(file)
+            .as_deref()
+            .is_some_and(|source| media_file_string_matches(source, value))
+}
+
+fn media_file_string_matches(actual: &str, query_value: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual.starts_with(prefix)
+            || actual.contains(prefix)
+            || actual
+                .split(|ch: char| !ch.is_ascii_alphanumeric())
+                .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+fn media_file_timestamp_matches(
+    file: &Value,
+    field: &str,
+    value: &str,
+    mode: MediaFileFilterMode,
+) -> Option<bool> {
+    let actual = file.get(field).and_then(Value::as_str)?;
+    let (operator, expected) = media_file_comparator(value);
+    Some(match mode {
+        MediaFileFilterMode::Min => actual >= expected,
+        MediaFileFilterMode::Max => actual <= expected,
+        _ => match operator {
+            "<" => actual < expected,
+            "<=" => actual <= expected,
+            ">" => actual > expected,
+            ">=" => actual >= expected,
+            _ => actual.starts_with(expected),
+        },
+    })
+}
+
+fn media_file_number_matches(actual: u64, value: &str, mode: MediaFileFilterMode) -> bool {
+    let (operator, expected) = media_file_comparator(value);
+    let Some(expected) = expected.parse::<u64>().ok() else {
+        return false;
+    };
+    match mode {
+        MediaFileFilterMode::Min => actual >= expected,
+        MediaFileFilterMode::Max => actual <= expected,
+        _ => match operator {
+            "<" => actual < expected,
+            "<=" => actual <= expected,
+            ">" => actual > expected,
+            ">=" => actual >= expected,
+            _ => actual == expected,
+        },
+    }
+}
+
+fn media_file_comparator(value: &str) -> (&str, &str) {
+    let value = value.trim_matches('"').trim_matches('\'');
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn media_file_id_matches(file: &Value, value: &str) -> bool {
+    file.get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| shopify_id_matches(id, value))
+}
+
+fn media_file_ids_match(file: &Value, value: &str) -> bool {
+    value
+        .split(',')
+        .map(str::trim)
+        .any(|candidate| media_file_id_matches(file, candidate))
+}
+
+fn shopify_id_matches(actual: &str, expected: &str) -> bool {
+    let expected = expected.trim_matches('"').trim_matches('\'');
+    actual == expected
+        || resource_id_tail(actual) == expected
+        || resource_id_tail(expected) == actual
+}
+
+fn media_file_media_type_matches(file: &Value, value: &str) -> bool {
+    let expected = normalize_media_type_query_value(value);
+    media_file_value_string(file, "contentType")
+        .or_else(|| media_file_value_string(file, "mediaContentType"))
+        .or_else(|| {
+            file.get("__typename")
+                .and_then(Value::as_str)
+                .map(media_file_content_type_for_typename)
+                .map(str::to_string)
+        })
+        .is_some_and(|actual| actual.eq_ignore_ascii_case(&expected))
+}
+
+fn normalize_media_type_query_value(value: &str) -> String {
+    match value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_uppercase()
+        .as_str()
+    {
+        "GENERIC_FILE" => "FILE".to_string(),
+        "MEDIA_IMAGE" => "IMAGE".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn media_file_content_type_for_typename(typename: &str) -> &'static str {
+    match typename {
+        "Video" => "VIDEO",
+        "ExternalVideo" => "EXTERNAL_VIDEO",
+        "Model3d" => "MODEL_3D",
+        "GenericFile" => "FILE",
+        _ => "IMAGE",
+    }
+}
+
+fn media_file_status_matches(file: &Value, value: &str) -> bool {
+    let expected = value.trim_matches('"').trim_matches('\'');
+    ["fileStatus", "updateStatus", "status"]
+        .iter()
+        .filter_map(|field| media_file_value_string(file, field))
+        .any(|status| status.eq_ignore_ascii_case(expected))
+}
+
+fn media_file_filename(file: &Value) -> String {
+    media_file_value_string(file, "filename")
+        .or_else(|| media_file_value_string(file, "displayName"))
+        .unwrap_or_default()
+}
+
+fn media_file_original_source(file: &Value) -> Option<String> {
+    media_file_value_string(file, "originalSource")
+        .or_else(|| media_file_value_string(file, "url"))
+        .or_else(|| {
+            file.pointer("/image/url")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| {
+            file.pointer("/preview/image/url")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+}
+
+fn media_file_original_upload_size(file: &Value) -> Option<u64> {
+    [
+        "originalUploadSize",
+        "originalUploadSizeBytes",
+        "originalFileSize",
+        "fileSize",
+    ]
+    .iter()
+    .find_map(|field| media_file_u64_field(file, field))
+}
+
+fn media_file_u64_field(file: &Value, field: &str) -> Option<u64> {
+    match file.get(field) {
+        Some(Value::Number(value)) => value.as_u64(),
+        Some(Value::String(value)) => value.parse().ok(),
+        _ => None,
+    }
+}
+
+fn media_file_value_string(file: &Value, field: &str) -> Option<String> {
+    file.get(field).and_then(Value::as_str).map(str::to_string)
 }
 
 // Build a staged media-file record from an upstream `nodes(ids:)` hydration node,
@@ -1545,6 +1988,33 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     Some(record)
 }
 
+fn connection_nodes(connection: &Value) -> Vec<Value> {
+    let mut nodes = connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    nodes.extend(
+        connection
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| edge.get("node").cloned()),
+    );
+    nodes
+}
+
+fn promote_media_file_record_to_ready(file: &mut Value) {
+    file["fileStatus"] = json!("READY");
+    file["updateStatus"] = json!("READY");
+    if file.get("status").is_some() {
+        file["status"] = json!("READY");
+    }
+}
+
 // Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.
 fn media_file_cursor(record: &Value) -> String {
     format!("cursor:{}", value_id_cursor(record))
@@ -1591,7 +2061,7 @@ fn filename_from_source(source: &str) -> String {
 // caller omits `contentType`, but the auto-detector maps only image/video
 // results to typed media. Model3d and ExternalVideo require explicit contentType.
 fn infer_content_type_from_source(filename: &str) -> &'static str {
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "heif" => "IMAGE",
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         _ => "FILE",
@@ -1600,7 +2070,7 @@ fn infer_content_type_from_source(filename: &str) -> &'static str {
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     // Extension-first derivation: the recognized extension wins regardless of contentType, and only an unrecognized extension falls back to the contentType default.
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "gif" => "image/gif",
         "heic" => "image/heic",
         "heif" => "image/heif",

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "quantity-rules-delete-validation",
+  "operationNames": ["quantityRulesDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/quantity-rules-delete-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/quantity-rules-delete.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.missingVariants.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-variants-non-sentinel-indexes",
+        "capturePath": "$.cases.missingVariants.response.payload.data.quantityRulesDelete",
+        "proxyPath": "$.data.quantityRulesDelete"
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL 2025-01 validation capture for quantityRulesDelete with two never-created, non-sentinel ProductVariant IDs. The strict target proves Shopify reports PRODUCT_VARIANT_DOES_NOT_EXIST at the actual offending variantIds indexes, including index 1, and parity replay hydrates the referenced real price list through the captured preflight cassette before keeping the supported mutation local."
+}

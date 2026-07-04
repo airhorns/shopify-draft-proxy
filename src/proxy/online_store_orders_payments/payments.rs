@@ -117,6 +117,33 @@ pub(in crate::proxy) fn order_transaction_by_id(
         .find(|transaction| transaction["id"].as_str() == Some(transaction_id))
 }
 
+pub(in crate::proxy) fn order_payment_gateway(order: &Value) -> String {
+    order_transactions(order)
+        .iter()
+        .find_map(|transaction| transaction["gateway"].as_str().map(str::to_string))
+        .or_else(|| {
+            order["paymentGatewayNames"]
+                .as_array()
+                .and_then(|names| names.first())
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "manual".to_string())
+}
+
+pub(in crate::proxy) fn payment_gateway_names_from_transactions(
+    transactions: &[Value],
+) -> Vec<Value> {
+    let mut names = Vec::<String>::new();
+    for transaction in transactions {
+        let gateway = transaction["gateway"].as_str().unwrap_or("manual");
+        if !names.iter().any(|name| name == gateway) {
+            names.push(gateway.to_string());
+        }
+    }
+    names.into_iter().map(Value::String).collect()
+}
+
 pub(in crate::proxy) fn order_line_unit_amount(line: &Value) -> f64 {
     money_set_amount(&line["originalUnitPriceSet"])
         .or_else(|| money_set_amount(&line["priceSet"]))
@@ -384,11 +411,12 @@ pub(in crate::proxy) fn build_refund_transactions(
 ) -> Vec<Value> {
     let inputs = resolved_object_list_field(input, "transactions");
     if inputs.is_empty() {
+        let gateway = order_payment_gateway(order);
         return vec![json!({
             "id": transaction_id,
             "kind": "REFUND",
             "status": "SUCCESS",
-            "gateway": "manual",
+            "gateway": gateway,
             "amountSet": money_bag_from_amount(refund_amount, shop_currency, presentment_currency)
         })];
     }
@@ -602,6 +630,7 @@ pub(in crate::proxy) fn payment_transaction_record_from_amount_set(
     id: &str,
     kind: &str,
     status: &str,
+    gateway: &str,
     amount_set: Value,
     parent_transaction: Value,
     shop_currency_code: &str,
@@ -625,7 +654,7 @@ pub(in crate::proxy) fn payment_transaction_record_from_amount_set(
         "id": id,
         "kind": kind,
         "status": status,
-        "gateway": "manual",
+        "gateway": if gateway.is_empty() { "manual" } else { gateway },
         "paymentId": payment_id,
         "paymentReferenceId": payment_reference_id,
         "parentTransaction": parent_transaction,
@@ -673,23 +702,27 @@ pub(in crate::proxy) fn payment_order_record(
     currency_code: &str,
     transactions: Vec<Value>,
 ) -> Value {
+    let payment_gateway_names = payment_gateway_names_from_transactions(&transactions);
+    let capturable = capturable_amount
+        .parse::<f64>()
+        .is_ok_and(|amount| amount > 0.000_001);
     json!({
         "id": id,
         "displayFinancialStatus": display_financial_status,
-        "capturable": capturable_amount != "0.00",
+        "capturable": capturable,
         "totalCapturable": capturable_amount,
         "totalCapturableSet": money_set(capturable_amount, currency_code),
         "totalOutstandingSet": money_set(outstanding_amount, currency_code),
         "totalReceivedSet": money_set(received_amount, currency_code),
         "netPaymentSet": money_set(received_amount, currency_code),
-        "paymentGatewayNames": ["manual"],
+        "paymentGatewayNames": payment_gateway_names,
         "transactions": transactions
     })
 }
 
 pub(in crate::proxy) fn normalized_order_payment_amount(value: String) -> String {
     // Shopify renders money amounts with trailing zeros trimmed to a single
-    // decimal place (e.g. "31.90" -> "31.9", "25.00" -> "25.0"). Reformat any
+    // decimal place (e.g. "31.90" -> "31.9", "20.00" -> "20.0"). Reformat any
     // parseable amount through the canonical money formatter; leave non-numeric
     // values (e.g. already-symbolic) untouched.
     match value.parse::<f64>() {
@@ -1342,6 +1375,13 @@ impl DraftProxy {
                 let auto_capture =
                     resolved_bool_field(&field.arguments, "autoCapture").unwrap_or(true);
                 let key = format!("{order_id}:{idempotency_key}");
+                let existing_job_id = self.store.staged.orders.get(&order_id).and_then(|order| {
+                    order
+                        .get("__draftProxyMandatePaymentJobs")
+                        .and_then(|jobs| jobs.get(&idempotency_key))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                });
                 if !self.store.staged.mandate_payment_keys.contains(&key)
                     || !self.store.staged.orders.contains_key(&order_id)
                 {
@@ -1357,13 +1397,14 @@ impl DraftProxy {
                         self.store.staged.order_payment_next_transaction_id,
                     );
                     self.store.staged.order_payment_next_transaction_id = next_transaction_id;
-                    let job_id = self.next_proxy_synthetic_gid("Job");
-                    let order = if base_order.is_object() {
+                    let allocated_job_id =
+                        existing_job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
+                    let mut order = if base_order.is_object() {
                         let transaction = mandate_payment_transaction_record(
                             &order_id,
                             &idempotency_key,
                             &transaction_id,
-                            &job_id,
+                            &allocated_job_id,
                             amount_set.clone(),
                             auto_capture,
                         );
@@ -1380,12 +1421,27 @@ impl DraftProxy {
                             &order_id,
                             &idempotency_key,
                             &transaction_id,
-                            &job_id,
+                            &allocated_job_id,
                             &amount,
                             &currency,
                             auto_capture,
                         )
                     };
+                    if let Some(order_object) = order.as_object_mut() {
+                        if order_object
+                            .get("__draftProxyMandatePaymentJobs")
+                            .is_none_or(|jobs| !jobs.is_object())
+                        {
+                            order_object
+                                .insert("__draftProxyMandatePaymentJobs".to_string(), json!({}));
+                        }
+                        if let Some(jobs) = order_object
+                            .get_mut("__draftProxyMandatePaymentJobs")
+                            .and_then(Value::as_object_mut)
+                        {
+                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                        }
+                    }
                     self.store.staged.orders.insert(order_id.clone(), order);
                     self.store.staged.mandate_payment_keys.insert(key);
                 }
@@ -1470,38 +1526,38 @@ impl DraftProxy {
                 ResolvedValue::String(presentment_currency),
             );
         }
+        order_record_input.remove("transactions");
         // Base projection: full order math (line items + taxLines, shipping lines +
         // totalShippingPriceSet, subtotals, taxes, discounts). The payment view is
         // layered on top so a payment-field selection still receives the complete
         // order shape rather than the totals-only subset.
         let mut order = self.build_order_create_record(&id, &order_record_input);
-        let default_amount_set = if transaction_amount_set.is_none() {
-            let mut outstanding_input = order_record_input.clone();
-            outstanding_input.remove("transactions");
-            let outstanding_order = self.build_order_create_record(&id, &outstanding_input);
-            order_outstanding_payment_amount_set(&outstanding_order)
+        let amount_set = if let Some(amount_set) = transaction_amount_set {
+            amount_set
+        } else if let Some(amount_set) = order_outstanding_payment_amount_set(&order) {
+            amount_set
         } else {
-            None
-        };
-        let Some(amount_set) = transaction_amount_set.or(default_amount_set) else {
             return (Value::Null, vec![payment_order_amount_error()], Vec::new());
         };
         let Some(amount) = payment_money_set_amount_for_payment(&amount_set) else {
             return (Value::Null, vec![payment_order_amount_error()], Vec::new());
         };
-        let transaction_id = shopify_gid(
-            "OrderTransaction",
+        let (transaction_id, next_transaction_id) = next_order_payment_transaction_id(
+            &order,
             self.store.staged.order_payment_next_transaction_id,
         );
-        self.store.staged.order_payment_next_transaction_id += 1;
+        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
         let kind = resolved_string_field(&first_transaction, "kind")
             .unwrap_or_else(|| "AUTHORIZATION".to_string());
         let status = resolved_string_field(&first_transaction, "status")
             .unwrap_or_else(|| "SUCCESS".to_string());
+        let gateway = resolved_string_field(&first_transaction, "gateway")
+            .unwrap_or_else(|| order_payment_gateway(&order));
         let transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
             &kind,
             &status,
+            &gateway,
             amount_set.clone(),
             Value::Null,
             &currency,
@@ -1597,15 +1653,12 @@ impl DraftProxy {
             );
         }
 
-        let transaction_id = shopify_gid(
-            "OrderTransaction",
-            self.store.staged.order_payment_next_transaction_id,
-        );
-        self.store.staged.order_payment_next_transaction_id += 1;
+        let transaction_id = self.next_order_transaction_id();
         let transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
             "SALE",
             "SUCCESS",
+            &order_payment_gateway(&order_before),
             outstanding_set.clone(),
             Value::Null,
             &shop_currency_code,
@@ -1632,7 +1685,9 @@ impl DraftProxy {
         );
         order["totalReceivedSet"] = received_set.clone();
         order["netPaymentSet"] = received_set;
-        order["paymentGatewayNames"] = json!(["manual"]);
+        order["paymentGatewayNames"] = Value::Array(payment_gateway_names_from_transactions(
+            &order_transactions(&order),
+        ));
 
         self.store
             .staged
@@ -1822,11 +1877,7 @@ impl DraftProxy {
             (capturable_amount - requested_amount_value).max(0.0)
         };
         let total_received = already_captured + requested_amount_value;
-        let transaction_id = shopify_gid(
-            "OrderTransaction",
-            self.store.staged.order_payment_next_transaction_id,
-        );
-        self.store.staged.order_payment_next_transaction_id += 1;
+        let transaction_id = self.next_order_transaction_id();
         let transaction_amount_set = payment_money_set_for_capture(
             &parent_amount_set,
             &requested_amount_normalized,
@@ -1837,6 +1888,7 @@ impl DraftProxy {
             &transaction_id,
             "CAPTURE",
             "SUCCESS",
+            parent_transaction["gateway"].as_str().unwrap_or("manual"),
             transaction_amount_set,
             payment_transaction_public_parent(&parent_transaction),
             &shop_currency_code,
@@ -1939,17 +1991,14 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let transaction_id = shopify_gid(
-            "OrderTransaction",
-            self.store.staged.order_payment_next_transaction_id,
-        );
-        self.store.staged.order_payment_next_transaction_id += 1;
+        let transaction_id = self.next_order_transaction_id();
         let amount_set = parent_transaction["amountSet"].clone();
         let shop_currency_code = self.store.shop_currency_code();
         let transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
             "VOID",
             "SUCCESS",
+            parent_transaction["gateway"].as_str().unwrap_or("manual"),
             amount_set.clone(),
             payment_transaction_public_parent(&parent_transaction),
             &shop_currency_code,

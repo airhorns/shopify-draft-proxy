@@ -1,0 +1,35 @@
+query ProductsPartialOverlayCatalogRead($productId: ID!, $first: Int!) {
+  unobservedProduct: product(id: $productId) {
+    id
+    title
+    handle
+    status
+    vendor
+    productType
+  }
+  total: productsCount {
+    count
+    precision
+  }
+  products(first: $first, sortKey: UPDATED_AT, reverse: true) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+        vendor
+        productType
+        tags
+        updatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

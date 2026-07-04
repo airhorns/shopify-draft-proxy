@@ -1,0 +1,36 @@
+{
+  "scenarioId": "functions-tax-app-configure-authority-boundary",
+  "operationNames": ["taxAppConfigure"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["live-capture", "user-errors-parity", "access-scope-boundary", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-tax-app-configure-authority.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.taxAppReadinessAuthorityProbe.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "tax-app-configure-authority-denied-envelope",
+        "capturePath": "$.taxAppReadinessAuthorityProbe.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.taxAppConfigure",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].extensions.documentation",
+          "$.errors[0].extensions.requiredAccess",
+          "$.errors[0].path"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence from the registered function-ownership capture: the current conformance app is not a tax calculations app, so taxAppConfigure returns a top-level ACCESS_DENIED error and null payload. This executable target protects the authority boundary that previously returned an unconditional local success response."
+}

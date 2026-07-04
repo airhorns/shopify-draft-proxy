@@ -1,6 +1,6 @@
 {
   "scenarioId": "localization-translations-validation-order",
-  "operationNames": ["translationsRegister"],
+  "operationNames": ["productCreate", "translationsRegister"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "validation-order-parity"],
   "liveCaptureFiles": [
@@ -8,15 +8,27 @@
   ],
   "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "comparisonMode": "captured-vs-proxy-request",
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/localization/localization-translations-validation-order-read.graphql",
-    "apiVersion": "2026-04",
-    "variablesCapturePath": "$.setupRead.variables"
-  },
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-known-resource-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setup.productCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a synthetic product GID while Shopify returns a real disposable product GID."
+          }
+        ]
+      },
       {
         "name": "translations-register-blank-value-non-enabled-locale-precedence",
         "capturePath": "$.blankNonEnabledLocale.response.data.translationsRegister",
@@ -25,7 +37,15 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.blankNonEnabledLocale.variables"
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.blankNonEnabledLocale.variables.translations"
+            }
+          }
         }
       },
       {
@@ -36,10 +56,56 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
           "apiVersion": "2026-04",
-          "variablesCapturePath": "$.blankPrimaryLocale.variables"
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.blankPrimaryLocale.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "translations-register-missing-market-non-enabled-locale-precedence",
+        "capturePath": "$.missingMarketNonEnabledLocale.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.missingMarketNonEnabledLocale.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "translations-register-missing-market-primary-locale-precedence",
+        "capturePath": "$.missingMarketPrimaryLocale.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.missingMarketPrimaryLocale.variables.translations"
+            }
+          }
         }
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product on a shop whose primary locale is English and Italian is disabled during capture. It records rows that violate both locale and blank-value validation, proving Shopify reports the locale TranslationUserError first for non-enabled and primary locales."
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product on a shop whose primary locale is English and Italian is disabled during capture. It records rows that violate both locale and blank-value validation, proving Shopify reports the locale TranslationUserError first for non-enabled and primary locales. It also records rows that combine a fabricated missing market with non-enabled and primary locales, proving Shopify reports MARKET_DOES_NOT_EXIST on marketId before locale enablement/primary errors. Proxy replay creates the local product through the public productCreate request captured in setup before replaying the validation targets."
 }

@@ -1,0 +1,16 @@
+mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      status
+      enabled
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

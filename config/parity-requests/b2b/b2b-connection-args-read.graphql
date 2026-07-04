@@ -1,0 +1,57 @@
+query B2BConnectionArgsRead(
+  $companyQuery: String!
+  $locationQuery: String!
+  $companyId: ID!
+  $contactId: ID!
+  $locationId: ID!
+  $afterCompany: String
+  $afterLocation: String
+  $afterCompanyLocation: String
+  $afterContact: String
+  $afterContactAssignment: String
+  $afterLocationAssignment: String
+) {
+  companies(first: 1, after: $afterCompany, query: $companyQuery, sortKey: NAME, reverse: true) {
+    nodes { name }
+    pageInfo { hasNextPage hasPreviousPage endCursor }
+  }
+  companiesCount(limit: 1) {
+    count
+    precision
+  }
+  companyLocations(first: 1, after: $afterLocation, query: $locationQuery, sortKey: NAME, reverse: true) {
+    nodes {
+      name
+      company { name }
+    }
+    pageInfo { hasNextPage hasPreviousPage endCursor }
+  }
+  company(id: $companyId) {
+    contacts(first: 1, after: $afterContact, sortKey: ID, reverse: true) {
+      nodes { title }
+      pageInfo { hasNextPage hasPreviousPage endCursor }
+    }
+    locations(first: 1, after: $afterCompanyLocation, sortKey: ID, reverse: true) {
+      nodes { name }
+      pageInfo { hasNextPage hasPreviousPage endCursor }
+    }
+  }
+  companyContact(id: $contactId) {
+    roleAssignments(first: 1, after: $afterContactAssignment, sortKey: ID, reverse: true) {
+      nodes {
+        companyLocation { name }
+        role { name }
+      }
+      pageInfo { hasNextPage hasPreviousPage endCursor }
+    }
+  }
+  companyLocation(id: $locationId) {
+    roleAssignments(first: 1, after: $afterLocationAssignment, sortKey: ID, reverse: true) {
+      nodes {
+        companyContact { title }
+        role { name }
+      }
+      pageInfo { hasNextPage hasPreviousPage endCursor }
+    }
+  }
+}
