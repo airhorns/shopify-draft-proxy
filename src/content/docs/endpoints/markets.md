@@ -142,8 +142,10 @@ subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
 primary-domain-delete, and relation scenarios. Documents that co-select
 price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 `webPresenceDelete`, or `quantityRulesDelete` use the same staged stores and
-payload validation as the standalone local paths. Market-localization slices
-stage and remove localized content for captured localizable resources, including
+payload validation as the standalone local paths. `webPresenceDelete` protects
+only the staged presence whose domain matches the shop's observed primary
+domain; secondary custom-domain presences remain deletable. Market-localization
+slices stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 `marketLocalizableResource` resolves only resource IDs observed in staged
 market-localizable resource state or staged market-scoped translations; unknown

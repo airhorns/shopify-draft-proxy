@@ -260,6 +260,50 @@ fn stage_web_presence(proxy: &mut DraftProxy, subfolder_suffix: &str) -> String 
     )
 }
 
+fn seed_french_primary_locale(proxy: &mut DraftProxy) {
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shopLocales"] = json!({
+            "fr": {
+                "locale": "fr",
+                "name": "French",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": []
+            }
+        });
+    });
+}
+
+fn seed_shop_domains(proxy: &mut DraftProxy) {
+    restore_proxy_state(proxy, |restored| {
+        restored["state"]["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/domain-delete-helper",
+            "name": "Domain Delete Helper",
+            "myshopifyDomain": "domain-delete-helper.myshopify.com",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/1000",
+                "host": "primary.example.test",
+                "url": "https://primary.example.test",
+                "sslEnabled": true
+            },
+            "domains": [
+                {
+                    "id": "gid://shopify/Domain/1000",
+                    "host": "primary.example.test",
+                    "url": "https://primary.example.test",
+                    "sslEnabled": true
+                },
+                {
+                    "id": "gid://shopify/Domain/2000",
+                    "host": "secondary.example.test",
+                    "url": "https://secondary.example.test",
+                    "sslEnabled": true
+                }
+            ]
+        });
+    });
+}
+
 fn function_metadata_record(
     id: &str,
     title: &str,
@@ -5210,6 +5254,203 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
     assert_eq!(
         after_disable.body["data"]["shopLocales"],
         json!([{ "locale": "en", "published": true }])
+    );
+}
+
+#[test]
+fn localization_shop_locale_lifecycle_uses_observed_primary_locale() {
+    let mut proxy = snapshot_proxy();
+    seed_french_primary_locale(&mut proxy);
+
+    let web_presence = proxy.process_request(json_graphql_request(
+        r#"mutation CreateFrenchPrimaryWebPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale primary published }
+              alternateLocales { locale primary published }
+            }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "defaultLocale": "fr", "alternateLocales": ["en"], "subfolderSuffix": "intl" } }),
+    ));
+    assert_eq!(web_presence.status, 200);
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({ "locale": "fr", "primary": true, "published": true })
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([{ "locale": "en", "primary": false, "published": false }])
+    );
+    let web_presence_id = json_string(
+        &web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"],
+        "French primary web presence id",
+    );
+
+    let enable_english = proxy.process_request(json_graphql_request(
+        r#"mutation EnableEnglishOnFrenchPrimary($id: ID!) {
+          shopLocaleEnable(locale: "en", marketWebPresenceIds: [$id]) {
+            shopLocale {
+              locale
+              name
+              primary
+              published
+              marketWebPresences { id __typename defaultLocale { locale } }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": web_presence_id }),
+    ));
+    assert_eq!(
+        enable_english.body["data"]["shopLocaleEnable"],
+        json!({
+            "shopLocale": {
+                "locale": "en",
+                "name": "English",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": [{
+                    "id": web_presence_id,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "fr" }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+
+    let primary_changes = proxy.process_request(json_graphql_request(
+        r#"mutation RejectFrenchPrimaryLocaleChanges {
+          updatePrimary: shopLocaleUpdate(locale: "fr", shopLocale: { published: false }) {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+          disablePrimary: shopLocaleDisable(locale: "fr") {
+            locale
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    let primary_error = json!([{
+        "field": ["locale"],
+        "message": "The primary locale of your store can't be changed through this endpoint."
+    }]);
+    assert_eq!(
+        primary_changes.body["data"]["updatePrimary"],
+        json!({ "shopLocale": null, "userErrors": primary_error })
+    );
+    assert_eq!(
+        primary_changes.body["data"]["disablePrimary"],
+        json!({ "locale": null, "userErrors": primary_error })
+    );
+
+    let disable_english = proxy.process_request(json_graphql_request(
+        r#"mutation DisableEnglishOnFrenchPrimary {
+          shopLocaleDisable(locale: "en") { locale userErrors { field message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disable_english.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "en", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query FrenchPrimaryLocalesAfterEnglishDisable {
+          shopLocales { locale primary published }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["shopLocales"],
+        json!([{ "locale": "fr", "primary": true, "published": true }])
+    );
+}
+
+#[test]
+fn web_presence_delete_only_protects_primary_domain_presence() {
+    let mut proxy = snapshot_proxy();
+    seed_shop_domains(&mut proxy);
+
+    let create_primary = proxy.process_request(json_graphql_request(
+        r#"mutation CreatePrimaryDomainPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id domain { id host } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "defaultLocale": "en", "domainId": "gid://shopify/Domain/1000" } }),
+    ));
+    assert_eq!(create_primary.status, 200);
+    assert_eq!(
+        create_primary.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_secondary = proxy.process_request(json_graphql_request(
+        r#"mutation CreateSecondaryDomainPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id domain { id host } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "defaultLocale": "en", "domainId": "gid://shopify/Domain/2000" } }),
+    ));
+    assert_eq!(create_secondary.status, 200);
+    assert_eq!(
+        create_secondary.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let primary_id = json_string(
+        &create_primary.body["data"]["webPresenceCreate"]["webPresence"]["id"],
+        "primary-domain web presence id",
+    );
+    let secondary_id = json_string(
+        &create_secondary.body["data"]["webPresenceCreate"]["webPresence"]["id"],
+        "secondary-domain web presence id",
+    );
+
+    let delete_secondary = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteSecondaryDomainPresence($id: ID!) {
+          webPresenceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": secondary_id }),
+    ));
+    assert_eq!(
+        delete_secondary.body["data"]["webPresenceDelete"],
+        json!({ "deletedId": secondary_id, "userErrors": [] })
+    );
+
+    let delete_primary = proxy.process_request(json_graphql_request(
+        r#"mutation DeletePrimaryDomainPresence($id: ID!) {
+          webPresenceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": primary_id }),
+    ));
+    assert_eq!(
+        delete_primary.body["data"]["webPresenceDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "The shop must have a web presence that uses the primary domain.",
+                "code": "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"
+            }]
+        })
     );
 }
 

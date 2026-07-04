@@ -60,9 +60,14 @@ translation validation.
 For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
 a non-null `published` value, whether `true` or `false`; primary-locale updates
 that only supply `marketWebPresenceIds` remain accepted by this slice.
-The baseline shop locale includes the captured primary English row, and staged
-enable/update/disable effects are merged with that baseline for subsequent
-`shopLocales` reads.
+The primary locale is read from the effective shop-locale store state rather than
+assuming English, so restored or hydrated shops with a non-English primary keep
+their primary guards and `primary` flags aligned. Staged enable/update/disable
+effects are merged with the baseline for subsequent `shopLocales` reads, and
+accepted `marketWebPresences` references serialize `defaultLocale` from the
+referenced staged or hydrated web-presence record. Web-presence default locales
+serialize as published, while alternates created on the presence remain
+unpublished unless observed state already carries a different association value.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 product, collection, product-metafield, and market-scoped translation scenarios.
