@@ -208,7 +208,9 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         &channel_type,
         &tactic,
         resolved_string_field(&input, "referringDomain").as_deref(),
-    );
+    )
+    .map(Value::String)
+    .unwrap_or(Value::Null);
     let remote_id_value = remote_id.map(Value::String).unwrap_or(Value::Null);
     let campaign_value = campaign.map(Value::String).unwrap_or(Value::Null);
     let source_value = source.map(Value::String).unwrap_or(Value::Null);
@@ -254,7 +256,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "targetStatus": null,
         "tactic": tactic,
         "marketingChannelType": channel_type,
-        "sourceAndMedium": source_medium,
+        "sourceAndMedium": source_medium.clone(),
         "isExternal": true,
         "inMainWorkflowVersion": false,
         "urlParameterValue": url_parameter_value,
@@ -585,8 +587,8 @@ pub(in crate::proxy) fn marketing_source_and_medium(
     channel: &str,
     tactic: &str,
     referring_domain: Option<&str>,
-) -> String {
-    match (channel, tactic, referring_domain) {
+) -> Option<String> {
+    let value = match (channel, tactic, referring_domain) {
         ("EMAIL", "ABANDONED_CART", _) => "Abandoned cart email",
         ("SEARCH", "AFFILIATE", _) => "Affiliate link",
         ("DISPLAY", "LOYALTY", _) => "Loyalty program",
@@ -595,13 +597,13 @@ pub(in crate::proxy) fn marketing_source_and_medium(
         ("SEARCH", "MESSAGE", Some("facebook.com")) => "Message via Facebook Messenger",
         ("SEARCH", "MESSAGE", Some("twitter.com")) => "Twitter message",
         ("SEARCH", "AD", Some("instagram.com")) => "Instagram ad",
-        ("SEARCH", "AD", Some(domain)) => return format!("{domain} ad"),
+        ("SEARCH", "AD", Some(domain)) => return Some(format!("{domain} ad")),
         ("SEARCH", "AD", _) => "Search ad",
         (_, "AD", _) => "Ad",
         ("EMAIL", "NEWSLETTER", _) => "Email newsletter",
-        _ => "Email newsletter",
-    }
-    .to_string()
+        _ => return None,
+    };
+    Some(value.to_string())
 }
 
 impl DraftProxy {
