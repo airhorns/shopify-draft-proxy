@@ -856,7 +856,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "shop": null,
                     "shopLocales": null,
                     "shopPolicies": {},
-                    "shopPolicyOrder": []
+                    "shopPolicyOrder": [],
+                    "deliveryProfileOrder": [],
+                    "deliveryProfiles": {}
                 },
                 "stagedState": {
                     "createdPublicationIds": [],
