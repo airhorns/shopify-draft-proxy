@@ -7,6 +7,14 @@ mutation MarketCreatePriceInclusions($input: MarketCreateInput!) {
       handle
       status
       type
+      currencySettings {
+        baseCurrency {
+          currencyCode
+          currencyName
+        }
+        localCurrencies
+        roundingEnabled
+      }
       priceInclusions {
         inclusiveDutiesPricingStrategy
         inclusiveTaxPricingStrategy

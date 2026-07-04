@@ -1,0 +1,40 @@
+query OwnerMetafieldsConnectionArgsRead($id: ID!, $keys: [String!]) {
+  product(id: $id) {
+    rawKeys: metafields(first: 10, keys: ["bravo", "size"]) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    qualifiedKeys: metafields(first: 10, keys: $keys) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    reversePage: metafields(first: 2, namespace: "connection_args", reverse: true) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

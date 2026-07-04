@@ -1,0 +1,51 @@
+mutation MetafieldDefinitionCatalogConnectionCreate(
+  $firstDefinition: MetafieldDefinitionInput!
+  $secondDefinition: MetafieldDefinitionInput!
+  $thirdDefinition: MetafieldDefinitionInput!
+) {
+  first: metafieldDefinitionCreate(definition: $firstDefinition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      name
+      ownerType
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  second: metafieldDefinitionCreate(definition: $secondDefinition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      name
+      ownerType
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  third: metafieldDefinitionCreate(definition: $thirdDefinition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      name
+      ownerType
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

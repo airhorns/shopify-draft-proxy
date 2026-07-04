@@ -1,0 +1,19 @@
+mutation B2BConnectionArgsAssignRole(
+  $companyContactId: ID!
+  $companyContactRoleId: ID!
+  $companyLocationId: ID!
+) {
+  companyContactAssignRole(
+    companyContactId: $companyContactId
+    companyContactRoleId: $companyContactRoleId
+    companyLocationId: $companyLocationId
+  ) {
+    companyContactRoleAssignment {
+      id
+      companyContact { id title }
+      companyLocation { id name }
+      role { id name }
+    }
+    userErrors { field message code }
+  }
+}

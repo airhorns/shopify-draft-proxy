@@ -40,7 +40,7 @@ Snapshot/local empty behavior follows the 2025-01 capture in `fixtures/conforman
 
 Local connection support uses the shared GraphQL connection helpers for selected `nodes`, `edges`, and `pageInfo` fields. The local model supports common sort keys, reverse ordering, and cursor windows. Captured opaque Shopify cursors are not decoded; newly staged local rows use stable synthetic cursor values.
 
-Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Top-level `articles` defaults to published records when no status is requested, while explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control whether published, unpublished, or both states are returned before remaining text terms are applied. Nested blog article reads expose the effective local graph.
+Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Unfiltered top-level `articles` returns published and unpublished effective records; explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control status slices when supplied. Unknown fielded filters are treated as explicit local no-matches instead of silently returning the full local content graph. Nested blog article reads expose the effective local graph.
 
 Nested content behavior:
 
@@ -50,7 +50,7 @@ Nested content behavior:
 - `Comment.article` resolves through the local article graph
 - `Article.author`, `articleAuthors`, and `articleTags` are derived from local article data
 
-Top-level `articles` preserves Shopify's published-by-default boundary, but explicit `published_status` query filters can include unpublished records. Nested blog/article helper reads continue to expose the effective local graph so staged unpublished content remains visible through its parent blog and detail relationships.
+Top-level `articles` no longer applies a published-only default when `query` is omitted, so staged unpublished content remains visible in unfiltered local catalog reads as well as through parent blog and detail relationships. Explicit `published_status` query filters still narrow the status slice.
 
 Article subresource fidelity covers the Admin GraphQL fields that are actually present in the captured schema:
 

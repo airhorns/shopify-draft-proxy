@@ -1,0 +1,10 @@
+query OrderCreateStateDerivedPaymentAndCountRead($tagQuery: String!, $countLimit: Int!) {
+    exactCount: ordersCount(query: $tagQuery) {
+      count
+      precision
+    }
+    limitedCount: ordersCount(query: $tagQuery, limit: $countLimit) {
+      count
+      precision
+    }
+  }

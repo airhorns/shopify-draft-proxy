@@ -1,0 +1,59 @@
+fragment CatalogsConnectionFields on Catalog {
+  __typename
+  id
+  title
+  status
+  ... on MarketCatalog {
+    markets(first: 2) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}
+
+query CatalogsConnectionRead($query: String!, $first: Int!, $countLimit: Int) {
+  firstPage: catalogs(first: $first, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      ...CatalogsConnectionFields
+    }
+    edges {
+      cursor
+      node {
+        ...CatalogsConnectionFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  wrongType: catalogs(first: 5, type: COMPANY_LOCATION, query: $query, sortKey: TITLE) {
+    nodes {
+      ...CatalogsConnectionFields
+    }
+    edges {
+      cursor
+      node {
+        ...CatalogsConnectionFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  limitedCount: catalogsCount(type: MARKET, query: $query, limit: $countLimit) {
+    count
+    precision
+  }
+  wrongTypeCount: catalogsCount(type: COMPANY_LOCATION, query: $query, limit: 10) {
+    count
+    precision
+  }
+}
