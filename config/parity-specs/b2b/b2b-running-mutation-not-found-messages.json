@@ -1,0 +1,57 @@
+{
+  "scenarioId": "b2b-running-mutation-not-found-messages",
+  "operationNames": [
+    "companyDelete",
+    "companyContactCreate",
+    "companyAddressDelete",
+    "companyLocationAssignRoles",
+    "companyLocationRevokeRoles"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-running-mutation-not-found-messages.json"
+  ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-running-mutation-not-found-messages.graphql",
+    "variablesCapturePath": "$.notFoundMessages.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for B2B running mutation roots rejecting never-created parent or target IDs with resource-specific RESOURCE_NOT_FOUND messages. The live request uses fixed unknown GIDs and Shopify rejects every root before mutation, so the capture does not create or mutate Shopify resources.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-delete-company-not-found-message",
+        "capturePath": "$.notFoundMessages.response.data.companyDelete",
+        "proxyPath": "$.data.companyDelete"
+      },
+      {
+        "name": "company-contact-create-company-not-found-message",
+        "capturePath": "$.notFoundMessages.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate"
+      },
+      {
+        "name": "company-address-delete-address-not-found-message",
+        "capturePath": "$.notFoundMessages.response.data.companyAddressDelete",
+        "proxyPath": "$.data.companyAddressDelete"
+      },
+      {
+        "name": "company-location-assign-roles-location-not-found-message",
+        "capturePath": "$.notFoundMessages.response.data.companyLocationAssignRoles",
+        "proxyPath": "$.data.companyLocationAssignRoles"
+      },
+      {
+        "name": "company-location-revoke-roles-location-not-found-message",
+        "capturePath": "$.notFoundMessages.response.data.companyLocationRevokeRoles",
+        "proxyPath": "$.data.companyLocationRevokeRoles"
+      }
+    ]
+  }
+}

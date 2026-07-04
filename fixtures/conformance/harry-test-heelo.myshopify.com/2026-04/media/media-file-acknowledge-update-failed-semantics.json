@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-07-03T00:01:47.138Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-acknowledge-update-failed-semantics",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Media parity acknowledgement semantics",
+          "contentType": "IMAGE",
+          "filename": "media-replacement-ack-semantics-1783036904856.jpg",
+          "originalSource": "https://placehold.co/600x400.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43989266825522",
+              "alt": "Media parity acknowledgement semantics",
+              "createdAt": "2026-07-03T00:01:45Z",
+              "fileStatus": "UPLOADED",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "acknowledgeNonReady": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43989266825522"]
+    },
+    "response": {
+      "data": {
+        "fileAcknowledgeUpdateFailed": {
+          "files": null,
+          "userErrors": [
+            {
+              "field": ["fileIds"],
+              "message": "File with id gid://shopify/MediaImage/43989266825522 is not in the READY state.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterNonReady": {
+    "variables": {},
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43989266825522",
+              "alt": "Media parity acknowledgement semantics",
+              "createdAt": "2026-07-03T00:01:45Z",
+              "fileStatus": "PROCESSING",
+              "__typename": "MediaImage",
+              "mediaErrors": [],
+              "mediaWarnings": [],
+              "image": null
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NjgyNTUyMiwibGFzdF92YWx1ZSI6IjQzOTg5MjY2ODI1NTIyIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NjgyNTUyMiwibGFzdF92YWx1ZSI6IjQzOTg5MjY2ODI1NTIyIn0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

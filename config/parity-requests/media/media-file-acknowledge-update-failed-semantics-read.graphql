@@ -1,21 +1,20 @@
 query MediaFileAcknowledgeUpdateFailedSemanticsRead {
-  files(first: 5) {
+  files(first: 1, reverse: true) {
     nodes {
       id
       alt
       createdAt
       fileStatus
-      filename
       __typename
-      mediaErrors {
-        code
-        message
-      }
-      mediaWarnings {
-        code
-        message
-      }
       ... on MediaImage {
+        mediaErrors {
+          code
+          message
+        }
+        mediaWarnings {
+          code
+          message
+        }
         image {
           url
           width

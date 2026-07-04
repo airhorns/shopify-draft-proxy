@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-06-15T22:04:09.412Z",
+  "capturedAt": "2026-07-03T02:55:11.898Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setupCustomer": {
     "variables": {
       "input": {
-        "email": "address-validation-1781561047512@example.com",
+        "email": "address-validation-1783047308874@example.com",
         "firstName": "Address",
         "lastName": "Validation"
       }
@@ -15,11 +15,11 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10806758211890",
+            "id": "gid://shopify/Customer/10884310991154",
             "firstName": "Address",
             "lastName": "Validation",
             "displayName": "Address Validation",
-            "email": "address-validation-1781561047512@example.com",
+            "email": "address-validation-1783047308874@example.com",
             "locale": "en",
             "note": null,
             "verifiedEmail": true,
@@ -28,11 +28,59 @@
             "state": "DISABLED",
             "canDelete": true,
             "defaultEmailAddress": {
-              "emailAddress": "address-validation-1781561047512@example.com"
+              "emailAddress": "address-validation-1783047308874@example.com"
             },
             "defaultPhoneNumber": null,
-            "createdAt": "2026-06-15T22:04:07Z",
-            "updatedAt": "2026-06-15T22:04:07Z"
+            "createdAt": "2026-07-03T02:55:08Z",
+            "updatedAt": "2026-07-03T02:55:08Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "phoneSetupCustomer": {
+    "variables": {
+      "input": {
+        "email": "address-phone-normalization-1783047308874@example.com",
+        "firstName": "Address",
+        "lastName": "Phone"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10884311089458",
+            "firstName": "Address",
+            "lastName": "Phone",
+            "displayName": "Address Phone",
+            "email": "address-phone-normalization-1783047308874@example.com",
+            "locale": "en",
+            "note": null,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "tags": [],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "address-phone-normalization-1783047308874@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "createdAt": "2026-07-03T02:55:09Z",
+            "updatedAt": "2026-07-03T02:55:09Z"
           },
           "userErrors": []
         }
@@ -72,7 +120,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12221701521714?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12268831441202?model_name=CustomerAddress",
             "firstName": "Trim",
             "lastName": "Create",
             "address1": "100 Main",
@@ -123,7 +171,7 @@
       "data": {
         "customerAddressUpdate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12221701521714?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12268831441202?model_name=CustomerAddress",
             "firstName": "Trim",
             "lastName": "Create",
             "address1": "200 Side",
@@ -149,6 +197,337 @@
           "throttleStatus": {
             "maximumAvailable": 2000,
             "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateFormattedPhone": {
+    "variables": {
+      "customerId": "<phone-setup-customer-id>",
+      "address": {
+        "address1": "300 Phone Normalization",
+        "city": "Ottawa",
+        "countryCode": "CA",
+        "provinceCode": "ON",
+        "phone": "+1 (613) 450-4538"
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "firstName": "Address",
+            "lastName": "Phone",
+            "address1": "300 Phone Normalization",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": null,
+            "phone": "+16134504538",
+            "name": "Address Phone",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateFormattedPhoneRead": {
+    "variables": {
+      "id": "<phone-setup-customer-id>"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10884311089458",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "phone": "+16134504538"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+                "phone": "+16134504538"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateFormattedPhone": {
+    "variables": {
+      "customerId": "<phone-setup-customer-id>",
+      "addressId": "<phone-address-id>",
+      "address": {
+        "phone": "+1-613-450-4538"
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressUpdate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "firstName": "Address",
+            "lastName": "Phone",
+            "address1": "300 Phone Normalization",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": null,
+            "phone": "+16134504538",
+            "name": "Address Phone",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateFormattedPhoneRead": {
+    "variables": {
+      "id": "<phone-setup-customer-id>"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10884311089458",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "phone": "+16134504538"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+                "phone": "+16134504538"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateLocalPhone": {
+    "variables": {
+      "customerId": "<phone-setup-customer-id>",
+      "addressId": "<phone-address-id>",
+      "address": {
+        "phone": "450-4538"
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressUpdate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "firstName": "Address",
+            "lastName": "Phone",
+            "address1": "300 Phone Normalization",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": null,
+            "phone": "+14504538",
+            "name": "Address Phone",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateLocalPhoneRead": {
+    "variables": {
+      "id": "<phone-setup-customer-id>"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10884311089458",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "phone": "+14504538"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+                "phone": "+14504538"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateRawFallbackPhone": {
+    "variables": {
+      "customerId": "<phone-setup-customer-id>",
+      "addressId": "<phone-address-id>",
+      "address": {
+        "phone": "not a phone"
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressUpdate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "firstName": "Address",
+            "lastName": "Phone",
+            "address1": "300 Phone Normalization",
+            "address2": null,
+            "city": "Ottawa",
+            "company": null,
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": null,
+            "phone": "not a phone",
+            "name": "Address Phone",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateRawFallbackPhoneRead": {
+    "variables": {
+      "id": "<phone-setup-customer-id>"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10884311089458",
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+            "phone": "not a phone"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12268831473970?model_name=CustomerAddress",
+                "phone": "not a phone"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
             "restoreRate": 100
           }
         }
@@ -364,7 +743,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -389,7 +768,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12221701554482?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12268831506738?model_name=CustomerAddress",
             "firstName": "Address",
             "lastName": "Validation",
             "address1": null,
@@ -414,7 +793,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -424,7 +803,7 @@
   "customerCreateNestedTooLong": {
     "variables": {
       "input": {
-        "email": "address-validation-too-long-1781561047512@example.com",
+        "email": "address-validation-too-long-1783047308874@example.com",
         "addresses": [
           {
             "address1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -463,7 +842,7 @@
   "customerCreateNestedBlank": {
     "variables": {
       "input": {
-        "email": "address-validation-blank-1781561047512@example.com",
+        "email": "address-validation-blank-1783047308874@example.com",
         "addresses": [
           {
             "address1": " ",
@@ -508,7 +887,7 @@
         "id": "<setup-customer-id>"
       },
       "input": {
-        "email": "address-validation-1781561047512@example.com",
+        "email": "address-validation-1783047308874@example.com",
         "addresses": [
           {
             "address1": " ",
@@ -526,11 +905,11 @@
       "data": {
         "customerSet": {
           "customer": {
-            "id": "gid://shopify/Customer/10806758211890",
+            "id": "gid://shopify/Customer/10884310991154",
             "firstName": "Address",
             "lastName": "Validation",
             "displayName": "Address Validation",
-            "email": "address-validation-1781561047512@example.com",
+            "email": "address-validation-1783047308874@example.com",
             "locale": "en",
             "note": null,
             "verifiedEmail": true,
@@ -540,7 +919,7 @@
             "state": "DISABLED",
             "canDelete": true,
             "defaultEmailAddress": {
-              "emailAddress": "address-validation-1781561047512@example.com"
+              "emailAddress": "address-validation-1783047308874@example.com"
             },
             "defaultPhoneNumber": null,
             "defaultAddress": {
@@ -554,7 +933,7 @@
             "addressesV2": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MailingAddress/12221701587250?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12268831539506?model_name=CustomerAddress",
                   "address1": null,
                   "city": null,
                   "province": null,
@@ -566,12 +945,12 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjIyMTcwMTU4NzI1MCwibGFzdF92YWx1ZSI6IjEyMjIxNzAxNTg3MjUwIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjIyMTcwMTU4NzI1MCwibGFzdF92YWx1ZSI6IjEyMjIxNzAxNTg3MjUwIn0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjI2ODgzMTUzOTUwNiwibGFzdF92YWx1ZSI6IjEyMjY4ODMxNTM5NTA2In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjI2ODgzMTUzOTUwNiwibGFzdF92YWx1ZSI6IjEyMjY4ODMxNTM5NTA2In0="
               }
             },
-            "createdAt": "2026-06-15T22:04:07Z",
-            "updatedAt": "2026-06-15T22:04:09Z"
+            "createdAt": "2026-07-03T02:55:08Z",
+            "updatedAt": "2026-07-03T02:55:11Z"
           },
           "userErrors": []
         }
@@ -591,13 +970,38 @@
   },
   "cleanup": [
     {
-      "id": "gid://shopify/Customer/10806758211890",
+      "id": "gid://shopify/Customer/10884311089458",
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "customerDelete": {
-              "deletedCustomerId": "gid://shopify/Customer/10806758211890",
+              "deletedCustomerId": "gid://shopify/Customer/10884311089458",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/Customer/10884310991154",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10884310991154",
               "userErrors": []
             }
           },
@@ -617,5 +1021,5 @@
     }
   ],
   "upstreamCalls": [],
-  "notes": "Captured Admin GraphQL evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior."
+  "notes": "Captured Admin GraphQL evidence for customer address input length, HTML, URL, emoji, blank-address, whitespace normalization, and no-default-territory address phone normalization behavior."
 }

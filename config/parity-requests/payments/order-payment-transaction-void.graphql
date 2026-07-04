@@ -1,0 +1,26 @@
+mutation OrderPaymentTransactionVoid($id: ID!) {
+  transactionVoid(parentTransactionId: $id) {
+    transaction {
+      id
+      kind
+      status
+      gateway
+      parentTransaction {
+        id
+        kind
+        status
+      }
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

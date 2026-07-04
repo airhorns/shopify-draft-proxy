@@ -39,7 +39,7 @@ Function-backed behavior is modeled as Admin metadata/state only:
 - The proxy records Function handles or IDs attached to validations, cart transforms, and fulfillment constraint rules, preserves or hydrates local `ShopifyFunction` rows, and updates relevant detail/catalog roots after staged writes.
 - In LiveHybrid mode, cold `shopifyFunction` / `shopifyFunctions` reads forward upstream and cache observed Function metadata for later local read-after-write behavior. Snapshot mode does not invent Function catalog rows that are absent from local state.
 - Supported mutation roots stage locally, append the original raw GraphQL request body to the mutation log for ordered `__meta/commit` replay, and must not proxy to Shopify at runtime.
-- The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only.
+- The runtime does not execute external Function code, invoke Function WASM, run checkout/cart transform behavior, or call tax calculation callbacks. `taxAppConfigure` stores readiness metadata only, with a synthetic `TaxAppConfiguration` ID that remains stable for later reads in the same staged state.
 
 Validation behavior:
 
@@ -82,6 +82,12 @@ Function catalog and hydration:
 - Unknown Function references in supported create mutations are not satisfied from a baked catalog. Outside snapshot mode, the handler attempts the production upstream Function hydrate path; unresolved hydrate responses return Shopify-shaped not-found or wrong-API userErrors without staging.
 - `validationCreate` with omitted or explicit `null` `title` falls back to the hydrated public Function title available from Admin `shopifyFunctions`; explicit `title: ""` remains empty. Live Shopify can persist a private raw extension name instead (`t:name` in the conformance app), but that value is not exposed by the exact Admin Function hydrate response available to the proxy.
 
+Tax app readiness:
+
+- `taxAppConfigure` requires the local request to declare both `write_taxes` in `x-shopify-draft-proxy-access-scopes` and `x-shopify-draft-proxy-tax-calculations-app: true`. Requests without that posture return Shopify's captured top-level `ACCESS_DENIED` envelope and do not stage tax readiness.
+- Eligible requests allocate a synthetic `TaxAppConfiguration` ID through the proxy synthetic ID allocator, persist `ready`, derived `state`, and `updatedAt` in staged state, and reuse the same configuration ID on later readiness updates.
+- Staged tax configuration is readable through generic `node(id:)` selections for `TaxAppConfiguration` fields and round-trips through dump/restore with the rest of staged state.
+
 ### Boundaries
 
 - Function execution outcomes, checkout validation behavior, cart transform runtime effects, and tax calculation callbacks are out of scope.
@@ -89,57 +95,6 @@ Function catalog and hydration:
 - Cross-app Function reference behavior is limited to the owner metadata available in local/captured state.
 - Private Function extension manifest fields that are not exposed through Admin GraphQL, such as the raw extension name used by Shopify's validation title fallback in the conformance app, are not modeled from fabricated local metadata.
 - Function create guardrails that depend on private Shopify shop/app eligibility state are not modeled from fabricated local catalog rows. When Shopify exposes such a branch only through live mutation behavior, it needs captured live parity before the proxy should claim support for it.
-- Tax-app authority and real tax-service readiness are not emulated beyond local readiness metadata.
+- Tax-app authority is modeled from explicit local request metadata only; the proxy does not infer real app-extension eligibility or call a tax service.
 - Fulfillment constraint success-path live parity requires a released `FULFILLMENT_CONSTRAINT_RULE` Function in the conformance app. The checked-in live fixture covers deterministic validation branches and empty reads because the current conformance app has no released fulfillment-constraint Function.
 - No root listed here is registry-only. Validation-only behavior is limited to captured input coercion, userErrors, and guardrails that fail before local staging.
-
-### Evidence
-
-- `tests/graphql_routes/discounts_gift_cards_functions_localization.rs`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-non-catalog-hydrate-validation-create.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-rebind-variable.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-defaults.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-delete-error-shape.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-errors.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-output-field-validation.json`
-- `config/parity-specs/functions/functions-validation-update-rebind-variable.json`
-- `config/parity-specs/functions/functions-live-owner-metadata-read.json`
-- `config/parity-specs/functions/functions-non-catalog-hydrate-validation-create.json`
-- `config/parity-specs/functions/functions-validation-create-error-shape.json`
-- `config/parity-specs/functions/validation-create-title-fallback-parity.json`
-- `config/parity-specs/functions/functions-validation-metafields-input-validation.json`
-- `config/parity-specs/functions/functions-validation-update-metafields-upsert.json`
-- `config/parity-specs/functions/functions-validation-update-defaults.json`
-- `config/parity-specs/functions/functions-delete-error-shape.json`
-- `config/parity-specs/functions/functions-cart-transform-create-validation.json`
-- `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
-- `config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
-- `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
-- `config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json`
-- `config/parity-specs/functions/functions-output-field-validation.json`
-- `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
-
-### Validation
-
-- `corepack pnpm parity -- functions-non-catalog-hydrate-validation-create`
-- `corepack pnpm parity -- functions-validation-create-error-shape`
-- `corepack pnpm parity -- functions-validation-create-title-fallback`
-- `corepack pnpm parity -- functions-validation-metafields-input-validation`
-- `corepack pnpm parity -- functions-validation-update-metafields-upsert`
-- `corepack pnpm parity -- functions-validation-update-defaults`
-- `corepack pnpm parity -- functions-delete-error-shape`
-- `corepack pnpm parity -- functions-cart-transform-create-validation`
-- `corepack pnpm parity -- functions-cart-transform-create-metafields`
-- `corepack pnpm parity -- functions-fulfillment-constraint-rule-errors`
-- `corepack pnpm parity -- functions-output-field-validation`
-- `cargo test --test graphql_routes functions_`
-- `corepack pnpm conformance:check`

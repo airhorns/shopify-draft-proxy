@@ -18,7 +18,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-app-namespace-resolution.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
     "variablesCapturePath": "$.appPrefixedCreate.request.variables",

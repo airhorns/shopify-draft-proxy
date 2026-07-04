@@ -656,26 +656,316 @@ pub(in crate::proxy) fn draft_order_invoice_url(id: &str) -> String {
     )
 }
 
-pub(in crate::proxy) fn draft_order_matches_query(draft_order: &Value, query: &str) -> bool {
-    if query.trim().is_empty() {
-        return true;
+pub(in crate::proxy) fn draft_order_search_decision(
+    draft_order: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
     }
-    draft_order["name"]
-        .as_str()
-        .is_some_and(|name| query == format!("name:{name}"))
-        || draft_order["email"]
-            .as_str()
-            .is_some_and(|email| query == format!("email:{email}"))
-        || draft_order["status"].as_str().is_some_and(|status| {
-            query
-                .strip_prefix("status:")
-                .is_some_and(|value| value.eq_ignore_ascii_case(status))
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        if let Some((key, value)) = term.split_once(':') {
+            match draft_order_matches_query_term(draft_order, key, value) {
+                Some(true) => {}
+                Some(false) => return StagedSearchDecision::NoMatch,
+                // Shopify returns invalid-field search warnings and ignores
+                // unknown draft-order fields instead of narrowing to empty.
+                None => continue,
+            }
+        } else if !draft_order_matches_free_text(draft_order, term) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn draft_order_matches_query_term(draft_order: &Value, key: &str, value: &str) -> Option<bool> {
+    match key.to_ascii_lowercase().as_str() {
+        "id" => Some(draft_order_matches_id(draft_order, value)),
+        "name" => Some(draft_order_search_string_matches(
+            draft_order.get("name").and_then(Value::as_str),
+            value,
+        )),
+        "email" => Some(draft_order_search_string_matches(
+            draft_order.get("email").and_then(Value::as_str),
+            value,
+        )),
+        "status" => Some(draft_order_matches_status(draft_order, value)),
+        "customer_id" => Some(draft_order_matches_customer_id(draft_order, value)),
+        "tag" => Some(draft_order_matches_tag(draft_order, value)),
+        "created_at" => Some(draft_order_matches_datetime_comparator(
+            draft_order.get("createdAt").and_then(Value::as_str),
+            value,
+        )),
+        "updated_at" => Some(draft_order_matches_datetime_comparator(
+            draft_order.get("updatedAt").and_then(Value::as_str),
+            value,
+        )),
+        "total_price" => Some(draft_order_matches_money_comparator(
+            money_set_amount(&draft_order["totalPriceSet"]),
+            value,
+        )),
+        _ => None,
+    }
+}
+
+fn draft_order_matches_id(draft_order: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    draft_order
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| {
+            id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
         })
-        || draft_order["tags"].as_array().is_some_and(|tags| {
+}
+
+fn draft_order_matches_status(draft_order: &Value, value: &str) -> bool {
+    let status = draft_order
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    match value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "any" => true,
+        "open" => status.eq_ignore_ascii_case("OPEN"),
+        "invoice_sent" | "invoice-sent" | "invoice sent" => {
+            status.eq_ignore_ascii_case("INVOICE_SENT")
+        }
+        "completed" => status.eq_ignore_ascii_case("COMPLETED"),
+        other => status.eq_ignore_ascii_case(other),
+    }
+}
+
+fn draft_order_matches_customer_id(draft_order: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    [
+        draft_order
+            .get("customer")
+            .and_then(|customer| customer.get("id"))
+            .and_then(Value::as_str),
+        draft_order
+            .get("purchasingEntity")
+            .and_then(|entity| entity.get("customerId"))
+            .and_then(Value::as_str),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|id| id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn draft_order_matches_tag(draft_order: &Value, value: &str) -> bool {
+    draft_order
+        .get("tags")
+        .and_then(Value::as_array)
+        .is_some_and(|tags| {
             tags.iter()
                 .filter_map(Value::as_str)
-                .any(|tag| query == format!("tag:{tag}"))
+                .any(|tag| draft_order_search_token_matches(tag, value))
         })
+}
+
+fn draft_order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = draft_order_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = draft_order_search_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn draft_order_matches_money_comparator(actual: Option<f64>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = draft_order_search_comparator(query_value);
+    let Some(expected) = expected.parse::<f64>().ok() else {
+        return false;
+    };
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => (actual - expected).abs() < f64::EPSILON,
+    }
+}
+
+fn draft_order_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn draft_order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
+}
+
+fn draft_order_matches_free_text(draft_order: &Value, value: &str) -> bool {
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
+        return true;
+    }
+    draft_order_matches_id(draft_order, value)
+        || draft_order_search_string_matches(draft_order.get("name").and_then(Value::as_str), value)
+        || draft_order_search_string_matches(
+            draft_order.get("email").and_then(Value::as_str),
+            value,
+        )
+        || draft_order_search_string_matches(draft_order.get("note").and_then(Value::as_str), value)
+        || draft_order
+            .get("tags")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| {
+                tags.iter()
+                    .filter_map(Value::as_str)
+                    .any(|tag| draft_order_search_token_matches(tag, value))
+            })
+        || connection_nodes(&draft_order["lineItems"])
+            .iter()
+            .any(|line| {
+                draft_order_search_string_matches(line.get("title").and_then(Value::as_str), value)
+                    || draft_order_search_string_matches(
+                        line.get("sku").and_then(Value::as_str),
+                        value,
+                    )
+            })
+}
+
+fn draft_order_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+fn draft_order_search_token_matches(actual: &str, query_value: &str) -> bool {
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    let actual = actual.to_ascii_lowercase();
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|part| part == query_value)
+        || actual == query_value
+}
+
+fn draft_order_gid_tail_sort_value(draft_order: &Value) -> StagedSortValue {
+    let tail = draft_order
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn draft_order_string_sort_value(draft_order: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        draft_order
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn draft_order_customer_name_sort_value(draft_order: &Value) -> StagedSortValue {
+    let value = draft_order
+        .get("customer")
+        .and_then(|customer| customer.get("displayName"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            draft_order
+                .get("customer")
+                .and_then(|customer| customer.get("email"))
+                .and_then(Value::as_str)
+        })
+        .or_else(|| draft_order.get("email").and_then(Value::as_str))
+        .unwrap_or_default();
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn draft_order_total_price_sort_value(draft_order: &Value) -> StagedSortValue {
+    money_set_amount(&draft_order["totalPriceSet"])
+        .map(|amount| StagedSortValue::I64((amount * 100.0).round() as i64))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+pub(in crate::proxy) fn draft_order_staged_sort_key(
+    draft_order: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("ID") {
+        "CUSTOMER_NAME" => draft_order_customer_name_sort_value(draft_order),
+        "NUMBER" => draft_order_gid_tail_sort_value(draft_order),
+        "STATUS" => draft_order_string_sort_value(draft_order, "status"),
+        "TOTAL_PRICE" => draft_order_total_price_sort_value(draft_order),
+        "UPDATED_AT" => draft_order_string_sort_value(draft_order, "updatedAt"),
+        "ID" | "RELEVANCE" => draft_order_gid_tail_sort_value(draft_order),
+        _ => draft_order_gid_tail_sort_value(draft_order),
+    };
+    vec![primary, draft_order_gid_tail_sort_value(draft_order)]
 }
 
 pub(in crate::proxy) fn draft_order_input_user_errors(
@@ -891,7 +1181,7 @@ impl DraftProxy {
                 let field = field?;
                 Some(data_response(
                     &field.response_key,
-                    self.complete_staged_draft_order(field),
+                    self.complete_staged_draft_order(request, field),
                 ))
             }
             "order" => {
@@ -1062,23 +1352,7 @@ impl DraftProxy {
                 }
                 "draftOrder" => self.staged_draft_order_read(field),
                 "draftOrders" => self.staged_draft_orders_connection(field),
-                "draftOrdersCount" => selected_json(
-                    &count_object(
-                        self.store
-                            .staged
-                            .draft_orders
-                            .values()
-                            .filter(|draft_order| {
-                                draft_order_matches_query(
-                                    draft_order,
-                                    &resolved_string_field(&field.arguments, "query")
-                                        .unwrap_or_default(),
-                                )
-                            })
-                            .count(),
-                    ),
-                    &field.selection,
-                ),
+                "draftOrdersCount" => self.staged_draft_orders_count(field),
                 _ => {
                     declined = true;
                     return None;
@@ -1120,8 +1394,11 @@ impl DraftProxy {
         let name = self.draft_order_name_for_id(&id);
         let customer = draft_order_customer_id(&input)
             .and_then(|customer_id| self.hydrate_draft_order_customer(request, &customer_id));
-        let draft_order =
+        let mut draft_order =
             self.build_draft_order_record(&id, &name, &input, customer, &variant_hydrations);
+        let timestamp = self.next_product_timestamp();
+        draft_order["createdAt"] = json!(timestamp.clone());
+        draft_order["updatedAt"] = json!(timestamp);
         self.store
             .staged
             .draft_orders
@@ -1176,7 +1453,13 @@ impl DraftProxy {
         } else {
             BTreeMap::new()
         };
-        let updated = self.merge_draft_order_input(existing, &input, &variant_hydrations);
+        let current_updated_at = existing
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let mut updated = self.merge_draft_order_input(existing, &input, &variant_hydrations);
+        updated["updatedAt"] = json!(self.next_product_updated_at(&current_updated_at));
         self.store
             .staged
             .draft_orders
@@ -1264,8 +1547,9 @@ impl DraftProxy {
         duplicate["reserveInventoryUntil"] = Value::Null;
         duplicate["appliedDiscount"] = Value::Null;
         duplicate["shippingLine"] = Value::Null;
-        duplicate["createdAt"] = json!("2024-01-01T00:00:00.000Z");
-        duplicate["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+        let timestamp = self.next_product_timestamp();
+        duplicate["createdAt"] = json!(timestamp.clone());
+        duplicate["updatedAt"] = json!(timestamp);
         draft_order_clear_line_discounts(&mut duplicate, &self.store.shop_currency_code());
         draft_order_reassign_line_item_ids(&mut duplicate, &new_id);
         self.recalculate_draft_order_totals(&mut duplicate);
@@ -1375,7 +1659,10 @@ impl DraftProxy {
         };
         let id = self.next_draft_order_id();
         let name = self.draft_order_name_for_id(&id);
-        let draft_order = self.build_draft_order_from_order_record(&id, &name, &order);
+        let mut draft_order = self.build_draft_order_from_order_record(&id, &name, &order);
+        let timestamp = self.next_product_timestamp();
+        draft_order["createdAt"] = json!(timestamp.clone());
+        draft_order["updatedAt"] = json!(timestamp);
         self.store
             .staged
             .draft_orders
@@ -1449,25 +1736,42 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    pub(super) fn matching_draft_orders_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .draft_orders
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            draft_order_search_decision,
+            draft_order_staged_sort_key,
+            value_id_cursor,
+        )
+    }
+
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let mut records = self
-            .store
-            .staged
-            .draft_orders
-            .values()
-            .filter(|draft_order| draft_order_matches_query(draft_order, &query_arg))
-            .cloned()
-            .collect::<Vec<_>>();
-        records.sort_by(|left, right| {
-            right["id"]
-                .as_str()
-                .unwrap_or_default()
-                .cmp(left["id"].as_str().unwrap_or_default())
-        });
-        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
+        let result = self.matching_draft_orders_query(&field.arguments);
         selected_json(
-            &connection_json_with_cursor(records, |_, node| value_id_cursor(node), page_info),
+            &connection_json_with_cursor(
+                result.records,
+                |_, node| value_id_cursor(node),
+                result.page_info,
+            ),
+            &field.selection,
+        )
+    }
+
+    pub(super) fn staged_draft_orders_count(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &count_object(
+                self.matching_draft_orders_query(&field.arguments)
+                    .total_count,
+            ),
             &field.selection,
         )
     }
@@ -1725,7 +2029,6 @@ impl DraftProxy {
         if input.contains_key("paymentTerms") {
             draft_order["paymentTerms"] = draft_order_payment_terms(input);
         }
-        draft_order["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
         self.recalculate_draft_order_totals(&mut draft_order);
         draft_order
     }
@@ -1832,7 +2135,11 @@ impl DraftProxy {
         }
     }
 
-    pub(super) fn complete_staged_draft_order(&mut self, field: &RootFieldSelection) -> Value {
+    pub(super) fn complete_staged_draft_order(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return selected_json(
                 &json!({
@@ -1867,8 +2174,8 @@ impl DraftProxy {
         if payment_gateway_id.is_some() {
             return selected_json(
                 &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error(["paymentGatewayId"], "payment_gateway_not_found", Some("INVALID"))]
+                    "draftOrder": draft_order,
+                    "userErrors": [user_error_omit_code(Value::Null, "Invalid payment gateway", None)]
                 }),
                 &field.selection,
             );
@@ -1916,7 +2223,7 @@ impl DraftProxy {
         let source_name = draft_order["sourceName"]
             .as_str()
             .map(str::to_string)
-            .unwrap_or_else(|| MODELED_FUNCTION_APP_ID.to_string());
+            .unwrap_or_else(|| request_api_client_id(request));
         let payment_gateway_names = vec![json!("manual")];
         // Shopify records both settled and pending draft-order completions as a
         // manual SALE transaction. The transaction status, not its presence,
@@ -1932,9 +2239,10 @@ impl DraftProxy {
                 "gateway": "manual",
                 "amountSet": money_set(&amount, &currency_code)
         })];
+        let order_name = self.next_order_name();
         let mut order = json!({
             "id": order_id.clone(),
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "sourceName": source_name,
             "note": order_note,
             "tags": order_tags,

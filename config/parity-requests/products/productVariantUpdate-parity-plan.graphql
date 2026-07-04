@@ -13,12 +13,34 @@ mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
           price
           compareAtPrice
           taxable
+          taxCode
+          requiresComponents
+          showUnitPrice
+          unitPriceMeasurement {
+            quantityValue
+            quantityUnit
+            referenceValue
+            referenceUnit
+          }
           inventoryPolicy
           inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
           inventoryItem {
             id
             tracked
             requiresShipping
+            countryCodeOfOrigin
+            provinceCodeOfOrigin
+            harmonizedSystemCode
+            measurement {
+              weight {
+                value
+                unit
+              }
+            }
           }
         }
       }
@@ -31,6 +53,15 @@ mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
       price
       compareAtPrice
       taxable
+      taxCode
+      requiresComponents
+      showUnitPrice
+      unitPriceMeasurement {
+        quantityValue
+        quantityUnit
+        referenceValue
+        referenceUnit
+      }
       inventoryPolicy
       inventoryQuantity
       selectedOptions {
@@ -41,6 +72,15 @@ mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
         id
         tracked
         requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
+        measurement {
+          weight {
+            value
+            unit
+          }
+        }
       }
     }
     userErrors {

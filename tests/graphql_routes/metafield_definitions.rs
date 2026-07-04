@@ -953,7 +953,7 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         over_limit["userErrors"],
         json!([{
             "field": ["definition"],
-            "message": "You can only have 256 definitions per resource type.",
+            "message": "Stores can only have 256 definitions for each store resource.",
             "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
         }])
     );
@@ -1073,9 +1073,6 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
             createdDefinition { id }
             userErrors { field message code }
           }
-          rejectedRead: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "json_unique" }) {
-            id
-          }
         }
         "#,
         json!({ "namespace": namespace }),
@@ -1091,7 +1088,18 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
             }]
         })
     );
-    assert_eq!(invalid_unique.body["data"]["rejectedRead"], Value::Null);
+
+    let rejected_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RejectedCapabilityRead($namespace: String!) {
+          rejectedRead: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "json_unique" }) {
+            id
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(rejected_read.body["data"]["rejectedRead"], Value::Null);
 
     let invalid_smart = proxy.process_request(json_graphql_request(
         r#"
@@ -1747,6 +1755,27 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
     assert!(unknown_type_message.contains("product_taxonomy_disclosure_reference"));
     assert!(unknown_type_message.contains("list.disclosure_reference"));
 
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "loyalty",
+                "key": "disclosures",
+                "ownerType": "PRODUCT",
+                "name": "Disclosures",
+                "type": "list.disclosure_reference"
+            }),
+        ),
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+                "code": null
+            }]
+        })
+    );
+
     for namespace in ["shopify_standard", "protected"] {
         let reserved = create(
             &mut proxy,
@@ -1786,6 +1815,222 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
             "message": "Name is too long (maximum is 255 characters)",
             "code": "TOO_LONG"
         }])
+    );
+}
+
+#[test]
+fn metafield_definition_update_validates_name_description_length_without_mutating() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "length_update";
+    let key = "season";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateLengthSetup($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key name description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": namespace,
+                "key": key,
+                "ownerType": "PRODUCT",
+                "name": "Season",
+                "description": "Original description",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let log_len_after_create = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("log entries after create")
+        .len();
+
+    let update = |proxy: &mut DraftProxy, definition: Value| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionUpdateLength($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { namespace key name description }
+            userErrors { __typename field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+                json!({ "definition": definition }),
+            ))
+            .body["data"]["metafieldDefinitionUpdate"]
+            .clone()
+    };
+    let read_definition = |proxy: &mut DraftProxy| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        query MetafieldDefinitionUpdateLengthRead($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinition(identifier: $identifier) {
+            namespace
+            key
+            name
+            description
+          }
+        }
+        "#,
+                json!({
+                    "identifier": {
+                        "ownerType": "PRODUCT",
+                        "namespace": namespace,
+                        "key": key
+                    }
+                }),
+            ))
+            .body["data"]["metafieldDefinition"]
+            .clone()
+    };
+
+    let too_long_name = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "name": "N".repeat(256)
+        }),
+    );
+    assert_eq!(
+        too_long_name,
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "name"],
+                "message": "Name is too long (maximum is 255 characters)",
+                "code": "TOO_LONG"
+            }],
+            "validationJob": null
+        })
+    );
+    assert_eq!(
+        read_definition(&mut proxy),
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "Season",
+            "description": "Original description"
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_after_create
+    );
+
+    let too_long_description = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "description": "D".repeat(256)
+        }),
+    );
+    assert_eq!(
+        too_long_description,
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "description"],
+                "message": "Description is too long (maximum is 255 characters)",
+                "code": "TOO_LONG"
+            }],
+            "validationJob": null
+        })
+    );
+    assert_eq!(
+        read_definition(&mut proxy),
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "Season",
+            "description": "Original description"
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_after_create
+    );
+
+    let boundary_name = "N".repeat(255);
+    let boundary_description = "D".repeat(255);
+    let boundary_update = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "name": boundary_name,
+            "description": boundary_description
+        }),
+    );
+    assert_eq!(boundary_update["userErrors"], json!([]));
+    assert_eq!(
+        boundary_update["updatedDefinition"],
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "N".repeat(255),
+            "description": "D".repeat(255)
+        })
+    );
+
+    let mut restored = proxy
+        .process_request(request_with_body("POST", "/__meta/dump", "{}"))
+        .body;
+    let definitions = restored["state"]["stagedState"]["metafieldDefinitions"]
+        .as_object_mut()
+        .expect("staged metafield definitions");
+    let restored_definition = definitions
+        .values_mut()
+        .find(|definition| {
+            definition["namespace"].as_str() == Some(namespace)
+                && definition["key"].as_str() == Some(key)
+                && definition["ownerType"].as_str() == Some("PRODUCT")
+        })
+        .expect("created definition in staged state");
+    restored_definition["name"] = json!("L".repeat(256));
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let untouched_over_length_name = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "description": "Only description touched"
+        }),
+    );
+    assert_eq!(untouched_over_length_name["userErrors"], json!([]));
+    assert_eq!(
+        untouched_over_length_name["updatedDefinition"],
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "L".repeat(256),
+            "description": "Only description touched"
+        })
     );
 }
 
@@ -2517,8 +2762,16 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         .as_str()
         .unwrap()
         .to_string();
+    let app_request = |query: &str, variables: serde_json::Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
 
-    let create_definition = proxy.process_request(json_graphql_request(
+    let create_definition = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionCreate($definition: MetafieldDefinitionInput!) {
           metafieldDefinitionCreate(definition: $definition) {
@@ -2547,7 +2800,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         json!([])
     );
 
-    let set = proxy.process_request(json_graphql_request(
+    let set = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceAssociatedMetafieldSet($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
@@ -2568,7 +2821,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
     ));
     assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
 
-    let guarded_delete = proxy.process_request(json_graphql_request(
+    let guarded_delete = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionDeleteNoFlag {
           metafieldDefinitionDelete(
@@ -2596,7 +2849,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         })
     );
 
-    let read_after_guard = proxy.process_request(json_graphql_request(
+    let read_after_guard = proxy.process_request(app_request(
         r#"
         query ReservedNamespaceDefinitionReadAfterGuard {
           metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: "$app:settings", key: "config" }) {
@@ -2615,7 +2868,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         })
     );
 
-    let delete_all = proxy.process_request(json_graphql_request(
+    let delete_all = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionDeleteAll {
           metafieldDefinitionDelete(
@@ -2642,7 +2895,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         json!([])
     );
 
-    let read_metafield_after_delete_all = proxy.process_request(json_graphql_request(
+    let read_metafield_after_delete_all = proxy.process_request(app_request(
         r#"
         query ReservedNamespaceMetafieldReadAfterDeleteAll($id: ID!) {
           product(id: $id) {
@@ -3506,4 +3759,145 @@ fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric()
             ["constraints"],
         json!({ "key": "category", "values": { "nodes": [] } })
     );
+}
+
+#[test]
+fn metafield_definition_validation_names_are_checked_against_type() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateInvalidValidationDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    for (key, metafield_type, validation_name) in [
+        ("text_scale_max", "single_line_text_field", "scale_max"),
+        ("boolean_max", "boolean", "max"),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "validation_name_matrix",
+                "key": key,
+                "name": key,
+                "type": metafield_type,
+                "validations": [{"name": validation_name, "value": "5"}]
+            }}),
+        ));
+        assert_eq!(response.status, 200, "{key}");
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"],
+            Value::Null,
+            "{key}"
+        );
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([{
+                "field": ["definition", "validations"],
+                "message": format!(
+                    "Validations value for option {validation_name} contains an invalid value: '{validation_name}' isn't supported for {metafield_type}."
+                ),
+                "code": "INVALID_OPTION"
+            }]),
+            "{key}"
+        );
+    }
+}
+
+#[test]
+fn metafield_definition_access_grants_validation_uses_parsed_input_not_raw_query_text() {
+    let mut proxy = snapshot_proxy();
+
+    let valid_with_sniff_text = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidMetafieldDefinitionNameMentionsGrants {
+          metafieldDefinitionCreate(
+            definition: {
+              ownerType: PRODUCT
+              namespace: "grant_text"
+              key: "valid"
+              name: "access: { grants:"
+              type: "single_line_text_field"
+            }
+          ) {
+            createdDefinition { namespace key name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid_with_sniff_text.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid_with_sniff_text.body["data"]["metafieldDefinitionCreate"]["createdDefinition"],
+        json!({
+            "namespace": "grant_text",
+            "key": "valid",
+            "name": "access: { grants:"
+        })
+    );
+
+    let compact_invalid = proxy.process_request(json_graphql_request(
+        r#"mutation CompactGrantsLocation { metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: "grant_text", key: "compact", name: "Compact", type: "single_line_text_field", access:{grants:[{grantee:"gid://shopify/App/1",access:READ_WRITE}]} }) { createdDefinition { id } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        compact_invalid.body["errors"],
+        json!([{
+            "message": "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
+            "locations": [{ "line": 1, "column": 192 }],
+            "path": ["mutation CompactGrantsLocation", "metafieldDefinitionCreate", "definition", "access", "grants"],
+            "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "MetafieldAccessInput",
+                "typeName": "InputObject",
+                "argumentName": "grants"
+            }
+        }])
+    );
+
+    let variable_invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation VariableGrantsValidation($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "grant_text",
+                "key": "variable",
+                "name": "Variable",
+                "type": "single_line_text_field",
+                "access": {
+                    "grants": [{
+                        "grantee": "gid://shopify/App/1",
+                        "access": "READ_WRITE"
+                    }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        variable_invalid.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        variable_invalid.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": ["access", "grants"],
+            "explanation": "Field is not defined on MetafieldAccessInput"
+        }])
+    );
+    assert!(variable_invalid.body.get("data").is_none());
 }

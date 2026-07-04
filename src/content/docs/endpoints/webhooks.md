@@ -30,15 +30,16 @@ Mutation roots:
 Webhook subscription reads are backed by normalized `webhookSubscriptions` state plus `webhookSubscriptionOrder`:
 
 - Snapshot mode returns `null` for unknown `webhookSubscription(id:)`, an empty `webhookSubscriptions` connection, and `{ count: 0, precision: "EXACT" }` for `webhookSubscriptionsCount` when no records are present.
-- Local records preserve captured fields: `id`, `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, `metafields`, `filter`, `createdAt`, `updatedAt`, and deprecated endpoint-specific fields for HTTP, EventBridge, and Pub/Sub endpoints.
-- `webhookSubscriptions(...)` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
-- Catalog filters cover captured Shopify filters for `uri`, deprecated `callbackUrl`, `format`, and `topics`.
-- `webhookSubscriptionsCount(...)` supports `limit` precision semantics and captured query filtering for IDs, topic, format, URI, and endpoint fragments.
+- Local records preserve captured fields: `id`, `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, `metafields`, `filter`, `apiVersion`, `createdAt`, `updatedAt`, and deprecated endpoint-specific fields for HTTP, EventBridge, and Pub/Sub endpoints.
+- `apiVersion` projections use the proxy's maintained Admin GraphQL version inventory. Known supported handles report `supported: true`, explicit preview handles such as `2026-07` and `unstable` report `supported: false`, and unknown/future/typo handles are preserved but not marked supported.
+- `webhookSubscriptions(...)` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, default `sortKey: CREATED_AT`, explicit `sortKey: ID`, and `reverse`.
+- Catalog filters cover captured Shopify arguments for `uri`, deprecated `callbackUrl`, `format`, and `topics`. Search query terms cover `id`, `topic`, `format`, `uri`, `callbackUrl`, `callback_url`, `created_at`, and `updated_at`; unsupported query fields intentionally produce no local matches instead of broadening the result set.
+- `webhookSubscriptionsCount(...)` supports `limit` precision semantics and the same captured query filtering used by the list connection before applying the count limit.
 - LiveHybrid reads hydrate upstream webhook subscription nodes into normalized base state and overlay staged local records.
 
 Subscription lifecycle mutations stage locally and retain the original raw mutation for commit replay:
 
-- `webhookSubscriptionCreate` rejects unknown or non-public `WebhookSubscriptionTopic` values before resolver side effects. Accepted public topics stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
+- `webhookSubscriptionCreate` rejects blank or malformed `WebhookSubscriptionTopic` values before resolver side effects, but it does not freeze topic validation to a captured enum snapshot. Non-empty uppercase enum-shaped topic names stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
 - `webhookSubscriptionUpdate` updates an existing staged or hydrated subscription in place, preserving `topic` and `createdAt` while replacing supported mutable fields.
 - `webhookSubscriptionDelete` records local deletion state. Downstream detail reads return `null`, and list/count reads omit deleted subscriptions.
 - `$app:<suffix>` `metafieldNamespaces` entries resolve through request-owned `x-shopify-draft-proxy-api-client-id` when available. Without a caller API client ID, the proxy preserves `$app:` input unchanged rather than fabricating an identity.
@@ -52,6 +53,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 Validation and no-side-effect behavior:
 
 - Missing or null required arguments return Shopify-like GraphQL validation errors and do not append mutation-log entries.
+- Invalid `webhookSubscriptions(sortKey:)` literals or enum variables return Shopify-like top-level GraphQL validation errors before local list execution.
 - Create/update reject blank addresses, non-HTTPS HTTP callback URLs, malformed Pub/Sub/project/topic values, malformed EventBridge ARNs, wrong EventBridge API client IDs when known, public Kafka URIs, Shopify/internal callback hosts, invalid topic/format combinations, invalid names, duplicate webhook names, and duplicate active `(topic, uri, format, filter, apiPermissionId)` registrations without staging.
 - EventBridge ARN validation requires the captured Shopify partner event-source shape `arn:aws:events:<region>::event-source/aws.partner/shopify.com(.test)?/<api_client_id>/<event_source_name>`. The embedded `api_client_id` is compared only when the request includes `x-shopify-draft-proxy-api-client-id`; without that caller identity, the proxy still rejects malformed or non-partner ARNs but cannot prove wrong-app ownership.
 - Unknown update/delete IDs return captured userErrors and leave local state unchanged.
@@ -59,6 +61,7 @@ Validation and no-side-effect behavior:
 - Callback address byte-size validation uses Shopify's MySQL text-column maximum of 65,535 bytes.
 - Filter byte-size validation uses the same 65,535-byte maximum and takes precedence over filter syntax validation.
 - Shop-owned callback host validation uses effective shop state or a LiveHybrid upstream shop baseline when available. The proxy rejects the effective non-static `primaryDomain.host` as shop-owned and keeps exact-host matching only.
+- When a webhook record has no hydrated API-version metadata, the local `apiVersion` projection derives `handle` and `displayName` from the Admin route or `x-shopify-draft-proxy-api-version`; `supported` still comes from the maintained version inventory.
 
 Supported create/update/delete operations do not deliver webhook payloads and do not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.
 
@@ -85,6 +88,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-metafield-namespaces-resolution.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-metafields-lifecycle.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-format-name-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-list-connection.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/eventbridge-cloud-format-json-only.json`
 - `config/parity-specs/webhooks/webhook-subscription-catalog-read.json`
 - `config/parity-specs/webhooks/webhook-subscription-conformance.json`
@@ -101,6 +105,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `config/parity-specs/webhooks/webhook-subscription-metafield-namespaces-resolution.json`
 - `config/parity-specs/webhooks/webhook-subscription-metafields-lifecycle.json`
 - `config/parity-specs/webhooks/webhook-subscription-topic-format-name-validation.json`
+- `config/parity-specs/webhooks/webhook-subscription-list-connection.json`
 - `scripts/capture-webhook-subscription-conformance.ts`
 - `scripts/capture-webhook-subscription-topic-enum-validation.ts`
 - `scripts/capture-webhook-cloud-uri-validation-conformance.ts`
@@ -110,6 +115,8 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `scripts/capture-webhook-subscription-metafields-conformance.ts`
 - `scripts/capture-webhook-subscription-uri-whitespace.ts`
 - `scripts/capture-webhook-subscription-address-byte-size-validation.ts`
+- `scripts/capture-webhook-subscription-list-connection.ts`
+- Runtime coverage: `cargo test --test graphql_routes admin_graphql_webhooks::`
 
 ### Validation
 
@@ -118,6 +125,8 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `corepack pnpm parity -- webhook-subscription-cloud-uri-validation`
 - `corepack pnpm parity -- webhook-subscription-dedicated-cloud-destinations`
 - `corepack pnpm parity -- webhook-subscription-metafields-lifecycle`
+- `corepack pnpm parity -- webhook-subscription-list-connection`
 - `corepack pnpm parity -- eventbridge-cloud-format-json-only`
 - `corepack pnpm parity -- gcp-project-topic-char-rules`
+- `cargo test --test graphql_routes admin_graphql_webhooks::`
 - `corepack pnpm conformance:check`

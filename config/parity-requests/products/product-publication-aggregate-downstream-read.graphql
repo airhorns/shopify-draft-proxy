@@ -1,7 +1,9 @@
-query ProductPublicationAggregateDownstream($id: ID!) {
+query ProductPublicationAggregateDownstream($id: ID!, $publicationId: ID!) {
   product(id: $id) {
     id
+    publishedAt
     publishedOnCurrentPublication
+    publishedOnPublication(publicationId: $publicationId)
     availablePublicationsCount {
       count
       precision
@@ -9,6 +11,27 @@ query ProductPublicationAggregateDownstream($id: ID!) {
     resourcePublicationsCount {
       count
       precision
+    }
+    resourcePublicationsV2(first: 10) {
+      nodes {
+        publication {
+          id
+        }
+        publishable {
+          ... on Product {
+            id
+          }
+        }
+      }
+    }
+    publications(first: 10) {
+      nodes {
+        isPublished
+        publishDate
+        product {
+          id
+        }
+      }
     }
   }
 }

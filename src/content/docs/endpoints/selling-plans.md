@@ -46,8 +46,11 @@ value from local state.
 after the shared input validator passes. Blank or absent group `name`, zero or
 absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
 missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
-`sellingPlanGroup: null`, and do not stage a group. `sellingPlanGroupUpdate`
-does not apply the create-only lower-bound to an empty
+`sellingPlanGroup: null`, and do not stage a group. The cap source is the
+2026-04 `selling-plan-group-cap-validation` capture: Shopify accepted 31
+`sellingPlansToCreate` entries and rejected 32 with
+`SELLING_PLAN_COUNT_UPPER_BOUND`. `sellingPlanGroupUpdate` does not apply the
+create-only lower-bound to an empty
 `sellingPlansToCreate: []` list, but it rejects updates that would delete every
 existing selling plan without creating a replacement. That update-only guard
 returns `SELLING_PLAN_COUNT_LOWER_BOUND` at
@@ -87,7 +90,31 @@ Staged `sellingPlanGroupAddProducts`,
 products, variants, and selling-plan groups. Downstream
 `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`,
 `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
-read from the staged membership graph.
+read from the staged membership graph. For `Product`, both the connection and
+count include groups attached directly to the product and groups attached to one
+of the product's variants. Public Admin GraphQL 2026-04 accepted 32 selling-plan
+groups joined to one product with empty `userErrors` and count 32 in the same
+`selling-plan-group-cap-validation` capture, so the runtime does not enforce the
+old local-only 31-groups-per-resource guard.
+
+The top-level `sellingPlanGroups(...)` connection filters the staged group set
+before applying sort, reverse order, and cursor windowing. Local query support
+covers bare text plus `app_id`, `category`, `created_at`,
+`delivery_frequency`, `id`, `name`, and `percentage_off`; an unrecognized keyed
+filter returns no staged matches. Supported sort keys are `ID` by default,
+`NAME`, `CREATED_AT`, and `UPDATED_AT`, with `UPDATED_AT` using the group's
+effective stored timestamp. Captured 2026-04 behavior showed a delayed
+description-only `sellingPlanGroupUpdate` did not move that group ahead of a
+later-created group in `sortKey: UPDATED_AT, reverse: true` ordering, so local
+staged group updates preserve the original effective timestamp for this sort.
+
+Nested `Product.sellingPlanGroups(...)` and
+`ProductVariant.sellingPlanGroups(...)` apply reverse order and cursor
+windowing over the staged membership overlay, and the corresponding
+`sellingPlanGroupsCount` fields return exact staged counts. Shopify Admin
+GraphQL 2026-04 rejects `query` and `sortKey` arguments on those nested
+connections, so the local overlay only models the schema-valid nested
+connection arguments.
 
 Snapshot reads over an empty local selling-plan store return Shopify-like no-data
 shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
@@ -108,39 +135,3 @@ selling-plan IDs is covered by the admin-platform endpoint group. Broader
 Shopify selling-plan behavior outside the staged lifecycle and membership
 surface remains unsupported until backed by runtime behavior and captured
 parity evidence.
-
-### Evidence
-
-- `tests/graphql_routes/selling_plans.rs`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json`
-- `config/parity-specs/selling-plans/sellingPlanGroup-summary.json`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql`
-- `scripts/capture-selling-plan-group-summary-conformance.ts`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-app-id-readback.json`
-- `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
-- `config/parity-specs/selling-plans/sellingPlanGroup-app-id-readback.json`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql`
-- `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
-- `scripts/capture-selling-plan-group-app-id-readback-conformance.ts`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-input-validation.json`
-- `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
-- `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-- `config/parity-specs/products/selling-plan-product-variant-associations.json`
-- `config/parity-specs/products/selling-plan-group-lifecycle.json`
-
-### Validation
-
-- `corepack pnpm parity -- sellingPlanGroup-summary`
-- `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
-- `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
-- `corepack pnpm parity -- selling-plan-group-lifecycle`
-- `corepack pnpm parity -- sellingPlanGroupCreate-input-validation`
-- `corepack pnpm conformance:check`
-- `corepack pnpm rust:test`

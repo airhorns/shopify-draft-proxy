@@ -9,8 +9,15 @@ fn return_money_set(amount: &str, currency_code: &str) -> Value {
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
+const RETURN_NOT_FOUND_MESSAGE: &str = "Return not found.";
+const RETURN_NOT_FOUND_CODE: &str = "NOT_FOUND";
+
 fn return_request_not_found_error() -> Value {
-    user_error(["input", "id"], "Return not found.", Some("NOT_FOUND"))
+    user_error(
+        ["input", "id"],
+        RETURN_NOT_FOUND_MESSAGE,
+        Some(RETURN_NOT_FOUND_CODE),
+    )
 }
 
 fn return_not_approvable_error() -> Value {
@@ -35,6 +42,14 @@ fn return_already_declined_error() -> Value {
         "The return is already declined.",
         Some("INVALID_STATE"),
     )
+}
+
+fn return_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": Value::Null,
+        "message": message,
+        "code": code
+    })
 }
 
 fn blank_return_line_string(value: Option<String>) -> bool {
@@ -173,49 +188,10 @@ fn build_return_line_item(
     })
 }
 
-/// Validate a `returnDeclineRequest` input before any state change. Returns the
-/// decline reason on success, or the failing user error: an invalid/missing
-/// reason takes precedence (Shopify rejects it at the enum boundary with
-/// `Expected "<value>" to be one of: …`), then an invalid notify email carried
-/// under the `tmp_notify_customer.email_address` shim.
-fn validate_return_decline_input(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Result<String, Vec<Value>> {
-    const VALID_REASONS: &[&str] = &["RETURN_PERIOD_ENDED", "FINAL_SALE", "OTHER"];
-    let reason = resolved_string_field(input, "declineReason").unwrap_or_default();
-    if !VALID_REASONS.contains(&reason.as_str()) {
-        return Err(vec![user_error(
-            ["declineReason"],
-            &format!("Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"),
-            Some("INVALID"),
-        )]);
-    }
-    if let Some(notify) = resolved_object_field(input, "tmp_notify_customer") {
-        if let Some(email) = resolved_string_field(&notify, "email_address") {
-            if !valid_email_address(&email) {
-                return Err(vec![user_error(
-                    ["input", "tmp_notify_customer", "email_address"],
-                    "Email address is invalid",
-                    Some("INVALID"),
-                )]);
-            }
-        }
-    }
-    Ok(reason)
-}
-
-/// Minimal RFC-shaped email check: a single `@`, non-empty local part, and a
-/// dotted domain with no whitespace.
-fn valid_email_address(email: &str) -> bool {
-    let mut parts = email.split('@');
-    let (Some(local), Some(domain), None) = (parts.next(), parts.next(), parts.next()) else {
-        return false;
-    };
-    !local.is_empty()
-        && domain.contains('.')
-        && !domain.starts_with('.')
-        && !domain.ends_with('.')
-        && !email.chars().any(char::is_whitespace)
+/// `returnDeclineRequest` reaches the handler only after public Admin schema
+/// input validation has accepted the required `declineReason` enum.
+fn return_decline_reason(input: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(input, "declineReason").unwrap_or_default()
 }
 
 /// The reference transition rules for `returnClose`/`returnReopen`/
@@ -513,8 +489,13 @@ impl DraftProxy {
                     let remaining = (available - already).max(0);
                     if quantity <= 0 || quantity > remaining {
                         user_errors.push(user_error(
-                            ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not available for return.",
+                            [
+                                input_name,
+                                "returnLineItems",
+                                &index.to_string(),
+                                "quantity",
+                            ],
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {
@@ -691,19 +672,14 @@ impl DraftProxy {
         self.return_payload(record, Vec::new(), &field.selection)
     }
 
-    /// `returnDeclineRequest`: validate the decline input (reason enum, note
-    /// length, notify email) before touching state; a REQUESTED return then
-    /// transitions to DECLINED carrying `decline { reason, note }`. A non-
-    /// REQUESTED return returns Shopify's INVALID_STATE decline guard shape,
-    /// with a distinct message for already DECLINED returns.
+    /// `returnDeclineRequest`: public schema input validation accepts the
+    /// decline reason before dispatch; a REQUESTED return then transitions to
+    /// DECLINED carrying `decline { reason, note }`. A non-REQUESTED return
+    /// returns Shopify's INVALID_STATE decline guard shape, with a distinct
+    /// message for already DECLINED returns.
     fn decline_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let reason = match validate_return_decline_input(&input) {
-            Ok(reason) => reason,
-            Err(errors) => {
-                return self.return_payload(Value::Null, errors, &field.selection);
-            }
-        };
+        let reason = return_decline_reason(&input);
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return self.return_payload(
                 Value::Null,
@@ -753,8 +729,8 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "Return does not exist.",
-                    Some("INVALID"),
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );
@@ -796,8 +772,8 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["returnId"],
-                    "Return does not exist.",
-                    Some("INVALID"),
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );
@@ -832,10 +808,15 @@ impl DraftProxy {
                     let current = nodes[position]["quantity"].as_i64().unwrap_or(0);
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
-                    if quantity <= 0 || quantity > removable {
+                    if quantity <= 0 {
+                        user_errors.push(return_user_error_null_field(
+                            "Quantity must be greater than 0",
+                            Some("GREATER_THAN"),
+                        ));
+                    } else if quantity > removable {
                         user_errors.push(user_error(
                             ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not removable from return.",
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {
@@ -1251,9 +1232,9 @@ impl DraftProxy {
             return self.return_payload(
                 Value::Null,
                 vec![user_error(
-                    ["returnId"],
-                    "Return does not exist",
-                    Some("NOT_FOUND"),
+                    ["input", "returnId"],
+                    RETURN_NOT_FOUND_MESSAGE,
+                    Some(RETURN_NOT_FOUND_CODE),
                 )],
                 &field.selection,
             );

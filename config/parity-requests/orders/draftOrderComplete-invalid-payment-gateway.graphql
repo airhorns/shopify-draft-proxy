@@ -1,0 +1,15 @@
+mutation DraftOrderCompleteInvalidPaymentGateway($id: ID!, $paymentGatewayId: ID, $paymentPending: Boolean) {
+  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, paymentPending: $paymentPending) {
+    draftOrder {
+      id
+      status
+      order {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

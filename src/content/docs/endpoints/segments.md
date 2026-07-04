@@ -43,7 +43,7 @@ Segment lifecycle mutations stage locally and retain the original raw mutation f
 - `segmentCreate` stages a synthetic Segment GID, timestamps, name, and query. Duplicate names follow Shopify's suffix behavior by incrementing an existing trailing ` (N)` counter or appending ` (2)`, then return `Name has already been taken` after the supported retry window.
 - Locally staged Segment payloads project Shopify-like defaults for non-null fields: `tagMigrated: false` and `valid: true`. Shopify-owned fields the proxy cannot derive locally, including `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author`, are returned as `null` when selected.
 - Missing required top-level mutation arguments fail as GraphQL coercion errors before resolver behavior. Blank strings still reach the resolver and return payload-level userErrors.
-- `segmentCreate` and `segmentUpdate` enforce stripped-name and raw-query length limits, segment count limits, duplicate-name behavior, and query grammar validation before staging.
+- `segmentCreate` and `segmentUpdate` enforce stripped-name and raw-query length limits, segment count limits, duplicate-name behavior, and query grammar validation before staging. Query grammar validation runs only after the Change-level name/query presence and length checks pass; query blank/too-long errors can still aggregate with name errors, but grammatically invalid query text is not reported when the name itself is blank or too long.
 - Accepted query strings are stored with Shopify-like whitespace behavior: blankness is checked on the trimmed string, length is measured before trimming, and accepted query values are returned verbatim.
 - `segmentUpdate` updates an existing base or staged segment, preserves the creation timestamp, and advances `lastEditDate`.
 - `segmentDelete` records local deletion state and removes the segment from detail, catalog, and count reads.
@@ -65,37 +65,7 @@ Customer segment member query behavior:
 
 - Search, sort, and uncaptured request arguments for segment catalog roots are not inferred beyond checked-in captures.
 - Segment filter and value suggestion roots are static captured metadata payloads until separate executable evidence supports dynamic behavior.
+- Public Admin GraphQL Segment parity is limited to `id`, `name`, `query`, `creationDate`, and `lastEditDate`, which are the fields exposed by 2025-01 and 2026-04 conformance-shop introspection. Private Core Segment fields such as `tagMigrated`, `valid`, `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author` are covered by Rust integration tests rather than Shopify parity fixtures.
 - Accepted segment filters such as `email_subscription_status = 'SUBSCRIBED'`, `companies IS NULL`, and `customer_countries CONTAINS 'CA'` do not have local member evaluation.
 - CDP validation failures outside the captured malformed direct-query branch are not guessed; accepted-but-unmodeled filters produce readable async jobs with zero local members rather than fabricated parser messages.
 - No segment root in this document is registry-only. The main validation-only distinction is save-time grammar acceptance for filters that are not evaluated by local member reads.
-
-### Evidence
-
-- `config/parity-specs/segments/segments-baseline-read.json`
-- `config/parity-specs/segments/segment-create-invalid-query-validation.json`
-- `config/parity-specs/segments/segment-update-unknown-id-validation.json`
-- `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
-- `config/parity-specs/segments/segments-create-update-validation-limits.json`
-- `config/parity-specs/segments/segment-create-update-length-edge-cases.json`
-- `config/parity-specs/segments/segment-mutations-required-argument-validation.json`
-- `config/parity-specs/segments/segment-payload-non-null-fields.json`
-- `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
-- `config/parity-specs/segments/segment-query-grammar-not-contains.json`
-- `config/parity-specs/segments/segment-create-update-query-grammar.json`
-- `config/parity-specs/segments/segment-query-whitespace-preservation.json`
-- `config/parity-specs/segments/customer-segment-members-query-create-segment-id-paths.json`
-- `config/parity-specs/segments/customer-segment-members-query-create-direct-query-grammar.json`
-- `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
-- `fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json`
-- `scripts/capture-segment-query-grammar-conformance.ts`
-- `scripts/capture-segment-query-whitespace-preservation-conformance.ts`
-- `scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts`
-- `scripts/capture-customer-segment-members-query-create-direct-query-grammar-conformance.ts`
-
-### Validation
-
-- `corepack pnpm parity -- segments-baseline-read`
-- `corepack pnpm parity -- segment-create-update-query-grammar`
-- `corepack pnpm parity -- customer-segment-members-query-lifecycle`
-- `corepack pnpm conformance:check`

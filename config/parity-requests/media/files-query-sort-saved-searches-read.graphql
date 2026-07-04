@@ -1,0 +1,47 @@
+query MediaFilesQuerySortSavedSearchesRead(
+  $exactFilenameQuery: String!
+  $imageQuery: String!
+  $prefixQuery: String!
+  $savedSearchId: ID!
+) {
+  filename: files(first: 10, query: $exactFilenameQuery) {
+    nodes {
+      __typename
+      id
+      alt
+      fileStatus
+    }
+  }
+  imageType: files(first: 10, query: $imageQuery, sortKey: FILENAME) {
+    nodes {
+      __typename
+      alt
+    }
+  }
+  byFilename: files(first: 10, query: $prefixQuery, sortKey: FILENAME) {
+    nodes {
+      __typename
+      alt
+    }
+  }
+  byFilenameReverse: files(first: 10, query: $prefixQuery, sortKey: FILENAME, reverse: true) {
+    nodes {
+      __typename
+      alt
+    }
+  }
+  savedSearchFiles: files(first: 10, savedSearchId: $savedSearchId, sortKey: FILENAME) {
+    nodes {
+      __typename
+      alt
+    }
+  }
+  fileSavedSearches(first: 10) {
+    nodes {
+      id
+      name
+      query
+      resourceType
+    }
+  }
+}

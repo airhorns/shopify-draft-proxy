@@ -1,0 +1,13 @@
+#graphql
+  mutation FunctionTaxAppAuthorityProbe($ready: Boolean!) {
+    taxAppConfigure(ready: $ready) {
+      taxAppConfiguration {
+        state
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }

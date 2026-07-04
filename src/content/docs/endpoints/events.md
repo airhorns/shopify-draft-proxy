@@ -19,7 +19,11 @@ Mutation roots:
 
 - None. Top-level event emission is not modeled as a mutation surface in this endpoint group.
 
-### Local behavior
+### Runtime behavior
+
+In LiveHybrid mode, top-level Event reads pass through to Shopify until the proxy has a real local Event catalog model. This keeps real store timelines, non-empty event catalogs, and `eventsCount` values visible instead of asserting the checked-in no-data shape for every live store. The `event-non-empty-read` parity scenario captures a real store where `events(first: 3, sortKey: ID, reverse: true)` returns `BasicEvent` nodes and `eventsCount` returns `precision: "AT_LEAST"`.
+
+### Local snapshot behavior
 
 Snapshot mode models the checked-in no-data branch only:
 
@@ -31,19 +35,6 @@ The captured empty Event selection includes `id`, `action`, `appTitle`, `attribu
 
 ### Boundaries
 
-- Non-empty event catalogs, search/filter/sort behavior, count precision beyond exact zero, and pagination over real events remain unsupported.
+- Local modeling for non-empty event catalogs, search/filter/sort behavior, count precision beyond exact zero, and pagination over real events remains unsupported outside the live-hybrid passthrough path.
 - Supported mutations in other domains do not write into a shared top-level Event catalog. Domain-owned event surfaces, such as discount detail events and fulfillment events, remain documented and modeled by their owning endpoint groups.
 - No event root is registry-only or validation-only in this group; the supported read roots are intentionally limited to the no-data shape above.
-
-### Evidence
-
-- `config/parity-specs/events/event-empty-read.json`
-- `config/parity-requests/events/event-empty-read.graphql`
-- `config/parity-requests/events/event-empty-read.variables.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
-- `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
-
-### Validation
-
-- `corepack pnpm parity -- event-empty-read`
-- `corepack pnpm conformance:check`

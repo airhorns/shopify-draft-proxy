@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
@@ -10,12 +10,9 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Value {
-        // Any function mutation marks the session as having local function
-        // state, so later reads serve locally (read-after-write / -delete)
-        // instead of forwarding the cold read to the upstream.
-        self.store.staged.functions_dirty = true;
-        root_payload_json(fields, |field| {
+    ) -> (Value, Vec<Value>) {
+        let mut errors = Vec::new();
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "validationCreate" => self.function_validation_create_payload(request, field),
                 "validationUpdate" => self.function_validation_update_payload(field),
@@ -33,11 +30,23 @@ impl DraftProxy {
                 "fulfillmentConstraintRuleDelete" => {
                     self.function_fulfillment_constraint_rule_delete_payload(field)
                 }
-                "taxAppConfigure" => self.function_tax_app_configure_payload(field),
+                "taxAppConfigure" => {
+                    if tax_app_configure_has_authority(request) {
+                        self.function_tax_app_configure_payload(field)
+                    } else {
+                        errors.push(tax_app_configure_access_denied_error(field));
+                        Value::Null
+                    }
+                }
                 _ => Value::Null,
             };
-            (!value.is_null()).then(|| selected_json(&value, &field.selection))
-        })
+            if value.is_null() {
+                Some(Value::Null)
+            } else {
+                Some(selected_json(&value, &field.selection))
+            }
+        });
+        (data, errors)
     }
 
     pub(in crate::proxy) fn functions_metadata_read_data(
@@ -99,12 +108,11 @@ impl DraftProxy {
                 "shopifyFunctions" => {
                     let api_type =
                         resolved_string_field(&field.arguments, "apiType").unwrap_or_default();
-                    let api_type = match api_type.as_str() {
-                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
-                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-                            "FULFILLMENT_CONSTRAINT_RULE"
-                        }
-                        _ => "VALIDATION",
+                    let api_type = canonical_function_api_type(&api_type);
+                    let api_type = if api_type.is_empty() {
+                        "VALIDATION"
+                    } else {
+                        api_type.as_str()
                     };
                     json!({ "nodes": self.function_metadata_read_nodes(request, api_type) })
                 }
@@ -183,7 +191,7 @@ impl DraftProxy {
             let Some(function) = self.store.staged.function_metadata.get(id) else {
                 continue;
             };
-            if function["apiType"].as_str() == Some(api_type)
+            if function_matches_canonical_api_type(function, api_type)
                 && function_belongs_to_request(function, request)
                 && seen.insert(id.clone())
             {
@@ -217,7 +225,7 @@ impl DraftProxy {
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
-            if function["apiType"].as_str() == Some(api_type)
+            if function_matches_canonical_api_type(function, api_type)
                 && function_belongs_to_request(function, request)
             {
                 if let Some(id) = function["id"].as_str() {
@@ -230,14 +238,15 @@ impl DraftProxy {
         nodes
     }
 
-    /// True when any function lifecycle has been staged locally (a validation or
-    /// cart-transform created/updated this session). Cold function reads with no
-    /// staged state forward to the upstream so `shopifyFunctions` /
-    /// `shopifyFunction` reflect the shop's real installed functions (with app
-    /// ownership metadata) rather than the synthetic staging catalog.
+    /// True when any function lifecycle or tax-app readiness has been staged
+    /// locally. Cold function reads with no staged state forward to the upstream
+    /// so `shopifyFunctions` / `shopifyFunction` reflect the shop's real
+    /// installed functions (with app ownership metadata) rather than the
+    /// synthetic staging catalog.
     pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
         self.store.staged.functions_dirty
             || self.store.staged.function_validation.is_some()
+            || self.store.staged.tax_app_configuration.is_some()
             || !self.store.staged.function_metadata.is_empty()
             || !self.store.staged.function_metadata_order.is_empty()
             || !self.store.staged.function_validations.is_empty()
@@ -361,13 +370,7 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         let selected = matches
             .iter()
-            .position(|function| {
-                function["apiType"]
-                    .as_str()
-                    .map(canonical_function_api_type)
-                    .as_deref()
-                    == Some(api_type)
-            })
+            .position(|function| function_matches_canonical_api_type(function, api_type))
             .map(|index| matches.remove(index))
             .or_else(|| matches.into_iter().next())?;
         normalized_function_metadata_with_handle(selected, Some(handle))
@@ -392,6 +395,49 @@ impl DraftProxy {
     }
 }
 
+const TAX_APP_CONFIGURE_REQUIRED_ACCESS: &str =
+    "`write_taxes` access scope. Also: The caller must be a tax calculations app.";
+const TAX_CALCULATIONS_APP_HEADER: &str = "x-shopify-draft-proxy-tax-calculations-app";
+
+fn tax_app_configure_has_authority(request: &Request) -> bool {
+    request_has_access_scope(request, "write_taxes")
+        && request_header_truthy(request, TAX_CALCULATIONS_APP_HEADER)
+}
+
+fn request_has_access_scope(request: &Request, expected: &str) -> bool {
+    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some_and(|scopes| {
+        scopes
+            .split(',')
+            .map(str::trim)
+            .any(|scope| scope == expected)
+    })
+}
+
+fn request_header_truthy(request: &Request, header: &str) -> bool {
+    request_header(request, header).is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes"
+        )
+    })
+}
+
+fn tax_app_configure_access_denied_error(field: &RootFieldSelection) -> Value {
+    json!({
+        "message": format!(
+            "Access denied for {} field. Required access: {TAX_APP_CONFIGURE_REQUIRED_ACCESS}",
+            field.name
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": TAX_APP_CONFIGURE_REQUIRED_ACCESS
+        },
+        "path": [field.response_key.clone()]
+    })
+}
+
 fn normalized_function_metadata(function: Value) -> Option<Value> {
     normalized_function_metadata_with_handle(function, None)
 }
@@ -409,7 +455,7 @@ fn normalized_function_metadata_with_handle(
     if api_type.is_empty() {
         return None;
     }
-    function["apiType"] = json!(api_type);
+    function[FUNCTION_CANONICAL_API_TYPE_FIELD] = json!(api_type);
     if let Some(handle) = handle {
         if function.get("handle").is_none() {
             function["handle"] = json!(handle);
@@ -441,12 +487,36 @@ fn function_metadata_matches_handle(function: &Value, handle: &str) -> bool {
 fn canonical_function_api_type(api_type: &str) -> String {
     match api_type {
         "VALIDATION" | "cart_checkout_validation" | "validation" => "VALIDATION".to_string(),
-        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM".to_string(),
-        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-            "FULFILLMENT_CONSTRAINT_RULE".to_string()
-        }
+        "CART_TRANSFORM"
+        | "cart_transform"
+        | "purchase.cart-transform.run"
+        | "cart.transform.run" => "CART_TRANSFORM".to_string(),
+        "FULFILLMENT_CONSTRAINT_RULE"
+        | "fulfillment_constraint_rule"
+        | "purchase.fulfillment-constraint-rule.run"
+        | "cart.fulfillment-constraints.generate.run" => "FULFILLMENT_CONSTRAINT_RULE".to_string(),
+        "DISCOUNT" | "discount" | "product_discounts" | "order_discounts"
+        | "shipping_discounts" => "DISCOUNT".to_string(),
+        "PAYMENT_CUSTOMIZATION" | "payment_customization" => "PAYMENT_CUSTOMIZATION".to_string(),
         other => other.to_string(),
     }
+}
+
+fn function_canonical_api_type(function: &Value) -> String {
+    function
+        .get(FUNCTION_CANONICAL_API_TYPE_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            function["apiType"]
+                .as_str()
+                .map(canonical_function_api_type)
+        })
+        .unwrap_or_default()
+}
+
+fn function_matches_canonical_api_type(function: &Value, api_type: &str) -> bool {
+    function_canonical_api_type(function) == api_type
 }
 
 fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
@@ -564,6 +634,17 @@ fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
     payload.insert(desc.payload_key.to_string(), Value::Null);
     payload.insert("userErrors".to_string(), Value::Array(vec![error]));
     Value::Object(payload)
+}
+
+fn maximum_cart_transforms_error() -> Value {
+    payload_error(
+        CART_TRANSFORM_FUNCTION_PAYLOAD,
+        user_error(
+            ["base"],
+            "The maximum number of cart transforms per shop has been reached.",
+            Some("MAXIMUM_CART_TRANSFORMS"),
+        ),
+    )
 }
 
 fn function_identifier_error(
@@ -690,7 +771,7 @@ fn function_resolution_payload(
                 &current_app_id,
             )
         })?;
-    if function["apiType"].as_str() != Some(desc.expected_api_type) {
+    if !function_matches_canonical_api_type(&function, desc.expected_api_type) {
         let code = if function_id.is_some() {
             desc.api_mismatch_id_code
         } else {
@@ -1625,6 +1706,9 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
+        if !self.store.staged.function_cart_transform_order.is_empty() {
+            return maximum_cart_transforms_error();
+        }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
@@ -1867,15 +1951,24 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let ready = resolved_bool_field(&field.arguments, "ready").unwrap_or(true);
-        json!({
-            "taxAppConfiguration": {
-                "id": "gid://shopify/TaxAppConfiguration/local",
-                "ready": ready,
-                "state": if ready { "READY" } else { "NOT_READY" },
-                "updatedAt": self.next_product_timestamp()
-            },
-            "userErrors": []
-        })
+        let id = self
+            .store
+            .staged
+            .tax_app_configuration
+            .as_ref()
+            .and_then(|configuration| configuration["id"].as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.next_proxy_synthetic_gid("TaxAppConfiguration"));
+        let configuration = json!({
+            "__typename": "TaxAppConfiguration",
+            "id": id,
+            "ready": ready,
+            "state": if ready { "READY" } else { "NOT_READY" },
+            "updatedAt": self.next_product_timestamp()
+        });
+        self.store.staged.functions_dirty = true;
+        self.store.staged.tax_app_configuration = Some(configuration.clone());
+        json!({ "taxAppConfiguration": configuration, "userErrors": [] })
     }
 
     fn stage_function_validation(&mut self, validation: Value) {

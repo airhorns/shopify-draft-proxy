@@ -1,19 +1,26 @@
 {
   "scenarioId": "market-create-price-inclusions",
-  "operationNames": ["marketCreate", "market"],
+  "operationNames": ["shop", "marketCreate", "market", "marketsResolvedValues"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging", "user-errors-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "shop-currency-default",
+    "downstream-read-parity",
+    "resolved-values-parity",
+    "local-staging",
+    "user-errors-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-price-inclusions.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/markets/market-create-price-inclusions.graphql",
+    "documentPath": "config/parity-requests/markets/market-price-inclusions-shop-currency.graphql",
     "variablesCapturePath": "$.cases[0].variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable region market with explicit nested priceInclusions, verifies downstream Market.priceInclusions read-after-write, captures the inclusive-pricing incompatibility error for a locationsCondition market, then deletes the disposable market.",
+  "notes": "Live Admin GraphQL 2026-04 capture first hydrates the non-USD shop currency through a public shop query, then creates a disposable region market with currencySettings present but baseCurrency omitted plus explicit nested priceInclusions, verifies downstream Market.priceInclusions/currencySettings read-after-write, verifies marketsResolvedValues.priceInclusivity for the created buyer country, captures the inclusive-pricing incompatibility error for a locationsCondition market, then deletes the disposable market. The currencySettings and resolved-values targets would have failed when the proxy defaulted to USD and all-false price inclusivity.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -25,19 +32,29 @@
     ],
     "targets": [
       {
+        "name": "shop-currency-hydrates-non-usd-market-default",
+        "capturePath": "$.cases[0].response.payload.data.shop",
+        "proxyPath": "$.data.shop"
+      },
+      {
         "name": "market-create-price-inclusions",
-        "capturePath": "$.cases[0].response.payload.data.marketCreate",
-        "proxyPath": "$.data.marketCreate"
+        "capturePath": "$.cases[1].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-price-inclusions.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
       },
       {
         "name": "market-read-after-create-price-inclusions",
-        "capturePath": "$.cases[1].response.payload.data.market",
+        "capturePath": "$.cases[2].response.payload.data.market",
         "proxyPath": "$.data.market",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/market-price-inclusions-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.marketCreate.market.id"
+              "fromProxyResponse": "market-create-price-inclusions",
+              "path": "$.data.marketCreate.market.id"
             }
           }
         },
@@ -50,12 +67,21 @@
         ]
       },
       {
+        "name": "resolved-price-inclusivity-from-created-market",
+        "capturePath": "$.cases[3].response.payload.data.marketsResolvedValues",
+        "proxyPath": "$.data.marketsResolvedValues",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-price-inclusions-resolved-values-read.graphql",
+          "variablesCapturePath": "$.cases[3].variables"
+        }
+      },
+      {
         "name": "locations-condition-inclusive-pricing-rejected",
-        "capturePath": "$.cases[2].response.payload.data.marketCreate",
+        "capturePath": "$.cases[4].response.payload.data.marketCreate",
         "proxyPath": "$.data.marketCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/market-create-price-inclusions.graphql",
-          "variablesCapturePath": "$.cases[2].variables"
+          "variablesCapturePath": "$.cases[4].variables"
         }
       }
     ]

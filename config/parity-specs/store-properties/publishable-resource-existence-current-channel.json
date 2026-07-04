@@ -1,0 +1,82 @@
+{
+  "scenarioId": "publishable-resource-existence-current-channel",
+  "operationNames": [
+    "publishablePublish",
+    "publishableUnpublish",
+    "publishablePublishToCurrentChannel",
+    "publishableUnpublishToCurrentChannel"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "store-property-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 capture for missing top-level publishable ids on generic/current-channel publishable roots and current-channel membership projection after publish/unpublish. Replay earns product existence and current-app publication context through the recorded upstreamCalls cassette.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish unknown publishable id",
+        "capturePath": "$.cases.publishUnknownId.response.payload.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishUnknownId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unpublish unknown publishable id",
+        "capturePath": "$.cases.unpublishUnknownId.response.payload.data.publishableUnpublish",
+        "proxyPath": "$.data.publishableUnpublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishUnknownId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "publish current channel unknown publishable id",
+        "capturePath": "$.cases.publishCurrentUnknownId.response.payload.data.publishablePublishToCurrentChannel",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-publish-current.graphql",
+          "variablesCapturePath": "$.cases.publishCurrentUnknownId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unpublish current channel unknown publishable id",
+        "capturePath": "$.cases.unpublishCurrentUnknownId.response.payload.data.publishableUnpublishToCurrentChannel",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish-current.graphql",
+          "variablesCapturePath": "$.cases.unpublishCurrentUnknownId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "publish current channel membership payload",
+        "capturePath": "$.cases.publishCurrentMembership.response.payload.data.publishablePublishToCurrentChannel",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-membership.graphql",
+          "variablesCapturePath": "$.cases.publishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unpublish current channel membership payload",
+        "capturePath": "$.cases.unpublishCurrentMembership.response.payload.data.publishableUnpublishToCurrentChannel",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql",
+          "variablesCapturePath": "$.cases.unpublishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

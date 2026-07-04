@@ -14,6 +14,7 @@ company-location tax settings, and B2B address behavior.
 The implemented read roots are:
 
 - `companies`
+- `companiesCount`
 - `company`
 - `companyContact`
 - `companyLocation`
@@ -50,7 +51,7 @@ The implemented mutation roots are:
 
 Tracked but unimplemented B2B roots remain registry-only until they have their
 own local lifecycle and downstream read-after-write model. This includes
-`companiesCount`, `companyContactRole`, and `companyContactSendWelcomeEmail`.
+`companyContactRole` and `companyContactSendWelcomeEmail`.
 
 ### Local behavior
 
@@ -58,19 +59,41 @@ Supported B2B mutations stage locally and retain the original raw mutation body
 for `POST /__meta/commit` replay. Failed local validations are recorded in the
 mutation log as failed and do not stage resource IDs.
 
+Bulk B2B mutations follow Shopify's app/API-client request-level batch cap:
+more than 50 entries returns a single top-level `LIMIT_REACHED` user error with
+the bulk argument as `field`, before parent lookup or per-entry validation, and
+does not mutate staged state. The local B2B dispatch path models app-facing
+Admin API callers; there is no first-party merchant-admin local bypass in the
+proxy, so the cap applies even when the optional
+`x-shopify-draft-proxy-api-client-id` identity header is absent.
+
 The local B2B graph stores staged companies, company locations, company
 addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,
-`companyLocation(id:)`, and `companyLocations` expand that staged graph for
+`companyLocation(id:)`, `companies`, `companiesCount`, and `companyLocations` expand that staged graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
 `roleAssignments`, and `staffMemberAssignments` connections. LiveHybrid reads
 that do not target staged B2B IDs continue to use the existing upstream or
 fixture-backed read path.
 
+Local B2B list connections use the shared staged-connection path for filtering,
+sorting, `reverse`, cursor windows, and `pageInfo`. `companies` supports
+field-scoped query terms for `id`, `name`, and `external_id`; `companyLocations`
+supports `id`, `name`, `external_id`, and `company_id`. Unsupported or
+unparseable query terms are treated as unsupported local filters and return an
+empty staged connection rather than matching all staged records. `companies`,
+`companyLocations`, `Company.contacts`, `Company.locations`, location/contact
+`roleAssignments`, `Company.contactRoles`, and
+`CompanyLocation.staffMemberAssignments` honor local `sortKey` and `reverse`
+for the modeled staged fields, defaulting to ID order when a sort key has no
+modeled field in local state. `companiesCount` returns the staged company count
+selected through the Shopify `Count` object shape.
+
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
-character set, length, and duplicates, reject HTML or overlong notes, and
-reject `companyUpdate(input.customerSince)` without mutating the staged company.
+character set, length, and duplicates, validate note length while preserving
+note HTML verbatim, and reject `companyUpdate(input.customerSince)` without
+mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
 role setup when those input objects are present. Its nested
 `input.companyLocation` name follows Shopify's create-time fallback of
@@ -82,11 +105,13 @@ role setup when those input objects are present. Its nested
 company-contact lifecycle and keep company `contactIds`, contact customer data,
 role assignments, and downstream contact reads in sync. Deleting or removing
 the current main contact clears the company's `mainContact`. `companyContactCreate`
-requires an email-backed customer reference; omitting `input.email` returns
-`INVALID` at `["input"]` without staging a contact or customer. The nested
-`companyCreate(input.companyContact)` path applies the same requirement at
-`["input", "companyContact"]` before staging any company, location, role, contact,
-or assignment rows.
+stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
+`lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
+email-backed customer reference; omitting `input.email` returns `INVALID` at
+`["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies contact validation under
+`["input", "companyContact"]` before staging any company, location, role,
+contact, or assignment rows.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from
@@ -170,35 +195,3 @@ the covered request shape, including `editableShippingAddress`,
   companies, contacts, locations, addresses, staff assignments, or catalogs.
 - Unsupported B2B roots still use the configured unsupported mutation behavior
   and must remain visible as passthrough or reject events.
-
-### Evidence
-
-- Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes/b2b.rs`
-- Company contact and main-contact lifecycle parity:
-  `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
-- Contact missing-email validation parity:
-  `config/parity-specs/b2b/b2b-contact-missing-email-validation.json`
-- Address lifecycle parity: `config/parity-specs/b2b/b2b-location-address-management.json`
-  and `config/parity-specs/b2b/location_assign_address_preserves_id.json`
-- Staff validation parity:
-  `config/parity-specs/b2b/staff_assign_unknown_user.json`,
-  `config/parity-specs/b2b/staff_remove_unknown_assignment.json`, and
-  `config/parity-specs/b2b/b2b-bulk-mutation-field-paths.json`
-- Contact/location-role parity:
-  `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
-  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`.
-  Focused revoke-role scope regression branches are covered by
-  `config/parity-specs/b2b/b2b-revoke-role-scope-regression-branches.json`
-- Company-location tax-settings parity:
-  `config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
-- Bulk duplicate role-assignment parity:
-  `config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json`
-- Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`
-- Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
-
-### Validation
-
-- `corepack pnpm lint`
-- `corepack pnpm rust:test`
-- `corepack pnpm parity -- --spec config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`

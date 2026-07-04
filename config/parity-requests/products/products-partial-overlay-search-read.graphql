@@ -1,0 +1,44 @@
+query ProductsPartialOverlaySearchRead($handleQuery: String!, $barcodeQuery: String!) {
+  handleCount: productsCount(query: $handleQuery) {
+    count
+    precision
+  }
+  handleProducts: products(first: 5, query: $handleQuery) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  barcodeCount: productsCount(query: $barcodeQuery) {
+    count
+    precision
+  }
+  barcodeProducts: products(first: 5, query: $barcodeQuery) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        status
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

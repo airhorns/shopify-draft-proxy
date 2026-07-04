@@ -164,12 +164,13 @@ pub(in crate::proxy) fn saved_search_required_input_error(
     let field = document.root_fields.iter().find(|field| {
         matches!(
             field.name.as_str(),
-            "savedSearchCreate" | "savedSearchUpdate"
+            "savedSearchCreate" | "savedSearchUpdate" | "savedSearchDelete"
         )
     })?;
     let input_type = match field.name.as_str() {
         "savedSearchCreate" => "SavedSearchCreateInput",
         "savedSearchUpdate" => "SavedSearchUpdateInput",
+        "savedSearchDelete" => "SavedSearchDeleteInput",
         _ => return None,
     };
     let variable_input = variables.get("input");
@@ -201,7 +202,19 @@ pub(in crate::proxy) fn saved_search_required_input_error(
         }
         if field.name == "savedSearchUpdate" && !input.contains_key("id") {
             errors.push(invalid_variable_required_field_error(
-                "id", input_type, value, 47,
+                "id",
+                input_type,
+                value.clone(),
+                47,
+            ));
+        }
+        if field.name == "savedSearchDelete"
+            && input
+                .get("id")
+                .is_none_or(|value| matches!(value, ResolvedValue::Null))
+        {
+            errors.push(invalid_variable_required_field_error(
+                "id", input_type, value, 45,
             ));
         }
         return (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })));
@@ -214,6 +227,7 @@ pub(in crate::proxy) fn saved_search_required_input_error(
             ("resourceType", "SearchResultType!"),
         ],
         "savedSearchUpdate" => &[("id", "ID!")],
+        "savedSearchDelete" => &[("id", "ID!")],
         _ => &[],
     };
     let errors = required_fields
@@ -405,6 +419,9 @@ fn saved_search_reserved_filter(resource_type: &str, key: &str) -> bool {
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
     let base_key = saved_search_base_filter_key(key);
+    if base_key == "default" {
+        return true;
+    }
     match resource_type {
         "PRODUCT" => {
             matches!(
@@ -473,10 +490,14 @@ pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str
             "created_at"
                 | "filename"
                 | "id"
+                | "ids"
                 | "media_type"
                 | "original_source"
+                | "original_upload_size"
+                | "product_id"
                 | "status"
                 | "updated_at"
+                | "used_in"
         ),
         "DISCOUNT_REDEEM_CODE" => matches!(
             base_key,
@@ -581,7 +602,7 @@ pub(in crate::proxy) fn saved_search_search_terms(query: &str) -> String {
 }
 
 pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name: &str) -> bool {
-    let normalized = name.trim().to_lowercase();
+    let normalized = name.to_lowercase();
     let reserved = match resource_type {
         "PRODUCT" => &["all products"][..],
         "ORDER" => &["all"][..],
@@ -762,6 +783,9 @@ pub(in crate::proxy) fn saved_search_filters_for_api_client(
 }
 
 pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(String, String)> {
+    if term == "*" {
+        return Some(("default".to_string(), "true".to_string()));
+    }
     let (raw_key, raw_value) = term.split_once(':')?;
     if raw_key.is_empty() || raw_value.is_empty() {
         return None;
@@ -900,10 +924,9 @@ impl DraftProxy {
         name: &str,
         except_id: Option<&str>,
     ) -> bool {
-        let candidate = name.trim();
         self.saved_search_records_for_resource(resource_type)
             .iter()
-            .any(|record| Some(record.id.as_str()) != except_id && record.name.trim() == candidate)
+            .any(|record| Some(record.id.as_str()) != except_id && record.name == name)
     }
 
     pub(in crate::proxy) fn saved_search_mutation_fields(

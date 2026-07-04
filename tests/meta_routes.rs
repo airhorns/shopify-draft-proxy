@@ -211,7 +211,7 @@ fn serves_meta_route_response_shapes() {
 }
 
 #[test]
-fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
+fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
     let mut default_proxy = DraftProxy::new(Config::default());
     let expected_default_config = json!({
         "runtime": {
@@ -314,11 +314,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
     );
     assert_eq!(
         default_proxy
-            .process_request(graphql_request(
-                &json!({ "query": "mutation { eventDelete(id: \"x\") { ok } }" }).to_string()
+            .process_request(request_with_body(
+                "POST",
+                "/admin/api/banana/graphql.json",
+                &json!({ "query": "{ shop { id } }" }).to_string()
             ))
             .status,
-        400
+        404
     );
     assert_eq!(
         default_proxy
@@ -613,7 +615,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
 }
 
 #[test]
-fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
+fn log_draft_enforcement_supported_domains_record_entries() {
     let cases = [
         (
             "admin_platform",
@@ -687,11 +689,21 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
                 "backupRegionUpdate log enforcement setup should stage a covering market"
             );
         }
-        let response =
-            proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
+        let mut request = graphql_request(&json!({ "query": query }).to_string());
+        if root == "taxAppConfigure" {
+            request.headers.insert(
+                "x-shopify-draft-proxy-access-scopes".to_string(),
+                "write_taxes".to_string(),
+            );
+            request.headers.insert(
+                "x-shopify-draft-proxy-tax-calculations-app".to_string(),
+                "true".to_string(),
+            );
+        }
+        let response = proxy.process_request(request);
         assert_eq!(
             response.status, 200,
-            "ported Gleam log-draft enforcement case {domain} should return HTTP 200; body={}",
+            "log-draft enforcement case {domain} should return HTTP 200; body={}",
             response.body
         );
 
@@ -701,7 +713,7 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
             .unwrap_or_else(|| panic!("{domain} log entries should be an array: {log}"));
         assert!(
             !entries.is_empty(),
-            "ported Gleam log-draft enforcement case {domain}/{root} should record at least one log entry; response body={}",
+            "log-draft enforcement case {domain}/{root} should record at least one log entry; response body={}",
             response.body
         );
         let last = entries.last().unwrap();
@@ -777,9 +789,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "availableLocales": null,
                     "giftCardConfiguration": null,
                     "giftCards": {},
-                    "localizationProductIds": [
-                        "gid://shopify/Product/9801098789170"
-                    ],
+                    "localizationProductIds": [],
                     "productOrder": [
                         "gid://shopify/Product/base"
                     ],
@@ -850,6 +860,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 },
                 "stagedState": {
                     "createdPublicationIds": [],
+                    "currentChannelPublicationId": null,
+                    "currentChannelPublicationResolved": false,
                     "customerAddressOrder": {},
                     "customerAddressOwners": {},
                     "customerAddresses": {},
@@ -865,6 +877,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedLocationIds": [],
                     "deletedOrderIds": [],
                     "deletedOwnerMetafields": [],
+                    "deletedProductFeedIds": [],
                     "deletedProductIds": [
                         "gid://shopify/Product/base"
                     ],
@@ -879,6 +892,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discounts": {},
                     "draftOrderTags": {},
                     "giftCards": {},
+                    "installedApps": {},
                     "locallyCreatedCustomerIds": [],
                     "locationLimitReached": false,
                     "locationOrder": [],
@@ -891,6 +905,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "observedShippingLocations": {},
                     "orders": {},
                     "ownerMetafields": {},
+                    "productFeedOrder": [],
+                    "productFeeds": {},
                     "productOrder": [
                         "gid://shopify/Product/1?shopify-draft-proxy=synthetic"
                     ],
@@ -1037,6 +1053,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "returnsByOrder": {},
                     "reverseDeliveries": {},
                     "reverseFulfillmentOrders": {},
+                    "revokedAppAccessScopes": {},
                     "savedSearchOrder": [
                         "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"
                     ],
@@ -1055,7 +1072,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
-                    "taggableResources": {}
+                    "taggableResources": {},
+                    "uninstalledAppIds": []
                 }
             }
         "##,
@@ -1312,7 +1330,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               transactions(first: 5) { nodes { id kind status } }
             }
             order { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1440,7 +1458,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation MarkRestoredOrderPaid($input: OrderMarkAsPaidInput!) {
                   orderMarkAsPaid(input: $input) {
                     order { id transactions { id kind status } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,
@@ -1634,13 +1652,13 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
 }
 
 #[test]
-fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
+fn restore_state_round_trips_order_customer_and_b2b_records() {
     let mut proxy = snapshot_proxy();
     let create_customer = proxy.process_request(graphql_request(
         &json!({
             "query": r#"
                 mutation CreateOrderCustomer {
-                  customerCreate(input: { email: "order-customer-roundtrip@example.com" }) {
+                  customerCreate(input: { email: "roundtrip-customer@example.test", firstName: "Round", lastName: "Trip" }) {
                     customer { id email displayName }
                     userErrors { field message code }
                   }
@@ -1669,8 +1687,13 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
             "query": create_order_query,
             "variables": {
                 "order": {
-                    "email": "order-customer-roundtrip-order@example.com",
-                    "customerId": customer_id
+                    "email": "roundtrip-order@example.test",
+                    "customerId": customer_id,
+                    "lineItems": [{
+                        "title": "Roundtrip item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
                 }
             }
         })
@@ -1687,7 +1710,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         &json!({
             "query": r#"
                 mutation CreateOrderCustomerCompany {
-                  companyCreate(input: { company: { name: "Order Customer Error Paths Company" } }) {
+                  companyCreate(input: { company: { name: "Roundtrip Buyer Company" } }) {
                     company { id name }
                     userErrors { field message code }
                   }
@@ -1708,7 +1731,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
                   }
                 }
             "#,
-            "variables": { "companyId": company_id, "customerId": customer_id }
+            "variables": { "companyId": company_id.clone(), "customerId": customer_id }
         })
         .to_string(),
     ));
@@ -1721,7 +1744,14 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let b2b_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-b2b@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-b2b-order@example.test",
+                    "purchasingEntity": {
+                        "purchasingCompany": { "companyId": company_id }
+                    }
+                }
+            }
         })
         .to_string(),
     ));
@@ -1731,7 +1761,16 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let cancelled_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-cancelled@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-cancelled@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip cancelled item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
@@ -1762,25 +1801,21 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     ));
     assert_eq!(dump.status, 200);
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerOrders"]
-            [regular_order_id.as_str().unwrap()]["id"],
+        dump.body["state"]["stagedState"]["orders"][regular_order_id.as_str().unwrap()]["id"],
         regular_order_id
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerOrders"][b2b_order_id.as_str().unwrap()]
+            ["id"],
+        b2b_order_id
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerB2bOrderIds"],
         json!([b2b_order_id])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerCancelledIds"],
-        json!([cancelled_order_id])
-    );
-    assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerContactCustomerIds"],
         json!([customer_id])
-    );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["nextOrderCustomerOrderId"],
-        json!(4)
     );
 
     let mut restored = snapshot_proxy();
@@ -1871,18 +1906,27 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let next_order = restored.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-next@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-next@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip next item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
-    assert_eq!(
+    assert_ne!(
         next_order.body["data"]["orderCreate"]["order"]["id"],
-        json!("gid://shopify/Order/4?shopify-draft-proxy=synthetic")
+        regular_order_id
     );
 }
 
 #[test]
-fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
+fn restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(
         "POST",

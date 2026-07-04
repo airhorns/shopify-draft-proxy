@@ -17,6 +17,21 @@
     "orMatches": {
       "edges": [
         {
+          "cursor": "eyJsYXN0X2lkIjoxMDU4NjM1ODc0MzM0NiwibGFzdF92YWx1ZSI6MTc3ODEwODM3MTAwMH0=",
+          "node": {
+            "id": "gid://shopify/Customer/10586358743346",
+            "displayName": "customer-tag-note-limits-case-dedupe-1778108370919@example.com",
+            "email": "customer-tag-note-limits-case-dedupe-1778108370919@example.com",
+            "legacyResourceId": "10586358743346",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "tags": ["VIP"],
+            "defaultPhoneNumber": null,
+            "defaultAddress": null,
+            "updatedAt": "2026-05-06T22:59:31Z"
+          }
+        },
+        {
           "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ==",
           "node": {
             "id": "gid://shopify/Customer/9522206998834",
@@ -44,138 +59,103 @@
       "pageInfo": {
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ==",
+        "startCursor": "eyJsYXN0X2lkIjoxMDU4NjM1ODc0MzM0NiwibGFzdF92YWx1ZSI6MTc3ODEwODM3MTAwMH0=",
         "endCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ=="
       }
     },
     "groupedExclusion": {
       "edges": [
         {
-          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+          "cursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MDk5NTYzNCwibGFzdF92YWx1ZSI6MTc4MzA1ODIzODAwMH0=",
           "node": {
-            "id": "gid://shopify/Customer/10552824299826",
-            "displayName": "HAR Return",
-            "email": "har-442-return-reverse-20260429110840@example.com",
-            "legacyResourceId": "10552824299826",
+            "id": "gid://shopify/Customer/10885440995634",
+            "displayName": "Casey Contact",
+            "email": "atlas-procurement-20260703055707-main@example.com",
+            "legacyResourceId": "10885440995634",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-29T11:08:40Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-07-03T05:57:18Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0=",
+          "cursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MTA5MzkzOCwibGFzdF92YWx1ZSI6MTc4MzA1ODIyODAwMH0=",
           "node": {
-            "id": "gid://shopify/Customer/10552822890802",
-            "displayName": "HAR Return",
-            "email": "har-442-return-reverse-20260429110759@example.com",
-            "legacyResourceId": "10552822890802",
+            "id": "gid://shopify/Customer/10885441093938",
+            "displayName": "customer-set-happy-20260703055707@example.com",
+            "email": "customer-set-happy-20260703055707@example.com",
+            "legacyResourceId": "10885441093938",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-29T11:07:59Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-07-03T05:57:08Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMTAyMzAyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDgyOTAwMH0=",
+          "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5NjI3MjQzNCwibGFzdF92YWx1ZSI6MTc4MzAzNTg3MjAwMH0=",
           "node": {
-            "id": "gid://shopify/Customer/10552821023026",
-            "displayName": "HAR Return",
-            "email": "har-442-return-reverse-20260429110709@example.com",
-            "legacyResourceId": "10552821023026",
+            "id": "gid://shopify/Customer/10883396272434",
+            "displayName": "mandate-resolver-probe-1783035872343@example.com",
+            "email": "mandate-resolver-probe-1783035872343@example.com",
+            "legacyResourceId": "10883396272434",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-29T11:07:09Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-07-02T23:44:32Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgxNjU5OTM0NiwibGFzdF92YWx1ZSI6MTc3NzQ2MDcyMTAwMH0=",
+          "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5NTk0NDc1NCwibGFzdF92YWx1ZSI6MTc4MzAzNTg1NTAwMH0=",
           "node": {
-            "id": "gid://shopify/Customer/10552816599346",
-            "displayName": "HAR Return",
-            "email": "har-442-return-reverse-20260429110521@example.com",
-            "legacyResourceId": "10552816599346",
+            "id": "gid://shopify/Customer/10883395944754",
+            "displayName": "mandate-success-probe-1783035855160@example.com",
+            "email": "mandate-success-probe-1783035855160@example.com",
+            "legacyResourceId": "10883395944754",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-29T11:05:21Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-07-02T23:44:15Z"
           }
         },
         {
-          "cursor": "eyJsYXN0X2lkIjoxMDU1MjgxNDg5NTQxMCwibGFzdF92YWx1ZSI6MTc3NzQ2MDY2MDAwMH0=",
+          "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5MzY4Mzc2MiwibGFzdF92YWx1ZSI6MTc4MzAzNTcyOTAwMH0=",
           "node": {
-            "id": "gid://shopify/Customer/10552814895410",
-            "displayName": "HAR Return",
-            "email": "har-442-return-reverse-20260429110420@example.com",
-            "legacyResourceId": "10552814895410",
+            "id": "gid://shopify/Customer/10883393683762",
+            "displayName": "order-payment-void-1783035725330@example.com",
+            "email": "order-payment-void-1783035725330@example.com",
+            "legacyResourceId": "10883393683762",
             "verifiedEmail": true,
             "state": "DISABLED",
             "tags": [],
             "defaultPhoneNumber": null,
-            "defaultAddress": {
-              "address1": "123 Queen St W",
-              "city": "Toronto",
-              "province": "Ontario",
-              "country": "Canada",
-              "zip": "M5H 2M9",
-              "formattedArea": "Toronto ON, Canada"
-            },
-            "updatedAt": "2026-04-29T11:04:20Z"
+            "defaultAddress": null,
+            "updatedAt": "2026-07-02T23:42:09Z"
           }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
-        "startCursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
-        "endCursor": "eyJsYXN0X2lkIjoxMDU1MjgxNDg5NTQxMCwibGFzdF92YWx1ZSI6MTc3NzQ2MDY2MDAwMH0="
+        "startCursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MDk5NTYzNCwibGFzdF92YWx1ZSI6MTc4MzA1ODIzODAwMH0=",
+        "endCursor": "eyJsYXN0X2lkIjoxMDg4MzM5MzY4Mzc2MiwibGFzdF92YWx1ZSI6MTc4MzAzNTcyOTAwMH0="
       }
     }
   },
   "extensions": {
     "cost": {
       "requestedQueryCost": 20,
-      "actualQueryCost": 14,
+      "actualQueryCost": 15,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1986,
+        "currentlyAvailable": 1985,
         "restoreRate": 100
       }
     }
@@ -205,6 +185,21 @@
             "orMatches": {
               "edges": [
                 {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU4NjM1ODc0MzM0NiwibGFzdF92YWx1ZSI6MTc3ODEwODM3MTAwMH0=",
+                  "node": {
+                    "id": "gid://shopify/Customer/10586358743346",
+                    "displayName": "customer-tag-note-limits-case-dedupe-1778108370919@example.com",
+                    "email": "customer-tag-note-limits-case-dedupe-1778108370919@example.com",
+                    "legacyResourceId": "10586358743346",
+                    "verifiedEmail": true,
+                    "state": "DISABLED",
+                    "tags": ["VIP"],
+                    "defaultPhoneNumber": null,
+                    "defaultAddress": null,
+                    "updatedAt": "2026-05-06T22:59:31Z"
+                  }
+                },
+                {
                   "cursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ==",
                   "node": {
                     "id": "gid://shopify/Customer/9522206998834",
@@ -232,138 +227,103 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ==",
+                "startCursor": "eyJsYXN0X2lkIjoxMDU4NjM1ODc0MzM0NiwibGFzdF92YWx1ZSI6MTc3ODEwODM3MTAwMH0=",
                 "endCursor": "eyJsYXN0X2lkIjo5NTIyMjA2OTk4ODM0LCJsYXN0X3ZhbHVlIjoxNzQzMDE4Njk4MDAwfQ=="
               }
             },
             "groupedExclusion": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MDk5NTYzNCwibGFzdF92YWx1ZSI6MTc4MzA1ODIzODAwMH0=",
                   "node": {
-                    "id": "gid://shopify/Customer/10552824299826",
-                    "displayName": "HAR Return",
-                    "email": "har-442-return-reverse-20260429110840@example.com",
-                    "legacyResourceId": "10552824299826",
+                    "id": "gid://shopify/Customer/10885440995634",
+                    "displayName": "Casey Contact",
+                    "email": "atlas-procurement-20260703055707-main@example.com",
+                    "legacyResourceId": "10885440995634",
                     "verifiedEmail": true,
                     "state": "DISABLED",
                     "tags": [],
                     "defaultPhoneNumber": null,
-                    "defaultAddress": {
-                      "address1": "123 Queen St W",
-                      "city": "Toronto",
-                      "province": "Ontario",
-                      "country": "Canada",
-                      "zip": "M5H 2M9",
-                      "formattedArea": "Toronto ON, Canada"
-                    },
-                    "updatedAt": "2026-04-29T11:08:40Z"
+                    "defaultAddress": null,
+                    "updatedAt": "2026-07-03T05:57:18Z"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMjg5MDgwMiwibGFzdF92YWx1ZSI6MTc3NzQ2MDg3OTAwMH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MTA5MzkzOCwibGFzdF92YWx1ZSI6MTc4MzA1ODIyODAwMH0=",
                   "node": {
-                    "id": "gid://shopify/Customer/10552822890802",
-                    "displayName": "HAR Return",
-                    "email": "har-442-return-reverse-20260429110759@example.com",
-                    "legacyResourceId": "10552822890802",
+                    "id": "gid://shopify/Customer/10885441093938",
+                    "displayName": "customer-set-happy-20260703055707@example.com",
+                    "email": "customer-set-happy-20260703055707@example.com",
+                    "legacyResourceId": "10885441093938",
                     "verifiedEmail": true,
                     "state": "DISABLED",
                     "tags": [],
                     "defaultPhoneNumber": null,
-                    "defaultAddress": {
-                      "address1": "123 Queen St W",
-                      "city": "Toronto",
-                      "province": "Ontario",
-                      "country": "Canada",
-                      "zip": "M5H 2M9",
-                      "formattedArea": "Toronto ON, Canada"
-                    },
-                    "updatedAt": "2026-04-29T11:07:59Z"
+                    "defaultAddress": null,
+                    "updatedAt": "2026-07-03T05:57:08Z"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgyMTAyMzAyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDgyOTAwMH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5NjI3MjQzNCwibGFzdF92YWx1ZSI6MTc4MzAzNTg3MjAwMH0=",
                   "node": {
-                    "id": "gid://shopify/Customer/10552821023026",
-                    "displayName": "HAR Return",
-                    "email": "har-442-return-reverse-20260429110709@example.com",
-                    "legacyResourceId": "10552821023026",
+                    "id": "gid://shopify/Customer/10883396272434",
+                    "displayName": "mandate-resolver-probe-1783035872343@example.com",
+                    "email": "mandate-resolver-probe-1783035872343@example.com",
+                    "legacyResourceId": "10883396272434",
                     "verifiedEmail": true,
                     "state": "DISABLED",
                     "tags": [],
                     "defaultPhoneNumber": null,
-                    "defaultAddress": {
-                      "address1": "123 Queen St W",
-                      "city": "Toronto",
-                      "province": "Ontario",
-                      "country": "Canada",
-                      "zip": "M5H 2M9",
-                      "formattedArea": "Toronto ON, Canada"
-                    },
-                    "updatedAt": "2026-04-29T11:07:09Z"
+                    "defaultAddress": null,
+                    "updatedAt": "2026-07-02T23:44:32Z"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgxNjU5OTM0NiwibGFzdF92YWx1ZSI6MTc3NzQ2MDcyMTAwMH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5NTk0NDc1NCwibGFzdF92YWx1ZSI6MTc4MzAzNTg1NTAwMH0=",
                   "node": {
-                    "id": "gid://shopify/Customer/10552816599346",
-                    "displayName": "HAR Return",
-                    "email": "har-442-return-reverse-20260429110521@example.com",
-                    "legacyResourceId": "10552816599346",
+                    "id": "gid://shopify/Customer/10883395944754",
+                    "displayName": "mandate-success-probe-1783035855160@example.com",
+                    "email": "mandate-success-probe-1783035855160@example.com",
+                    "legacyResourceId": "10883395944754",
                     "verifiedEmail": true,
                     "state": "DISABLED",
                     "tags": [],
                     "defaultPhoneNumber": null,
-                    "defaultAddress": {
-                      "address1": "123 Queen St W",
-                      "city": "Toronto",
-                      "province": "Ontario",
-                      "country": "Canada",
-                      "zip": "M5H 2M9",
-                      "formattedArea": "Toronto ON, Canada"
-                    },
-                    "updatedAt": "2026-04-29T11:05:21Z"
+                    "defaultAddress": null,
+                    "updatedAt": "2026-07-02T23:44:15Z"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU1MjgxNDg5NTQxMCwibGFzdF92YWx1ZSI6MTc3NzQ2MDY2MDAwMH0=",
+                  "cursor": "eyJsYXN0X2lkIjoxMDg4MzM5MzY4Mzc2MiwibGFzdF92YWx1ZSI6MTc4MzAzNTcyOTAwMH0=",
                   "node": {
-                    "id": "gid://shopify/Customer/10552814895410",
-                    "displayName": "HAR Return",
-                    "email": "har-442-return-reverse-20260429110420@example.com",
-                    "legacyResourceId": "10552814895410",
+                    "id": "gid://shopify/Customer/10883393683762",
+                    "displayName": "order-payment-void-1783035725330@example.com",
+                    "email": "order-payment-void-1783035725330@example.com",
+                    "legacyResourceId": "10883393683762",
                     "verifiedEmail": true,
                     "state": "DISABLED",
                     "tags": [],
                     "defaultPhoneNumber": null,
-                    "defaultAddress": {
-                      "address1": "123 Queen St W",
-                      "city": "Toronto",
-                      "province": "Ontario",
-                      "country": "Canada",
-                      "zip": "M5H 2M9",
-                      "formattedArea": "Toronto ON, Canada"
-                    },
-                    "updatedAt": "2026-04-29T11:04:20Z"
+                    "defaultAddress": null,
+                    "updatedAt": "2026-07-02T23:42:09Z"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMDU1MjgyNDI5OTgyNiwibGFzdF92YWx1ZSI6MTc3NzQ2MDkyMDAwMH0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMDU1MjgxNDg5NTQxMCwibGFzdF92YWx1ZSI6MTc3NzQ2MDY2MDAwMH0="
+                "startCursor": "eyJsYXN0X2lkIjoxMDg4NTQ0MDk5NTYzNCwibGFzdF92YWx1ZSI6MTc4MzA1ODIzODAwMH0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDg4MzM5MzY4Mzc2MiwibGFzdF92YWx1ZSI6MTc4MzAzNTcyOTAwMH0="
               }
             }
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 20,
-              "actualQueryCost": 14,
+              "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }

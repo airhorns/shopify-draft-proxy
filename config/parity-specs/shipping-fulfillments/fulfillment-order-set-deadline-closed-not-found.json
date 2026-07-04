@@ -1,0 +1,74 @@
+{
+  "scenarioId": "fulfillment-order-set-deadline-closed-not-found",
+  "operationNames": ["orderCreate", "fulfillmentOrderCancel", "fulfillmentOrdersSetFulfillmentDeadline"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-set-deadline-order-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.workflows.closedFulfillmentOrderDeadline.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-order-create-user-errors",
+        "capturePath": "$.workflows.closedFulfillmentOrderDeadline.create.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "setup-close-fulfillment-order-user-errors",
+        "capturePath": "$.workflows.closedFulfillmentOrderDeadline.closeFulfillmentOrder.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-cancel.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+            }
+          }
+        },
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "closed-fulfillment-order-deadline-success",
+        "capturePath": "$.workflows.closedFulfillmentOrderDeadline.setFulfillmentDeadline.response.payload.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-set-deadline.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "fulfillmentOrderIds": [
+              {
+                "fromProxyResponse": "setup-close-fulfillment-order-user-errors",
+                "path": "$.data.fulfillmentOrderCancel.fulfillmentOrder.id"
+              }
+            ],
+            "fulfillmentDeadline": {
+              "fromCapturePath": "$.workflows.closedFulfillmentOrderDeadline.setFulfillmentDeadline.variables.fulfillmentDeadline"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-id-not-found-user-error",
+        "capturePath": "$.workflows.unknownIdDeadline.setFulfillmentDeadline.response.payload.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-set-deadline.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.workflows.unknownIdDeadline.setFulfillmentDeadline.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 behavior for setting fulfillBy on an existing fulfillment order after fulfillmentOrderCancel leaves it closed, plus the all-ids-unresolvable userError payload with null code."
+}
