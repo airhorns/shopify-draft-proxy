@@ -1,0 +1,23 @@
+mutation ProductSetInputLengthValidation($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+      vendor
+      productType
+    }
+    productSetOperation {
+      id
+      status
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

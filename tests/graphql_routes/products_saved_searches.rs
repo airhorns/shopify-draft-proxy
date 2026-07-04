@@ -7695,6 +7695,99 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
 }
 
 #[test]
+fn product_update_scalar_length_validation_errors_leave_product_unchanged() {
+    let product_id = "gid://shopify/Product/1";
+    let base_product = ProductRecord {
+        id: product_id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Original product".to_string(),
+        handle: "original-product".to_string(),
+        status: "ACTIVE".to_string(),
+        vendor: "Original vendor".to_string(),
+        product_type: "Original type".to_string(),
+        ..ProductRecord::default()
+    };
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productUpdate-input-length-validation.graphql"
+    );
+    let expected_product = json!({
+        "id": product_id,
+        "title": "Original product",
+        "vendor": "Original vendor",
+        "productType": "Original type"
+    });
+    let scenarios = [
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "title": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["vendor"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["productType"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy().with_base_products(vec![base_product.clone()]);
+        let update = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(update.status, 200);
+        assert_eq!(
+            update.body["data"]["productUpdate"]["product"],
+            expected_product
+        );
+        assert_eq!(
+            update.body["data"]["productUpdate"]["userErrors"],
+            expected_errors
+        );
+
+        let read_back = proxy.process_request(json_graphql_request(
+            r#"
+            query ProductUpdateLengthRead($id: ID!) {
+              product(id: $id) {
+                id
+                title
+                vendor
+                productType
+              }
+            }
+            "#,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(read_back.body["data"]["product"], expected_product);
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+}
+
+#[test]
 fn products_connection_reflects_staged_creates_and_deletes() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
