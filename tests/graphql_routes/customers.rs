@@ -55,6 +55,213 @@ fn create_customer_from_input(proxy: &mut DraftProxy, input: Value) -> String {
         .to_string()
 }
 
+#[test]
+fn customer_update_inline_addresses_are_id_aware_and_replace_existing_addresses() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomerWithInlineAddresses($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              defaultAddress { id address1 city }
+              addressesV2(first: 5) {
+                nodes { id address1 city }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "inline-address-update@example.test",
+                "firstName": "Inline",
+                "lastName": "Customer",
+                "addresses": [
+                    {
+                        "address1": "100 First St",
+                        "city": "San Francisco",
+                        "countryCode": "US",
+                        "provinceCode": "CA",
+                        "zip": "94103"
+                    },
+                    {
+                        "address1": "200 Second St",
+                        "city": "Oakland",
+                        "countryCode": "US",
+                        "provinceCode": "CA",
+                        "zip": "94607"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+    let initial_nodes = create.body["data"]["customerCreate"]["customer"]["addressesV2"]["nodes"]
+        .as_array()
+        .expect("address nodes");
+    assert_eq!(initial_nodes.len(), 2);
+    let address_one_id = initial_nodes[0]["id"]
+        .as_str()
+        .expect("first address id")
+        .to_string();
+    let address_two_id = initial_nodes[1]["id"]
+        .as_str()
+        .expect("second address id")
+        .to_string();
+
+    let update_second_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSecondInlineAddress($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer {
+              id
+              defaultAddress { id address1 city }
+              addressesV2(first: 5) {
+                nodes { id address1 city }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": customer_id,
+                "addresses": [{
+                    "id": address_two_id,
+                    "address1": "999 Bryant St",
+                    "city": "San Francisco",
+                    "countryCode": "US",
+                    "provinceCode": "CA",
+                    "zip": "94103"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update_second_only.status, 200);
+    assert_eq!(
+        update_second_only.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_second_only.body["data"]["customerUpdate"]["customer"]["addressesV2"]["nodes"],
+        json!([{
+            "id": address_two_id.clone(),
+            "address1": "999 Bryant St",
+            "city": "San Francisco"
+        }])
+    );
+    assert_ne!(
+        update_second_only.body["data"]["customerUpdate"]["customer"]["addressesV2"]["nodes"][0]
+            ["id"],
+        json!(address_one_id)
+    );
+    assert_eq!(
+        update_second_only.body["data"]["customerUpdate"]["customer"]["defaultAddress"]["id"],
+        json!(address_two_id.clone())
+    );
+
+    let omitted_addresses = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RenameCustomerWithoutAddresses($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer {
+              firstName
+              addressesV2(first: 5) { nodes { id address1 city } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": customer_id,
+                "firstName": "Renamed"
+            }
+        }),
+    ));
+    assert_eq!(
+        omitted_addresses.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        omitted_addresses.body["data"]["customerUpdate"]["customer"]["addressesV2"]["nodes"],
+        json!([{
+            "id": address_two_id.clone(),
+            "address1": "999 Bryant St",
+            "city": "San Francisco"
+        }])
+    );
+
+    let unknown_id = "gid://shopify/MailingAddress/999999999999";
+    let unknown_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateUnknownInlineAddress($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id addressesV2(first: 5) { nodes { id address1 city } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": customer_id,
+                "addresses": [{
+                    "id": unknown_id,
+                    "address1": "Should Not Stage"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_address.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_address.body["data"]["customerUpdate"]["userErrors"],
+        json!([{
+            "field": ["addresses", "0", "id"],
+            "message": "Customer address does not exist"
+        }])
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCustomerAfterUnknownInlineAddress($id: ID!) {
+          customer(id: $id) {
+            firstName
+            addressesV2(first: 5) { nodes { id address1 city } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["customer"]["addressesV2"]["nodes"],
+        json!([{
+            "id": address_two_id,
+            "address1": "999 Bryant St",
+            "city": "San Francisco"
+        }])
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().expect("log entries").len(), 3);
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("customerUpdate")
+    );
+}
+
 fn assert_merge_survivor(
     proxy: &mut DraftProxy,
     one_id: &str,

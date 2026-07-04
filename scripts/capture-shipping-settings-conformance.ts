@@ -179,6 +179,23 @@ const shippingPackageDeleteUnknownMutation = `#graphql
   }
 `;
 
+const shippingPackageHydrateQuery = `query ShippingPackageHydrate($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on ShippingPackage {
+      id
+      name
+      type
+      boxType
+      default
+      weight { value unit }
+      dimensions { length width height unit }
+      createdAt
+      updatedAt
+    }
+  }
+}`;
+
 const fulfillmentConstraintRulesQuery = `#graphql
   query FulfillmentConstraintRulesScopeBlocker {
     fulfillmentConstraintRules {
@@ -282,6 +299,43 @@ const shippingPackageDeleteUnknown = await runGraphqlCapture(shippingPackageDele
   id: unknownShippingPackageId,
 });
 
+const hardcodedShippingPackageId = 'gid://shopify/ShippingPackage/1';
+const hardcodedShippingPackageInput = {
+  name: 'Hardcoded package',
+  type: 'BOX',
+  default: false,
+  weight: { value: 1.5, unit: 'POUNDS' },
+  dimensions: { length: 10, width: 7, height: 4, unit: 'INCHES' },
+};
+const shippingPackageUpdateHardcodedId = await runGraphqlCapture(shippingPackageUpdateUnknownMutation, {
+  id: hardcodedShippingPackageId,
+  shippingPackage: hardcodedShippingPackageInput,
+});
+const shippingPackageMakeDefaultHardcodedId = await runGraphqlCapture(shippingPackageMakeDefaultUnknownMutation, {
+  id: hardcodedShippingPackageId,
+});
+const shippingPackageDeleteHardcodedId = await runGraphqlCapture(shippingPackageDeleteUnknownMutation, {
+  id: hardcodedShippingPackageId,
+});
+const shippingPackageHydrateUnknownUpdate = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: unknownShippingPackageId,
+});
+const shippingPackageHydrateUnknownMakeDefault = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: unknownShippingPackageId,
+});
+const shippingPackageHydrateUnknownDelete = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: unknownShippingPackageId,
+});
+const shippingPackageHydrateHardcodedUpdate = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: hardcodedShippingPackageId,
+});
+const shippingPackageHydrateHardcodedMakeDefault = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: hardcodedShippingPackageId,
+});
+const shippingPackageHydrateHardcodedDelete = await runGraphqlCapture(shippingPackageHydrateQuery, {
+  id: hardcodedShippingPackageId,
+});
+
 const fulfillmentConstraintReadBlocker = await runGraphqlCapture(fulfillmentConstraintRulesQuery);
 const fulfillmentConstraintWriteBlocker = await runGraphqlCapture(fulfillmentConstraintRuleCreateMutation);
 
@@ -333,9 +387,28 @@ const capture = {
     shippingPackageUpdateUnknown,
     shippingPackageMakeDefaultUnknown,
     shippingPackageDeleteUnknown,
+    shippingPackageUpdateHardcodedId,
+    shippingPackageMakeDefaultHardcodedId,
+    shippingPackageDeleteHardcodedId,
     fulfillmentConstraintReadBlocker,
     fulfillmentConstraintWriteBlocker,
   },
+  upstreamCalls: [
+    shippingPackageHydrateUnknownUpdate,
+    shippingPackageHydrateUnknownMakeDefault,
+    shippingPackageHydrateUnknownDelete,
+    shippingPackageHydrateHardcodedUpdate,
+    shippingPackageHydrateHardcodedMakeDefault,
+    shippingPackageHydrateHardcodedDelete,
+  ].map((capture) => ({
+    operationName: 'ShippingPackageHydrate',
+    variables: capture.variables,
+    query: capture.query,
+    response: {
+      status: capture.result.status,
+      body: capture.result.payload,
+    },
+  })),
 };
 
 await mkdir(outputDir, { recursive: true });

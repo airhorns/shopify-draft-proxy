@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-07-03T18:30:27.332Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "Market webPresenceCreate requires domain or subfolder validation",
+  "cases": [
+    {
+      "name": "webPresenceCreateRequiresDomainOrSubfolder",
+      "query": "mutation WebPresenceCreateRequiresDomainOrSubfolder($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "defaultLocale": "en"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceCreate": {
+              "webPresence": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "One of `subfolderSuffix` or `domainId` is required.",
+                  "code": "REQUIRES_DOMAIN_OR_SUBFOLDER"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

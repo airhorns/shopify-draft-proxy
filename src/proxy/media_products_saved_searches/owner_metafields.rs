@@ -23,7 +23,6 @@ impl DraftProxy {
             self.hydrate_metafield_reference_ids(
                 request,
                 self.metafields_set_reference_values(&inputs, api_client_id.as_deref()),
-                metafields_set_product_owner_ids(&inputs),
             )
         } else {
             BTreeSet::new()
@@ -528,7 +527,6 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         ids: Vec<String>,
-        product_owner_ids: BTreeSet<String>,
     ) -> BTreeSet<String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return BTreeSet::new();
@@ -551,7 +549,6 @@ impl DraftProxy {
                 _ => generic_ids.push(id),
             }
         }
-        let mut fallback_reference_ids = BTreeSet::new();
         if !product_domain_ids.is_empty() {
             let response = self.upstream_post(
                 request,
@@ -562,15 +559,13 @@ impl DraftProxy {
                 }),
             );
             if response.status >= 400 {
-                fallback_reference_ids.extend(product_domain_ids.iter().filter_map(|id| {
-                    metafield_product_domain_reference_fallback(id, &product_owner_ids)
-                }));
+                return BTreeSet::new();
             } else {
                 self.observe_nodes_response(&response);
             }
         }
         if generic_ids.is_empty() {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         let response = self.upstream_post(
             request,
@@ -581,14 +576,14 @@ impl DraftProxy {
             }),
         );
         if response.status >= 400 {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
             for node in nodes {
                 self.stage_metafield_reference_node(node);
             }
         }
-        fallback_reference_ids
+        BTreeSet::new()
     }
 
     fn stage_metafield_reference_node(&mut self, node: &Value) {
@@ -1571,32 +1566,6 @@ fn owner_metafield_compare_digest(metafield: &Value) -> Option<String> {
                 .and_then(Value::as_str)
                 .map(metafield_compare_digest)
         })
-}
-
-fn metafields_set_product_owner_ids(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-) -> BTreeSet<String> {
-    inputs
-        .iter()
-        .filter_map(|input| resolved_string_field(input, "ownerId"))
-        .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
-        .collect()
-}
-
-fn metafield_product_domain_reference_fallback(
-    id: &str,
-    product_owner_ids: &BTreeSet<String>,
-) -> Option<String> {
-    if resource_id_tail(id).parse::<u64>().is_err() {
-        return None;
-    }
-    match shopify_gid_resource_type(id) {
-        Some("Product") if product_owner_ids.contains(id) => Some(id.to_string()),
-        Some("ProductVariant" | "Collection") if !product_owner_ids.is_empty() => {
-            Some(id.to_string())
-        }
-        _ => None,
-    }
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {

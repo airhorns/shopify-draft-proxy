@@ -113,7 +113,10 @@ impl DraftProxy {
                     let segment_query =
                         resolved_string_field(&arguments, "query").unwrap_or_default();
                     let mut user_errors = segment_name_user_errors(&name_input);
-                    user_errors.extend(segment_query_user_errors(&segment_query));
+                    user_errors.extend(segment_query_change_user_errors(&segment_query));
+                    if user_errors.is_empty() {
+                        user_errors.extend(segment_query_grammar_user_errors(&segment_query));
+                    }
                     let name = name_input.trim().to_string();
                     if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
                         user_errors.push(segment_user_error(
@@ -191,7 +194,13 @@ impl DraftProxy {
                             user_errors.extend(segment_name_user_errors(name));
                         }
                         if let Some(segment_query) = query_input.as_deref() {
-                            user_errors.extend(segment_query_user_errors(segment_query));
+                            user_errors.extend(segment_query_change_user_errors(segment_query));
+                        }
+                        if user_errors.is_empty() {
+                            if let Some(segment_query) = query_input.as_deref() {
+                                user_errors
+                                    .extend(segment_query_grammar_user_errors(segment_query));
+                            }
                         }
                         let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
                         if user_errors.is_empty() {
@@ -437,7 +446,7 @@ fn segment_name_user_errors(name: &str) -> Vec<Value> {
     }
 }
 
-fn segment_query_user_errors(query: &str) -> Vec<Value> {
+fn segment_query_change_user_errors(query: &str) -> Vec<Value> {
     if query.trim().is_empty() {
         return vec![segment_presence_user_error(["query"], "Query")];
     }
@@ -448,7 +457,7 @@ fn segment_query_user_errors(query: &str) -> Vec<Value> {
             LengthUserErrorBound::TooLong { maximum: 5000 },
         )];
     }
-    segment_query_grammar_user_errors(query)
+    Vec::new()
 }
 
 /// A `CustomerSegmentMembersQueryUserError` (the CDP member-query surface),
