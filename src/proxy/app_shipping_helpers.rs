@@ -2039,14 +2039,6 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(note) = resolved_string_field(input, "note") {
-        if b2b_contains_html_tags(&note) {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Note contains HTML tags",
-                "INVALID",
-                Some(json!("contains_html_tags")),
-            ));
-        }
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
