@@ -103,6 +103,7 @@ impl AdminOutputSchema {
         // explicit so generic validation still rejects arbitrary unknown fields.
         self.insert_local_connection_field("Catalog", "markets", "Market");
         self.insert_local_scalar_field("CompanyLocation", "billingSameAsShipping", "Boolean");
+        self.insert_local_scalar_field("File", "contentType", "FileContentType");
         self.insert_local_scalar_field("File", "filename", "String");
         self.insert_local_projection_field("File", "mediaErrors", "MediaError", true);
         self.insert_local_projection_field("File", "mediaWarnings", "MediaWarning", true);

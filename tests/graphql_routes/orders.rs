@@ -831,7 +831,7 @@ fn remove_from_return_for_test(
                     }
                   }
                 }
-                userErrors { field message }
+                userErrors { field message code }
               }
             }
             "#,
@@ -1602,7 +1602,8 @@ fn remove_from_return_rejects_closed_return_without_state_changes() {
         rejected["userErrors"],
         json!([{
             "field": ["returnId"],
-            "message": "Return status is invalid."
+            "message": "Return status is invalid.",
+            "code": "INVALID_STATE"
         }])
     );
     assert_eq!(log_snapshot(&proxy), log_before);

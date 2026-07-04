@@ -10276,7 +10276,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
         mutation FileSavedSearchCreate($input: SavedSearchCreateInput!) {
           savedSearchCreate(input: $input) {
             savedSearch { id name query resourceType }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
