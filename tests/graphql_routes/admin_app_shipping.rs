@@ -4,35 +4,6 @@ use std::collections::BTreeMap;
 
 const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
 
-fn create_delivery_profile_location(proxy: &mut DraftProxy, name: &str) -> String {
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DeliveryProfileLocationSeed($input: LocationAddInput!) {
-          locationAdd(input: $input) {
-            location { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "name": name,
-                "address": { "countryCode": "US" },
-                "fulfillsOnlineOrders": false
-            }
-        }),
-    ));
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["locationAdd"]["userErrors"],
-        json!([])
-    );
-    response.body["data"]["locationAdd"]["location"]["id"]
-        .as_str()
-        .expect("locationAdd should return an id")
-        .to_string()
-}
-
 fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) -> String {
     let fixed_bytes = "#\n".len() + body.len();
     assert!(
@@ -50,6 +21,28 @@ fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) ->
 
 fn synthetic_product_timestamp_for_log_len(log_len: usize) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", (log_len + 1) % 60)
+}
+
+fn restore_shipping_packages(proxy: &mut DraftProxy, packages: Vec<Value>) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    let shipping_packages = restored["state"]["stagedState"]["shippingPackages"]
+        .as_object_mut()
+        .expect("dumped state should include staged shipping package map");
+    for package in packages {
+        let id = package["id"]
+            .as_str()
+            .expect("shipping package fixture needs an id")
+            .to_string();
+        shipping_packages.insert(id, package);
+    }
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 }
 
 fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
@@ -1861,6 +1854,61 @@ fn bulk_operation_run_mutation_empty_file_error_precedes_in_progress_throttle() 
 }
 
 #[test]
+fn bulk_operation_run_mutation_no_such_file_error_precedes_in_progress_throttle() {
+    let hydrated_operations = (0..5)
+        .map(|index| {
+            let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+            (id.clone(), mutation_bulk_operation_fixture(&id))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
+
+    for index in 0..5 {
+        let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
+        assert_eq!(operation["type"], json!("MUTATION"));
+        assert_eq!(operation["status"], json!("CANCELING"));
+    }
+    let log_before = log_snapshot(&proxy);
+
+    let mut run_request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "tmp/92891250994/bulk/missing/missing-import.jsonl"
+        }),
+    );
+    run_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+            "code": "NO_SUCH_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "missing-file validation must not append a bulk mutation log entry"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     let id = "gid://shopify/BulkOperation/7749099127090";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -3312,6 +3360,78 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         sms_errors
     );
 
+    let whatsapp_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsent($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName tags }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "ShouldNot",
+                "lastName": "Apply",
+                "tags": ["mutated"],
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let whatsapp_errors = json!([{
+        "field": ["whatsAppMarketingConsent"],
+        "message": "To update whatsAppMarketingConsent, please use the customerWhatsAppMarketingConsentUpdate Mutation instead"
+    }]);
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
+    let whatsapp_rejection_unknown_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsentUnknownCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/999999999999999",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]
+            ["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
     let both_rejection = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentBoth($input: CustomerInput!) {
@@ -4310,6 +4430,115 @@ fn customer_create_supports_consent_precondition_shapes_without_synthesizing_mis
 }
 
 #[test]
+fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let no_phone = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentNoPhone($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "firstName": "Hermes",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(no_phone.body.get("errors"), None);
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["userErrors"],
+        json!([{
+            "field": ["whatsAppMarketingConsent"],
+            "message": "A phone number is required to set the WhatsApp consent state."
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556025",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(redacted.body["data"]["customerCreate"], Value::Null);
+    assert_eq!(
+        redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let public_shape_redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentPublicShapeRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556026",
+                "whatsAppMarketingConsent": {
+                    "state": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        public_shape_redacted.body["data"]["customerCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        public_shape_redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+}
+
+#[test]
 fn customer_marketing_consent_updates_stage_and_project_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -5075,6 +5304,65 @@ fn data_sale_opt_out_stages_existing_customer_and_downstream_reads_without_upstr
 }
 
 #[test]
+fn data_sale_opt_out_created_and_updated_timestamps_use_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mutation_query = r#"
+        mutation DataSaleOptOutClocked($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let opt_out = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "clocked-opt-out@example.com" }),
+    ));
+    assert_eq!(opt_out.status, 200);
+    assert_eq!(
+        opt_out.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+    let id = opt_out.body["data"]["dataSaleOptOut"]["customerId"]
+        .as_str()
+        .expect("dataSaleOptOut customer id")
+        .to_string();
+
+    let read_query = r#"
+        query DataSaleOptOutClockedRead($id: ID!) {
+          customer(id: $id) {
+            id
+            dataSaleOptOut
+            createdAt
+            updatedAt
+          }
+        }
+    "#;
+    let created_read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    let customer = &created_read.body["data"]["customer"];
+    assert_eq!(customer["dataSaleOptOut"], json!(true));
+    assert_eq!(customer["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(customer["updatedAt"], json!("2026-07-03T12:00:00Z"));
+
+    set_clock(&clock, 1_783_166_400);
+    let repeat = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "clocked-opt-out@example.com" }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+    let updated_read = proxy.process_request(json_graphql_request(read_query, json!({ "id": id })));
+    let updated_customer = &updated_read.body["data"]["customer"];
+    assert_eq!(updated_customer["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(updated_customer["updatedAt"], json!("2026-07-04T12:00:00Z"));
+    assert!(updated_customer["updatedAt"].as_str() > customer["updatedAt"].as_str());
+}
+
+#[test]
 fn data_sale_opt_out_resolves_existing_upstream_customer_id_without_forwarding_mutation() {
     let forwarded = Arc::new(Mutex::new(Vec::<String>::new()));
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -5192,6 +5480,105 @@ fn data_sale_opt_out_validation_and_sanitization_boundaries_match_captured_shape
 }
 
 #[test]
+fn data_sale_opt_out_accepts_unicode_letter_emails_and_downstream_reads() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let downstream_read = r#"
+        query DataSaleOptOutUnicodeDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#;
+
+    for email in [
+        "héllo@example.com",
+        "josé@exämple.com",
+        "hi@münchen.de",
+        "日本@example.com",
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(mutation, json!({ "email": email })));
+        assert_eq!(response.status, 200, "mutation status for {email}");
+        let customer_id = response.body["data"]["dataSaleOptOut"]["customerId"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected non-null customerId for {email}; payload was {}",
+                    response.body["data"]["dataSaleOptOut"]
+                )
+            })
+            .to_string();
+        assert_eq!(
+            response.body["data"]["dataSaleOptOut"]["userErrors"],
+            json!([]),
+            "userErrors for {email}"
+        );
+
+        let state = state_snapshot(&proxy);
+        let customers = state["stagedState"]["customers"].as_object().unwrap();
+        assert_eq!(customers.len(), 1, "staged customer count for {email}");
+        assert_eq!(
+            customers[&customer_id]["email"],
+            json!(email),
+            "staged email for {email}"
+        );
+        assert_eq!(
+            customers[&customer_id]["dataSaleOptOut"],
+            json!(true),
+            "staged opt-out flag for {email}"
+        );
+
+        let log = log_snapshot(&proxy);
+        assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(log["entries"][0]["status"], json!("staged"));
+        assert!(log["entries"][0]["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains("dataSaleOptOut"));
+
+        let read = proxy.process_request(json_graphql_request(
+            downstream_read,
+            json!({
+                "id": customer_id,
+                "identifier": { "emailAddress": email },
+                "query": "tag:created-by-dns-form",
+                "first": 5
+            }),
+        ));
+        let expected_customer = json!({
+            "id": customer_id,
+            "email": email,
+            "dataSaleOptOut": true,
+            "defaultEmailAddress": { "emailAddress": email }
+        });
+        assert_eq!(
+            read.body["data"]["customer"], expected_customer,
+            "customer(id:) read for {email}"
+        );
+        assert_eq!(
+            read.body["data"]["customerByIdentifier"], expected_customer,
+            "customerByIdentifier(emailAddress:) read for {email}"
+        );
+        assert_eq!(
+            read.body["data"]["customers"]["nodes"],
+            json!([expected_customer]),
+            "customers tag search for {email}"
+        );
+    }
+}
+
+#[test]
 fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
     let mutation = r#"
         mutation DataSaleOptOut($email: String!) {
@@ -5305,16 +5692,24 @@ fn data_sale_opt_out_matches_core_strict_format_residual_boundaries() {
         }]
     });
     let local_200_email = format!("{}@e.co", "a".repeat(200));
+    let unicode_local_129_email = format!("{}@e.co", "é".repeat(129));
+    let unicode_tld_65_email = format!("user@example.{}", "é".repeat(65));
+    let unicode_local_128_email = format!("{}@e.co", "é".repeat(128));
+    let unicode_tld_64_email = format!("user@example.{}", "é".repeat(64));
     let invalid_emails = [
         ("digit-tld", "foo@bar.co2".to_string()),
         ("digit-in-tld", "user@example.c0m".to_string()),
         ("hyphen-in-tld", "user@example.c-o".to_string()),
         ("local-over-128", local_200_email),
+        ("unicode-local-129-chars", unicode_local_129_email),
+        ("unicode-tld-65-chars", unicode_tld_65_email),
     ];
     let valid_emails = [
         ("single-character-tld", "user@example.x".to_string()),
         ("quoted-local-atom", "ab\"cd@example.com".to_string()),
         ("local-128", format!("{}@e.co", "a".repeat(128))),
+        ("unicode-local-128-chars", unicode_local_128_email),
+        ("unicode-tld-64-chars", unicode_tld_64_email),
     ];
     let mut failures = Vec::new();
 
@@ -7062,6 +7457,131 @@ fn carrier_services_connection_paginates_edges_nodes_and_active_false_filter() {
 }
 
 #[test]
+fn carrier_services_connection_combines_filters_and_honors_sort_reverse() {
+    let mut proxy = snapshot_proxy();
+
+    for (name, active) in [
+        ("Carrier active first", true),
+        ("Carrier inactive", false),
+        ("Carrier active second", true),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+              carrierServiceCreate(input: $input) {
+                carrierService { id name active }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": {
+                "name": name,
+                "callbackUrl": "https://mock.shop/rates",
+                "supportsServiceDiscovery": true,
+                "active": active
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["carrierServiceCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let active_first_id = "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic";
+    let active_second_id = "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic";
+
+    let combined = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesCombinedFilters($query: String) {
+          carrierServices(first: 5, query: $query, sortKey: ID) {
+            nodes { id name active }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "active:true id:3" }),
+    ));
+    assert_eq!(
+        combined.body["data"]["carrierServices"]["nodes"],
+        json!([{
+            "id": active_second_id,
+            "name": "Carrier active second",
+            "active": true
+        }])
+    );
+    assert_eq!(
+        combined.body["data"]["carrierServices"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": format!("cursor:{active_second_id}"),
+            "endCursor": format!("cursor:{active_second_id}")
+        })
+    );
+
+    let active_reversed = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesSortedReverse($query: String) {
+          carrierServices(first: 1, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "active:true" }),
+    ));
+    assert_eq!(
+        active_reversed.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": active_second_id,
+                "name": "Carrier active second",
+                "active": true
+            }],
+            "edges": [{
+                "cursor": format!("cursor:{active_second_id}"),
+                "node": {
+                    "id": active_second_id,
+                    "name": "Carrier active second",
+                    "active": true
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{active_second_id}"),
+                "endCursor": format!("cursor:{active_second_id}")
+            }
+        })
+    );
+
+    let unsupported = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesUnsupportedFilter($query: String) {
+          carrierServices(first: 5, query: $query, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": format!("active:true unknown:{active_first_id}") }),
+    ));
+    assert_eq!(
+        unsupported.body["data"]["carrierServices"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+}
+
+#[test]
 fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_fields() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -7169,12 +7689,208 @@ fn delivery_profile_location_group_uses_staged_location_record_name() {
 }
 
 #[test]
+fn delivery_profile_create_hydrates_unknown_location_before_validation() {
+    let location_id = "gid://shopify/Location/424242424245";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["variables"], json!({}));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("first: 250")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Hydrated non-fixture origin",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileHydratedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Hydrated location profile",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": location_id, "name": "Hydrated non-fixture origin" }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileCreate")
+    );
+}
+
+#[test]
+fn delivery_profile_create_hydrates_requested_location_with_partial_local_state() {
+    let hydrated_location_id = "gid://shopify/Location/424242424246";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("StorePropertiesLocationLimitStatus") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": { "resourceLimits": { "locationLimit": 250 } },
+                            "locations": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("locationsAvailableForDeliveryProfilesConnection(first: 250)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": hydrated_location_id,
+                                "name": "Hydrated with staged sibling",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+    let unrelated_location_id =
+        seed_delivery_profile_location(&mut proxy, "Unrelated local profile location");
+    assert_ne!(unrelated_location_id, hydrated_location_id);
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfilePartialLocalState($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with hydrated sibling",
+                "locationGroupsToCreate": [{
+                    "locations": [hydrated_location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": hydrated_location_id, "name": "Hydrated with staged sibling" }])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["query"].as_str().is_some_and(|query| query
+                .contains("locationsAvailableForDeliveryProfilesConnection(first: 250)")))
+            .count(),
+        1
+    );
+}
+
+fn seed_delivery_profile_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileLocationSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": name,
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    assert_eq!(location.status, 200);
+    assert_eq!(
+        location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+#[test]
 fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     let mut proxy = snapshot_proxy();
-    let primary_location_id =
-        create_delivery_profile_location(&mut proxy, "Delivery profile primary");
-    let secondary_location_id =
-        create_delivery_profile_location(&mut proxy, "Delivery profile secondary");
+    let source_location_id = seed_delivery_profile_location(&mut proxy, "Profile source");
+    let destination_location_id = seed_delivery_profile_location(&mut proxy, "Profile destination");
     let create_query = r#"
         mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7275,7 +7991,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
             "profile": {
                 "name": "Local heavy goods",
                 "locationGroupsToCreate": [{
-                    "locations": [primary_location_id],
+                    "locations": [source_location_id],
                     "zonesToCreate": [{
                         "name": "Domestic",
                         "countries": [{ "code": "US", "includeAllProvinces": true }],
@@ -7364,7 +8080,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
                 "conditionsToDelete": [condition_id],
                 "locationGroupsToUpdate": [{
                     "id": group_id,
-                    "locationsToAdd": [secondary_location_id],
+                    "locationsToAdd": [destination_location_id],
                     "zonesToUpdate": [{
                         "id": zone_id,
                         "name": "Domestic updated",
@@ -7459,6 +8175,152 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         json!("deliveryProfileRemove")
     );
     assert_eq!(delivery_entries[2]["status"], json!("staged"));
+}
+
+#[test]
+fn delivery_profiles_connection_windows_and_computes_page_info() {
+    let mut proxy = snapshot_proxy();
+    for name in [
+        "Connection profile alpha",
+        "Connection profile beta",
+        "Connection profile gamma",
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation DeliveryProfileCreateForConnection($profile: DeliveryProfileInput!) {
+              deliveryProfileCreate(profile: $profile) {
+                profile { id name }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "profile": { "name": name } }),
+        ));
+        assert_eq!(
+            create.body["data"]["deliveryProfileCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let alpha_id = "gid://shopify/DeliveryProfile/1?shopify-draft-proxy=synthetic";
+    let beta_id = "gid://shopify/DeliveryProfile/2?shopify-draft-proxy=synthetic";
+    let gamma_id = "gid://shopify/DeliveryProfile/3?shopify-draft-proxy=synthetic";
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesFirstPage($first: Int) {
+          deliveryProfiles(first: $first) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 2 }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": alpha_id, "name": "Connection profile alpha" },
+                { "id": beta_id, "name": "Connection profile beta" }
+            ],
+            "edges": [
+                {
+                    "cursor": alpha_id,
+                    "node": { "id": alpha_id, "name": "Connection profile alpha" }
+                },
+                {
+                    "cursor": beta_id,
+                    "node": { "id": beta_id, "name": "Connection profile beta" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": beta_id
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesSecondPage($first: Int, $after: String) {
+          deliveryProfiles(first: $first, after: $after) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 2,
+            "after": first_page.body["data"]["deliveryProfiles"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [{ "id": gamma_id, "name": "Connection profile gamma" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": gamma_id,
+                "endCursor": gamma_id
+            }
+        })
+    );
+
+    let middle_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesMiddlePage($last: Int, $before: String) {
+          deliveryProfiles(last: $last, before: $before) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "last": 1, "before": gamma_id }),
+    ));
+    assert_eq!(
+        middle_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [{ "id": beta_id, "name": "Connection profile beta" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": beta_id,
+                "endCursor": beta_id
+            }
+        })
+    );
+
+    let reverse_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesReversePage($first: Int) {
+          deliveryProfiles(first: $first, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 2 }),
+    ));
+    assert_eq!(
+        reverse_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": gamma_id, "name": "Connection profile gamma" },
+                { "id": beta_id, "name": "Connection profile beta" }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": gamma_id,
+                "endCursor": beta_id
+            }
+        })
+    );
 }
 
 #[test]
@@ -7558,8 +8420,7 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
 #[test]
 fn delivery_profile_validations_match_captured_write_subset() {
     let mut proxy = snapshot_proxy();
-    let validation_location_id =
-        create_delivery_profile_location(&mut proxy, "Delivery profile validation");
+    let known_location_id = seed_delivery_profile_location(&mut proxy, "Validation origin");
     let create_query = r#"
         mutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7638,7 +8499,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "profile": {
                 "name": "Unknown location",
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/404040404040"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/424242424242"] }]
             }
         }),
     ));
@@ -7653,7 +8514,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Empty countries",
                 "locationGroupsToCreate": [{
-                    "locations": [validation_location_id],
+                    "locations": [known_location_id],
                     "zonesToCreate": [{ "name": "Empty", "countries": [] }]
                 }]
             }
@@ -7670,7 +8531,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Validation base",
                 "locationGroupsToCreate": [{
-                    "locations": [validation_location_id],
+                    "locations": [known_location_id],
                     "zonesToCreate": [{ "name": "Domestic", "countries": [{ "code": "US", "includeAllProvinces": true }] }]
                 }]
             }
@@ -7728,7 +8589,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "id": id,
             "profile": {
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/505050505050"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/424242424243"] }]
             }
         }),
     ));
@@ -7754,9 +8615,99 @@ fn delivery_profile_validations_match_captured_write_subset() {
     );
 }
 
+fn hydrated_shipping_package(
+    id: &str,
+    name: &str,
+    package_type: &str,
+    box_type: &str,
+    is_default: bool,
+    dimensions: Value,
+) -> Value {
+    json!({
+        "__typename": "ShippingPackage",
+        "id": id,
+        "name": name,
+        "type": package_type,
+        "boxType": box_type,
+        "default": is_default,
+        "weight": { "value": 1.0, "unit": "KILOGRAMS" },
+        "dimensions": dimensions,
+        "createdAt": "2026-06-01T00:00:00.000Z",
+        "updatedAt": "2026-06-01T00:00:00.000Z"
+    })
+}
+
+fn live_hybrid_shipping_package_proxy(
+    packages: Vec<Value>,
+) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let package_by_id: BTreeMap<String, Value> = packages
+        .into_iter()
+        .filter_map(|package| {
+            let id = package.get("id")?.as_str()?.to_string();
+            Some((id, package))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "node": package_by_id.get(id).cloned().unwrap_or(Value::Null)
+                    }
+                }),
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
 #[test]
-fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
+fn shipping_package_lifecycle_uses_observed_records_defaults_deletes_and_log_order() {
     let mut proxy = snapshot_proxy();
+    restore_shipping_packages(
+        &mut proxy,
+        vec![
+            json!({
+                "id": "gid://shopify/ShippingPackage/101",
+                "name": "Observed tall box",
+                "type": "BOX",
+                "boxType": "CUSTOM",
+                "default": false,
+                "weight": { "value": 4.25, "unit": "OUNCES" },
+                "dimensions": { "length": 17, "width": 11, "height": 3, "unit": "INCHES" },
+                "createdAt": "2026-06-01T12:00:00.000Z",
+                "updatedAt": "2026-06-01T12:00:00.000Z"
+            }),
+            json!({
+                "id": "gid://shopify/ShippingPackage/202",
+                "name": "Observed backup mailer",
+                "type": "ENVELOPE",
+                "boxType": "CUSTOM",
+                "default": false,
+                "weight": { "value": 9, "unit": "OUNCES" },
+                "dimensions": { "length": 13, "width": 10, "height": 1, "unit": "INCHES" },
+                "createdAt": "2026-06-02T12:00:00.000Z",
+                "updatedAt": "2026-06-02T12:00:00.000Z"
+            }),
+            json!({
+                "id": "gid://shopify/ShippingPackage/303",
+                "name": "Previously default padded pack",
+                "type": "SOFT_PACKAGE",
+                "boxType": "CUSTOM",
+                "default": true,
+                "weight": { "value": 2, "unit": "OUNCES" },
+                "dimensions": { "length": 8, "width": 6, "height": 2, "unit": "INCHES" },
+                "createdAt": "2026-06-03T12:00:00.000Z",
+                "updatedAt": "2026-06-03T12:00:00.000Z"
+            }),
+        ],
+    );
     let update_query = r#"
         mutation ShippingPackageUpdateLocalRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
           shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
@@ -7776,13 +8727,10 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     let update = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/ShippingPackage/1",
+            "id": "gid://shopify/ShippingPackage/101",
             "shippingPackage": {
-                "name": "Updated box",
-                "type": "BOX",
-                "default": true,
-                "weight": { "value": 2.5, "unit": "POUNDS" },
-                "dimensions": { "length": 12, "width": 9, "height": 5, "unit": "INCHES" }
+                "name": "Updated observed box",
+                "default": true
             }
         }),
     ));
@@ -7792,13 +8740,34 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     );
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["shippingPackages"]
-            ["gid://shopify/ShippingPackage/1"]["updatedAt"],
+            ["gid://shopify/ShippingPackage/101"]["updatedAt"],
         json!("2024-01-01T00:00:01.000Z")
+    );
+    let state = state_snapshot(&proxy);
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["name"],
+        json!("Updated observed box")
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["weight"],
+        json!({ "value": 4.25, "unit": "OUNCES" })
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["dimensions"],
+        json!({ "length": 17, "width": 11, "height": 3, "unit": "INCHES" })
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["createdAt"],
+        json!("2026-06-01T12:00:00.000Z")
+    );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/303"]["default"],
+        json!(false)
     );
 
     let make_default = proxy.process_request(json_graphql_request(
         make_default_query,
-        json!({ "id": "gid://shopify/ShippingPackage/2" }),
+        json!({ "id": "gid://shopify/ShippingPackage/202" }),
     ));
     assert_eq!(
         make_default.body["data"]["shippingPackageMakeDefault"],
@@ -7806,18 +8775,30 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     );
     let state = state_snapshot(&proxy);
     assert_eq!(
-        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["default"],
         json!(false)
     );
     assert_eq!(
-        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/2"]["default"],
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/202"]["default"],
         json!(true)
     );
+    assert_eq!(
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/303"]["default"],
+        json!(false)
+    );
+
+    let defaults = state["stagedState"]["shippingPackages"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter(|package| package["default"] == json!(true))
+        .count();
+    assert_eq!(defaults, 1);
 
     let restore = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/ShippingPackage/1",
+            "id": "gid://shopify/ShippingPackage/101",
             "shippingPackage": { "default": true }
         }),
     ));
@@ -7827,30 +8808,46 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     );
     let state = state_snapshot(&proxy);
     assert_eq!(
-        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/101"]["default"],
         json!(true)
     );
     assert_eq!(
-        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/2"]["default"],
+        state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/202"]["default"],
         json!(false)
     );
 
     let delete = proxy.process_request(json_graphql_request(
         delete_query,
-        json!({ "id": "gid://shopify/ShippingPackage/1" }),
+        json!({ "id": "gid://shopify/ShippingPackage/101" }),
     ));
     assert_eq!(
         delete.body["data"]["shippingPackageDelete"],
-        json!({ "deletedId": "gid://shopify/ShippingPackage/1", "userErrors": [] })
+        json!({ "deletedId": "gid://shopify/ShippingPackage/101", "userErrors": [] })
     );
     let state = state_snapshot(&proxy);
     assert_eq!(
-        state["stagedState"]["deletedShippingPackageIds"]["gid://shopify/ShippingPackage/1"],
+        state["stagedState"]["deletedShippingPackageIds"]["gid://shopify/ShippingPackage/101"],
         json!(true)
     );
     assert!(state["stagedState"]["shippingPackages"]
-        .get("gid://shopify/ShippingPackage/1")
+        .get("gid://shopify/ShippingPackage/101")
         .is_none());
+
+    let update_deleted = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/ShippingPackage/101",
+            "shippingPackage": { "name": "Should not resurrect" }
+        }),
+    ));
+    assert_eq!(
+        update_deleted.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        update_deleted.body["data"]["shippingPackageUpdate"],
+        Value::Null
+    );
 
     let log = log_snapshot(&proxy);
     assert_eq!(
@@ -7870,6 +8867,162 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         json!("shippingPackageDelete")
     );
     assert_eq!(log["entries"][3]["status"], json!("staged"));
+}
+
+#[test]
+fn shipping_package_live_hybrid_hydrates_non_fixture_ids_and_clears_all_defaults() {
+    let (mut proxy, hydrate_calls) = live_hybrid_shipping_package_proxy(vec![
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/1",
+            "Hydrated primary box",
+            "BOX",
+            "CUSTOM",
+            false,
+            json!({ "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" }),
+        ),
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/2",
+            "Hydrated backup mailer",
+            "ENVELOPE",
+            "CUSTOM",
+            false,
+            json!({ "length": 8, "width": 6, "height": 1, "unit": "CENTIMETERS" }),
+        ),
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/303",
+            "Hydrated regional tote",
+            "BOX",
+            "CUSTOM",
+            false,
+            json!({ "length": 33, "width": 22, "height": 11, "unit": "INCHES" }),
+        ),
+    ]);
+
+    let update_query = r#"
+        mutation ShippingPackageUpdateHydratedRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+        }
+    "#;
+
+    for id in [
+        "gid://shopify/ShippingPackage/1",
+        "gid://shopify/ShippingPackage/2",
+        "gid://shopify/ShippingPackage/303",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({ "id": id, "shippingPackage": { "default": true } }),
+        ));
+        assert_eq!(
+            response.body["data"]["shippingPackageUpdate"],
+            json!({ "userErrors": [] })
+        );
+    }
+
+    let state = state_snapshot(&proxy);
+    let packages = &state["stagedState"]["shippingPackages"];
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/1"]["default"],
+        json!(false)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/2"]["default"],
+        json!(false)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["default"],
+        json!(true)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["name"],
+        json!("Hydrated regional tote")
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["dimensions"]["length"],
+        json!(33)
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingPackageHydrate"))));
+}
+
+#[test]
+fn shipping_package_mutations_reject_absent_ids_without_staging_or_logging() {
+    let mut proxy = snapshot_proxy();
+    let absent_id = "gid://shopify/ShippingPackage/404";
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShippingPackageUpdateAbsent($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
+        }
+        "#,
+        json!({
+            "id": absent_id,
+            "shippingPackage": {
+                "name": "Absent package",
+                "type": "BOX",
+                "default": false,
+                "weight": { "value": 2.5, "unit": "POUNDS" },
+                "dimensions": { "length": 12, "width": 9, "height": 5, "unit": "INCHES" }
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["errors"][0]["message"],
+        json!(format!("Invalid id: {absent_id}"))
+    );
+    assert_eq!(
+        update.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(update.body["data"]["shippingPackageUpdate"], Value::Null);
+
+    let make_default = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShippingPackageMakeDefaultAbsent($id: ID!) {
+          shippingPackageMakeDefault(id: $id) { userErrors { field message } }
+        }
+        "#,
+        json!({ "id": absent_id }),
+    ));
+    assert_eq!(
+        make_default.body["errors"][0]["message"],
+        json!(format!("Invalid id: {absent_id}"))
+    );
+    assert_eq!(
+        make_default.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        make_default.body["data"]["shippingPackageMakeDefault"],
+        Value::Null
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShippingPackageDeleteAbsent($id: ID!) {
+          shippingPackageDelete(id: $id) { deletedId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": absent_id }),
+    ));
+    assert_eq!(
+        delete.body["errors"][0]["message"],
+        json!(format!("Invalid id: {absent_id}"))
+    );
+    assert_eq!(
+        delete.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(delete.body["data"]["shippingPackageDelete"], Value::Null);
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"],
+        json!({})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -8225,8 +9378,23 @@ fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_re
 }
 
 #[test]
-fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
+fn shipping_package_update_rejects_observed_flat_rate_packages_without_overwriting_state() {
     let mut proxy = snapshot_proxy();
+    let package_id = "gid://shopify/ShippingPackage/505";
+    restore_shipping_packages(
+        &mut proxy,
+        vec![json!({
+            "id": package_id,
+            "name": "Observed carrier flat-rate box",
+            "type": "BOX",
+            "boxType": "FLAT_RATE",
+            "default": false,
+            "weight": { "value": 7, "unit": "OUNCES" },
+            "dimensions": { "length": 10, "width": 8, "height": 4, "unit": "INCHES" },
+            "createdAt": "2026-06-05T12:00:00.000Z",
+            "updatedAt": "2026-06-05T12:00:00.000Z"
+        })],
+    );
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
           shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
@@ -8236,7 +9404,7 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
     let response = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/ShippingPackage/10",
+            "id": package_id,
             "shippingPackage": {
                 "dimensions": { "length": 999, "width": 8, "height": 4, "unit": "CENTIMETERS" }
             }
@@ -8254,9 +9422,10 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
         })
     );
     assert_eq!(
-        state_snapshot(&proxy)["stagedState"]["shippingPackages"],
-        json!({})
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"][package_id]["dimensions"],
+        json!({ "length": 10, "width": 8, "height": 4, "unit": "INCHES" })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -8908,6 +10077,28 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "invalid schema variables should not stage store-credit mutations"
+    );
+}
+
+#[test]
+fn store_credit_expiry_validation_uses_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(clock);
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let expiry_after_the_old_synthetic_date = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        Some("2026-06-16T00:00:00Z"),
+    );
+    assert_eq!(
+        expiry_after_the_old_synthetic_date,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
     );
 }
 

@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "state-invariance"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-07/customers/customer-input-inline-consent-parity.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Focused customerUpdate conformance scenario for CustomerInput inline marketing consent rejection. The backing live capture creates a disposable customer, records Shopify rejecting inline emailMarketingConsent and smsMarketingConsent updates with customer: null and payload userErrors directing callers to the dedicated consent mutations, then verifies downstream reads remain unchanged.",
+  "notes": "Focused customerUpdate conformance scenario for CustomerInput inline marketing consent rejection. The backing live capture creates a disposable customer, records Shopify rejecting inline emailMarketingConsent, smsMarketingConsent, and whatsAppMarketingConsent updates with customer: null and payload userErrors directing callers to the dedicated consent mutations, then verifies downstream reads remain unchanged.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -66,6 +66,27 @@
                 "marketingState": "UNSUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "consentUpdatedAt": "2026-04-25T02:05:00Z"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "update-inline-whatsapp-consent-rejection",
+        "capturePath": "$.validation.updateWhatsAppConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "whatsAppMarketingConsent": {
+                "state": "SUBSCRIBED",
+                "optInLevel": "SINGLE_OPT_IN",
+                "updatedAt": "2026-04-25T02:10:00Z"
               }
             }
           }

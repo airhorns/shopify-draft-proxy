@@ -100,6 +100,8 @@ checked-in scenario. Successful `locationDeactivate` calls with a
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+Unknown source IDs return `location: null` with a `LOCATION_NOT_FOUND` userError
+and do not stage a synthetic location.
 Captured guard slices include same-destination rejection, inactive-destination
 rejection, active-inventory relocation requirements, only-online-fulfillment
 protection, and permanent deactivation blocks with Shopify field paths and
@@ -114,11 +116,18 @@ backed by the effective publication catalog: staged or base publication rows are
 accepted, LiveHybrid can hydrate the catalog before validation, and arbitrary
 well-formed `Publication` GIDs are rejected when they remain absent. Missing
 required `id` arguments are rejected by the shared Admin GraphQL argument
-validator before local staging can fabricate a target. Product current-channel
-helpers update publication aggregates such as `shop.publicationCount` for the
-modeled publication catalog. Unsupported publishable target types return local
-userErrors in the documented scenarios instead of being treated as full support
-for every publishable object.
+validator before local staging can fabricate a target. The top-level publishable
+`id` must
+resolve to a known Product or Collection from staged/base state, or from a
+LiveHybrid hydrate read, before the mutation stages; missing resources return a
+local `Resource does not exist` userError on `field: ["id"]` and leave the
+mutation log unchanged. Product current-channel helpers stage an internal
+current-channel publication membership when a current channel is available,
+return `Channel does not exist` without staging when the local shop context has
+no current channel, and project `publishedOnCurrentPublication` plus
+`resourcePublications(first:)` from the staged membership set. Unsupported
+publishable target types return local userErrors in the documented scenarios
+instead of being treated as full support for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,

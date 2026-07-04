@@ -1,0 +1,38 @@
+fragment FulfillmentOrderDeadlineFields on FulfillmentOrder {
+  id
+  status
+  requestStatus
+  fulfillBy
+  updatedAt
+  order {
+    id
+    name
+    displayFulfillmentStatus
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+    }
+  }
+}
+
+mutation CreateFulfillmentOrderDeadlineOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      name
+      displayFulfillmentStatus
+      fulfillmentOrders(first: 5) {
+        nodes {
+          ...FulfillmentOrderDeadlineFields
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
