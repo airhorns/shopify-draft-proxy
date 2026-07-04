@@ -653,6 +653,89 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
 }
 
 #[test]
+fn url_redirect_reads_are_unimplemented_passthrough_roots() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let forwarded_capture = Arc::clone(&forwarded);
+    let mut live_hybrid =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            forwarded_capture.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "urlRedirects": {
+                            "nodes": [{
+                                "id": "gid://shopify/UrlRedirect/1",
+                                "path": "/old",
+                                "target": "/new"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-1"
+                            }
+                        },
+                        "urlRedirectsCount": {
+                            "count": 1,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query UrlRedirectPassthrough($query: String) {
+          urlRedirects(first: 10, query: $query) {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          urlRedirectsCount(query: $query) { count precision }
+        }
+    "#;
+    let live_response =
+        live_hybrid.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+
+    assert_eq!(live_response.status, 200);
+    assert_eq!(
+        live_response.body["data"]["urlRedirects"]["nodes"][0]["path"],
+        json!("/old")
+    );
+    assert_eq!(
+        live_response.body["data"]["urlRedirectsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+    assert!(forwarded[0].body.contains("UrlRedirectPassthrough"));
+
+    let mut snapshot = snapshot_proxy();
+    let snapshot_response =
+        snapshot.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+    assert_eq!(snapshot_response.status, 400);
+    assert_eq!(
+        snapshot_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirects" }] })
+    );
+
+    let mut count_only = snapshot_proxy();
+    let count_only_response = count_only.process_request(json_graphql_request(
+        r#"query UrlRedirectCountOnly($query: String) {
+          urlRedirectsCount(query: $query) { count precision }
+        }"#,
+        json!({ "query": "target:/new" }),
+    ));
+    assert_eq!(count_only_response.status, 400);
+    assert_eq!(
+        count_only_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirectsCount" }] })
+    );
+}
+
+#[test]
 fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
     let mut proxy = snapshot_proxy();
 

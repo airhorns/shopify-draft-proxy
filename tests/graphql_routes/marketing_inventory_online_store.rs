@@ -61,6 +61,263 @@ fn create_metaobject_definition_for_test(
 }
 
 #[test]
+fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
+    let mut proxy = snapshot_proxy();
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "redirect_definition_test",
+            "name": "Redirect definition test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "old-redirect-definition"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["capabilities"]["onlineStore"]["data"],
+        json!({"urlHandle": "old-redirect-definition", "canCreateRedirects": true})
+    );
+    let definition_id = definition_create.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_entry = r#"
+        mutation CreateRedirectEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (handle, title) in [
+        ("first-redirect-row", "First redirect row"),
+        ("second-redirect-row", "Second redirect row"),
+    ] {
+        let entry = proxy.process_request(json_graphql_request(
+            create_entry,
+            json!({"metaobject": {
+                "type": "redirect_definition_test",
+                "handle": handle,
+                "capabilities": {
+                    "publishable": {"status": "ACTIVE"},
+                    "onlineStore": {"templateSuffix": ""}
+                },
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            entry.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "capabilities": {
+                    "onlineStore": {
+                        "enabled": true,
+                        "data": {"urlHandle": "new-redirect-definition", "createRedirects": true}
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirects($pathQuery: String!, $targetQuery: String!) {
+          byPath: urlRedirects(first: 1, query: $pathQuery) {
+            nodes { id path target }
+          }
+          reverseByTarget: urlRedirects(first: 1, sortKey: TARGET, reverse: true) {
+            nodes { path target }
+          }
+          matchingTargetCount: urlRedirectsCount(query: $targetQuery) { count precision }
+        }
+        "#,
+        json!({
+            "pathQuery": "path:/pages/old-redirect-definition/first-redirect-row",
+            "targetQuery": "target:/pages/new-redirect-definition/first-redirect-row"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["target"],
+        json!("/pages/new-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["reverseByTarget"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/second-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["matchingTargetCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+
+    let redirect_id = read.body["data"]["byPath"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirect($id: ID!) {
+          urlRedirect(id: $id) { path target }
+        }
+        "#,
+        json!({"id": redirect_id}),
+    ));
+    assert_eq!(
+        singular.body["data"]["urlRedirect"],
+        json!({
+            "path": "/pages/old-redirect-definition/first-redirect-row",
+            "target": "/pages/new-redirect-definition/first-redirect-row"
+        })
+    );
+
+    let handle_entry = proxy.process_request(json_graphql_request(
+        create_entry,
+        json!({"metaobject": {
+            "type": "redirect_definition_test",
+            "handle": "handle-redirect-old",
+            "capabilities": {
+                "publishable": {"status": "ACTIVE"},
+                "onlineStore": {"templateSuffix": ""}
+            },
+            "fields": [{"key": "title", "value": "Handle redirect row"}]
+        }}),
+    ));
+    let handle_entry_id = handle_entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let handle_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectHandle($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": handle_entry_id,
+            "metaobject": {
+                "handle": "handle-redirect-new",
+                "redirectNewHandle": true,
+                "fields": [{"key": "title", "value": "Handle redirect row"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        handle_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let handle_redirect = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHandleRedirect($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "path:/pages/new-redirect-definition/handle-redirect-old"}),
+    ));
+    assert_eq!(
+        handle_redirect.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-07-04T20:40:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirects"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirectOrder"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredRedirects($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "target:/pages/new-redirect-definition/handle-redirect-new"}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

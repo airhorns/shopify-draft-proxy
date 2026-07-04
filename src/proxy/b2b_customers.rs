@@ -43,6 +43,20 @@ impl DraftProxy {
         root_fields: &[String],
         root_field: &str,
     ) -> Response {
+        if operation_type == OperationType::Query
+            && self.has_staged_url_redirects()
+            && root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "urlRedirect" | "urlRedirects" | "urlRedirectsCount"
+                )
+            })
+        {
+            let Some(fields) = crate::graphql::root_fields(query, variables) else {
+                return json_error(400, "Could not parse GraphQL operation");
+            };
+            return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
+        }
         match operation_type {
             OperationType::Mutation
                 if self.config.unsupported_mutation_mode
