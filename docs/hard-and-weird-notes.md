@@ -743,6 +743,7 @@ Important live findings:
   - unfiltered/non-empty `draftOrders(first: ...)` and `draftOrdersCount(query: null)` are now captured successfully on this host in `draft-orders-catalog.json` and `draft-orders-count.json`
   - the _filtered_ follow-up probe `draftOrders(first: ..., query: "email:<created draft email>")` still returned `extensions.search[].warnings[{ code: 'invalid_field' }]` instead of a narrow filtered slice
   - a dedicated combined read fixture now preserves that no-op warning branch explicitly in `draft-orders-invalid-email-query.json`: on this host both `draftOrders(query: "email:...")` and `draftOrdersCount(query: "email:...")` keep the same catalog/count baseline while returning matching `extensions.search[]` warning entries for the unsupported `email` field
+  - a later staged-catalog capture on `harry-test-heelo` proved default `ID` ordering, `reverse`, `UPDATED_AT`, pagination windows, `status`, `tag`, date comparators, free text, count alignment, and unknown-field ignore behavior for disposable draft orders; a separate 2026-04 manual probe still returned invalid-field warnings for `total_price`, so do not treat `total_price` as strict live parity evidence without a newer clean capture
   - practical consequence: it is now valid to promote the first unfiltered non-empty catalog/count baseline and the narrow invalid-field warning branch without overclaiming broader `query:` semantics
 - that same split means the draft-order creation phase now grows in three layers:
   1. local read-after-write detail parity for `draftOrder(id:)`
