@@ -367,20 +367,32 @@ function resolveSpecialVariables(
     );
   if (typeof value === 'object' && value !== null) {
     const object = value as Record<string, unknown>;
+    if (Array.isArray(object['join'])) {
+      return object['join']
+        .map((entry) => {
+          const resolved = resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses);
+          if (typeof resolved !== 'string') {
+            throw new Error(`join transform expected string pieces, got ${JSON.stringify(resolved)}`);
+          }
+          return resolved;
+        })
+        .join('');
+    }
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
-      return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
+      return applySpecialVariableTransforms(getPath(primaryResponse.body, object['fromPrimaryProxyPath']), object);
     }
     if (typeof object['fromPreviousProxyPath'] === 'string') {
       if (previousResponse === null)
         throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
-      return getPath(previousResponse.body, object['fromPreviousProxyPath']);
+      return applySpecialVariableTransforms(getPath(previousResponse.body, object['fromPreviousProxyPath']), object);
     }
-    if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
+    if (typeof object['fromCapturePath'] === 'string')
+      return applySpecialVariableTransforms(getPath(capture, object['fromCapturePath']), object);
     if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
       const response = namedResponses.get(object['fromProxyResponse']);
       if (!response) throw new Error(`fromProxyResponse references unknown target: ${object['fromProxyResponse']}`);
-      return getPath(response.body, object['path']);
+      return applySpecialVariableTransforms(getPath(response.body, object['path']), object);
     }
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [
@@ -390,6 +402,29 @@ function resolveSpecialVariables(
     );
   }
   return value;
+}
+
+function applySpecialVariableTransforms(value: unknown, source: Record<string, unknown>): unknown {
+  let transformed = value;
+  if (source['gidTail'] === true) {
+    if (typeof transformed !== 'string') {
+      throw new Error(`gidTail transform expected a string source, got ${JSON.stringify(transformed)}`);
+    }
+    transformed = transformed.split('/').at(-1)?.split('?')[0] ?? transformed;
+  }
+  if (typeof source['stringPrefix'] === 'string') {
+    if (typeof transformed !== 'string') {
+      throw new Error(`stringPrefix transform expected a string source, got ${JSON.stringify(transformed)}`);
+    }
+    transformed = `${source['stringPrefix']}${transformed}`;
+  }
+  if (typeof source['stringSuffix'] === 'string') {
+    if (typeof transformed !== 'string') {
+      throw new Error(`stringSuffix transform expected a string source, got ${JSON.stringify(transformed)}`);
+    }
+    transformed = `${transformed}${source['stringSuffix']}`;
+  }
+  return transformed;
 }
 
 function collectHydratableInventoryIds(value: unknown, ids = new Set<string>()): Set<string> {

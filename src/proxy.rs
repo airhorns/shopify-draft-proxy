@@ -480,9 +480,13 @@ struct StagedState {
 struct InventoryTransferRecord {
     id: String,
     name: String,
+    #[serde(default)]
+    created_at: String,
     status: String,
     origin_location_id: String,
     destination_location_id: String,
+    #[serde(default)]
+    tags: Vec<String>,
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 

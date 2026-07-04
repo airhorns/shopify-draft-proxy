@@ -1,0 +1,484 @@
+{
+  "scenarioId": "inventory-connection-query-windowing",
+  "operationNames": [
+    "locationAdd",
+    "productSet",
+    "inventoryItemUpdate",
+    "inventoryItems",
+    "inventoryTransferCreate",
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransfers"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["connection-window-parity", "query-filter-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-connection-query-windowing.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+    "variablesCapturePath": "$.operations.originLocationAdd.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "origin-location-add",
+        "capturePath": "$.operations.originLocationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable location ids."
+          }
+        ]
+      },
+      {
+        "name": "destination-location-add",
+        "capturePath": "$.operations.destinationLocationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+          "variablesCapturePath": "$.operations.destinationLocationAdd.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable location ids."
+          }
+        ]
+      },
+      {
+        "name": "product-set",
+        "capturePath": "$.operations.productSet.response.data.productSet",
+        "proxyPath": "$.data.productSet",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.product.title",
+          "$.product.status",
+          "$.product.variants.nodes[0].sku",
+          "$.product.variants.nodes[0].inventoryQuantity",
+          "$.product.variants.nodes[0].inventoryItem.tracked",
+          "$.product.variants.nodes[0].inventoryItem.requiresShipping",
+          "$.product.variants.nodes[1].sku",
+          "$.product.variants.nodes[1].inventoryQuantity",
+          "$.product.variants.nodes[1].inventoryItem.tracked",
+          "$.product.variants.nodes[1].inventoryItem.requiresShipping",
+          "$.productSetOperation.status",
+          "$.productSetOperation.userErrors",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-product-set.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "synchronous": true,
+            "input": {
+              "title": {
+                "fromCapturePath": "$.operations.productSet.variables.input.title"
+              },
+              "status": "ACTIVE",
+              "productOptions": [
+                {
+                  "name": "Title",
+                  "position": 1,
+                  "values": [{ "name": "Alpha" }, { "name": "Beta" }]
+                }
+              ],
+              "variants": [
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Alpha" }],
+                  "price": "10.00",
+                  "sku": {
+                    "fromCapturePath": "$.setup.skuAlpha"
+                  },
+                  "inventoryItem": { "tracked": true, "requiresShipping": true },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 6
+                    }
+                  ]
+                },
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Beta" }],
+                  "price": "11.00",
+                  "sku": {
+                    "fromCapturePath": "$.setup.skuBeta"
+                  },
+                  "inventoryItem": { "tracked": true, "requiresShipping": true },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 8
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "inventory-item-update",
+        "capturePath": "$.operations.itemUpdate.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-item-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[1].inventoryItem.id"
+            },
+            "input": { "tracked": false }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          }
+        ]
+      },
+      {
+        "name": "inventory-items-query-filters",
+        "capturePath": "$.operations.itemsQuery.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.skuMatch.nodes[0].tracked",
+          "$.skuMatch.nodes[0].variant.sku",
+          "$.skuMatch.pageInfo.hasNextPage",
+          "$.skuMatch.pageInfo.hasPreviousPage",
+          "$.skuMatch.pageInfo.startCursor",
+          "$.skuMatch.pageInfo.endCursor",
+          "$.trackedFalse.nodes[0].tracked",
+          "$.trackedFalse.nodes[0].variant.sku",
+          "$.trackedFalse.pageInfo.hasNextPage",
+          "$.trackedFalse.pageInfo.hasPreviousPage",
+          "$.trackedFalse.pageInfo.startCursor",
+          "$.trackedFalse.pageInfo.endCursor",
+          "$.idRange.nodes[0].tracked",
+          "$.idRange.nodes[0].variant.sku",
+          "$.idRange.nodes[1].tracked",
+          "$.idRange.nodes[1].variant.sku",
+          "$.idRange.pageInfo.hasNextPage",
+          "$.idRange.pageInfo.hasPreviousPage",
+          "$.idRange.pageInfo.startCursor",
+          "$.idRange.pageInfo.endCursor",
+          "$.updatedBefore.nodes",
+          "$.updatedBefore.pageInfo"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-items-query.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "skuQuery": {
+              "fromCapturePath": "$.operations.itemsQuery.variables.skuQuery"
+            },
+            "trackedFalseQuery": {
+              "fromCapturePath": "$.operations.itemsQuery.variables.trackedFalseQuery"
+            },
+            "idRangeQuery": {
+              "join": [
+                {
+                  "fromProxyResponse": "product-set",
+                  "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id",
+                  "gidTail": true,
+                  "stringPrefix": "id:>="
+                },
+                {
+                  "fromProxyResponse": "product-set",
+                  "path": "$.data.productSet.product.variants.nodes[1].inventoryItem.id",
+                  "gidTail": true,
+                  "stringPrefix": " id:<="
+                }
+              ]
+            },
+            "updatedBeforeQuery": {
+              "fromCapturePath": "$.operations.itemsQuery.variables.updatedBeforeQuery"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.skuMatch.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.skuMatch.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.trackedFalse.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.trackedFalse.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.idRange.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.idRange.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "inventory-transfer-create-draft",
+        "capturePath": "$.operations.transferCreate.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "originLocationId": {
+                "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+              },
+              "destinationLocationId": {
+                "fromProxyResponse": "destination-location-add",
+                "path": "$.data.locationAdd.location.id"
+              },
+              "dateCreated": "2024-01-02T00:00:00Z",
+              "tags": {
+                "fromCapturePath": "$.operations.transferCreate.variables.input.tags"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 2
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory transfer ids."
+          },
+          {
+            "path": "$.inventoryTransfer.name",
+            "matcher": "non-empty-string",
+            "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence."
+          }
+        ]
+      },
+      {
+        "name": "inventory-transfer-create-ready",
+        "capturePath": "$.operations.transferCreateReady.response.data.inventoryTransferCreateAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferCreateAsReadyToShip",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create-ready.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "originLocationId": {
+                "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+              },
+              "destinationLocationId": {
+                "fromProxyResponse": "destination-location-add",
+                "path": "$.data.locationAdd.location.id"
+              },
+              "dateCreated": "2024-01-03T00:00:00Z",
+              "tags": {
+                "fromCapturePath": "$.operations.transferCreateReady.variables.input.tags"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 3
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory transfer ids."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "Live Shopify and the local draft proxy allocate different transfer line item ids."
+          }
+        ]
+      },
+      {
+        "name": "inventory-transfers-first-page",
+        "capturePath": "$.operations.transfersPage1.response.data.inventoryTransfers",
+        "proxyPath": "$.data.inventoryTransfers",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.nodes[0].status",
+          "$.nodes[0].totalQuantity",
+          "$.pageInfo.hasNextPage",
+          "$.pageInfo.hasPreviousPage",
+          "$.pageInfo.startCursor",
+          "$.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "query": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
+              "gidTail": true,
+              "stringPrefix": "origin_id:"
+            },
+            "after": null
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "inventory-transfers-second-page",
+        "capturePath": "$.operations.transfersPage2.response.data.inventoryTransfers",
+        "proxyPath": "$.data.inventoryTransfers",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.nodes[0].status",
+          "$.nodes[0].totalQuantity",
+          "$.pageInfo.hasNextPage",
+          "$.pageInfo.hasPreviousPage",
+          "$.pageInfo.startCursor",
+          "$.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "query": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
+              "gidTail": true,
+              "stringPrefix": "origin_id:"
+            },
+            "after": {
+              "fromProxyResponse": "inventory-transfers-first-page",
+              "path": "$.data.inventoryTransfers.pageInfo.endCursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "inventory-transfers-reverse-and-status-filter",
+        "capturePath": "$.operations.transfersReverseStatus.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.reversePage.nodes[0].status",
+          "$.reversePage.nodes[0].totalQuantity",
+          "$.reversePage.pageInfo.hasNextPage",
+          "$.reversePage.pageInfo.hasPreviousPage",
+          "$.reversePage.pageInfo.startCursor",
+          "$.reversePage.pageInfo.endCursor",
+          "$.statusMatch.nodes[0].status",
+          "$.statusMatch.nodes[0].totalQuantity",
+          "$.statusMatch.pageInfo.hasNextPage",
+          "$.statusMatch.pageInfo.hasPreviousPage",
+          "$.statusMatch.pageInfo.startCursor",
+          "$.statusMatch.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "query": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
+              "gidTail": true,
+              "stringPrefix": "origin_id:"
+            },
+            "statusQuery": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
+              "gidTail": true,
+              "stringPrefix": "status:READY_TO_SHIP origin_id:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.reversePage.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reversePage.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.statusMatch.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.statusMatch.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture for inventoryItems query terms (sku, tracked, id ranges, updated_at no-match) and inventoryTransfers origin/status query filters, NAME sorting, reverse ordering, cursor windowing, and computed pageInfo. The proxy replay creates disposable locations, product-backed inventory items, and transfers through public GraphQL requests; it does not seed internal state."
+}
