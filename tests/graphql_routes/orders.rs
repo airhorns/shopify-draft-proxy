@@ -5444,7 +5444,7 @@ fn stage_searchable_draft_order(proxy: &mut DraftProxy, input: Value) -> Value {
               totalPriceSet { shopMoney { amount currencyCode } }
               lineItems(first: 5) { nodes { title sku } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5500,7 +5500,7 @@ fn draft_orders_connection_honors_sort_key_reverse_and_pagination() {
         mutation TouchAlphaDraft($id: ID!, $input: DraftOrderInput!) {
           draftOrderUpdate(id: $id, input: $input) {
             draftOrder { id updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,

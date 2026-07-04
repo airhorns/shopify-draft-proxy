@@ -7365,7 +7365,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 per-mutation argument and input-object field shapes (deprecated included) used by the central required-field validator.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json', 'config/admin-graphql-mutation-schema.json'],
+    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
@@ -11588,10 +11588,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 Admin GraphQL output-field connection/list/object schema facts used by request-version-scoped validation.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: [
-      'config/admin-graphql/2026-04/bulk-query-schema.json',
-      'config/admin-graphql-bulk-query-schema.json',
-    ],
+    fixtureOutputs: ['config/admin-graphql/2026-04/bulk-query-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },

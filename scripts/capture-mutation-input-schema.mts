@@ -7,9 +7,7 @@
  * Output: `config/admin-graphql/<api-version>/mutation-schema.json`.
  * Regenerate each supported Admin API version independently so runtime
  * validation can use the schema that matches the request path without runtime
- * IO. The current default-version capture is also mirrored to the legacy
- * `config/admin-graphql-mutation-schema.json` path for compatibility with
- * older local tooling.
+ * IO.
  *
  * Strategy:
  *   1. Introspect Mutation { fields { args { type } } } with deprecated args
@@ -300,7 +298,6 @@ for (const name of [...enumNames].sort((a, b) => a.localeCompare(b))) {
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const outputPath = path.join(repoRoot, 'config', 'admin-graphql', apiVersion, 'mutation-schema.json');
-const legacyOutputPath = path.join(repoRoot, 'config', 'admin-graphql-mutation-schema.json');
 const output = `${JSON.stringify(
   {
     capturedAt: new Date().toISOString(),
@@ -315,16 +312,12 @@ const output = `${JSON.stringify(
 )}\n`;
 await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, output, 'utf8');
-if (apiVersion === '2026-04') {
-  await writeFile(legacyOutputPath, output, 'utf8');
-}
 
 console.log(
   JSON.stringify(
     {
       ok: true,
       outputPath,
-      legacyOutputPath: apiVersion === '2026-04' ? legacyOutputPath : null,
       apiVersion,
       mutationCount: mutations.length,
       inputObjectCount: inputObjects.length,

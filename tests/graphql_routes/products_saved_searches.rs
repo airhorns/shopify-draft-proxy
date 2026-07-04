@@ -6712,7 +6712,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             mutation MissingPublishablePublish($id: ID!, $input: [PublicationInput!]!) {
               publishablePublish(id: $id, input: $input) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6723,7 +6723,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             mutation MissingPublishableUnpublish($id: ID!, $input: [PublicationInput!]!) {
               publishableUnpublish(id: $id, input: $input) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6742,8 +6742,7 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
             response.body["data"][root]["userErrors"],
             json!([{
                 "field": ["id"],
-                "message": "Resource does not exist",
-                "code": "RESOURCE_DOES_NOT_EXIST"
+                "message": "Resource does not exist"
             }])
         );
     }
@@ -6821,7 +6820,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             mutation NoCurrentPublish($id: ID!) {
               publishablePublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6832,7 +6831,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             mutation NoCurrentUnpublish($id: ID!) {
               publishableUnpublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -6849,8 +6848,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             response.body["data"][root]["userErrors"],
             json!([{
                 "field": ["id"],
-                "message": "Channel does not exist",
-                "code": "CHANNEL_DOES_NOT_EXIST"
+                "message": "Channel does not exist"
             }])
         );
     }

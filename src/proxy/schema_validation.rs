@@ -140,6 +140,9 @@ impl AdminOutputSchema {
         self.insert_local_scalar_field("Segment", "tagMigrated", "Boolean");
         self.insert_local_scalar_field("Segment", "translation", "String");
         self.insert_local_scalar_field("Segment", "valid", "Boolean");
+        self.insert_local_scalar_field("TaxAppConfiguration", "id", "ID");
+        self.insert_local_scalar_field("TaxAppConfiguration", "ready", "Boolean");
+        self.insert_local_scalar_field("TaxAppConfiguration", "updatedAt", "DateTime");
         self.insert_local_scalar_field("WebPixel", "status", "String");
         self.insert_local_scalar_field("WebPixel", "webhookEndpointAddress", "String");
     }

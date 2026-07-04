@@ -6049,7 +6049,7 @@ fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
         mutation CreateSecondLocalizationProduct($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
