@@ -1761,6 +1761,143 @@ fn owner_scoped_metafields_do_not_leak_between_products() {
 }
 
 #[test]
+fn owner_metafields_connection_filters_keys_reverse_and_paginates_staged_state() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/1950001";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OwnerMetafieldsConnectionArgsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "alpha", "type": "single_line_text_field", "value": "A"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "bravo", "type": "single_line_text_field", "value": "B"},
+            {"ownerId": owner_id, "namespace": "details", "key": "size", "type": "single_line_text_field", "value": "M"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "charlie", "type": "single_line_text_field", "value": "C"}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsRead($id: ID!, $keys: [String!]) {
+          product(id: $id) {
+            rawKeys: metafields(first: 10, keys: ["bravo", "size"]) {
+              nodes { namespace key value }
+            }
+            qualifiedKeys: metafields(first: 10, keys: $keys) {
+              nodes { namespace key value }
+            }
+            reversePage: metafields(first: 2, namespace: "custom", reverse: true) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id, "keys": ["details.size", "custom.bravo"]}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["rawKeys"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["product"]["qualifiedKeys"]["nodes"],
+        json!([
+            {"namespace": "details", "key": "details.size", "value": "M"},
+            {"namespace": "custom", "key": "custom.bravo", "value": "B"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["nodes"],
+        json!([
+            {"key": "charlie", "value": "C"},
+            {"key": "bravo", "value": "B"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+
+    let after = read.body["data"]["product"]["reversePage"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("reverse page end cursor")
+        .to_string();
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsSecondPage($id: ID!, $after: String!) {
+          product(id: $id) {
+            metafields(first: 2, namespace: "custom", reverse: true, after: $after) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id, "after": after}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["nodes"],
+        json!([{"key": "alpha", "value": "A"}])
+    );
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OwnerMetafieldsConnectionArgsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_id,
+            "namespace": "custom",
+            "key": "bravo"
+        }]}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["userErrors"],
+        json!([])
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsPostDelete($id: ID!) {
+          product(id: $id) {
+            metafields(first: 10, keys: ["custom.bravo", "custom.charlie"], reverse: true) {
+              nodes { namespace key value }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"]["metafields"]["nodes"],
+        json!([{"namespace": "custom", "key": "custom.charlie", "value": "C"}])
+    );
+}
+
+#[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
     let api_client_id = "999999999999";

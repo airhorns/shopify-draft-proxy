@@ -2391,6 +2391,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'metafields-owner-connection-args',
+    scriptPath: 'scripts/capture-product-owner-metafields-connection-args-conformance.mts',
+    purpose:
+      'Product-owner metafields connection raw and qualified keys, namespace-filtered reverse ordering, and post-delete filtered readback behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-owner-connection-args.json`,
+      'config/parity-specs/products/metafields-owner-connection-args.json',
+      'config/parity-requests/products/metafields-owner-connection-args-set.graphql',
+      'config/parity-requests/products/metafields-owner-connection-args-read.graphql',
+      'config/parity-requests/products/metafields-owner-connection-args-delete.graphql',
+      'config/parity-requests/products/metafields-owner-connection-args-post-delete-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records metafieldsSet plus connection argument reads, deletes one metafield, records post-delete readback, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafields-custom-namespace-typed-keys',
     scriptPath: 'scripts/capture-metafields-custom-namespace-typed-keys-conformance.mts',

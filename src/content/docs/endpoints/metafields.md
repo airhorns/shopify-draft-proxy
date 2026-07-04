@@ -74,6 +74,8 @@ Executable product-owned `metafieldsSet` set/read parity covers 96 Shopify custo
 
 Custom namespace keys that coincide with type names are ordinary merchant keys, not type-shape sentinels. `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafieldsSet-custom-namespace-typed-keys.json` and `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json` cover non-empty `custom.json`, `custom.rating`, and `custom.money` writes plus immediate product read-back. The local write path stages those records through the normal owner-metafield model so selected `value`, `jsonValue`, identity, owner type, timestamps, and non-empty compare digests are derived from the submitted value.
 
+Product-owner `metafields(...)` connection reads over staged owner metafields support `keys` and `reverse` in addition to the existing namespace and cursor windowing behavior. Captured Admin GraphQL 2025-01 evidence shows raw keys such as `"bravo"` do not match; `keys` entries must be qualified as `namespace.key`, matching records are ordered by the supplied key list, and selected `key` values are serialized back in that same qualified form. `reverse: true` flips the filtered connection before `first`/`after` paging.
+
 The matrix covers scalar text, number, boolean, date/date-time, URL/color/language, JSON/rich text/link/money/rating, measurement types, supported `list.*` variants, and product/variant/collection reference values. The local model now normalizes captured Shopify value behavior for this slice: date-time values gain an explicit `+00:00` offset, decimal `jsonValue` stays string-shaped, measurement `value` JSON serializes uppercase units and integer measurement numbers as `.0`, list measurement `jsonValue` uses Shopify's lowercase or abbreviated units, and rating value strings use Shopify's key order.
 
 `metafieldsSet` value validation rejects invalid scalar and structured values before staging any input in the batch. Fixture-backed branches cover `number_decimal` bounds, `money` JSON object shape, URL/link scheme validation, date format validation, single-line/multi-line blank text and single-line newline rejection, rating bounds, measurement non-negative value and supported-unit checks, `list.*` array shape/128-element cap, and per-element coercion for list values such as `list.number_integer`. Product reference values, including `list.product_reference`, are checked against staged/base/hydrated resource state rather than a fixed sentinel GID. Missing references return Shopify's `INVALID_VALUE` field path and `Value references non-existent resource ...` message without staging the mutation.
@@ -157,6 +159,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafield-definitions/validation-affects-values.json`
 - `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
 - `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
+- `config/parity-specs/products/metafields-owner-connection-args.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
 - `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
