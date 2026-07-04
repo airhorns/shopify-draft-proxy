@@ -9082,6 +9082,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'apps',
+    captureId: 'current-app-installation-observed-identity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-current-app-installation-identity-conformance.ts',
+    purpose: 'currentAppInstallation id and nested app identity stability after a real executable app-domain mutation.',
+    requiredAuthScopes: ['delegate access token create/destroy for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}current-app-installation-observed-identity-local-app-mutation.json`,
+      'config/parity-specs/apps/current-app-installation-observed-identity-local-app-mutation.json',
+      'config/parity-requests/apps/currentAppInstallation-observed-identity-read.graphql',
+      'config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql',
+      'config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload.graphql',
+    ],
+    cleanupBehavior:
+      'Records the custom-app Billing API blocker, creates one delegate token, and destroys that delegate token during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'apps',
     captureId: 'app-revoke-access-scopes-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-app-revoke-access-scopes-validation-conformance.ts',
