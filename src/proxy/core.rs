@@ -86,6 +86,36 @@ impl DraftProxy {
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
+        let mut response = self.dispatch_route(request);
+        // Stamp a cheap "has persistable state changed?" signal on every
+        // response so embedders (e.g. the Ruby storage adapter) can decide
+        // whether to persist without diffing or re-dumping the whole state on
+        // reads. The tuple advances on any staged mutation (`log_entries` grows),
+        // on commit (staged entries become `settled`), on reset (all reset to
+        // `0:0:1`), and on restore (fields adopt the dumped values).
+        response
+            .headers
+            .insert("x-sdp-state-version".to_string(), self.state_version());
+        response
+    }
+
+    /// Opaque monotonic-ish token that changes iff persistable proxy state
+    /// changed. Not an ordering guarantee — only equality is meaningful.
+    pub(in crate::proxy) fn state_version(&self) -> String {
+        let settled = self
+            .log_entries
+            .iter()
+            .filter(|entry| entry.get("status") != Some(&json!("staged")))
+            .count();
+        format!(
+            "{}:{}:{}",
+            self.log_entries.len(),
+            settled,
+            self.next_synthetic_id
+        )
+    }
+
+    fn dispatch_route(&mut self, request: Request) -> Response {
         match route(&request) {
             Route::Health => ok_json(json!({
                 "ok": true,

@@ -6142,7 +6142,25 @@ fn localization_translations_register_rejects_invalid_product_key_without_stagin
 fn localization_translatable_roots_are_store_backed_without_operation_markers() {
     let mut proxy = snapshot_proxy();
     let product_id = create_fallback_localization_product(&mut proxy);
-    let collection_id = "gid://shopify/Collection/9801098789170";
+    let collection_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalizedCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Collection title" } }),
+    ));
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let product_title_digest = fallback_product_title_digest();
     let product_type_digest = localization_content_digest("snowboard");
     let collection_title_digest = localization_content_digest("Collection title");
@@ -6187,7 +6205,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
           }
         }"#,
         json!({
-            "resourceId": collection_id,
+            "resourceId": collection_id.as_str(),
             "translations": [
                 { "locale": "fr", "key": "title", "value": "Titre collection", "translatableContentDigest": collection_title_digest }
             ]
@@ -6217,7 +6235,12 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
           }
           missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") { resourceId }
         }"#,
-        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id], "marketId": market_id }),
+        json!({
+            "productId": product_id.as_str(),
+            "collectionId": collection_id.as_str(),
+            "ids": [collection_id.as_str(), product_id.as_str()],
+            "marketId": market_id
+        }),
     ));
 
     assert_eq!(read.status, 200);
@@ -6334,6 +6357,58 @@ fn localization_translations_reject_unknown_supported_product_resource_ids() {
             }]
         })
     );
+}
+
+#[test]
+fn localization_translations_reject_missing_collection_and_unresolved_resource_types() {
+    let mut proxy = snapshot_proxy();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    for resource_id in ["gid://shopify/Collection/999999999", "gid://shopify/Menu/1"] {
+        let mutation = proxy.process_request(json_graphql_request(
+            r#"mutation LocalizationUnknownResourceValidation($resourceId: ID!, $translations: [TranslationInput!]!, $keys: [String!]!, $locales: [String!]!) {
+              register: translationsRegister(resourceId: $resourceId, translations: $translations) {
+                translations { key value locale }
+                userErrors { field message code }
+              }
+              remove: translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+                translations { key value locale }
+                userErrors { field message code }
+              }
+            }"#,
+            json!({
+                "resourceId": resource_id,
+                "translations": [{
+                    "locale": "fr",
+                    "key": "title",
+                    "value": "Bonjour",
+                    "translatableContentDigest": "digest"
+                }],
+                "keys": ["title"],
+                "locales": ["fr"]
+            }),
+        ));
+        let expected = json!({
+            "translations": null,
+            "userErrors": [{
+                "field": ["resourceId"],
+                "message": format!("Resource {resource_id} does not exist"),
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        });
+        assert_eq!(mutation.body["data"]["register"], expected);
+        assert_eq!(mutation.body["data"]["remove"], expected);
+    }
 }
 
 #[test]
@@ -6663,6 +6738,66 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
                 "field": ["translations", "0", "locale"],
                 "message": "Locale cannot be the same as the shop's primary locale",
                 "code": "INVALID_LOCALE_FOR_SHOP"
+            }]
+        })
+    );
+
+    let non_enabled_unknown_market = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": locale_resource_id.as_str(),
+            "translations": [{
+                "locale": "it",
+                "key": "title",
+                "value": "Ciao",
+                "translatableContentDigest": "digest",
+                "marketId": "gid://shopify/Market/424242"
+            }]
+        }),
+    ));
+    assert_eq!(
+        non_enabled_unknown_market.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "marketId"],
+                "message": "The market corresponding to the `marketId` argument doesn't exist",
+                "code": "MARKET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
+    let primary_unknown_market = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": locale_resource_id.as_str(),
+            "translations": [{
+                "locale": "en",
+                "key": "title",
+                "value": "Hello",
+                "translatableContentDigest": "digest",
+                "marketId": "gid://shopify/Market/424242"
+            }]
+        }),
+    ));
+    assert_eq!(
+        primary_unknown_market.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "marketId"],
+                "message": "The market corresponding to the `marketId` argument doesn't exist",
+                "code": "MARKET_DOES_NOT_EXIST"
             }]
         })
     );
@@ -7704,6 +7839,201 @@ fn gift_card_snapshot_legacy_seed_id_without_state_returns_not_found() {
     assert_eq!(
         response.body["data"]["count"],
         json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn gift_card_connection_returns_edges_cursors_windows_sort_and_reverse() {
+    let mut proxy = snapshot_proxy();
+    let specs = [
+        ("gid://shopify/GiftCard/100", "0100", "2026-06-03T00:00:00Z"),
+        ("gid://shopify/GiftCard/200", "0200", "2026-06-01T00:00:00Z"),
+        ("gid://shopify/GiftCard/300", "0300", "2026-06-02T00:00:00Z"),
+    ];
+    restore_proxy_state(&mut proxy, |restored| {
+        let mut cards = serde_json::Map::new();
+        for (id, last_characters, created_at) in specs {
+            let mut card = legacy_gift_card_fixture(id);
+            card["lastCharacters"] = json!(last_characters);
+            card["createdAt"] = json!(created_at);
+            card["updatedAt"] = json!(created_at);
+            cards.insert(id.to_string(), card);
+        }
+        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardConnectionMechanics($after: String!, $before: String!, $query: String!) {
+          defaultWindow: giftCards(first: 2) {
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reverseWindow: giftCards(first: 2, reverse: true) {
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterWindow: giftCards(first: 1, after: $after, reverse: true) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          beforeLastWindow: giftCards(last: 1, before: $before, reverse: true) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          createdOrder: giftCards(first: 3, sortKey: CREATED_AT) {
+            nodes { id }
+          }
+          filtered: giftCards(first: 2, query: $query) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({
+            "after": "gid://shopify/GiftCard/300",
+            "before": "gid://shopify/GiftCard/100",
+            "query": "id:200"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["defaultWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": "gid://shopify/GiftCard/100",
+                    "node": { "id": "gid://shopify/GiftCard/100", "lastCharacters": "0100" }
+                },
+                {
+                    "cursor": "gid://shopify/GiftCard/200",
+                    "node": { "id": "gid://shopify/GiftCard/200", "lastCharacters": "0200" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/100",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["reverseWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": "gid://shopify/GiftCard/300",
+                    "node": { "id": "gid://shopify/GiftCard/300", "lastCharacters": "0300" }
+                },
+                {
+                    "cursor": "gid://shopify/GiftCard/200",
+                    "node": { "id": "gid://shopify/GiftCard/200", "lastCharacters": "0200" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/300",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["afterWindow"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["beforeLastWindow"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["createdOrder"]["nodes"],
+        json!([
+            { "id": "gid://shopify/GiftCard/200" },
+            { "id": "gid://shopify/GiftCard/300" },
+            { "id": "gid://shopify/GiftCard/100" }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["filtered"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_cards_count_honors_limit_precision_after_query_filtering() {
+    let mut proxy = snapshot_proxy();
+    restore_proxy_state(&mut proxy, |restored| {
+        let mut cards = serde_json::Map::new();
+        for id in [
+            "gid://shopify/GiftCard/100",
+            "gid://shopify/GiftCard/200",
+            "gid://shopify/GiftCard/300",
+        ] {
+            cards.insert(id.to_string(), legacy_gift_card_fixture(id));
+        }
+        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCountPrecision($query: String!) {
+          overLimit: giftCardsCount(limit: 2) { count precision }
+          exactAtLimit: giftCardsCount(limit: 3) { count precision }
+          filteredExact: giftCardsCount(query: $query, limit: 1) { count precision }
+          selectedCountOnly: giftCardsCount(limit: 2) { count }
+        }"#,
+        json!({ "query": "id:200" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["overLimit"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        response.body["data"]["exactAtLimit"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        response.body["data"]["filteredExact"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        response.body["data"]["selectedCountOnly"],
+        json!({ "count": 2 })
     );
 }
 
