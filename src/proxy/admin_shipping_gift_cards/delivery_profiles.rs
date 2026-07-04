@@ -9,6 +9,7 @@ const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str =
     "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
+const DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES: &[usize] = &[250, 3, 2, 1];
 
 impl DraftProxy {
     pub(in crate::proxy) fn delivery_profile_read_response(
@@ -107,7 +108,9 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Vec<String>) {
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
-        let user_errors = delivery_profile_create_user_errors(&profile_input);
+        let mut location_exists =
+            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+        let user_errors = delivery_profile_create_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
             return (
                 delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
@@ -150,7 +153,9 @@ impl DraftProxy {
         };
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
-        let user_errors = delivery_profile_update_user_errors(&profile_input);
+        let mut location_exists =
+            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+        let user_errors = delivery_profile_update_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
             return (
                 delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
@@ -250,7 +255,7 @@ impl DraftProxy {
         let location_ids = list_string_field(input, "locations");
         let locations = location_ids
             .into_iter()
-            .map(|id| delivery_profile_location_record(&id))
+            .map(|id| self.delivery_profile_location_record(&id))
             .collect::<Vec<_>>();
         let zones = resolved_object_list_field(input, "zonesToCreate")
             .into_iter()
@@ -402,7 +407,7 @@ impl DraftProxy {
                     if !locations.iter().any(|location| {
                         location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
                     }) {
-                        locations.push(delivery_profile_location_record(&location_id));
+                        locations.push(self.delivery_profile_location_record(&location_id));
                     }
                 }
                 let count = locations.len();
@@ -604,6 +609,60 @@ impl DraftProxy {
         self.store.staged.delivery_profiles.get(profile_id).cloned()
     }
 
+    fn delivery_profile_location_record(&self, id: &str) -> Value {
+        self.location_for_read(id).unwrap_or_else(|| {
+            json!({
+                "id": id
+            })
+        })
+    }
+
+    fn delivery_profile_location_exists(&mut self, id: &str, request: &Request) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        if self.location_for_read(id).is_some() {
+            return true;
+        }
+        self.hydrate_delivery_profile_location_catalog(request);
+        if self.location_for_read(id).is_some() {
+            return true;
+        }
+        if self.has_observed_delivery_profile_location_catalog()
+            || self.config.read_mode == ReadMode::Snapshot
+        {
+            return self.location_for_read(id).is_some();
+        }
+        self.ensure_location_hydrated(id, request);
+        self.location_for_read(id).is_some()
+    }
+
+    fn has_observed_delivery_profile_location_catalog(&self) -> bool {
+        !self.store.staged.observed_shipping_locations.is_empty()
+    }
+
+    fn hydrate_delivery_profile_location_catalog(&mut self, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || self.has_observed_delivery_profile_location_catalog()
+        {
+            return;
+        }
+        for first in DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": delivery_profile_locations_hydrate_query(*first),
+                    "variables": {}
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                continue;
+            }
+            self.observe_delivery_profile_locations_response(&response);
+            return;
+        }
+    }
+
     fn delivery_profiles_connection_json(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
@@ -751,6 +810,12 @@ impl DraftProxy {
             .observed_shipping_locations
             .insert(id, location);
     }
+}
+
+fn delivery_profile_locations_hydrate_query(first: usize) -> String {
+    format!(
+        "query ShippingDeliveryProfileLocationsHydrate {{\n    locationsAvailableForDeliveryProfilesConnection(first: {first}) {{\n      nodes {{\n        id\n        name\n        isActive\n        isFulfillmentService\n      }}\n    }}\n  }}"
+    )
 }
 
 fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Value, Vec<String>) {

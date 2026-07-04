@@ -110,6 +110,32 @@ function requireUserErrors(captureResult: GraphqlCapture, rootName: string): voi
   }
 }
 
+function requireReturnNotFoundUserError(captureResult: GraphqlCapture, rootName: string, fieldPath: string[]): void {
+  const payload = readRecord(captureResult.response.payload) ?? {};
+  const errors = payload['errors'];
+  const data = readRecord(payload['data']) ?? {};
+  const root = readRecord(data[rootName]) ?? {};
+  const userErrors = readArray(root?.['userErrors']);
+  const userError = readRecord(userErrors[0]);
+  const actualField = readArray(userError?.['field']);
+  const expectedField = fieldPath.join('.');
+  const actualFieldPath = actualField.map(String).join('.');
+  if (
+    errors ||
+    root['return'] !== null ||
+    userErrors.length !== 1 ||
+    actualFieldPath !== expectedField ||
+    userError?.['code'] !== 'NOT_FOUND' ||
+    userError?.['message'] !== 'Return not found.'
+  ) {
+    throw new Error(
+      `Expected ${rootName} Return not found userError at ${expectedField}: ${JSON.stringify(
+        captureResult.response.payload,
+      )}`,
+    );
+  }
+}
+
 function firstActiveLocationId(locations: GraphqlCapture): string {
   const payload = readRecord(locations.response.payload) ?? {};
   const data = readRecord(payload['data']) ?? {};
@@ -534,6 +560,38 @@ requireEmptyUserErrors(returnProcess, 'returnProcess');
 const returnCancelProcessedInvalid = await capture(returnCancelMutation, { id: processedReturnId });
 requireUserErrors(returnCancelProcessedInvalid, 'returnCancel');
 
+const missingReturnId = 'gid://shopify/Return/999999999999999';
+const missingReturnLineItemId = 'gid://shopify/ReturnLineItem/999999999999999';
+const returnCancelMissing = await capture(returnCancelMutation, { id: missingReturnId });
+requireReturnNotFoundUserError(returnCancelMissing, 'returnCancel', ['id']);
+const returnCloseMissing = await capture(returnCloseMutation, { id: missingReturnId });
+requireReturnNotFoundUserError(returnCloseMissing, 'returnClose', ['id']);
+const returnReopenMissing = await capture(returnReopenMutation, { id: missingReturnId });
+requireReturnNotFoundUserError(returnReopenMissing, 'returnReopen', ['id']);
+const removeFromReturnMissing = await capture(removeFromReturnMutation, {
+  returnId: missingReturnId,
+  returnLineItems: [
+    {
+      returnLineItemId: missingReturnLineItemId,
+      quantity: 1,
+    },
+  ],
+});
+requireReturnNotFoundUserError(removeFromReturnMissing, 'removeFromReturn', ['returnId']);
+const returnProcessMissing = await capture(returnProcessMutation, {
+  input: {
+    returnId: missingReturnId,
+    returnLineItems: [
+      {
+        id: missingReturnLineItemId,
+        quantity: 1,
+      },
+    ],
+    notifyCustomer: true,
+  },
+});
+requireReturnNotFoundUserError(returnProcessMissing, 'returnProcess', ['input', 'returnId']);
+
 async function cleanupOrder(orderId: string): Promise<GraphqlCapture> {
   return capture(orderCancelMutation, {
     orderId,
@@ -566,7 +624,7 @@ await writeJson(fixturePath, {
   storeDomain,
   source: 'live-shopify-admin-graphql',
   notes:
-    'Live return status precondition capture for returnClose, returnReopen, returnCancel, and removeFromReturn success, idempotent, invalid transition, and invalid editable-status branches on disposable fulfilled orders.',
+    'Live return status precondition capture for returnClose, returnReopen, returnCancel, and removeFromReturn success, idempotent, invalid transition, invalid editable-status, and missing-return branches on disposable fulfilled orders and a never-created Return GID.',
   locations,
   setup: {
     locationId,
@@ -611,6 +669,15 @@ await writeJson(fixturePath, {
     returnProcess,
     returnCancelInvalid: returnCancelProcessedInvalid,
   },
+  notFoundCase: {
+    missingReturnId,
+    missingReturnLineItemId,
+    returnCancel: returnCancelMissing,
+    returnClose: returnCloseMissing,
+    returnReopen: returnReopenMissing,
+    removeFromReturn: removeFromReturnMissing,
+    returnProcess: returnProcessMissing,
+  },
   cleanup,
   upstreamCalls: returnSeeds.map((seed) => ({
     operationName: 'OrdersReturnOrderHydrate',
@@ -632,6 +699,7 @@ console.log(
       cancelableApprovedReturnId,
       declinedReturnId,
       processedReturnId,
+      missingReturnId,
       cleanupUserErrors: {
         requested: readArray(readRecord(payloadRoot(cleanup.requested, 'orderCancel'))?.['userErrors']),
         openCloseReopen: readArray(readRecord(payloadRoot(cleanup.openCloseReopen, 'orderCancel'))?.['userErrors']),

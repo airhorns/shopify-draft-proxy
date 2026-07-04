@@ -1,0 +1,67 @@
+{
+  "scenarioId": "admin-platform-tags-not-found",
+  "operationNames": ["tagsAdd", "tagsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-transport-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/admin-platform-tags-not-found.json"
+  ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql",
+    "variablesCapturePath": "$.cases.productAdd.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify resolver behavior for well-formed supported taggable GIDs that do not resolve. Proxy replay intentionally uses snapshot mode to exercise the local no-data branch without upstream fallback; focused Rust tests cover LiveHybrid null hydration. Shopify cost metadata is excluded from replay comparison.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-add-not-found-body",
+        "capturePath": "$.cases.productAdd.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"]
+      },
+      {
+        "name": "product-remove-not-found-body",
+        "capturePath": "$.cases.productRemove.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql",
+          "variablesCapturePath": "$.cases.productRemove.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-add-not-found-body",
+        "capturePath": "$.cases.customerAdd.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql",
+          "variablesCapturePath": "$.cases.customerAdd.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-remove-not-found-body",
+        "capturePath": "$.cases.customerRemove.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql",
+          "variablesCapturePath": "$.cases.customerRemove.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "isolatedProxy": true
+      }
+    ]
+  }
+}

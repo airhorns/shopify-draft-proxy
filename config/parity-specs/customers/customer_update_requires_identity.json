@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-update-requires-identity.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer_update_requires_identity_create.graphql",
     "variablesCapturePath": "$.scenarios.clearLastEmail.create.variables"

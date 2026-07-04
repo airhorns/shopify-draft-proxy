@@ -703,6 +703,7 @@ fn common_scalar_field_name(field_name: &str) -> bool {
             | "status"
             | "createdAt"
             | "updatedAt"
+            | "publishedAt"
             | "description"
             | "descriptionHtml"
             | "vendor"
@@ -820,6 +821,18 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
         _ => return None,
     };
     Some(OutputFieldType { named_type })
+}
+
+pub(in crate::proxy) fn public_admin_output_field_named_type(
+    api_version: &str,
+    parent_type: &str,
+    field_name: &str,
+) -> Option<&'static str> {
+    public_admin_output_schema(api_version)?
+        .fields_by_parent
+        .get(parent_type)?
+        .get(field_name)
+        .map(|field_type| field_type.named_type.as_str())
 }
 
 fn plain_user_error_code_selection_errors(
@@ -2517,12 +2530,18 @@ fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema, ap
     if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "stagedUploadsCreate") {
         schema.mutation_fields.insert(name, arguments);
     }
+    if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "fileUpdate") {
+        schema.mutation_fields.insert(name, arguments);
+    }
     if let Some((name, fields)) =
         captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
     {
         schema.input_objects.insert(name, fields);
     }
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "StagedUploadInput") {
+        schema.input_objects.insert(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "FileUpdateInput") {
         schema.input_objects.insert(name, fields);
     }
 }

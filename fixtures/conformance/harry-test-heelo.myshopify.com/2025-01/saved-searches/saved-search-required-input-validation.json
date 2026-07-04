@@ -1,14 +1,16 @@
 {
-  "capturedAt": "2026-05-08T03:19:44.767Z",
+  "capturedAt": "2026-07-03T11:00:26.242Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "ssri-mowcjtmz",
+  "token": "ssri-mr4tnz54",
   "notes": [
-    "Capture for savedSearchCreate/savedSearchUpdate required input coercion.",
+    "Capture for savedSearchCreate/savedSearchUpdate/savedSearchDelete required input coercion.",
     "Missing inline SavedSearchCreateInput required fields return top-level GraphQL errors before a data payload is emitted.",
     "Missing variable-supplied SavedSearchCreateInput required fields return top-level INVALID_VARIABLE GraphQL errors before resolver userErrors.",
     "An explicitly empty query string is accepted on savedSearchCreate and the disposable saved search is deleted during cleanup.",
-    "Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors."
+    "Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors.",
+    "Missing inline SavedSearchDeleteInput.id returns a top-level GraphQL error before resolver userErrors.",
+    "Missing or null variable-supplied SavedSearchDeleteInput.id returns top-level INVALID_VARIABLE before resolver userErrors."
   ],
   "savedSearchCreateMissingName": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql",
@@ -78,7 +80,7 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql",
     "variables": {
       "input": {
-        "name": "Variable missing resource type ssri-mowc",
+        "name": "Variable missing resource type ssri-mr4t",
         "query": "tag:variable-required"
       }
     },
@@ -95,7 +97,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "name": "Variable missing resource type ssri-mowc",
+              "name": "Variable missing resource type ssri-mr4t",
               "query": "tag:variable-required"
             },
             "problems": [
@@ -149,7 +151,7 @@
     "variables": {
       "input": {
         "resourceType": "PRODUCT",
-        "name": "Required Input Empty Query ssri-mowcjtmz",
+        "name": "Required Input Empty Query ssri-mr4tnz54",
         "query": ""
       }
     },
@@ -157,9 +159,9 @@
       "data": {
         "savedSearchCreate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4009417933106",
-            "legacyResourceId": "4009417933106",
-            "name": "Required Input Empty Query ssri-mowcjtmz",
+            "id": "gid://shopify/SavedSearch/4079818473778",
+            "legacyResourceId": "4079818473778",
+            "name": "Required Input Empty Query ssri-mr4tnz54",
             "query": "",
             "resourceType": "PRODUCT"
           },
@@ -203,17 +205,103 @@
       ]
     }
   },
+  "savedSearchDeleteMissingId": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-id-delete.graphql",
+    "variables": {},
+    "payload": {
+      "errors": [
+        {
+          "message": "Argument 'id' on InputObject 'SavedSearchDeleteInput' is required. Expected type ID!",
+          "locations": [
+            {
+              "line": 2,
+              "column": 28
+            }
+          ],
+          "path": ["mutation SavedSearchDeleteMissingId", "savedSearchDelete", "input", "id"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "id",
+            "argumentType": "ID!",
+            "inputObjectType": "SavedSearchDeleteInput"
+          }
+        }
+      ]
+    }
+  },
+  "savedSearchDeleteVariableMissingId": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql",
+    "variables": {
+      "input": {}
+    },
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 45
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {},
+            "problems": [
+              {
+                "path": ["id"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "savedSearchDeleteVariableNullId": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql",
+    "variables": {
+      "input": {
+        "id": null
+      }
+    },
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 45
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "id": null
+            },
+            "problems": [
+              {
+                "path": ["id"],
+                "explanation": "Expected value to not be null"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
   "cleanupDelete": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4009417933106"
+        "id": "gid://shopify/SavedSearch/4079818473778"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009417933106",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4079818473778",
           "userErrors": []
         }
       },

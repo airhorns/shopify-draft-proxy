@@ -2,7 +2,7 @@
   "name": "shopify-draft-proxy-rust-shim",
   "version": "0.0.0",
   "private": true,
-  "description": "TS shim re-exporting the Rust-port public API. Mirrors the surface area of the top-level shopify-draft-proxy package while the full runtime is being cut over to Rust.",
+  "description": "TypeScript shim around the Rust HTTP runtime for the top-level shopify-draft-proxy package.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,0 +1,95 @@
+{
+  "scenarioId": "metafield-definition-update-name-description-length",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate", "metafieldDefinition"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-update-name-description-length.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-create.graphql",
+    "variablesCapturePath": "$.create.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-setup",
+        "capturePath": "$.create.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "too-long-name-update-user-error",
+        "capturePath": "$.nameTooLongUpdate.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-update.graphql",
+          "variablesCapturePath": "$.nameTooLongUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "read-after-name-too-long-reject",
+        "capturePath": "$.readAfterNameReject.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-read.graphql",
+          "variablesCapturePath": "$.readAfterNameReject.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "too-long-description-update-user-error",
+        "capturePath": "$.descriptionTooLongUpdate.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-update.graphql",
+          "variablesCapturePath": "$.descriptionTooLongUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "read-after-description-too-long-reject",
+        "capturePath": "$.readAfterDescriptionReject.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-read.graphql",
+          "variablesCapturePath": "$.readAfterDescriptionReject.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "boundary-update-accepted",
+        "capturePath": "$.boundaryUpdate.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-update.graphql",
+          "variablesCapturePath": "$.boundaryUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "read-after-boundary-update",
+        "capturePath": "$.readAfterBoundary.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-name-description-length-read.graphql",
+          "variablesCapturePath": "$.readAfterBoundary.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL evidence for metafieldDefinitionUpdate name/description length validation. Shopify rejects 256-character name and description inputs with TOO_LONG userErrors, returns updatedDefinition null, and readback keeps the original definition values. The same scenario records 255-character name and description update success and downstream readback."
+}

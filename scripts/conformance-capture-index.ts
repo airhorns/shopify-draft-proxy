@@ -224,6 +224,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-running-mutation-not-found-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-running-mutation-not-found-messages-conformance.mts',
+    purpose:
+      'B2B companyDelete, companyContactCreate, companyAddressDelete, companyLocationAssignRoles, and companyLocationRevokeRoles RESOURCE_NOT_FOUND payloads for never-created IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-running-mutation-not-found-messages.json`,
+      'config/parity-specs/b2b/b2b-running-mutation-not-found-messages.json',
+      'config/parity-requests/b2b/b2b-running-mutation-not-found-messages.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Company, CompanyAddress, and CompanyLocation GIDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-location-assignments-tax',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
@@ -414,6 +431,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/b2b/b2b-string-validation.json',
       'config/parity-requests/b2b/b2b-string-validation-company-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-company-read.graphql',
+      'config/parity-requests/b2b/b2b-string-validation-contact-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-company-update.graphql',
       'config/parity-requests/b2b/b2b-string-validation-location-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-location-update.graphql',
@@ -1139,7 +1157,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-set-validator',
     scriptPath: 'scripts/capture-product-set-validator-conformance.ts',
     purpose:
-      'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
+      'productSet ProductSetShapeValidator guardrails, inventoryItem.cost validation, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
     fixtureOutputs: [
       'config/parity-specs/products/productSet-parity-plan.json',
@@ -1161,14 +1179,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-change-status-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-multi-resource.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-remove-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'config/parity-specs/products/productChangeStatus-parity-plan.json',
       'config/parity-specs/products/tagsAdd-parity-plan.json',
+      'config/parity-specs/products/tagsRemove-parity-plan.json',
       'config/parity-specs/products/tags-normalization-parity.json',
+      'config/parity-requests/products/productChangeStatus-downstream-read.graphql',
+      'config/parity-requests/products/tagsAdd-downstream-read.graphql',
+      'config/parity-requests/products/tagsRemove-downstream-read.graphql',
       'config/parity-requests/products/tags-normalization-setup.graphql',
       'config/parity-requests/products/tagsAdd-case-variant.graphql',
       'config/parity-requests/products/tagsAdd-comma-list-element.graphql',
@@ -1379,6 +1403,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/productReorderMedia-validation-branches.graphql',
       'config/parity-specs/products/product-media-validation-branches.json',
       'config/parity-specs/products/productCreateMedia-dual-userErrors.json',
+      'config/parity-specs/products/productUpdateMedia-ready-url-parity.json',
     ],
     cleanupBehavior: 'Creates disposable product/media records and deletes the product during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1504,6 +1529,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-missing-id-coercion',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-missing-id-coercion-conformance.ts',
+    purpose:
+      'Files API fileUpdate omitted FileUpdateInput.id GraphQL coercion plus supplied missing-id userError contrast.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-update-missing-id-coercion.json`,
+      'config/parity-specs/media/file_update_missing_id_coercion.json',
+      'config/parity-requests/media/file_update_missing_id_coercion.graphql',
+      'config/parity-requests/media/file_update_missing_id_coercion_inline.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no live Shopify objects.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-filename-extension-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-filename-extension-aggregation.ts',
@@ -1625,6 +1667,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/media/fileAcknowledgeUpdateFailed-downstream-read.graphql',
     ],
     cleanupBehavior: 'Creates disposable files and one disposable product, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-files-query-sort-saved-searches',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-files-query-sort-saved-searches-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL evidence for files(query:) filters, FileSortKeys.FILENAME ordering, fileSavedSearches reads, and files(savedSearchId:) resolution.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}files-query-sort-saved-searches.json`,
+      'config/parity-specs/media/files-query-sort-saved-searches.json',
+      'config/parity-requests/media/files-query-sort-saved-searches-create.graphql',
+      'config/parity-requests/media/files-query-sort-saved-searches-saved-search-create.graphql',
+      'config/parity-requests/media/files-query-sort-saved-searches-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable files and a disposable FILE saved search, then deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1985,11 +2045,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
     purpose:
-      'Bulk variant validation atomicity for create/update/delete, including public-schema options-key rejection.',
+      'Bulk variant validation atomicity for create/update/delete, including inventoryItem.cost validation and public-schema options-key rejection.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-validation-atomicity.json`,
       'config/parity-specs/products/product-variants-bulk-validation-atomicity.json',
+      'config/parity-requests/products/productVariantsBulkUpdate-validation-atomicity.graphql',
       'config/parity-requests/products/productVariantsBulkUpdate-validation-options.graphql',
     ],
     cleanupBehavior: 'Creates disposable products and removes them after validation probes.',
@@ -2019,7 +2080,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
-      'productVariantsBulkCreate scalar, option, and inventory validation for price, compareAtPrice, weight, per-quantity bounds, cumulative inventoryQuantities count, per-variant inventory location count, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
+      'productVariantsBulkCreate scalar, option, and inventory validation for price, compareAtPrice, inventoryItem.cost, weight, per-quantity bounds, cumulative inventoryQuantities count, per-variant inventory location count, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,
@@ -2087,6 +2148,38 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable locations and one disposable tracked product, activates inventory at both locations, records validation and lifecycle branches, cancels the ready transfer, attempts the captured non-draft delete guardrail, then deletes the product and locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-default-location-carrier-connection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-default-location-carrier-conformance.ts',
+    purpose:
+      'InventoryItems staged readback, explicit order inventory decrement at the real default location, and inventoryShipmentCreate accepting a non-frozen tracking company label.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+      'write_orders',
+      'read_orders',
+      'write_inventory_shipments',
+      'read_inventory_shipments',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-default-location-carrier-connection.json`,
+      'config/parity-specs/products/inventory-default-location-carrier-connection.json',
+      'config/parity-requests/products/inventory-default-location-item-update.graphql',
+      'config/parity-requests/products/inventory-items-by-query.graphql',
+      'config/parity-requests/products/inventory-default-location-order-create.graphql',
+      'config/parity-requests/products/inventory-default-location-item-read.graphql',
+      'config/parity-requests/products/inventory-shipment-create-carrier.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2329,7 +2422,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafield-definition-validations-input-conformance.ts',
     purpose:
-      'metafieldDefinitionCreate validations[] option validation and metafieldDefinitionUpdate metaobject_definition_id immutability.',
+      'metafieldDefinitionCreate validations[] type-ineligible option validation across multiple metafield types and metafieldDefinitionUpdate metaobject_definition_id immutability.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-validations-input.json`,
@@ -2418,6 +2511,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-update-name-description-length',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-update-name-description-length-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate name and description length validation, rejected-update readback, and 255-character boundary acceptance.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-name-description-length.json`,
+      'config/parity-specs/metafields/metafield-definition-update-name-description-length.json',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-update.graphql',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned metafield definition, captures too-long update rejections plus boundary success/readback, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-validation-affects-values',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-validation-affects-values-conformance.mts',
@@ -2484,6 +2596,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The live standard-enable pin-cap branch currently creates an unpinned definition on the 2026-04 target, so this capture records the constrained standard-enable branch while runtime tests cover the ticket-required cap behavior.',
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-catalog-connection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-catalog-connection-conformance.mts',
+    purpose:
+      'metafieldDefinitions catalog query filtering, sortKey/reverse ordering, and first/after cursor windowing over disposable product-owned definitions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-catalog-connection.json`,
+      'config/parity-specs/metafields/metafield-definition-catalog-connection.json',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-first-page.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-after.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-sort-query.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable PRODUCT metafield definitions, records catalog reads, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'metafields',
@@ -2688,6 +2820,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/productSet-parity-plan.json',
       'config/parity-requests/products/productSet-parity-plan.graphql',
       'config/parity-requests/products/productSet-parity-plan.variables.json',
+      'config/parity-requests/products/productSet-downstream-read.graphql',
     ],
     cleanupBehavior: 'Uses disposable product graphs with best-effort product cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -3025,15 +3158,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-required-input-validation-conformance.ts',
     purpose:
-      'savedSearchCreate and savedSearchUpdate required input coercion, including variable-supplied create input, plus explicit empty-query create success.',
+      'savedSearchCreate, savedSearchUpdate, and savedSearchDelete required input coercion, including variable-supplied create/delete input, plus explicit empty-query create success.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-required-input-validation.json`,
       'config/parity-specs/saved-searches/saved-search-required-input-validation.json',
+      'config/parity-specs/saved-searches/saved-search-delete-required-input-validation.json',
       'config/parity-requests/saved-searches/saved-search-required-input-empty-query-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-missing-id-delete.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-name-create.graphql',
       'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-resource-type-create.graphql',
       'config/parity-specs/saved-searches/saved-search-required-input-variable-validation.json',
@@ -3057,6 +3193,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-nested-connections',
+    scriptPath: 'scripts/capture-product-nested-connections-conformance.ts',
+    purpose:
+      'Nested Product connection sorting, reverse ordering, cursor windows, and populated product/variant media edges.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-nested-connections.json`,
+      'config/parity-specs/products/product-nested-connections-live-parity.json',
+      'config/parity-requests/products/product-nested-connections-product-create.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-bulk-create.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-create.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-add-products-v2.graphql',
+      'config/parity-requests/products/product-nested-connections-product-create-media.graphql',
+      'config/parity-requests/products/product-nested-connections-product-update-media.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-append-media.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-sort-read.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-sort-read.graphql',
+      'config/parity-requests/products/product-nested-connections-product-media-first.graphql',
+      'config/parity-requests/products/product-nested-connections-product-media-after.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-media-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, variants, collections, and product media, then deletes the created product and collections.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3347,6 +3510,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobjects-filter-sort',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobjects-filter-sort-conformance.ts',
+    purpose:
+      'metaobjects(type:, query:, sortKey:, reverse:) filtering for display_name, fields.{key}, handle, id, updated_at, plus display_name/id reverse sorting.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjects-filter-sort.json`,
+      'config/parity-specs/metaobjects/metaobjects-filter-sort.json',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and three rows, waits for metaobjects(type:) search indexing, then deletes the rows and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-lifecycle-and-capability',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-lifecycle-and-capability-conformance.ts',
@@ -3437,7 +3619,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-validations-conformance.ts',
     purpose:
-      'Metaobject definition create fieldDefinitions validation for reserved keys, duplicate input, displayNameKey resolution, invalid field types, hyphen keys, and max field count.',
+      'Metaobject definition create fieldDefinitions validation for reserved keys, duplicate input, displayNameKey resolution, current valid field types, standard-only disclosure reference types, invalid field types, hyphen keys, and max field count.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}definition-create-field-validations.json`,
@@ -3445,7 +3627,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/metaobjects/definition-create-field-validations.graphql',
     ],
     cleanupBehavior:
-      'Validation branches create no records; the successful hyphen-key definition is deleted during cleanup.',
+      'Validation branches create no records; successful valid-type and hyphen-key definitions are deleted during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3582,7 +3764,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; source-backed conservative local disable guards are covered by focused Gleam runtime tests.',
+      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; conservative local disable guards are covered by focused runtime tests.',
   },
   {
     domain: 'metaobjects',
@@ -3749,7 +3931,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}standard-metaobject-templates.json`,
       `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
-      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
       'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql',
@@ -4296,7 +4477,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
     purpose:
-      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister disabled-locale and primary-locale validation.',
+      'translationsRemove unknown-key, empty-translationKeys, and disabled-locale no-op success behavior plus translationsRegister disabled-locale and primary-locale validation.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -4311,7 +4492,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal/register branches, deletes the product, and restores Italian only if it was enabled before capture.',
+      'Creates one disposable product, temporarily enables French for empty-translationKeys removal/read-after coverage and Italian for disabled-locale removal/register branches, deletes the product, and restores French/Italian locale state after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4320,7 +4501,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-validation-order-conformance.mts',
     purpose:
-      'translationsRegister first-error precedence for rows that violate locale and blank-value validation at the same time.',
+      'translationsRegister first-error precedence for rows that violate locale/market gates plus blank-value validation, and market existence before locale enablement/primary validation.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -4336,7 +4517,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/localization/localization-translations-validation-order.json',
     ],
     cleanupBehavior:
-      'Creates one disposable product, disables Italian for the validation capture when needed, captures non-enabled and primary-locale first-error branches, deletes the product, and restores Italian only if it was enabled before capture.',
+      'Creates one disposable product, disables Italian for the validation capture when needed, captures non-enabled, primary-locale, and missing-market first-error branches, deletes the product, and restores Italian only if it was enabled before capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4453,6 +4634,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translatable-resource-absence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translatable-resource-absence-conformance.mts',
+    purpose:
+      'Empty translatableResources connection and missing translatableResource null behavior without fabricated default resource IDs.',
+    requiredAuthScopes: ['read_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translatable-resource-absence.json`,
+      'config/parity-specs/localization/localization-translatable-resource-absence.json',
+      'config/parity-requests/localization/localization-translatable-resource-absence.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no shop mutations are performed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-shop-locale-market-web-presence-filter',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-shop-locale-market-web-presence-filter-conformance.mts',
@@ -4496,7 +4693,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-unknown-resource-conformance.mts',
     purpose:
-      'translationsRegister and translationsRemove for an unknown/non-existent resource ID return NOT_FOUND userErrors without staging any translations.',
+      'translationsRegister and translationsRemove for unknown Product, missing Collection, and absent Menu resource IDs return NOT_FOUND userErrors without staging any translations.',
     requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}localization-translations-unknown-resource.json`,
@@ -4505,7 +4702,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/localization/localization-unknown-resource-validation.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable product, uses a non-existent GID for unknown-resource validation, then deletes the disposable product during cleanup.',
+      'Creates a disposable product, records unknown Product, missing Collection, and absent Menu validation, deletes the product, and restores the pre-capture French locale state during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4557,6 +4754,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Records validation-only branches in place, creates and deletes disposable product, web-presence, price-list, and fixed-price state for success-path captures, and removes staged quantity-pricing rows after the 2025-01 quantity capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'web-presence-create-requires-domain-or-subfolder',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-web-presence-create-requires-domain-or-subfolder-conformance.mts',
+    purpose:
+      'Focused webPresenceCreate validation for missing domainId and subfolderSuffix, proving the exact REQUIRES_DOMAIN_OR_SUBFOLDER userError message.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}web-presence-create-requires-domain-or-subfolder.json`,
+      'config/parity-specs/markets/web-presence-create-requires-domain-or-subfolder.json',
+      'config/parity-requests/markets/web-presence-create-requires-domain-or-subfolder.graphql',
+    ],
+    cleanupBehavior: 'Validation-only mutation rejects before creating a web presence; no cleanup is required.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4660,6 +4873,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST, a wrong-resource CatalogMarket gid for RESOURCE_NOT_FOUND invalid-id behavior, and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
+  },
+  {
+    domain: 'markets',
+    captureId: 'price-list-create-catalog-order',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-create-catalog-order-conformance.ts',
+    purpose:
+      'priceListCreate validation order when catalogId errors are combined with duplicate-name or parent-adjustment errors.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-create-catalog-order.json`,
+      'config/parity-specs/markets/price_list_create_catalog_order.json',
+      'config/parity-requests/markets/price-list-create-catalog-order-markets-read.graphql',
+      'config/parity-requests/markets/price-list-create-catalog-order.graphql',
+      'config/parity-requests/markets/catalog-create-relation-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable price lists and one market catalog for setup, records validation failures that do not create records, then deletes all created price lists and catalogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 returns CATALOG_DOES_NOT_EXIST or CATALOG_TAKEN at input.catalogId before duplicate-name TAKEN or invalid parent adjustment validation.',
   },
   {
     domain: 'markets',
@@ -4779,6 +5013,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalog-create-empty-context',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-create-empty-context-conformance.mts',
+    purpose: 'Safe catalogCreate validation branches for empty context input and multiple context-type keys.',
+    requiredAuthScopes: ['write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-create-empty-context.json`,
+      'config/parity-specs/markets/catalog_create_empty_context.json',
+      'config/parity-requests/markets/catalog-create-empty-context.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before creating a catalog; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-update-linkage',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-market-update-linkage-conformance.mts',
@@ -4860,7 +5110,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-fixed-prices-validation-conformance.mts',
     purpose:
-      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for price/compareAtPrice currency mismatch, duplicate variant IDs, unknown variants, missing fixed prices, and unknown price lists.',
+      'Variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete validation branches for price/compareAtPrice currency mismatch, duplicate variant IDs, unknown variants, missing-variant/currency-mismatch short-circuiting, missing fixed prices, and unknown price lists.',
     requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}price-list-fixed-prices-validation.json`,
@@ -4869,6 +5119,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/price-list-fixed-prices-add-duplicate-variant-id.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-price-list-not-found.json',
       'config/parity-specs/markets/price-list-fixed-prices-add-variant-not-found.json',
+      'config/parity-specs/markets/price_list_fixed_prices_add_short_circuit.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-list-not-found.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-price-not-fixed.json',
       'config/parity-specs/markets/price-list-fixed-prices-delete-variant-not-found.json',
@@ -4879,6 +5130,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/price-list-fixed-prices-update-price-not-fixed.json',
       'config/parity-specs/markets/price-list-fixed-prices-update-variant-not-found.json',
       'config/parity-requests/markets/price-list-fixed-prices-add-validation.graphql',
+      'config/parity-requests/markets/price_list_fixed_prices_add_short_circuit.graphql',
       'config/parity-requests/markets/price-list-fixed-prices-delete-validation.graphql',
       'config/parity-requests/markets/price-list-fixed-prices-update-validation.graphql',
     ],
@@ -5060,6 +5312,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Uses existing conformance price-list and product-variant records; all captured quantityRulesAdd calls reject before staging quantity rules, so no cleanup mutation is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'quantity-rules-delete-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-quantity-rules-delete-validation-conformance.mts',
+    purpose:
+      'quantityRulesDelete PRODUCT_VARIANT_DOES_NOT_EXIST validation for never-created, non-sentinel ProductVariant IDs, including a later offending variantIds index.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-rules-delete-validation.json`,
+      'config/parity-specs/markets/quantity-rules-delete-validation.json',
+      'config/parity-requests/markets/quantity-rules-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Uses never-created ProductVariant IDs against an existing conformance price list; Shopify rejects before deleting any quantity rules, so no cleanup mutation is required.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5258,6 +5527,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable external marketing activities, records immediate and read-after-write statusLabel strings, then deletes every disposable activity by remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
+    captureId: 'marketing-activity-connection-window',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-activity-connection-window-conformance.mts',
+    purpose:
+      'External marketing activity and event connection sortKey, reverse, cursor windowing, pageInfo, and documented query-field behavior for disposable staged-like records.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-connection-window.json`,
+      'config/parity-specs/marketing/marketing-activity-connection-window.json',
+      'config/parity-requests/marketing/marketing-activity-connection-window-create.graphql',
+      'config/parity-requests/marketing/marketing-activity-connection-window-read-first.graphql',
+      'config/parity-requests/marketing/marketing-activity-connection-window-read-after.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable external marketing activities, captures first-page and after-cursor connection reads, then deletes both activities by remote ID.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5525,6 +5813,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment for update validation, deletes it during cleanup, and avoids thousands of live segment-limit setup writes by using local parity-runner setup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-name-failure-query-grammar',
+    scriptPath: 'scripts/capture-segment-name-failure-query-grammar-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate validation ordering where Change-level name failures short-circuit CDP query grammar validation while query blank/length errors still aggregate.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-create-name-failure-short-circuits-query-grammar.json`,
+      'config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json',
+      'config/parity-requests/segments/segment-update-name-query-validation-order.graphql',
+    ],
+    cleanupBehavior:
+      'Uses validation-only segmentCreate requests for name/query failures, creates one disposable segment for segmentUpdate validation ordering, then deletes it during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6083,6 +6387,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/online-store/online-store-integrations-local-staging.json',
       'config/parity-specs/online-store/integration-delete-not-found-codes.json',
       'config/parity-specs/online-store/online-store-integration-root-dispatch-local-runtime.json',
+      'config/parity-specs/online-store/sales-channel-cold-read-forwarding.json',
       'config/parity-specs/online-store/theme-files-checksums-and-validation.json',
       `${LOCAL_RUNTIME_ROOT}script-tag-update-validation.json`,
       `${LOCAL_RUNTIME_ROOT}online-store-blog-commentable-local-staging.json`,
@@ -6165,6 +6470,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-top-level-staged-read',
+    scriptPath: 'scripts/capture-collection-top-level-staged-read-conformance.mts',
+    purpose:
+      'Top-level collections and collectionsCount read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-top-level-staged-read.json`,
+      'config/parity-specs/products/collection-top-level-staged-read.json',
+      'config/parity-requests/products/collection-top-level-staged-read-create.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-update.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-delete.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-initial-page2.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-post-update.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-post-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable custom collections, updates one, deletes the other, and deletes any remaining collection in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-reorder-products-manual-sort',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-reorder-products-conformance.mts',
@@ -6228,9 +6555,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}collection-create-and-add-products-parity.json`,
       'config/parity-specs/products/collectionCreate-and-add-products-parity.json',
       'config/parity-requests/products/collectionCreate-and-add-products-add.graphql',
+      'config/parity-requests/products/collectionCreate-and-add-products-after-read.graphql',
       'config/parity-requests/products/collectionCreate-and-add-products-count-read.graphql',
       'config/parity-requests/products/collectionCreate-and-add-products-create.graphql',
+      'config/parity-requests/products/collectionCreate-and-add-products-price-update.graphql',
+      'config/parity-requests/products/collectionCreate-and-add-products-product-create.graphql',
       'config/parity-requests/products/collectionCreate-and-add-products-remove.graphql',
+      'config/parity-requests/products/collectionCreate-and-add-products-sort-read.graphql',
+      'config/parity-requests/products/collectionCreate-and-add-products-window-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable reserved-like, smart, and custom collections and deletes every successful collectionCreate result during cleanup.',
@@ -6406,7 +6738,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'location-address-code-derivation',
     scriptPath: 'scripts/capture-location-address-code-derivation-conformance.mts',
     purpose:
-      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode plus immediate read-after-write behavior.',
+      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode, including an AE/DU branch outside the old tiny lookup table, plus immediate read-after-write behavior.',
     requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-address-code-derivation.json`,
@@ -6416,7 +6748,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/store-properties/location-address-code-derivation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable non-online-fulfilling GB, AU, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
+      'Creates disposable non-online-fulfilling GB, AU, AE, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6616,12 +6948,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-whitespace-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-missing-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-invalid-format.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-strict-format-residual.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-unicode-letter-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
       'config/parity-specs/privacy/data-sale-opt-out-invalid-format.json',
+      'config/parity-specs/privacy/data-sale-opt-out-strict-format-residual.json',
+      'config/parity-specs/privacy/data-sale-opt-out-unicode-letter-email.json',
       'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
     ],
     cleanupBehavior:
-      'Creates/deletes disposable customer records for opt-out probes; invalid-format capture requires no setup and deletes any unexpectedly created customer before failing.',
+      'Creates/deletes disposable customer records for opt-out probes; invalid-format capture requires no setup and deletes any unexpectedly created customer before failing; strict residual capture deletes the quoted-local success customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6633,7 +6969,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
       `${CAPTURE_ROOT}admin-graphql-root-operation-introspection.json`,
-      'src/shopify_draft_proxy/proxy/operation_registry_data.gleam',
+      'src/operation_registry_data.rs',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
@@ -6935,6 +7271,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-catalog-count-read.json',
       'config/parity-specs/orders/order-catalog-count-read.json',
+      'config/parity-requests/orders/order-catalog-count-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable paid test orders tagged merchant-realistic only if fewer than two exist; leaves them in place as the durable read catalog.',
@@ -7955,6 +8292,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-lifecycle-cross-kind-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-lifecycle-cross-kind-id-conformance.ts',
+    purpose:
+      'Wrong-kind id handling for discount lifecycle roots and discountRedeemCodeBulkAdd against disposable code and automatic discounts.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-lifecycle-cross-kind-id.json`,
+      'config/parity-specs/discounts/discount-lifecycle-cross-kind-id.json',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-setup.graphql',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-mutations.graphql',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable code discount and one disposable automatic discount, captures rejected cross-kind lifecycle and redeem-code bulk-add mutations, verifies readback, then deletes both discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-code-basic-name-alias-independence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-name-alias-independence-conformance.ts',
@@ -8268,6 +8624,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The public 2026-04 conformance store still returns null error codes for the update-only rejection branches; HAR-605 intentionally models INVALID from the referenced Shopify source path.',
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-update-reference-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-update-reference-validation-conformance.ts',
+    purpose:
+      'discountCodeBasicUpdate reference and uniqueness validation for taken code, own-code resubmission, invalid product/variant/collection references, and product/collection conflict.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-update-reference-validation.json`,
+      'config/parity-specs/discounts/discount-update-reference-validation.json',
+      'config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql',
+      'config/parity-requests/discounts/discount-update-reference-validation-setup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, one disposable collection, and two disposable code-basic discounts; deletes all resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'discounts',
@@ -9094,6 +9468,47 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'orders',
+    captureId: 'order-payment-local-runtime-robustness',
+    scriptPath: 'scripts/capture-transaction-void-codes-conformance.ts',
+    purpose:
+      'Local-runtime order payment parity robustness coverage that replays captured order payment staging evidence through unrelated client operation names.',
+    requiredAuthScopes: ['local-runtime fixture evidence; no live Shopify write required'],
+    fixtureOutputs: [
+      'config/parity-specs/orders/order-payment-transaction-local-staging.json',
+      'config/parity-specs/orders/order-payment-transaction-non-recording-operation-name.json',
+      'config/parity-specs/orders/order-payment-transaction-void-local-staging.json',
+      'config/parity-requests/orders/order-payment-non-recording-capture.graphql',
+      'config/parity-requests/orders/order-payment-non-recording-create.graphql',
+      'config/parity-requests/orders/order-payment-non-recording-mandate.graphql',
+      'config/parity-requests/orders/order-payment-non-recording-read.graphql',
+      'config/parity-requests/orders/order-payment-non-recording-void.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime parity only; no live Shopify objects are created.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'money-bag-presentment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-money-bag-presentment-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/money-bag-presentment-parity.json',
+      'config/parity-specs/orders/money-bag-presentment-parity.json',
+      'config/parity-requests/orders/money-bag-presentment-single-create.graphql',
+      'config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql',
+      'config/parity-requests/orders/money-bag-presentment-refund.graphql',
+      'config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql',
+      'config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable multi-currency test order, records edit, mark-as-paid, and refund MoneyBag payloads through public GraphQL, and attempts orderCancel cleanup.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
+  },
+  {
     domain: 'payments',
     captureId: 'order-capture-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -9103,6 +9518,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-capture-validation.json`,
+      'config/parity-specs/payments/order_capture_final_capture_unsupported_gateway.json',
       'config/parity-specs/payments/order_capture_validation.json',
       'config/parity-requests/payments/order-capture-validation-order-capture.graphql',
       'config/parity-requests/payments/order-capture-validation-order-create.graphql',
@@ -9275,7 +9691,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-validation-conformance.ts',
     purpose:
-      'paymentTermsCreate template lookup, unknown template, and template-specific schedule validation branches.',
+      'paymentTermsCreate template lookup, unknown template, and template-type schedule validation branches including FULFILLMENT dueAt rejection.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-terms-create-template-and-schedule-validation.json`,
@@ -9309,7 +9725,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'payment-terms-create-template-reprojection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-template-reprojection-conformance.ts',
-    purpose: 'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates.',
+    purpose:
+      'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates plus Order currentTotalPriceSet computation from line prices.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-terms-create-template-reprojection.json`,
@@ -9593,6 +10010,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/admin-platform/by-id-not-found/store-properties.graphql',
     ],
     cleanupBehavior: 'Read-only missing-id probes; no Shopify state is created and no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
+    captureId: 'admin-platform-tags-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-admin-platform-tags-not-found-conformance.ts',
+    purpose:
+      'tagsAdd/tagsRemove payload userError behavior for well-formed Product and Customer GIDs that do not resolve.',
+    requiredAuthScopes: ['write_products', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-tags-not-found.json`,
+      'config/parity-specs/admin-platform/admin-platform-tags-not-found.json',
+      'config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql',
+      'config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql',
+    ],
+    cleanupBehavior: 'Missing-id tag probes do not mutate Shopify resources; no cleanup is expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -9982,7 +10416,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
     purpose:
-      'returnClose, returnReopen, returnCancel, and removeFromReturn status-machine/editability preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+      'returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess status-machine/editability preconditions, idempotent no-op branches, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
@@ -9990,6 +10424,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/return-cancel-state-precondition.graphql',
       'config/parity-requests/orders/return-close-state-precondition.graphql',
       'config/parity-requests/orders/remove-from-return-state-precondition.graphql',
+      'config/parity-requests/orders/return-process-recorded.graphql',
       'config/parity-requests/orders/return-reopen-state-precondition.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
       'config/parity-requests/orders/return-remove-from-return-state-precondition-read.graphql',
@@ -10101,6 +10536,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql',
     ],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-set-deadline-closed-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-set-deadline-closed-not-found-conformance.ts',
+    purpose:
+      'fulfillmentOrdersSetFulfillmentDeadline success on an existing closed fulfillment order and all-ids-unresolvable userError shape.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-set-deadline-closed-not-found.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-set-deadline-order-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable order, closes its fulfillment order through fulfillmentOrderCancel, captures deadline mutation behavior and unknown-id validation, then cancels the disposable order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -10877,6 +11329,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-empty-file',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-empty-file-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation rejects a zero-byte staged JSONL upload with INVALID_STAGED_UPLOAD_FILE and the empty-file message.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-empty-file.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-empty-file.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file-staged-upload.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one staged upload target and uploads a zero-byte JSONL body; Shopify rejects bulkOperationRunMutation before creating a bulk operation or product data.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-allowed-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',
@@ -10907,6 +11377,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-validators.json',
       'config/parity-specs/bulk-operations/bulk-operation-run-mutation-validators.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-connection-validators',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-connection-validators-conformance.ts',
+    purpose:
+      'Records bulkOperationRunMutation inner mutation connection-count and connection-nesting validation errors.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
       'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
@@ -10953,6 +11439,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-no-such-file-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-no-such-file-precedence-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation missing staged upload returns NO_SUCH_FILE before same-type mutation in-progress throttle handling.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+    ],
+    cleanupBehavior:
+      'Uploads and starts five disposable product bulk mutations, records a missing stagedUploadPath validation response, cancels the non-terminal operations, and best-effort deletes any disposable products that completed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -10987,6 +11489,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records current public Admin GraphQL userErrors, including generic URI errors emitted alongside the structural validator messages.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-scheme-allowlist',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-scheme-allowlist.ts',
+    purpose:
+      'Webhook subscription non-HTTPS/non-cloud URI scheme and bare HTTPS validation branches for create/update.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-scheme-allowlist.json`,
+      'config/parity-specs/webhooks/webhook-subscription-scheme-allowlist.json',
+    ],
+    cleanupBehavior:
+      'Creates one temporary HTTP webhook subscription for update validation, then deletes it during cleanup; invalid create branches are validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'webhooks',
@@ -11046,6 +11564,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records numeric project-number acceptance, digit-leading topic rejection, and percent-topic acceptance for both dedicated and unified webhook roots.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-pubsub-both-invalid',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-pubsub-both-invalid.ts',
+    purpose:
+      'Dedicated Pub/Sub webhook subscription create/update userErrors when pubSubProject and pubSubTopic are both invalid.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-pubsub-both-invalid.json`,
+      'config/parity-specs/webhooks/webhook-subscription-pubsub-both-invalid.json',
+    ],
+    cleanupBehavior:
+      'Records a rejected create branch, creates one temporary valid Pub/Sub subscription as the update target, records a rejected update branch, then deletes the temporary subscription.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records that dedicated Pub/Sub roots accumulate project and topic validation userErrors in project-before-topic order.',
   },
   {
     domain: 'webhooks',
@@ -11160,6 +11696,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-filter-mixed-term',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-filter-mixed-term.ts',
+    purpose:
+      'WebhookSubscriptionInput.filter validation for a mixed qualified customer_id term plus bare/default term on create and update.',
+    requiredAuthScopes: [
+      'webhook subscription management access for the installed app',
+      'read_customers',
+      'write_customers',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-filter-mixed-term.json`,
+      'config/parity-specs/webhooks/webhook-subscription-filter-mixed-term.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer and one fully qualified CUSTOMERS_UPDATE subscription, records mixed-term create/update validation failures, then deletes both created resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
@@ -11238,7 +11794,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
+      'config/parity-specs/gift-cards/gift-card-connection-mechanics.json',
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+      'config/parity-requests/gift-cards/gift-card-connection-first-page.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-setup.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-windows.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',
@@ -11534,7 +12094,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-user-error-typename.json`,
+      'config/parity-specs/gift-cards/gift-card-legacy-seed-hydration.json',
       'config/parity-specs/gift-cards/gift-card-user-error-typename.json',
+      'config/parity-requests/gift-cards/gift-card-legacy-seed-hydration-read.graphql',
+      'config/parity-requests/gift-cards/gift-card-legacy-seed-hydration.graphql',
       'config/parity-requests/gift-cards/gift-card-user-error-typename.graphql',
     ],
     cleanupBehavior:
@@ -11770,6 +12333,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-update-inline-address-id-semantics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-update-inline-addresses-conformance.mts',
+    purpose:
+      'customerUpdate CustomerInput.addresses id-aware update, unknown-id validation, replacement-list, and downstream read behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-update-inline-address-id-semantics.json`,
+      'config/parity-specs/customers/customer-update-inline-address-id-semantics.json',
+      'config/parity-requests/customers/customer-update-inline-addresses-create.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-read.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer with two addresses, records inline address update/error/create branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-address-country-province-validation',
     scriptPath: 'scripts/capture-customer-address-country-province-validation.mts',
     purpose:
@@ -11799,16 +12381,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-address-input-validation.json`,
       'config/parity-specs/customers/customer-address-input-validation.json',
+      'config/parity-specs/customers/customer-address-phone-normalization.json',
       'config/parity-requests/customers/customerInputValidation-create.graphql',
+      'config/parity-requests/customers/customer-address-phone-normalization-read.graphql',
       'config/parity-requests/customers/customer-address-lifecycle-create-address.graphql',
       'config/parity-requests/customers/customer-address-lifecycle-update-address.graphql',
       'config/parity-requests/customers/customerSet-parity.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable customer, records address validation and normalization branches, then deletes it.',
+      'Creates disposable customers, records address validation and normalization branches, then deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry.',
+      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry. Standalone address phone normalization removes formatting only for values with an explicit international country code.',
   },
   {
     domain: 'customers',

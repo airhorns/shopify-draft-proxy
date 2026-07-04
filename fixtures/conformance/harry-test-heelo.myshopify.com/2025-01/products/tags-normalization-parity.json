@@ -2,16 +2,16 @@
   "tagNormalization": {
     "commaStringAdd": {
       "seedProduct": {
-        "id": "gid://shopify/Product/10221211975986",
-        "title": "Hermes Product Tag Normalization Comma String 1782394032266",
-        "handle": "hermes-product-tag-normalization-comma-string-1782394032266",
+        "id": "gid://shopify/Product/10230770336050",
+        "title": "Hermes Product Tag Normalization Comma String 1783081819761",
+        "handle": "hermes-product-tag-normalization-comma-string-1783081819761",
         "status": "DRAFT",
         "tags": ["Red"]
       },
       "setup": {
         "variables": {
           "product": {
-            "title": "Hermes Product Tag Normalization Comma String 1782394032266",
+            "title": "Hermes Product Tag Normalization Comma String 1783081819761",
             "status": "DRAFT",
             "tags": ["Red"]
           }
@@ -20,9 +20,9 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10221211975986",
-                "title": "Hermes Product Tag Normalization Comma String 1782394032266",
-                "handle": "hermes-product-tag-normalization-comma-string-1782394032266",
+                "id": "gid://shopify/Product/10230770336050",
+                "title": "Hermes Product Tag Normalization Comma String 1783081819761",
+                "handle": "hermes-product-tag-normalization-comma-string-1783081819761",
                 "status": "DRAFT",
                 "tags": ["Red"]
               },
@@ -35,7 +35,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1973,
                 "restoreRate": 100
               }
             }
@@ -45,14 +45,14 @@
       "mutation": {
         "query": "#graphql\n  mutation TagsAddCommaString($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Product/10221211975986",
+          "id": "gid://shopify/Product/10230770336050",
           "tags": "blue, green"
         },
         "response": {
           "data": {
             "tagsAdd": {
               "node": {
-                "id": "gid://shopify/Product/10221211975986",
+                "id": "gid://shopify/Product/10230770336050",
                 "tags": ["blue", "green", "Red"]
               },
               "userErrors": []
@@ -74,16 +74,16 @@
     },
     "commaListElementAdd": {
       "seedProduct": {
-        "id": "gid://shopify/Product/10221212041522",
-        "title": "Hermes Product Tag Normalization Comma List Element 1782394032266",
-        "handle": "hermes-product-tag-normalization-comma-list-element-1782394032266",
+        "id": "gid://shopify/Product/10230770368818",
+        "title": "Hermes Product Tag Normalization Comma List Element 1783081819761",
+        "handle": "hermes-product-tag-normalization-comma-list-element-1783081819761",
         "status": "DRAFT",
         "tags": ["Red"]
       },
       "setup": {
         "variables": {
           "product": {
-            "title": "Hermes Product Tag Normalization Comma List Element 1782394032266",
+            "title": "Hermes Product Tag Normalization Comma List Element 1783081819761",
             "status": "DRAFT",
             "tags": ["Red"]
           }
@@ -92,9 +92,9 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10221212041522",
-                "title": "Hermes Product Tag Normalization Comma List Element 1782394032266",
-                "handle": "hermes-product-tag-normalization-comma-list-element-1782394032266",
+                "id": "gid://shopify/Product/10230770368818",
+                "title": "Hermes Product Tag Normalization Comma List Element 1783081819761",
+                "handle": "hermes-product-tag-normalization-comma-list-element-1783081819761",
                 "status": "DRAFT",
                 "tags": ["Red"]
               },
@@ -117,14 +117,14 @@
       "mutation": {
         "query": "#graphql\n  mutation TagsAddCommaListElement($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Product/10221212041522",
+          "id": "gid://shopify/Product/10230770368818",
           "tags": ["blue,green"]
         },
         "response": {
           "data": {
             "tagsAdd": {
               "node": {
-                "id": "gid://shopify/Product/10221212041522",
+                "id": "gid://shopify/Product/10230770368818",
                 "tags": ["blue", "green", "Red"]
               },
               "userErrors": []
@@ -146,16 +146,16 @@
     },
     "caseVariantAdd": {
       "seedProduct": {
-        "id": "gid://shopify/Product/10221212074290",
-        "title": "Hermes Product Tag Normalization Case Variant Add 1782394032266",
-        "handle": "hermes-product-tag-normalization-case-variant-add-1782394032266",
+        "id": "gid://shopify/Product/10230770401586",
+        "title": "Hermes Product Tag Normalization Case Variant Add 1783081819761",
+        "handle": "hermes-product-tag-normalization-case-variant-add-1783081819761",
         "status": "DRAFT",
         "tags": ["Red"]
       },
       "setup": {
         "variables": {
           "product": {
-            "title": "Hermes Product Tag Normalization Case Variant Add 1782394032266",
+            "title": "Hermes Product Tag Normalization Case Variant Add 1783081819761",
             "status": "DRAFT",
             "tags": ["Red"]
           }
@@ -164,9 +164,9 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10221212074290",
-                "title": "Hermes Product Tag Normalization Case Variant Add 1782394032266",
-                "handle": "hermes-product-tag-normalization-case-variant-add-1782394032266",
+                "id": "gid://shopify/Product/10230770401586",
+                "title": "Hermes Product Tag Normalization Case Variant Add 1783081819761",
+                "handle": "hermes-product-tag-normalization-case-variant-add-1783081819761",
                 "status": "DRAFT",
                 "tags": ["Red"]
               },
@@ -189,14 +189,14 @@
       "mutation": {
         "query": "#graphql\n  mutation TagsAddCaseVariant($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Product/10221212074290",
+          "id": "gid://shopify/Product/10230770401586",
           "tags": ["red"]
         },
         "response": {
           "data": {
             "tagsAdd": {
               "node": {
-                "id": "gid://shopify/Product/10221212074290",
+                "id": "gid://shopify/Product/10230770401586",
                 "tags": ["Red"]
               },
               "userErrors": []
@@ -218,16 +218,16 @@
     },
     "caseVariantRemove": {
       "seedProduct": {
-        "id": "gid://shopify/Product/10221212172594",
-        "title": "Hermes Product Tag Normalization Case Variant Remove 1782394032266",
-        "handle": "hermes-product-tag-normalization-case-variant-remove-1782394032266",
+        "id": "gid://shopify/Product/10230770434354",
+        "title": "Hermes Product Tag Normalization Case Variant Remove 1783081819761",
+        "handle": "hermes-product-tag-normalization-case-variant-remove-1783081819761",
         "status": "DRAFT",
         "tags": ["Red"]
       },
       "setup": {
         "variables": {
           "product": {
-            "title": "Hermes Product Tag Normalization Case Variant Remove 1782394032266",
+            "title": "Hermes Product Tag Normalization Case Variant Remove 1783081819761",
             "status": "DRAFT",
             "tags": ["Red"]
           }
@@ -236,9 +236,9 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10221212172594",
-                "title": "Hermes Product Tag Normalization Case Variant Remove 1782394032266",
-                "handle": "hermes-product-tag-normalization-case-variant-remove-1782394032266",
+                "id": "gid://shopify/Product/10230770434354",
+                "title": "Hermes Product Tag Normalization Case Variant Remove 1783081819761",
+                "handle": "hermes-product-tag-normalization-case-variant-remove-1783081819761",
                 "status": "DRAFT",
                 "tags": ["Red"]
               },
@@ -261,14 +261,14 @@
       "mutation": {
         "query": "#graphql\n  mutation TagsRemoveCaseVariant($id: ID!, $tags: [String!]!) {\n    tagsRemove(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Product/10221212172594",
+          "id": "gid://shopify/Product/10230770434354",
           "tags": ["red"]
         },
         "response": {
           "data": {
             "tagsRemove": {
               "node": {
-                "id": "gid://shopify/Product/10221212172594",
+                "id": "gid://shopify/Product/10230770434354",
                 "tags": []
               },
               "userErrors": []
@@ -290,16 +290,16 @@
     },
     "singleStringRemove": {
       "seedProduct": {
-        "id": "gid://shopify/Product/10221212205362",
-        "title": "Hermes Product Tag Normalization Single String Remove 1782394032266",
-        "handle": "hermes-product-tag-normalization-single-string-remove-1782394032266",
+        "id": "gid://shopify/Product/10230770467122",
+        "title": "Hermes Product Tag Normalization Single String Remove 1783081819761",
+        "handle": "hermes-product-tag-normalization-single-string-remove-1783081819761",
         "status": "DRAFT",
         "tags": ["Red"]
       },
       "setup": {
         "variables": {
           "product": {
-            "title": "Hermes Product Tag Normalization Single String Remove 1782394032266",
+            "title": "Hermes Product Tag Normalization Single String Remove 1783081819761",
             "status": "DRAFT",
             "tags": ["Red"]
           }
@@ -308,9 +308,9 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10221212205362",
-                "title": "Hermes Product Tag Normalization Single String Remove 1782394032266",
-                "handle": "hermes-product-tag-normalization-single-string-remove-1782394032266",
+                "id": "gid://shopify/Product/10230770467122",
+                "title": "Hermes Product Tag Normalization Single String Remove 1783081819761",
+                "handle": "hermes-product-tag-normalization-single-string-remove-1783081819761",
                 "status": "DRAFT",
                 "tags": ["Red"]
               },
@@ -333,14 +333,14 @@
       "mutation": {
         "query": "#graphql\n  mutation TagsRemoveString($id: ID!, $tags: [String!]!) {\n    tagsRemove(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Product/10221212205362",
+          "id": "gid://shopify/Product/10230770467122",
           "tags": "Red"
         },
         "response": {
           "data": {
             "tagsRemove": {
               "node": {
-                "id": "gid://shopify/Product/10221212205362",
+                "id": "gid://shopify/Product/10230770467122",
                 "tags": []
               },
               "userErrors": []

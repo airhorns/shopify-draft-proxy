@@ -23,6 +23,10 @@ type B2bPassthroughCascadeArgs<'a> = (
     &'a str,
 );
 
+const B2B_BULK_ACTIONS_MAX_SIZE: usize = 50;
+const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
+    "Exceeded max input size of 50. Consider using BulkOperation.";
+
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
         let location_tail = resource_id_tail(location_id);
@@ -1228,7 +1232,10 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
-                b2b_company_contact_payload(None, vec![b2b_resource_not_found(["companyId"])]),
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_not_found(["companyId"], "Company does not exist.")],
+                ),
                 "failed",
                 Vec::new(),
             );
@@ -1338,6 +1345,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_ids = list_string_field(&field.arguments, "companyContactIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            contact_ids.len(),
+            "companyContactIds",
+            &["deletedCompanyContactIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, contact_id) in contact_ids.iter().enumerate() {
@@ -1581,6 +1595,13 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            roles_to_assign.len(),
+            "rolesToAssign",
+            &["roleAssignments"],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
             return (
                 json!({
@@ -1698,6 +1719,13 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "roleAssignmentIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "roleAssignmentIds",
+            &["revokedRoleAssignmentIds"],
+        ) {
+            return payload;
+        }
         let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
         if assignment_ids.is_empty() && !revoke_all {
             return (
@@ -1809,7 +1837,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["id"])]
+                    "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -1843,6 +1871,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let company_ids = list_string_field(&field.arguments, "companyIds");
+        if let Some(payload) =
+            b2b_bulk_action_limit_payload(company_ids.len(), "companyIds", &["deletedCompanyIds"])
+        {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, company_id) in company_ids.iter().enumerate() {
@@ -1989,6 +2022,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let location_ids = list_string_field(&field.arguments, "companyLocationIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            location_ids.len(),
+            "companyLocationIds",
+            &["deletedCompanyLocationIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
@@ -2223,7 +2263,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedAddressId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["addressId"])]
+                    "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2247,6 +2287,13 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
         let staff_ids = list_string_field(&field.arguments, "staffMemberIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            staff_ids.len(),
+            "staffMemberIds",
+            &["companyLocationStaffMemberAssignments"],
+        ) {
+            return payload;
+        }
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return (
                 json!({
@@ -2327,6 +2374,13 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let assignment_ids =
             list_string_field(&field.arguments, "companyLocationStaffMemberAssignmentIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "companyLocationStaffMemberAssignmentIds",
+            &["deletedCompanyLocationStaffMemberAssignmentIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
@@ -2372,11 +2426,18 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            roles_to_assign.len(),
+            "rolesToAssign",
+            &["roleAssignments"],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
                 json!({
                     "roleAssignments": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2440,12 +2501,22 @@ impl DraftProxy {
         let location_id =
             resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "rolesToRevoke");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "rolesToRevoke",
+            &[
+                "revokedRoleAssignmentIds",
+                "revokedCompanyContactRoleAssignmentIds",
+            ],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
                 json!({
                     "revokedRoleAssignmentIds": Value::Null,
                     "revokedCompanyContactRoleAssignmentIds": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -3095,71 +3166,23 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            (
+        self.b2b_company_tail_helper_response(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+        )
+        .unwrap_or_else(|| {
+            self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
                 variables,
                 operation_type,
                 parsed_root_fields,
                 root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyContactCreate")
-                    .cloned()
-            },
-            |proxy, create, response| {
-                if let Some(field) = create {
-                    if let Some(contact_id) = response
-                        .body
-                        .pointer("/data/companyContactCreate/companyContact/id")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                    {
-                        let company_id = resolved_string_field(&field.arguments, "companyId")
-                            .unwrap_or_default();
-                        let input =
-                            resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                        let first = resolved_string_field(&input, "firstName");
-                        let last = resolved_string_field(&input, "lastName");
-                        let title = resolved_string_field(&input, "title");
-                        let customer_id = resolved_string_field(&input, "email").map(|email| {
-                            proxy.b2b_provision_contact_customer(
-                                &email,
-                                first.clone(),
-                                last.clone(),
-                            )
-                        });
-                        let contact = json!({
-                            "id": contact_id,
-                            "companyId": company_id,
-                            "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
-                            "firstName": first.map(Value::String).unwrap_or(Value::Null),
-                            "lastName": last.map(Value::String).unwrap_or(Value::Null),
-                            "title": title.map(Value::String).unwrap_or(Value::Null),
-                            // A contact added after creation defaults to the shop's primary
-                            // locale ("en") and never becomes the company's main contact.
-                            "locale": resolved_string_field(&input, "locale")
-                                .unwrap_or_else(|| "en".to_string()),
-                            "isMainContact": false
-                        });
-                        proxy
-                            .store
-                            .staged
-                            .b2b_contacts
-                            .insert(contact_id.clone(), contact);
-                        if let Some(mut company) =
-                            proxy.store.staged.b2b_companies.get(&company_id).cloned()
-                        {
-                            b2b_push_json_id(&mut company, "contactIds", &contact_id);
-                            proxy.store.staged.b2b_companies.insert(company_id, company);
-                        }
-                    }
-                }
-            },
-        )
+            )
+        })
     }
 
     pub(in crate::proxy) fn b2b_company_contact_update_with_cascade(
@@ -4099,6 +4122,29 @@ fn b2b_bulk_role_already_assigned_error(index: usize) -> Value {
     )
 }
 
+fn b2b_bulk_action_limit_payload(
+    input_size: usize,
+    argument_field: &str,
+    empty_result_fields: &[&str],
+) -> Option<(Value, &'static str, Vec<String>)> {
+    if input_size <= B2B_BULK_ACTIONS_MAX_SIZE {
+        return None;
+    }
+    let mut payload = serde_json::Map::new();
+    for field in empty_result_fields {
+        payload.insert((*field).to_string(), json!([]));
+    }
+    payload.insert(
+        "userErrors".to_string(),
+        json!([user_error(
+            vec![argument_field],
+            B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE,
+            Some("LIMIT_REACHED")
+        )]),
+    );
+    Some((Value::Object(payload), "failed", Vec::new()))
+}
+
 fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {
     user_error(
         field,
@@ -4111,9 +4157,9 @@ fn b2b_not_found(field: impl Into<UserErrorField>, message: &str) -> Value {
     user_error(field, message, Some("RESOURCE_NOT_FOUND"))
 }
 
-/// Validates a `companyContactCreate` input: a title carrying HTML, a name that
+/// Validates a `companyContactCreate` input: a name carrying HTML, a name that
 /// exceeds Shopify's 255-character limit, a missing email, or an invalid email
-/// each produces a Shopify-shaped user error.
+/// each produces a Shopify-shaped user error. Title values are stored verbatim.
 fn b2b_contact_create_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
@@ -4126,18 +4172,16 @@ fn b2b_contact_create_input_errors(
             .chain(std::iter::once(name.to_string()))
             .collect()
     };
-    if let Some(title) = resolved_string_field(input, "title") {
-        if b2b_contains_html_tags(&title) {
-            errors.push(user_error(
-                json!(field_path("title")),
-                "Title contains HTML tags",
-                Some("CONTAINS_HTML_TAGS"),
-            ));
-        }
-    }
     for (name_field, label) in [("firstName", "First name"), ("lastName", "Last name")] {
         if let Some(value) = resolved_string_field(input, name_field) {
-            if value.chars().count() > 255 {
+            if b2b_contains_html_tags(&value) {
+                errors.push(user_error(
+                    json!(prefix),
+                    "Invalid input.",
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            } else if value.chars().count() > 255 {
                 errors.push(user_error(
                     json!(field_path(name_field)),
                     &format!("{label} is too long"),

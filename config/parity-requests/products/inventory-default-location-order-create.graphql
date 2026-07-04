@@ -1,0 +1,23 @@
+mutation InventoryDefaultLocationOrderCreate(
+  $order: OrderCreateOrderInput!
+  $options: OrderCreateOptionsInput
+) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      lineItems(first: 5) {
+        nodes {
+          id
+          variant {
+            id
+          }
+          quantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "localization-translatable-resource-absence",
+  "operationNames": ["translatableResource", "translatableResources", "translatableResourcesByIds"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translatable-resource-absence.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translatable-resource-absence.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.read.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "translatable-resources-empty-article-connection-no-default-gid",
+        "capturePath": "$.read.response.data.resources",
+        "proxyPath": "$.data.resources"
+      },
+      {
+        "name": "translatable-resources-by-ids-empty-missing-product",
+        "capturePath": "$.read.response.data.byIds",
+        "proxyPath": "$.data.byIds"
+      },
+      {
+        "name": "translatable-resource-missing-product-null",
+        "capturePath": "$.read.response.data.missing",
+        "proxyPath": "$.data.missing"
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves an empty ARTICLE translatableResources connection remains empty, translatableResourcesByIds with a missing Product GID returns an empty connection, and translatableResource for that missing Product GID returns null. The empty ARTICLE target would have failed before the sentinel removal because the local handler padded empty connections with a fabricated default resource GID."
+}

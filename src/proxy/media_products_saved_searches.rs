@@ -101,9 +101,16 @@ impl DraftProxy {
             "product" => Some(self.product_by_id_field(field)),
             "products" => Some(self.products_connection_field(field)),
             "productsCount" => Some(self.products_count_field(field)),
+            "collections" => Some(self.collections_connection_field(field)),
+            "collectionsCount" => Some(self.collections_count_field(field)),
             "productByIdentifier" => Some(self.product_by_identifier_field(field)),
             "productOperation" => Some(self.product_operation_by_id_field(field)),
+            "productFeed" => Some(self.product_tail_feed_read_field(field)),
+            "productFeeds" => Some(self.product_tail_feeds_read_field(field)),
             "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "node" | "nodes" => self
+                .local_node_query_data(std::slice::from_ref(field), true, None)
+                .and_then(|data| data.get(&field.response_key).cloned()),
             "inventoryItem" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 self.product_inventory_item_by_id_value(&id, &field.selection)
@@ -312,7 +319,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
-        self.store.has_product_state()
+        self.store.has_product_state() || self.store.has_product_feed_state()
     }
 
     pub(in crate::proxy) fn products_connection_value(
@@ -386,12 +393,7 @@ impl DraftProxy {
             return StagedSearchDecision::Match;
         };
         let variants = self.store.product_variants_for_product(&product.id);
-        StagedSearchDecision::from_bool(product_matches_search_query(
-            product,
-            &variants,
-            self.store.staged.product_search_tags.get(&product.id),
-            query,
-        ))
+        StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
     }
 
     fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
@@ -1689,6 +1691,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
+            let error_count_before_variant = user_errors.len();
             user_errors.extend(product_variant_input_user_errors_with_prefix(
                 input,
                 &["variants".to_string(), index.to_string()],
@@ -1696,8 +1699,10 @@ impl DraftProxy {
             user_errors.extend(Self::product_variant_bulk_option_user_errors(
                 input, &product, index, false,
             ));
-            user_errors
-                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            if user_errors.len() == error_count_before_variant {
+                user_errors
+                    .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            }
         }
         if user_errors.is_empty() {
             user_errors.extend(Self::product_variant_bulk_duplicate_tuple_user_errors(
@@ -2915,19 +2920,8 @@ impl DraftProxy {
             .product_staged_or_base(id)
             .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for product tags id",
-            ));
+            return tags_not_found_mutation_outcome("Product", id, root_field, field);
         };
-
-        if !self.store.staged.product_search_tags.contains_key(id) {
-            let search_tags = product.tags.iter().cloned().collect();
-            self.store
-                .staged
-                .product_search_tags
-                .insert(id.clone(), search_tags);
-        }
 
         let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {
@@ -3003,10 +2997,7 @@ impl DraftProxy {
         let Some(mut record) =
             self.taggable_resource_staged_or_hydrated(resource_type, id, request)
         else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for taggable resource id",
-            ));
+            return tags_not_found_mutation_outcome(resource_type, id, root_field, field);
         };
 
         let existing_tags = taggable_record_tags(&record);
@@ -3365,6 +3356,31 @@ impl DraftProxy {
         }
         errors
     }
+}
+
+fn tags_not_found_mutation_outcome(
+    resource_type: &str,
+    id: &str,
+    root_field: &str,
+    field: &RootFieldSelection,
+) -> MutationOutcome {
+    let payload = json!({
+        "node": Value::Null,
+        "userErrors": [user_error_omit_code(
+            ["id"],
+            &format!("{resource_type} does not exist"),
+            None,
+        )],
+    });
+
+    MutationOutcome::staged(
+        ok_json(json!({
+            "data": {
+                field.response_key.clone(): selected_json(&payload, &field.selection)
+            }
+        })),
+        LogDraft::staged(root_field, "products", vec![id.to_string()]),
+    )
 }
 
 // Resolves the `metafields` input list for a metafieldsSet/metafieldsDelete

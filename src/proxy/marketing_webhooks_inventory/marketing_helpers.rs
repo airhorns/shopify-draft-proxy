@@ -1,15 +1,77 @@
 use super::*;
 
-pub(in crate::proxy) fn marketing_connection(
+fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
+    value
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
+    let tail = id.map(resource_id_tail).unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn marketing_activity_cursor(record: &Value) -> String {
+    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
+}
+
+fn marketing_event_cursor(record: &Value) -> String {
+    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
+}
+
+fn marketing_activity_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = record["id"].as_str();
+    let primary = match sort_key.unwrap_or("CREATED_AT") {
+        "ID" => marketing_gid_tail_sort_value(id),
+        "TITLE" => marketing_normalized_sort_string(record["title"].as_str()),
+        _ => StagedSortValue::String(record["createdAt"].as_str().unwrap_or_default().to_string()),
+    };
+    vec![primary, marketing_gid_tail_sort_value(id)]
+}
+
+fn marketing_event_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = record["id"].as_str();
+    let primary = match sort_key.unwrap_or("ID") {
+        "STARTED_AT" => {
+            StagedSortValue::String(record["startedAt"].as_str().unwrap_or_default().to_string())
+        }
+        _ => marketing_gid_tail_sort_value(id),
+    };
+    vec![primary, marketing_gid_tail_sort_value(id)]
+}
+
+fn marketing_activity_connection(
     records: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     selection: &[SelectedField],
 ) -> Value {
-    let full = connection_json_with_cursor(
+    selected_staged_connection_with_args(
         records,
-        |_, record| format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
-        empty_page_info(),
-    );
-    selected_json(&full, selection)
+        arguments,
+        selection,
+        marketing_activity_search_decision,
+        marketing_activity_staged_sort_key,
+        selected_json,
+        marketing_activity_cursor,
+    )
+}
+
+fn marketing_event_connection(
+    records: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    selected_staged_connection_with_args(
+        records,
+        arguments,
+        selection,
+        marketing_event_search_decision,
+        marketing_event_staged_sort_key,
+        selected_json,
+        marketing_event_cursor,
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -66,12 +128,32 @@ pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
     })
 }
 
+const MARKETING_EVENT_ID_OFFSET: u64 = 1_000_000;
+
+fn marketing_app_json(api_client_id: Option<&str>) -> Value {
+    let Some(api_client_id) = api_client_id.map(str::trim).filter(|id| !id.is_empty()) else {
+        return json!({ "id": "gid://shopify/App/local", "title": "local" });
+    };
+    let app_id = if api_client_id.starts_with("gid://shopify/App/") {
+        api_client_id.to_string()
+    } else {
+        shopify_gid("App", api_client_id)
+    };
+    json!({ "id": app_id, "title": resource_id_tail(api_client_id) })
+}
+
+fn non_empty_channel_handle(handle: &str) -> bool {
+    !handle.trim().is_empty()
+}
+
 pub(in crate::proxy) fn marketing_activity_from_input(
     id: &str,
     input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     api_client_id: Option<String>,
+    new_marketing_event_id: Option<String>,
     timestamp: &str,
+    shop_currency_code: &str,
 ) -> Value {
     let old = existing.cloned().unwrap_or_else(|| json!({}));
     let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
@@ -80,12 +162,8 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             .unwrap_or("Marketing activity")
             .to_string()
     });
-    let remote_id = resolved_string_field(&input, "remoteId").unwrap_or_else(|| {
-        old["remoteId"]
-            .as_str()
-            .unwrap_or("local-remote")
-            .to_string()
-    });
+    let remote_id = resolved_string_field(&input, "remoteId")
+        .or_else(|| old["remoteId"].as_str().map(str::to_string));
     let status = resolved_string_field(&input, "status")
         .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
     let tactic = resolved_string_field(&input, "tactic")
@@ -117,38 +195,32 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let campaign = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "campaign"))
-        .unwrap_or_else(|| {
-            old_utm["campaign"]
-                .as_str()
-                .unwrap_or(&remote_id)
-                .to_string()
-        });
+        .or_else(|| old_utm["campaign"].as_str().map(str::to_string));
     let source = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "source"))
-        .unwrap_or_else(|| {
-            old_utm["source"]
-                .as_str()
-                .unwrap_or("newsletter")
-                .to_string()
-        });
+        .or_else(|| old_utm["source"].as_str().map(str::to_string));
     let medium = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "medium"))
-        .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
+        .or_else(|| old_utm["medium"].as_str().map(str::to_string));
     let source_medium = marketing_source_and_medium(
         &channel_type,
         &tactic,
         resolved_string_field(&input, "referringDomain").as_deref(),
     );
-    let numeric = resource_id_path_tail(id);
+    let remote_id_value = remote_id.map(Value::String).unwrap_or(Value::Null);
+    let campaign_value = campaign.map(Value::String).unwrap_or(Value::Null);
+    let source_value = source.map(Value::String).unwrap_or(Value::Null);
+    let medium_value = medium.map(Value::String).unwrap_or(Value::Null);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
-        .unwrap_or_else(|| shopify_gid("MarketingEvent", numeric.parse::<u64>().unwrap_or(1) + 1));
+        .or(new_marketing_event_id)
+        .unwrap_or_else(|| shopify_gid("MarketingEvent", "local"));
     let status_label = marketing_status_label(&status, &tactic, None);
     let budget = resolved_object_field(&input, "budget")
-        .map(marketing_budget_json)
+        .map(|budget| marketing_budget_json(budget, shop_currency_code))
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
     let ad_spend = resolved_object_field(&input, "adSpend")
         .map(|obj| {
@@ -157,7 +229,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
                     .map(|a| normalize_money_amount(&a))
                     .unwrap_or_default(),
                 "currencyCode": resolved_string_field(&obj, "currencyCode")
-                    .unwrap_or_else(|| "USD".to_string())
+                    .unwrap_or_else(|| shop_currency_code.to_string())
             })
         })
         .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
@@ -168,12 +240,13 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let started_at = old["marketingEvent"]["startedAt"]
         .as_str()
         .unwrap_or(timestamp);
+    let app = marketing_app_json(api_client_id.as_deref());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
         "apiClientId": api_client_id,
         "title": title,
-        "remoteId": remote_id,
+        "remoteId": remote_id_value.clone(),
         "createdAt": created_at,
         "updatedAt": timestamp,
         "status": status,
@@ -191,24 +264,28 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel")
             .map(Value::String)
             .unwrap_or_else(|| old.get("hierarchyLevel").cloned().unwrap_or(Value::Null)),
-        "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
+        "utmParameters": {
+            "campaign": campaign_value.clone(),
+            "source": source_value.clone(),
+            "medium": medium_value.clone()
+        },
         "budget": budget,
         "adSpend": ad_spend,
-        "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
+        "app": app,
         "marketingEvent": {
             "__typename": "MarketingEvent",
             "id": event_id,
             "type": tactic,
-            "remoteId": remote_id,
+            "remoteId": remote_id_value,
             "channelHandle": channel_handle,
             "startedAt": started_at,
             "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!(timestamp) } else { Value::Null },
             "scheduledToEndAt": scheduled_to_end_at,
             "manageUrl": remote_url,
             "previewUrl": preview_url,
-            "utmCampaign": campaign,
-            "utmMedium": medium,
-            "utmSource": source,
+            "utmCampaign": campaign_value,
+            "utmMedium": medium_value,
+            "utmSource": source_value,
             "description": title,
             "marketingChannelType": channel_type,
             "sourceAndMedium": source_medium
@@ -222,6 +299,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
     existing: Option<&Value>,
     api_client_id: Option<String>,
     timestamp: &str,
+    shop_currency_code: &str,
 ) -> Value {
     if !input.contains_key("title") {
         if let Some(title) = input.get("marketingActivityTitle").cloned() {
@@ -235,7 +313,15 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
                 .and_then(|old| old.get("targetStatus").cloned())
                 .unwrap_or(Value::Null)
         });
-    let mut activity = marketing_activity_from_input(id, input, existing, api_client_id, timestamp);
+    let mut activity = marketing_activity_from_input(
+        id,
+        input,
+        existing,
+        api_client_id,
+        None,
+        timestamp,
+        shop_currency_code,
+    );
     activity["isExternal"] = json!(false);
     activity["inMainWorkflowVersion"] = json!(true);
     activity["targetStatus"] = target_status;
@@ -272,13 +358,16 @@ pub(in crate::proxy) fn native_marketing_activity_extension_error(
     }
 }
 
-pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
+pub(in crate::proxy) fn marketing_budget_json(
+    input: BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     let total = resolved_object_field(&input, "total").unwrap_or_default();
     json!({
         "budgetType": resolved_string_field(&input, "budgetType").unwrap_or_else(|| "DAILY".to_string()),
         "total": {
             "amount": resolved_string_field(&total, "amount").unwrap_or_else(|| "0.00".to_string()),
-            "currencyCode": resolved_string_field(&total, "currencyCode").unwrap_or_else(|| "USD".to_string())
+            "currencyCode": resolved_string_field(&total, "currencyCode").unwrap_or_else(|| shop_currency_code.to_string())
         }
     })
 }
@@ -286,8 +375,9 @@ pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedVa
 pub(in crate::proxy) fn marketing_engagement_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     activity: Option<&Value>,
+    shop_currency_code: &str,
 ) -> Value {
-    let money = |key: &str| marketing_money_json(input, key);
+    let money = |key: &str| marketing_money_json(input, key, shop_currency_code);
     json!({
         "__typename": "MarketingEngagement",
         "occurredOn": resolved_string_field(input, "occurredOn"),
@@ -311,13 +401,14 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
 pub(in crate::proxy) fn marketing_money_json(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
+    shop_currency_code: &str,
 ) -> Value {
     let Some(obj) = resolved_object_field(input, key) else {
         return Value::Null;
     };
     json!({
         "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
-        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
+        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| shop_currency_code.to_string())
     })
 }
 
@@ -530,9 +621,7 @@ impl DraftProxy {
                 "marketingActivities" => {
                     let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
                     let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    let mut records = self
+                    let records = self
                         .store
                         .staged
                         .marketing_activities
@@ -554,17 +643,11 @@ impl DraftProxy {
                             {
                                 return false;
                             }
-                            if !marketing_record_matches_query(record, &query) {
-                                return false;
-                            }
                             true
                         })
                         .cloned()
                         .collect::<Vec<_>>();
-                    records.sort_by_key(|record| {
-                        record["id"].as_str().unwrap_or_default().to_string()
-                    });
-                    marketing_connection(records, &field.selection)
+                    marketing_activity_connection(records, &field.arguments, &field.selection)
                 }
                 "marketingEvent" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -585,8 +668,6 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "marketingEvents" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let records = self
                         .store
                         .staged
@@ -596,7 +677,6 @@ impl DraftProxy {
                             let id = record["id"].as_str().unwrap_or_default();
                             !self.store.staged.marketing_activities.is_tombstoned(id)
                         })
-                        .filter(|record| marketing_record_matches_query(record, &query))
                         .filter_map(|record| {
                             if record["marketingEvent"].is_null() {
                                 None
@@ -605,7 +685,7 @@ impl DraftProxy {
                             }
                         })
                         .collect();
-                    marketing_connection(records, &field.selection)
+                    marketing_event_connection(records, &field.arguments, &field.selection)
                 }
                 _ => Value::Null,
             };
@@ -722,6 +802,7 @@ impl DraftProxy {
         }
         let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = native_marketing_activity_from_input(
             &id,
             input,
@@ -731,6 +812,7 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
             &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -752,6 +834,7 @@ impl DraftProxy {
             .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = native_marketing_activity_from_input(
             &id,
             input,
@@ -761,6 +844,7 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
             &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -933,7 +1017,7 @@ impl DraftProxy {
         if create_if_missing
             && existing_id.is_none()
             && resolved_string_field(&input, "channelHandle")
-                .is_some_and(|handle| handle != "email")
+                .is_some_and(|handle| !non_empty_channel_handle(&handle))
         {
             return marketing_activity_payload(
                 None,
@@ -987,12 +1071,22 @@ impl DraftProxy {
                 );
             }
         }
-        let id =
-            existing_id.unwrap_or_else(|| shopify_gid("MarketingActivity", self.next_synthetic_id));
-        if !self.store.staged.marketing_activities.contains_key(&id) {
-            self.next_synthetic_id += 2;
-        }
+        let new_marketing_event_id = if existing_id.is_none() {
+            Some(shopify_gid(
+                "MarketingEvent",
+                self.next_synthetic_id + MARKETING_EVENT_ID_OFFSET,
+            ))
+        } else {
+            None
+        };
+        let id = existing_id.unwrap_or_else(|| {
+            let id = shopify_gid("MarketingActivity", self.next_synthetic_id);
+            self.next_synthetic_id += 1;
+            id
+        });
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
+        let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = marketing_activity_from_input(
             &id,
             input,
@@ -1001,7 +1095,9 @@ impl DraftProxy {
                 .headers
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
-            &self.next_product_timestamp(),
+            new_marketing_event_id,
+            &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -1127,7 +1223,7 @@ impl DraftProxy {
             );
         }
         if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
-            if channel != "email" {
+            if !non_empty_channel_handle(&channel) {
                 return selected_json(
                     &marketing_engagement_payload(
                         None,
@@ -1153,7 +1249,9 @@ impl DraftProxy {
             );
         }
         if has_channel {
-            let engagement = marketing_engagement_from_input(&engagement_input, None);
+            let shop_currency_code = self.store.shop_currency_code();
+            let engagement =
+                marketing_engagement_from_input(&engagement_input, None, &shop_currency_code);
             return selected_json(
                 &marketing_engagement_payload(Some(engagement), Vec::new()),
                 &field.selection,
@@ -1204,7 +1302,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let engagement = marketing_engagement_from_input(&engagement_input, Some(activity));
+        let shop_currency_code = self.store.shop_currency_code();
+        let engagement =
+            marketing_engagement_from_input(&engagement_input, Some(activity), &shop_currency_code);
         // Shopify accepts engagement metrics but does not fold engagement ad spend
         // back into the MarketingActivity.adSpend field in these captures.
         selected_json(
@@ -1232,7 +1332,7 @@ impl DraftProxy {
         } else if let Some(channel_handle) =
             resolved_string_field(&field.arguments, "channelHandle")
         {
-            if known_handles.contains(&channel_handle) {
+            if non_empty_channel_handle(&channel_handle) {
                 (
                     json!(format!(
                         "Engagement data associated to channel handle '{channel_handle}' marked for deletion"
@@ -1451,45 +1551,274 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
-    marketing_query_terms(query)
-        .iter()
-        .all(|(field, expected)| {
-            marketing_record_query_value(record, field).is_some_and(|value| {
-                value
-                    .to_ascii_lowercase()
-                    .contains(&expected.to_ascii_lowercase())
-            })
-        })
-}
-
-pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
-    query
-        .split_whitespace()
-        .filter_map(|term| {
-            let (field, value) = term.split_once(':')?;
-            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
-            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn marketing_record_query_value(
+pub(in crate::proxy) fn marketing_activity_search_decision(
     record: &Value,
-    field: &str,
-) -> Option<String> {
-    match field {
-        "id" => record["id"].as_str(),
-        "remote_id" | "remoteId" => record["remoteId"]
-            .as_str()
-            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
-        "title" => record["title"].as_str(),
-        "description" => record["marketingEvent"]["description"].as_str(),
-        "status" => record["status"].as_str(),
-        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
-        _ => None,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    marketing_search_decision(record, query, marketing_activity_term_matches)
+}
+
+pub(in crate::proxy) fn marketing_event_search_decision(
+    record: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    marketing_search_decision(record, query, marketing_event_term_matches)
+}
+
+fn marketing_search_decision(
+    record: &Value,
+    query: Option<&str>,
+    term_matches: fn(&Value, &str) -> bool,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
     }
-    .map(ToString::to_string)
+    for term in marketing_query_terms(query) {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        if !term_matches(record, &term) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn marketing_query_terms(query: &str) -> Vec<String> {
+    let mut terms = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+
+    for ch in query.chars() {
+        match quote {
+            Some(active_quote) if ch == active_quote => {
+                current.push(ch);
+                quote = None;
+            }
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                current.push(ch);
+                quote = Some(ch);
+            }
+            None if ch.is_whitespace() => {
+                let term = current.trim();
+                if !term.is_empty() {
+                    terms.push(term.to_string());
+                    current.clear();
+                }
+            }
+            None => current.push(ch),
+        }
+    }
+
+    let term = current.trim();
+    if !term.is_empty() {
+        terms.push(term.to_string());
+    }
+
+    terms
+}
+
+fn marketing_activity_term_matches(record: &Value, term: &str) -> bool {
+    let term = marketing_unquote(term.trim());
+    if term.is_empty() {
+        return true;
+    }
+    let Some((field, value)) = term.split_once(':') else {
+        return marketing_default_query_matches(record, term);
+    };
+    let value = marketing_unquote(value.trim());
+    if value.is_empty() {
+        return true;
+    }
+    match field.to_ascii_lowercase().as_str() {
+        "default" => marketing_default_query_matches(record, value),
+        "app_id" | "appid" | "api_client_id" | "apiclientid" => {
+            marketing_any_text_matches(record, &[&["apiClientId"], &["app", "id"]], value)
+        }
+        "app_name" | "appname" => marketing_any_text_matches(record, &[&["app", "title"]], value),
+        "created_at" | "createdat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["createdAt"]), value)
+        }
+        "id" => marketing_id_matches(marketing_path_string(record, &["id"]), value),
+        "marketing_campaign_id" | "marketingcampaignid" => marketing_any_text_matches(
+            record,
+            &[&["marketingCampaignId"], &["marketingCampaign", "id"]],
+            value,
+        ),
+        "remote_id" | "remoteid" => marketing_any_text_matches(
+            record,
+            &[&["remoteId"], &["marketingEvent", "remoteId"]],
+            value,
+        ),
+        "scheduled_to_end_at" | "scheduledtoendat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["marketingEvent", "scheduledToEndAt"]),
+            value,
+        ),
+        "scheduled_to_start_at" | "scheduledtostartat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["marketingEvent", "scheduledToStartAt"]),
+            value,
+        ),
+        "tactic" => {
+            marketing_any_text_matches(record, &[&["tactic"], &["marketingEvent", "type"]], value)
+        }
+        "title" => marketing_any_text_matches(record, &[&["title"]], value),
+        "updated_at" | "updatedat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["updatedAt"]), value)
+        }
+        "description" => {
+            marketing_any_text_matches(record, &[&["marketingEvent", "description"]], value)
+        }
+        "status" => marketing_any_text_matches(record, &[&["status"]], value),
+        "channel_handle" | "channelhandle" => {
+            marketing_any_text_matches(record, &[&["marketingEvent", "channelHandle"]], value)
+        }
+        _ => marketing_default_query_matches(record, value),
+    }
+}
+
+fn marketing_event_term_matches(record: &Value, term: &str) -> bool {
+    let term = marketing_unquote(term.trim());
+    if term.is_empty() {
+        return true;
+    }
+    let Some((field, value)) = term.split_once(':') else {
+        return marketing_default_query_matches(record, term);
+    };
+    let value = marketing_unquote(value.trim());
+    if value.is_empty() {
+        return true;
+    }
+    match field.to_ascii_lowercase().as_str() {
+        "default" => marketing_default_query_matches(record, value),
+        "id" => marketing_id_matches(marketing_path_string(record, &["id"]), value),
+        "remote_id" | "remoteid" => marketing_any_text_matches(record, &[&["remoteId"]], value),
+        "description" | "title" => marketing_any_text_matches(record, &[&["description"]], value),
+        "channel_handle" | "channelhandle" => {
+            marketing_any_text_matches(record, &[&["channelHandle"]], value)
+        }
+        "started_at" | "startedat" | "scheduled_to_start_at" | "scheduledtostartat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["startedAt"]), value)
+        }
+        "scheduled_to_end_at" | "scheduledtoendat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["scheduledToEndAt"]),
+            value,
+        ),
+        "tactic" | "type" => marketing_any_text_matches(record, &[&["type"]], value),
+        _ => marketing_default_query_matches(record, value),
+    }
+}
+
+fn marketing_unquote(value: &str) -> &str {
+    value.trim_matches(|ch| ch == '"' || ch == '\'')
+}
+
+fn marketing_path_string<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
+    let mut current = value;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    current.as_str()
+}
+
+fn marketing_any_text_matches(record: &Value, paths: &[&[&str]], expected: &str) -> bool {
+    paths.iter().any(|path| {
+        marketing_path_string(record, path)
+            .is_some_and(|actual| marketing_text_matches(actual, expected))
+    })
+}
+
+fn marketing_text_matches(actual: &str, expected: &str) -> bool {
+    actual
+        .to_ascii_lowercase()
+        .contains(&expected.to_ascii_lowercase())
+        || resource_id_tail(actual).eq_ignore_ascii_case(expected)
+}
+
+fn marketing_default_query_matches(record: &Value, expected: &str) -> bool {
+    let mut values = Vec::new();
+    marketing_collect_string_values(record, &mut values);
+    values
+        .iter()
+        .any(|actual| marketing_text_matches(actual, expected))
+}
+
+fn marketing_collect_string_values(value: &Value, values: &mut Vec<String>) {
+    match value {
+        Value::String(value) => values.push(value.clone()),
+        Value::Array(items) => {
+            for item in items {
+                marketing_collect_string_values(item, values);
+            }
+        }
+        Value::Object(map) => {
+            for value in map.values() {
+                marketing_collect_string_values(value, values);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn marketing_id_matches(actual: Option<&str>, expected: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    if let Some((operator, target)) = marketing_query_comparison(expected) {
+        return marketing_ordered_compare(
+            resource_id_tail(actual),
+            resource_id_tail(target),
+            operator,
+        );
+    }
+    actual.eq_ignore_ascii_case(expected)
+        || resource_id_tail(actual).eq_ignore_ascii_case(resource_id_tail(expected))
+        || marketing_text_matches(actual, expected)
+}
+
+fn marketing_ordered_text_matches(actual: Option<&str>, expected: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    if let Some((operator, target)) = marketing_query_comparison(expected) {
+        return marketing_ordered_compare(actual, target, operator);
+    }
+    marketing_text_matches(actual, expected)
+}
+
+fn marketing_query_comparison(value: &str) -> Option<(&str, &str)> {
+    for operator in [">=", "<=", ">", "<"] {
+        if let Some(target) = value.strip_prefix(operator) {
+            let target = marketing_unquote(target.trim());
+            if !target.is_empty() {
+                return Some((operator, target));
+            }
+        }
+    }
+    None
+}
+
+fn marketing_ordered_compare(actual: &str, target: &str, operator: &str) -> bool {
+    if let (Ok(actual), Ok(target)) = (actual.parse::<i64>(), target.parse::<i64>()) {
+        return match operator {
+            ">" => actual > target,
+            ">=" => actual >= target,
+            "<" => actual < target,
+            "<=" => actual <= target,
+            _ => false,
+        };
+    }
+    match operator {
+        ">" => actual > target,
+        ">=" => actual >= target,
+        "<" => actual < target,
+        "<=" => actual <= target,
+        _ => false,
+    }
 }
 
 fn input_utm_value(

@@ -19,7 +19,6 @@ use crate::operation_registry::{
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
-const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -264,10 +263,10 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
-    product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: StagedRecords<Value>,
     customers: StagedRecords<Value>,
     customer_addresses: BTreeMap<String, Value>,
@@ -292,10 +291,11 @@ struct StagedState {
     next_store_credit_transaction_id: u64,
     taggable_resources: BTreeMap<String, Value>,
     carrier_services: StagedRecords<Value>,
+    installed_apps: BTreeMap<String, Value>,
     app_subscriptions: BTreeMap<String, Value>,
     app_one_time_purchases: BTreeMap<String, Value>,
-    revoked_app_access_scopes: BTreeSet<String>,
-    app_uninstalled: bool,
+    revoked_app_access_scopes: BTreeMap<String, BTreeSet<String>>,
+    uninstalled_app_ids: BTreeSet<String>,
     delegate_access_tokens: BTreeMap<String, Value>,
     customer_segment_member_queries: BTreeMap<String, Value>,
     fulfillment_services: StagedRecords<Value>,
@@ -316,15 +316,6 @@ struct StagedState {
     // them. Empty for every scenario that does not seed a catalog, leaving the
     // generic staged-segment read path untouched.
     segment_catalog: BTreeMap<String, Value>,
-    // Recorded top-level `collections(query:, sortKey:)` connection snapshots keyed
-    // by GraphQL alias (response key). Like `segment_catalog`, the connection's
-    // opaque cursors encode Shopify-internal search-index values (title-search
-    // case folding, SQL-datetime sort keys) that cannot be reconstructed from
-    // arbitrary store state, so a scenario seeds the recorded connection and the
-    // catalog read resolver projects the requested selection over it. Empty for
-    // every scenario that does not seed a catalog, leaving the upstream-passthrough
-    // collections read path untouched.
-    collection_catalog: BTreeMap<String, Value>,
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
@@ -447,6 +438,7 @@ struct StagedState {
     order_edit_existing_calculated_order: Option<Value>,
     order_edit_existing_calculated_order_id: Option<String>,
     order_edit_existing_session_order_id: Option<String>,
+    order_edit_money_bag_calculated_order_ids: BTreeMap<String, String>,
     order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     /// Catalog of product variants an order-edit `orderEditAddVariant` can
@@ -725,10 +717,10 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            product_feeds: StagedRecords::default(),
             selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
-            product_search_tags: BTreeMap::new(),
             shipping_packages: StagedRecords::default(),
             customers: StagedRecords::default(),
             customer_addresses: BTreeMap::new(),
@@ -747,10 +739,11 @@ impl Default for StagedState {
             next_store_credit_transaction_id: 1,
             taggable_resources: BTreeMap::new(),
             carrier_services: StagedRecords::default(),
+            installed_apps: BTreeMap::new(),
             app_subscriptions: BTreeMap::new(),
             app_one_time_purchases: BTreeMap::new(),
-            revoked_app_access_scopes: BTreeSet::new(),
-            app_uninstalled: false,
+            revoked_app_access_scopes: BTreeMap::new(),
+            uninstalled_app_ids: BTreeSet::new(),
             delegate_access_tokens: BTreeMap::new(),
             customer_segment_member_queries: BTreeMap::new(),
             fulfillment_services: StagedRecords::default(),
@@ -762,7 +755,6 @@ impl Default for StagedState {
             location_limit_reached: false,
             segments: BTreeMap::new(),
             segment_catalog: BTreeMap::new(),
-            collection_catalog: BTreeMap::new(),
             collections: StagedRecords::default(),
             collection_jobs: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
@@ -862,6 +854,7 @@ impl Default for StagedState {
             order_edit_existing_calculated_order: None,
             order_edit_existing_calculated_order_id: None,
             order_edit_existing_session_order_id: None,
+            order_edit_money_bag_calculated_order_ids: BTreeMap::new(),
             order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
@@ -1062,19 +1055,6 @@ fn domain_host_from_url(url: &str) -> Option<String> {
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
-        store.base.shop = json!({
-            "id": "gid://shopify/Shop/0",
-            "name": "Shopify Draft Proxy",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "primaryDomain": {
-                "id": "gid://shopify/Domain/1000",
-                "host": "shopify-draft-proxy.local",
-                "url": "https://shopify-draft-proxy.local",
-                "sslEnabled": true
-            },
-            "currencyCode": "USD"
-        });
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -1083,16 +1063,9 @@ impl Store {
                 "name": "English",
                 "primary": true,
                 "published": true,
-                "marketWebPresences": [{
-                    "id": "gid://shopify/MarketWebPresence/62842765618",
-                    "subfolderSuffix": null
-                }]
+                "marketWebPresences": []
             }),
         );
-        store
-            .base
-            .localization_product_ids
-            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
         store
     }
 
@@ -1258,6 +1231,32 @@ impl Store {
         !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
     }
 
+    fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged.product_feeds.get(id)
+    }
+
+    fn product_feeds(&self) -> Vec<Value> {
+        self.staged.product_feeds.values().cloned().collect()
+    }
+
+    fn has_product_feed_state(&self) -> bool {
+        !self.staged.product_feeds.is_empty()
+    }
+
+    fn product_feed_is_tombstoned(&self, id: &str) -> bool {
+        self.staged.product_feeds.is_tombstoned(id)
+    }
+
+    fn stage_product_feed(&mut self, feed: Value) {
+        if let Some(id) = feed.get("id").and_then(Value::as_str) {
+            self.staged.product_feeds.stage(id.to_string(), feed);
+        }
+    }
+
+    fn delete_product_feed(&mut self, id: &str) -> bool {
+        self.staged.product_feeds.tombstone_staged(id)
+    }
+
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
     }
@@ -1413,6 +1412,11 @@ impl Store {
 
     fn product_variants(&self) -> Vec<ProductVariantRecord> {
         effective_records(&self.base.product_variants, &self.staged.product_variants)
+    }
+
+    fn has_product_variant_reference(&self, variant_id: &str) -> bool {
+        self.product_variant_by_id(variant_id).is_some()
+            || self.fixed_price_variant_lookup(variant_id).is_some()
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the
@@ -2330,6 +2334,70 @@ mod store_tests {
     }
 
     #[test]
+    fn state_version_header_advances_on_mutation_and_holds_on_reads() {
+        let mut proxy = snapshot_proxy();
+
+        let version_of = |response: &Response| {
+            response
+                .headers
+                .get("x-sdp-state-version")
+                .cloned()
+                .expect("every response should carry x-sdp-state-version")
+        };
+
+        let baseline = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/health".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        let baseline_version = version_of(&baseline);
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductCreate($product: ProductInput!) {
+              productCreate(product: $product) {
+                product { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "product": { "title": "Versioned", "handle": "versioned" } }),
+        ));
+        let after_create = version_of(&create);
+        assert_ne!(
+            after_create, baseline_version,
+            "a staged mutation must advance the state version"
+        );
+
+        // A pure read must not advance the version, so embedders skip persisting.
+        let read = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/state".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        assert_eq!(
+            version_of(&read),
+            after_create,
+            "reads must leave the state version unchanged"
+        );
+
+        // Reset returns the version to its pristine baseline.
+        let reset = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/__meta/reset".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        assert_eq!(
+            version_of(&reset),
+            baseline_version,
+            "reset must return the state version to baseline"
+        );
+    }
+
+    #[test]
     fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture() {
         let mut proxy = snapshot_proxy();
         let create = proxy.process_request(graphql_request(
@@ -2489,6 +2557,536 @@ mod store_tests {
 
         assert_eq!(response.status, 200);
         assert_eq!(response.body, upstream_body);
+    }
+
+    #[test]
+    fn top_level_collections_reflect_staged_collection_lifecycle() {
+        let mut proxy = snapshot_proxy();
+
+        let first = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionLifecycleCreateFirst($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                  title
+                  handle
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({ "input": { "title": "Alpha Collection", "handle": "alpha-collection" } }),
+        ));
+        assert_eq!(first.status, 200);
+        let first_id = first.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("first collection should have an id")
+            .to_string();
+
+        let second = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionLifecycleCreateSecond($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({ "input": { "title": "Beta Collection", "handle": "beta-collection" } }),
+        ));
+        assert_eq!(second.status, 200);
+        let second_id = second.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("second collection should have an id")
+            .to_string();
+
+        let initial_read = proxy.process_request(graphql_request(
+            r#"
+            query CollectionLifecycleInitialRead($titleQuery: String!, $handleQuery: String!) {
+              titleMatches: collections(first: 10, query: $titleQuery, sortKey: TITLE) {
+                nodes {
+                  id
+                  title
+                  handle
+                  updatedAt
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              handleMatches: collections(first: 10, query: $handleQuery) {
+                nodes {
+                  id
+                  title
+                  handle
+                }
+              }
+              titleCount: collectionsCount(query: $titleQuery) {
+                count
+                precision
+              }
+            }
+            "#,
+            json!({
+                "titleQuery": "title:Alpha*",
+                "handleQuery": "handle:alpha-collection"
+            }),
+        ));
+        assert_eq!(initial_read.status, 200);
+        assert_eq!(
+            initial_read.body["data"]["titleMatches"]["nodes"],
+            json!([{
+                "id": first_id,
+                "title": "Alpha Collection",
+                "handle": "alpha-collection",
+                "updatedAt": "2024-01-01T00:00:01.000Z"
+            }])
+        );
+        assert_eq!(
+            initial_read.body["data"]["titleMatches"]["pageInfo"],
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": first_id,
+                "endCursor": first_id
+            })
+        );
+        assert_eq!(
+            initial_read.body["data"]["handleMatches"]["nodes"],
+            json!([{
+                "id": first_id,
+                "title": "Alpha Collection",
+                "handle": "alpha-collection"
+            }])
+        );
+        assert_eq!(
+            initial_read.body["data"]["titleCount"],
+            json!({ "count": 1, "precision": "EXACT" })
+        );
+
+        let update = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionLifecycleUpdate($input: CollectionInput!) {
+              collectionUpdate(input: $input) {
+                collection {
+                  id
+                  title
+                  handle
+                  updatedAt
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "id": first_id,
+                    "title": "Gamma Collection",
+                    "handle": "alpha-collection-updated"
+                }
+            }),
+        ));
+        assert_eq!(update.status, 200);
+        assert_eq!(
+            update.body["data"]["collectionUpdate"]["collection"]["updatedAt"],
+            json!("2024-01-01T00:00:03.000Z")
+        );
+
+        let update_read = proxy.process_request(graphql_request(
+            r#"
+            query CollectionLifecycleUpdatedRead($oldTitleQuery: String!, $oldHandleQuery: String!, $newHandleQuery: String!) {
+              oldTitleMatches: collections(first: 10, query: $oldTitleQuery) {
+                nodes {
+                  id
+                }
+              }
+              oldHandleMatches: collections(first: 10, query: $oldHandleQuery) {
+                nodes {
+                  id
+                }
+              }
+              newHandleMatches: collections(first: 10, query: $newHandleQuery) {
+                nodes {
+                  id
+                  title
+                  handle
+                  updatedAt
+                }
+              }
+            }
+            "#,
+            json!({
+                "oldTitleQuery": "title:Alpha*",
+                "oldHandleQuery": "handle:alpha-collection",
+                "newHandleQuery": "handle:alpha-collection-updated"
+            }),
+        ));
+        assert_eq!(update_read.status, 200);
+        assert_eq!(
+            update_read.body["data"]["oldTitleMatches"]["nodes"],
+            json!([])
+        );
+        assert_eq!(
+            update_read.body["data"]["oldHandleMatches"]["nodes"],
+            json!([])
+        );
+        assert_eq!(
+            update_read.body["data"]["newHandleMatches"]["nodes"],
+            json!([{
+                "id": first_id,
+                "title": "Gamma Collection",
+                "handle": "alpha-collection-updated",
+                "updatedAt": "2024-01-01T00:00:03.000Z"
+            }])
+        );
+
+        let delete = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionLifecycleDelete($input: CollectionDeleteInput!) {
+              collectionDelete(input: $input) {
+                deletedCollectionId
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({ "input": { "id": second_id } }),
+        ));
+        assert_eq!(delete.status, 200);
+        assert_eq!(
+            delete.body["data"]["collectionDelete"]["deletedCollectionId"],
+            json!(second_id)
+        );
+
+        let delete_read = proxy.process_request(graphql_request(
+            r#"
+            query CollectionLifecycleDeleteRead {
+              collections(first: 10) {
+                nodes {
+                  id
+                  title
+                }
+              }
+              collectionsCount {
+                count
+                precision
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(delete_read.status, 200);
+        assert_eq!(
+            delete_read.body["data"]["collections"]["nodes"],
+            json!([{ "id": first_id, "title": "Gamma Collection" }])
+        );
+        assert_eq!(
+            delete_read.body["data"]["collectionsCount"],
+            json!({ "count": 1, "precision": "EXACT" })
+        );
+    }
+
+    #[test]
+    fn top_level_collections_honor_sort_reverse_cursors_and_limited_counts() {
+        let mut proxy = snapshot_proxy();
+        let mut ids = Vec::new();
+        for (title, handle) in [
+            ("Bravo Collection", "bravo-collection"),
+            ("Alpha Collection", "alpha-collection"),
+            ("Charlie Collection", "charlie-collection"),
+        ] {
+            let create = proxy.process_request(graphql_request(
+                r#"
+                mutation CollectionConnectionCreate($input: CollectionInput!) {
+                  collectionCreate(input: $input) {
+                    collection {
+                      id
+                    }
+                    userErrors {
+                      field
+                      message
+                    }
+                  }
+                }
+                "#,
+                json!({ "input": { "title": title, "handle": handle } }),
+            ));
+            assert_eq!(create.status, 200);
+            ids.push(
+                create.body["data"]["collectionCreate"]["collection"]["id"]
+                    .as_str()
+                    .expect("collection should have id")
+                    .to_string(),
+            );
+        }
+
+        let first_page = proxy.process_request(graphql_request(
+            r#"
+            query CollectionConnectionFirstPage {
+              collections(first: 2) {
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              collectionsCount(limit: 2) {
+                count
+                precision
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(first_page.status, 200);
+        assert_eq!(
+            first_page.body["data"]["collections"]["edges"],
+            json!([
+                { "cursor": ids[0], "node": { "id": ids[0], "title": "Bravo Collection" } },
+                { "cursor": ids[1], "node": { "id": ids[1], "title": "Alpha Collection" } }
+            ])
+        );
+        assert_eq!(
+            first_page.body["data"]["collections"]["pageInfo"],
+            json!({
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": ids[0],
+                "endCursor": ids[1]
+            })
+        );
+        assert_eq!(
+            first_page.body["data"]["collectionsCount"],
+            json!({ "count": 2, "precision": "AT_LEAST" })
+        );
+
+        let after_page = proxy.process_request(graphql_request(
+            r#"
+            query CollectionConnectionAfter($after: String!) {
+              collections(first: 2, after: $after) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+            "#,
+            json!({ "after": ids[1] }),
+        ));
+        assert_eq!(after_page.status, 200);
+        assert_eq!(
+            after_page.body["data"]["collections"]["nodes"],
+            json!([{ "id": ids[2], "title": "Charlie Collection" }])
+        );
+        assert_eq!(
+            after_page.body["data"]["collections"]["pageInfo"],
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": ids[2],
+                "endCursor": ids[2]
+            })
+        );
+
+        let title_reverse = proxy.process_request(graphql_request(
+            r#"
+            query CollectionConnectionTitleReverse {
+              collections(first: 3, sortKey: TITLE, reverse: true) {
+                nodes {
+                  title
+                }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(title_reverse.status, 200);
+        assert_eq!(
+            title_reverse.body["data"]["collections"]["nodes"],
+            json!([
+                { "title": "Charlie Collection" },
+                { "title": "Bravo Collection" },
+                { "title": "Alpha Collection" }
+            ])
+        );
+
+        let update = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionConnectionUpdate($input: CollectionInput!) {
+              collectionUpdate(input: $input) {
+                collection {
+                  id
+                  updatedAt
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({ "input": { "id": ids[1], "title": "Alpha Updated Collection" } }),
+        ));
+        assert_eq!(update.status, 200);
+
+        let updated_filter = proxy.process_request(graphql_request(
+            r#"
+            query CollectionConnectionUpdatedFilter($query: String!) {
+              collections(first: 10, query: $query, sortKey: UPDATED_AT, reverse: true) {
+                nodes {
+                  id
+                  title
+                  updatedAt
+                }
+              }
+            }
+            "#,
+            json!({ "query": "updated_at:>=2024-01-01T00:00:03.000Z" }),
+        ));
+        assert_eq!(updated_filter.status, 200);
+        assert_eq!(
+            updated_filter.body["data"]["collections"]["nodes"],
+            json!([
+                {
+                    "id": ids[1],
+                    "title": "Alpha Updated Collection",
+                    "updatedAt": "2024-01-01T00:00:04.000Z"
+                },
+                {
+                    "id": ids[2],
+                    "title": "Charlie Collection",
+                    "updatedAt": "2024-01-01T00:00:03.000Z"
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn top_level_collections_live_hybrid_overlays_observed_upstream_state() {
+        let upstream_body = json!({
+            "data": {
+                "collections": {
+                    "nodes": [
+                        {
+                            "id": "gid://shopify/Collection/901",
+                            "title": "Local Staged Collection",
+                            "handle": "local-staged-collection",
+                            "updatedAt": "2024-01-01T00:00:00.000Z",
+                            "products": { "nodes": [] }
+                        },
+                        {
+                            "id": "gid://shopify/Collection/900",
+                            "title": "Upstream Base Collection",
+                            "handle": "upstream-base-collection",
+                            "updatedAt": "2024-01-01T00:00:00.000Z",
+                            "products": { "nodes": [] }
+                        }
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "gid://shopify/Collection/900",
+                        "endCursor": "gid://shopify/Collection/900"
+                    }
+                }
+            }
+        });
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport({
+            let upstream_body = upstream_body.clone();
+            move |_| ok_json(upstream_body.clone())
+        });
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionLiveHybridCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({ "input": { "title": "Local Staged Collection", "handle": "local-staged-collection" } }),
+        ));
+        assert_eq!(create.status, 200);
+        let staged_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("staged collection should have id")
+            .to_string();
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query CollectionLiveHybridRead {
+              collections(first: 10, sortKey: TITLE) {
+                nodes {
+                  id
+                  title
+                  handle
+                }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["collections"]["nodes"],
+            json!([
+                {
+                    "id": staged_id,
+                    "title": "Local Staged Collection",
+                    "handle": "local-staged-collection"
+                },
+                {
+                    "id": "gid://shopify/Collection/900",
+                    "title": "Upstream Base Collection",
+                    "handle": "upstream-base-collection"
+                }
+            ])
+        );
     }
 
     #[test]

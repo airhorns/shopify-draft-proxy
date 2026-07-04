@@ -132,6 +132,8 @@ impl DraftProxy {
             | "productsCount"
             | "productByIdentifier"
             | "productOperation"
+            | "productFeed"
+            | "productFeeds"
             | "productVariant" => {
                 if Self::product_query_needs_upstream_catalog_search(query, variables) {
                     (self.upstream_transport)(request.clone())
@@ -169,18 +171,17 @@ impl DraftProxy {
                 let fields = try_root_fields!(query, variables);
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
-            "collections" => {
-                // The catalog's opaque cursors and server-side query filtering
-                // cannot be reconstructed from local state, so a de-seeded
-                // scenario forwards the top-level `collections` list read upstream
-                // (the proxy reads it from real Shopify rather than replaying a
-                // `/__meta/seed` snapshot). A scenario that still seeds the
-                // recorded connections is served locally.
-                if self.store.staged.collection_catalog.is_empty() {
-                    (self.upstream_transport)(request.clone())
-                } else {
+            "collections" | "collectionsCount" => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.store.has_collection_state()
+                {
+                    self.hydrate_collections_for_read(request);
+                }
+                if self.store.has_collection_state() {
                     let fields = try_root_fields!(query, variables);
-                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                    ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
+                } else {
+                    (self.upstream_transport)(request.clone())
                 }
             }
             "publication"
@@ -342,7 +343,7 @@ impl DraftProxy {
         })
     }
 
-    fn local_node_query_data(
+    pub(in crate::proxy) fn local_node_query_data(
         &self,
         fields: &[RootFieldSelection],
         allow_unknown_null: bool,
@@ -495,6 +496,11 @@ impl DraftProxy {
                 return Some(value);
             }
         }
+        if shopify_gid_resource_type(id) == Some("ProductFeed") {
+            if let Some(value) = self.product_tail_feed_node_value(id, selection) {
+                return Some(value);
+            }
+        }
         if let Some(operation) = self.product_delete_operation_value_by_id(id, selection) {
             return Some(operation);
         }
@@ -602,68 +608,99 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
-        let current_app_id = request
-            .map(request_app_id)
-            .unwrap_or_else(|| default_local_app_id().to_string());
-        let granted_access_scopes = request
-            .map(app_granted_access_scopes)
-            .unwrap_or_else(|| vec!["read_products".to_string(), "write_products".to_string()]);
-        match id {
-            "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
-                Some(Value::Null)
+        for (app_id, installation) in &self.store.staged.installed_apps {
+            if app_installation_id(installation).as_deref() == Some(id) {
+                if self.store.staged.uninstalled_app_ids.contains(app_id) {
+                    return Some(Value::Null);
+                }
+                let revoked_access_scopes = self
+                    .store
+                    .staged
+                    .revoked_app_access_scopes
+                    .get(app_id)
+                    .cloned()
+                    .unwrap_or_default();
+                return Some(current_app_installation_json(
+                    installation,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &revoked_access_scopes,
+                    selection,
+                ));
             }
-            "gid://shopify/AppInstallation/expected" => Some(current_app_installation_json(
-                &self.store.staged.app_subscriptions,
-                &self.store.staged.app_one_time_purchases,
-                &self.store.staged.revoked_app_access_scopes,
-                &granted_access_scopes,
-                selection,
-            )),
-            id if id == default_local_app_id() || id == current_app_id => Some(selected_json(
-                &local_app_json_with_id(&current_app_id),
-                selection,
-            )),
-            _ => self
-                .store
-                .staged
-                .app_subscriptions
-                .get(id)
-                .map(|subscription| {
-                    selected_json(
-                        subscription,
-                        &selected_fields_named(
-                            selection,
-                            &["__typename", "id", "status", "trialDays", "lineItems"],
-                        ),
-                    )
-                })
-                .or_else(|| {
-                    self.store
-                        .staged
-                        .app_one_time_purchases
-                        .get(id)
-                        .map(|purchase| {
-                            selected_json(
-                                purchase,
-                                &selected_fields_named(
-                                    selection,
-                                    &["id", "name", "status", "test", "price"],
-                                ),
-                            )
-                        })
-                })
-                .or_else(|| {
-                    self.find_staged_app_usage_record(id).map(|usage_record| {
+            if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
+                return installation
+                    .get("app")
+                    .map(|app| selected_json(app, selection));
+            }
+        }
+        if let Some(request) = request {
+            let app_id = request_app_gid(request);
+            let installation = current_app_installation_from_request(request);
+            if app_installation_id(&installation).as_deref() == Some(id) {
+                if self.store.staged.uninstalled_app_ids.contains(&app_id) {
+                    return Some(Value::Null);
+                }
+                let revoked_access_scopes = self
+                    .store
+                    .staged
+                    .revoked_app_access_scopes
+                    .get(&app_id)
+                    .cloned()
+                    .unwrap_or_default();
+                return Some(current_app_installation_json(
+                    &installation,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &revoked_access_scopes,
+                    selection,
+                ));
+            }
+            if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
+                return installation
+                    .get("app")
+                    .map(|app| selected_json(app, selection));
+            }
+        }
+        self.store
+            .staged
+            .app_subscriptions
+            .get(id)
+            .map(|subscription| {
+                selected_json(
+                    subscription,
+                    &selected_fields_named(
+                        selection,
+                        &["__typename", "id", "status", "trialDays", "lineItems"],
+                    ),
+                )
+            })
+            .or_else(|| {
+                self.store
+                    .staged
+                    .app_one_time_purchases
+                    .get(id)
+                    .map(|purchase| {
                         selected_json(
-                            &usage_record,
+                            purchase,
                             &selected_fields_named(
                                 selection,
-                                &["id", "description", "price", "subscriptionLineItem"],
+                                &["id", "name", "status", "test", "price"],
                             ),
                         )
                     })
-                }),
-        }
+            })
+            .or_else(|| {
+                self.find_staged_app_usage_record(id).map(|usage_record| {
+                    selected_json(
+                        &usage_record,
+                        &selected_fields_named(
+                            selection,
+                            &["id", "description", "price", "subscriptionLineItem"],
+                        ),
+                    )
+                })
+            })
     }
 
     pub(in crate::proxy) fn record_mutation_log_draft(
@@ -770,7 +807,10 @@ impl DraftProxy {
                             | "publicationUpdate"
                             | "publicationDelete"
                             | "productFeedCreate"
+                            | "productFeedDelete"
                             | "productFullSync"
+                            | "combinedListingUpdate"
+                            | "productVariantRelationshipBulkUpdate"
                             | "bulkProductResourceFeedbackCreate"
                             | "shopResourceFeedbackCreate"
                     ) =>
@@ -1071,10 +1111,25 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query
                     && root_field == "currentAppInstallation" =>
             {
-                if self.store.staged.app_uninstalled
+                let request_app_id = request_app_gid(request);
+                if self
+                    .store
+                    .staged
+                    .uninstalled_app_ids
+                    .contains(&request_app_id)
+                    || self
+                        .store
+                        .staged
+                        .installed_apps
+                        .contains_key(&request_app_id)
                     || !self.store.staged.app_subscriptions.is_empty()
                     || !self.store.staged.app_one_time_purchases.is_empty()
-                    || !self.store.staged.revoked_app_access_scopes.is_empty()
+                    || self
+                        .store
+                        .staged
+                        .revoked_app_access_scopes
+                        .get(&request_app_id)
+                        .is_some_and(|scopes| !scopes.is_empty())
                     || self.config.read_mode == ReadMode::Snapshot
                 {
                     let fields = try_root_fields!(&query, &variables);
@@ -1082,7 +1137,11 @@ impl DraftProxy {
                         "data": self.current_app_installation_read_data(request, &fields)
                     }))
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_current_app_installation_response(request, &response);
+                    }
+                    response
                 }
             }
             (CapabilityDomain::Apps, CapabilityExecution::StageLocally)
@@ -1564,7 +1623,7 @@ impl DraftProxy {
                             | "paymentCustomizationUpdate"
                     )
                 }) {
-                    let data = self.payment_customization_mutation_data(&fields);
+                    let data = self.payment_customization_mutation_data(request, &fields);
                     let staged_ids = fields
                         .iter()
                         .filter_map(|field| {
@@ -1745,11 +1804,22 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
-                    return quantity_pricing_by_variant_update_response(&query, &variables);
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
+                    return quantity_pricing_by_variant_update_response(
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
-                    return quantity_rules_mutation_response(root_field, &query, &variables);
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
+                    return quantity_rules_mutation_response(
+                        root_field,
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
@@ -1846,7 +1916,7 @@ impl DraftProxy {
                 {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    self.metafield_definition_pinning_read(&query, &variables)
+                    self.metafield_definition_pinning_read(request, &query, &variables)
                 }
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)
@@ -2541,7 +2611,7 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
-                self.media_files_read(&query, &variables)
+                self.media_files_read(request, &query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>

@@ -8,8 +8,7 @@ const METAFIELD_DELETE_HYDRATE_QUERY: &str = "query MetafieldDeleteHydrateNode($
 impl DraftProxy {
     // metafieldsSet/metafieldsDelete read their `metafields` list from the
     // resolved root-field arguments so inline-document forms work, not only the
-    // `$metafields` variable form (matches the Gleam reference, which reads from
-    // the field arguments). Falls back to top-level variables for safety.
+    // `$metafields` variable form. Falls back to top-level variables for safety.
     pub(in crate::proxy) fn owner_metafields_set(
         &mut self,
         request: &Request,
@@ -19,11 +18,11 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+        let api_client_id = request_app_namespace_api_client_id(request);
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
                 request,
-                self.metafields_set_reference_values(&inputs),
-                metafields_set_product_owner_ids(&inputs),
+                self.metafields_set_reference_values(&inputs, api_client_id.as_deref()),
             )
         } else {
             BTreeSet::new()
@@ -34,18 +33,22 @@ impl DraftProxy {
                 inputs
                     .iter()
                     .filter_map(|input| resolved_string_field(input, "ownerId"))
+                    .filter(|owner_id| shopify_gid_resource_type(owner_id).is_some())
                     .collect(),
             );
         }
         let mut user_errors = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
-            self.metafields_set_compare_digest_errors(&inputs)
+            self.metafields_set_compare_digest_errors(&inputs, api_client_id.as_deref())
         } else {
             Vec::new()
         };
-        user_errors.extend(self.metafields_set_input_errors(&inputs, |id| {
-            self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
-        }));
-        user_errors.extend(self.metafields_set_definition_user_errors(&inputs));
+        user_errors.extend(self.metafields_set_input_errors(
+            &inputs,
+            api_client_id.as_deref(),
+            |id| self.metafield_reference_exists(id) || fallback_reference_ids.contains(id),
+        ));
+        user_errors
+            .extend(self.metafields_set_definition_user_errors(&inputs, api_client_id.as_deref()));
         if !user_errors.is_empty() {
             let metafields = if inputs.len() > METAFIELDS_SET_INPUT_LIMIT {
                 Value::Null
@@ -63,12 +66,13 @@ impl DraftProxy {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&input, "namespace").as_deref(),
+                api_client_id.as_deref(),
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let owner_type = owner_type_from_gid(&owner_id);
             let definition = self.owner_metafield_definition(&owner_type, &namespace, &key);
             let metafield_type = self
-                .metafields_set_effective_type(&input)
+                .metafields_set_effective_type(&input, api_client_id.as_deref())
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
             let index = self
@@ -133,12 +137,33 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsDelete".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
+        let api_client_id = request_app_namespace_api_client_id(request);
+        if let Some(index) = inputs.iter().position(|input| {
+            app_metafield_namespace_requires_api_client(
+                resolved_string_field(input, "namespace").as_deref(),
+            ) && api_client_id.is_none()
+        }) {
+            let payload = json!({
+                "deletedMetafields": [],
+                "userErrors": [{
+                    "field": ["metafields", index.to_string(), "namespace"],
+                    "message": APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE
+                }]
+            });
+            return MutationOutcome::response(ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            ));
+        }
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
         if inputs.iter().any(|input| {
-            app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
-                resolved_string_field(input, "namespace").as_deref(),
-            ))
+            app_namespace_belongs_to_other_app(
+                &canonical_app_metafield_namespace(
+                    resolved_string_field(input, "namespace").as_deref(),
+                    api_client_id.as_deref(),
+                ),
+                api_client_id.as_deref(),
+            )
         }) {
             let payload = json!({
                 "deletedMetafields": [],
@@ -164,6 +189,7 @@ impl DraftProxy {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&input, "namespace").as_deref(),
+                api_client_id.as_deref(),
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let owner_metafields = self
@@ -315,6 +341,7 @@ impl DraftProxy {
     fn metafields_set_compare_digest_errors(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
     ) -> Vec<Value> {
         inputs
             .iter()
@@ -324,6 +351,7 @@ impl DraftProxy {
                 let owner_id = resolved_string_field(input, "ownerId")?;
                 let namespace = canonical_app_metafield_namespace(
                     resolved_string_field(input, "namespace").as_deref(),
+                    api_client_id,
                 );
                 let key = resolved_string_field(input, "key")?;
                 let existing = self.owner_metafield(&owner_id, &namespace, &key);
@@ -499,7 +527,6 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         ids: Vec<String>,
-        product_owner_ids: BTreeSet<String>,
     ) -> BTreeSet<String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return BTreeSet::new();
@@ -522,7 +549,6 @@ impl DraftProxy {
                 _ => generic_ids.push(id),
             }
         }
-        let mut fallback_reference_ids = BTreeSet::new();
         if !product_domain_ids.is_empty() {
             let response = self.upstream_post(
                 request,
@@ -533,15 +559,13 @@ impl DraftProxy {
                 }),
             );
             if response.status >= 400 {
-                fallback_reference_ids.extend(product_domain_ids.iter().filter_map(|id| {
-                    metafield_product_domain_reference_fallback(id, &product_owner_ids)
-                }));
+                return BTreeSet::new();
             } else {
                 self.observe_nodes_response(&response);
             }
         }
         if generic_ids.is_empty() {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         let response = self.upstream_post(
             request,
@@ -552,14 +576,14 @@ impl DraftProxy {
             }),
         );
         if response.status >= 400 {
-            return fallback_reference_ids;
+            return BTreeSet::new();
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
             for node in nodes {
                 self.stage_metafield_reference_node(node);
             }
         }
-        fallback_reference_ids
+        BTreeSet::new()
     }
 
     fn stage_metafield_reference_node(&mut self, node: &Value) {
@@ -1541,32 +1565,6 @@ fn owner_metafield_compare_digest(metafield: &Value) -> Option<String> {
                 .and_then(Value::as_str)
                 .map(metafield_compare_digest)
         })
-}
-
-fn metafields_set_product_owner_ids(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-) -> BTreeSet<String> {
-    inputs
-        .iter()
-        .filter_map(|input| resolved_string_field(input, "ownerId"))
-        .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
-        .collect()
-}
-
-fn metafield_product_domain_reference_fallback(
-    id: &str,
-    product_owner_ids: &BTreeSet<String>,
-) -> Option<String> {
-    if resource_id_tail(id).parse::<u64>().is_err() {
-        return None;
-    }
-    match shopify_gid_resource_type(id) {
-        Some("Product") if product_owner_ids.contains(id) => Some(id.to_string()),
-        Some("ProductVariant" | "Collection") if !product_owner_ids.is_empty() => {
-            Some(id.to_string())
-        }
-        _ => None,
-    }
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {

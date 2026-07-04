@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-set-id-not-allowed.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-set-id-not-allowed.graphql",
     "apiVersion": "2026-04",

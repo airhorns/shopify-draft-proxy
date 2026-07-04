@@ -2,6 +2,9 @@ query OrderCatalogCountRead(
   $tagQuery: String!
   $nameQuery: String!
   $statusQuery: String!
+  $idQuery: String!
+  $idMissQuery: String!
+  $combinedQuery: String!
   $pageSize: Int!
   $seedSize: Int!
   $countLimit: Int
@@ -74,6 +77,50 @@ query OrderCatalogCountRead(
       endCursor
     }
   }
+  byId: orders(first: 3, query: $idQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      tags
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byIdMiss: orders(first: 3, query: $idMissQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      tags
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byCombinedAnd: orders(first: 3, query: $combinedQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      tags
+      email
+      displayFinancialStatus
+      displayFulfillmentStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
   byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {
     nodes {
       id
@@ -93,6 +140,14 @@ query OrderCatalogCountRead(
     precision
   }
   exactTaggedCount: ordersCount(query: $tagQuery, limit: $unlimited) {
+    count
+    precision
+  }
+  idMissCount: ordersCount(query: $idMissQuery, limit: $unlimited) {
+    count
+    precision
+  }
+  combinedAndCount: ordersCount(query: $combinedQuery, limit: $unlimited) {
     count
     precision
   }

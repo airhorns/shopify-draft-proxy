@@ -177,10 +177,7 @@ impl DraftProxy {
             "customer" => Some(self.customer_read_field(field)),
             "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
             "customers" => Some(self.customers_list_field(field)),
-            "customersCount" => Some(selected_json(
-                &count_object(self.customers_count_value()),
-                &field.selection,
-            )),
+            "customersCount" => Some(self.customers_count_field(field)),
             "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
             "job" => Some(self.customer_merge_job_node_field(field)),
             "node" if self.customer_merge_job_reference(field) => {
@@ -216,6 +213,35 @@ impl DraftProxy {
         base_count
             .saturating_add(locally_created)
             .saturating_sub(deleted_base_customers)
+    }
+
+    fn customers_count_field(&self, field: &RootFieldSelection) -> Value {
+        if field.arguments.contains_key("query") {
+            let query = resolved_string_field(&field.arguments, "query");
+            let count = self
+                .store
+                .staged
+                .customers
+                .values()
+                .filter(|customer| {
+                    let id = customer
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    !self.store.staged.customers.is_tombstoned(id)
+                })
+                .filter(|customer| {
+                    customer_search_decision(customer, query.as_deref())
+                        == StagedSearchDecision::Match
+                })
+                .count();
+            return selected_json(&count_object(count), &field.selection);
+        }
+
+        selected_json(
+            &count_object(self.customers_count_value()),
+            &field.selection,
+        )
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -845,8 +871,9 @@ impl DraftProxy {
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
     /// (excluding merged-away / deleted records) by the optional `query` (currently
-    /// `tag:<value>` plus a generic substring fallback over email/display name) and
-    /// projects each node through the shared customer renderer so nested
+    /// `tag:<value>`, `email:<value>`, plus a generic substring fallback over
+    /// email/display/first/last name) and projects each node through the shared
+    /// customer renderer so nested
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
     pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
@@ -1847,8 +1874,29 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         customer_set: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let (errors, normalized) =
-            self.customer_input_validation_errors(request, input, Some(id), customer_set);
+        let update_address_values = (!customer_set)
+            .then(|| resolved_list_field(input, "addresses"))
+            .flatten();
+        let input_without_update_addresses = if !customer_set && input.contains_key("addresses") {
+            let mut input = input.clone();
+            input.remove("addresses");
+            Some(input)
+        } else {
+            None
+        };
+        let validation_input = input_without_update_addresses.as_ref().unwrap_or(input);
+        let (mut errors, mut normalized) = self.customer_input_validation_errors(
+            request,
+            validation_input,
+            Some(id),
+            customer_set,
+        );
+        if let Some(address_values) = update_address_values {
+            let (addresses, mut address_errors) =
+                self.customer_update_mailing_addresses(&address_values, &existing);
+            errors.append(&mut address_errors);
+            normalized.addresses = Some(addresses);
+        }
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1891,6 +1939,87 @@ impl DraftProxy {
             vec![id.to_string()],
             Vec::new(),
         )
+    }
+
+    fn customer_update_mailing_addresses(
+        &mut self,
+        values: &[ResolvedValue],
+        existing_customer: &Value,
+    ) -> (Vec<Value>, Vec<Value>) {
+        let existing_nodes = customer_address_nodes(existing_customer);
+        let existing_by_id = existing_nodes
+            .iter()
+            .filter_map(|node| {
+                node.get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| (id.to_string(), node.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut used_ids = existing_by_id.keys().cloned().collect::<BTreeSet<_>>();
+        let mut errors = Vec::new();
+
+        for (index, value) in values.iter().enumerate() {
+            let Some(input) = resolved_value_object(value) else {
+                continue;
+            };
+            let requested_id = input
+                .contains_key("id")
+                .then(|| resolved_string_field(&input, "id").unwrap_or_default());
+            if let Some(requested_id) = requested_id.as_deref() {
+                if !existing_by_id.contains_key(requested_id) {
+                    errors.push(user_error_omit_code(
+                        customer_address_field_path(false, index, Some("id")),
+                        "Customer address does not exist",
+                        None,
+                    ));
+                    continue;
+                }
+            }
+            let existing = requested_id
+                .as_deref()
+                .and_then(|id| existing_by_id.get(id));
+            let validation_id = requested_id
+                .clone()
+                .unwrap_or_else(|| synthetic_shopify_gid("MailingAddress", index + 1));
+            let (_, mut address_errors) =
+                customer_update_mailing_address(&input, index, existing, &validation_id);
+            errors.append(&mut address_errors);
+        }
+
+        if !errors.is_empty() {
+            return (Vec::new(), errors);
+        }
+
+        let mut addresses = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (index, value) in values.iter().enumerate() {
+            let Some(input) = resolved_value_object(value) else {
+                continue;
+            };
+            let requested_id = input
+                .contains_key("id")
+                .then(|| resolved_string_field(&input, "id").unwrap_or_default());
+            let existing = requested_id
+                .as_deref()
+                .and_then(|id| existing_by_id.get(id));
+            let id = requested_id
+                .unwrap_or_else(|| self.next_customer_update_mailing_address_id(&used_ids));
+            let (address, _) = customer_update_mailing_address(&input, index, existing, &id);
+            if seen.insert(customer_address_dedup_key(&address)) {
+                used_ids.insert(id);
+                addresses.push(address);
+            }
+        }
+        (addresses, Vec::new())
+    }
+
+    fn next_customer_update_mailing_address_id(&mut self, used_ids: &BTreeSet<String>) -> String {
+        loop {
+            let id = self.next_proxy_synthetic_gid("MailingAddress");
+            if !used_ids.contains(&id) {
+                return id;
+            }
+        }
     }
 
     fn sync_customer_metafields_from_owner_store(&mut self, customer_id: &str) {
@@ -2266,11 +2395,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<(Value, Vec<Value>)> {
-        for field_name in ["emailMarketingConsent", "smsMarketingConsent"] {
+        for field_name in [
+            "emailMarketingConsent",
+            "smsMarketingConsent",
+            "whatsAppMarketingConsent",
+        ] {
             let Some(consent) = resolved_object_field(input, field_name) else {
                 continue;
             };
-            if resolved_string_field(&consent, "marketingState").as_deref() == Some("REDACTED") {
+            if resolved_inline_consent_state(&consent, field_name).as_deref() == Some("REDACTED") {
                 return Some((
                     customer_payload(Value::Null, Vec::new()),
                     vec![json!({
@@ -2305,6 +2438,21 @@ impl DraftProxy {
                     vec![user_error_omit_code(
                         json!(["smsMarketingConsent"]),
                         "A phone number is required to set the SMS consent state.",
+                        None,
+                    )],
+                ),
+                Vec::new(),
+            ));
+        }
+        if input.contains_key("whatsAppMarketingConsent")
+            && resolved_string_field(input, "phone").is_none_or(|phone| phone.trim().is_empty())
+        {
+            return Some((
+                customer_payload(
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        json!(["whatsAppMarketingConsent"]),
+                        "A phone number is required to set the WhatsApp consent state.",
                         None,
                     )],
                 ),
@@ -3588,6 +3736,115 @@ fn customer_mailing_address(
     )
 }
 
+fn customer_update_mailing_address(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    existing: Option<&Value>,
+    id: &str,
+) -> (Value, Vec<Value>) {
+    let mut errors = customer_address_free_text_errors(input, |field| {
+        customer_address_field_path(false, index, Some(field))
+    });
+
+    let field_value = |key: &str| -> Option<String> {
+        if input.contains_key(key) {
+            customer_address_string(input, key)
+        } else {
+            existing
+                .and_then(|node| node.get(key))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }
+    };
+
+    let country_present = input.contains_key("countryCode")
+        || input.contains_key("countryCodeV2")
+        || input.contains_key("country");
+    let country_input = if country_present {
+        customer_address_string(input, "countryCode")
+            .or_else(|| customer_address_string(input, "countryCodeV2"))
+            .or_else(|| customer_address_string(input, "country"))
+    } else {
+        existing
+            .and_then(|node| node.get("countryCodeV2"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+
+    let province_present = input.contains_key("provinceCode") || input.contains_key("province");
+    let province_input = if province_present {
+        customer_address_string(input, "provinceCode")
+            .or_else(|| customer_address_string(input, "province"))
+    } else {
+        existing
+            .and_then(|node| node.get("provinceCode"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+    let (country, province) = customer_resolve_address_region(
+        country_input,
+        province_input,
+        customer_address_field_path(false, index, Some("country")),
+        customer_address_field_path(false, index, Some("province")),
+        &mut errors,
+    );
+
+    if !errors.is_empty() {
+        return (Value::Null, errors);
+    }
+
+    let first_name = field_value("firstName");
+    let last_name = field_value("lastName");
+    let address1 = field_value("address1");
+    let address2 = field_value("address2");
+    let city = field_value("city");
+    let company = field_value("company");
+    let zip = field_value("zip");
+    let phone = field_value("phone");
+    let is_blank = [
+        first_name.as_deref(),
+        last_name.as_deref(),
+        address1.as_deref(),
+        address2.as_deref(),
+        city.as_deref(),
+        company.as_deref(),
+        zip.as_deref(),
+        phone.as_deref(),
+        country.as_ref().map(|country| country.code.as_str()),
+        province.as_ref().map(|province| province.code.as_str()),
+    ]
+    .into_iter()
+    .flatten()
+    .all(str::is_empty);
+    if is_blank {
+        return (
+            Value::Null,
+            vec![user_error_omit_code(
+                customer_address_field_path(false, index, None),
+                "Customer address cannot be blank.",
+                None,
+            )],
+        );
+    }
+
+    (
+        customer_address_node_json(CustomerAddressNodeFields {
+            id: id.to_string(),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
+        }),
+        Vec::new(),
+    )
+}
+
 fn customer_address_payload(address: Value, user_errors: Vec<Value>) -> Value {
     json!({ "address": address, "userErrors": user_errors })
 }
@@ -3745,7 +4002,12 @@ fn customer_address_input_node(
     let city = field_value("city");
     let company = field_value("company");
     let zip = field_value("zip");
-    let phone = field_value("phone");
+    let phone = if input.contains_key("phone") {
+        customer_address_string(input, "phone")
+            .map(|phone| normalize_customer_address_phone(&phone).unwrap_or(phone))
+    } else {
+        field_value("phone")
+    };
     (
         Some(customer_address_node_json(CustomerAddressNodeFields {
             id: id.to_string(),
@@ -3762,6 +4024,57 @@ fn customer_address_input_node(
         })),
         Vec::new(),
     )
+}
+
+fn normalize_customer_address_phone(raw: &str) -> Option<String> {
+    const CALLING_CODE: &str = "1";
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
+    if !starts_with_plus && trimmed.chars().any(|c| c == '+' || c == '\u{FF0B}') {
+        return None;
+    }
+    let supported = |c: char| {
+        c.is_ascii_digit()
+            || matches!(
+                c,
+                '+' | '\u{FF0B}'
+                    | ' '
+                    | '\t'
+                    | '\n'
+                    | '\r'
+                    | '('
+                    | ')'
+                    | '-'
+                    | '.'
+                    | '\u{2010}'
+                    | '\u{2011}'
+                    | '\u{2012}'
+                    | '\u{2013}'
+                    | '\u{2014}'
+                    | '\u{00A0}'
+            )
+    };
+    if !trimmed.chars().all(supported) {
+        return None;
+    }
+    let digits = trimmed
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
+    {
+        digits
+    } else {
+        format!("{CALLING_CODE}{digits}")
+    };
+    if (8..=15).contains(&e164_digits.len()) {
+        Some(format!("+{e164_digits}"))
+    } else {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -4421,6 +4734,12 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
             "customerEmailMarketingConsentUpdate",
         ));
     }
+    if input.contains_key("whatsAppMarketingConsent") {
+        errors.push(customer_update_inline_consent_error(
+            "whatsAppMarketingConsent",
+            "customerWhatsAppMarketingConsentUpdate",
+        ));
+    }
     errors
 }
 
@@ -4430,6 +4749,18 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         &format!("To update {field}, please use the {mutation} Mutation instead"),
         None,
     )
+}
+
+fn resolved_inline_consent_state(
+    consent: &BTreeMap<String, ResolvedValue>,
+    field_name: &str,
+) -> Option<String> {
+    if field_name == "whatsAppMarketingConsent" {
+        resolved_string_field(consent, "marketingState")
+            .or_else(|| resolved_string_field(consent, "state"))
+    } else {
+        resolved_string_field(consent, "marketingState")
+    }
 }
 
 impl DraftProxy {
@@ -5132,6 +5463,15 @@ fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
         .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
+fn customer_name_sort_key(customer: &Value) -> StagedSortKey {
+    vec![
+        customer_normalized_string(customer, "lastName"),
+        customer_normalized_string(customer, "firstName"),
+        customer_normalized_string(customer, "displayName"),
+        customer_gid_tail_sort_value(customer),
+    ]
+}
+
 fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue {
     customer
         .get("defaultAddress")
@@ -5143,7 +5483,7 @@ fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue
 
 fn customer_staged_sort_key(customer: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
-        "NAME" => customer_normalized_string(customer, "displayName"),
+        "NAME" => return customer_name_sort_key(customer),
         "UPDATED_AT" => {
             StagedSortValue::String(customer_value_string(customer, "updatedAt").to_string())
         }

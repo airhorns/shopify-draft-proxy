@@ -10,15 +10,15 @@
     "graphql-validation-parity"
   ],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-07/customers/customer-input-inline-consent-parity.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs", "tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2025-01 evidence for CustomerInput inline consent semantics: customerCreate accepts emailMarketingConsent and smsMarketingConsent input and immediately reflects those values on Customer.defaultEmailAddress/defaultPhoneNumber and compatibility consent fields; customerCreate rejects email consent without an email, SMS consent without a phone, and disallowed create-time marketing states without staging a customer; customerUpdate rejects inline emailMarketingConsent and smsMarketingConsent with userErrors directing callers to the dedicated consent mutations, leaving downstream reads unchanged. Runtime tests cover no-upstream local staging and mutation-log behavior.",
+  "notes": "Captured Admin GraphQL 2026-07 evidence for CustomerInput inline consent semantics: customerCreate accepts emailMarketingConsent and smsMarketingConsent input and immediately reflects those values on Customer.defaultEmailAddress/defaultPhoneNumber and compatibility consent fields; customerCreate validates whatsAppMarketingConsent without adding a customer readback projection; customerCreate rejects email consent without an email, SMS consent without a phone, WhatsApp consent without a phone, and disallowed create-time marketing states without staging a customer; customerUpdate rejects inline emailMarketingConsent, smsMarketingConsent, and whatsAppMarketingConsent with userErrors directing callers to the dedicated consent mutations, leaving downstream reads unchanged. Runtime tests cover no-upstream local staging and mutation-log behavior.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -110,6 +110,27 @@
         }
       },
       {
+        "name": "update-inline-whatsapp-consent-rejection",
+        "capturePath": "$.validation.updateWhatsAppConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "whatsAppMarketingConsent": {
+                "state": "SUBSCRIBED",
+                "optInLevel": "SINGLE_OPT_IN",
+                "updatedAt": "2026-04-25T02:10:00Z"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
         "name": "rejected-inline-consent-downstream-read",
         "capturePath": "$.validation.downstreamAfterRejectedUpdates.response.data",
         "proxyPath": "$.data",
@@ -163,6 +184,16 @@
         "selectedPaths": ["$.customerCreate.customer", "$.customerCreate.userErrors"]
       },
       {
+        "name": "create-inline-whatsapp-consent-missing-phone",
+        "capturePath": "$.validation.createWhatsAppConsentMissingPhone.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createWhatsAppConsentMissingPhone.variables"
+        },
+        "selectedPaths": ["$.customerCreate.customer", "$.customerCreate.userErrors"]
+      },
+      {
         "name": "create-inline-email-consent-redacted-errors",
         "capturePath": "$.validation.createEmailConsentRedacted.response.errors",
         "proxyPath": "$.errors",
@@ -179,6 +210,25 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
           "variablesCapturePath": "$.validation.createEmailConsentRedacted.variables"
+        }
+      },
+      {
+        "name": "create-inline-whatsapp-consent-redacted-errors",
+        "capturePath": "$.validation.createWhatsAppConsentRedacted.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createWhatsAppConsentRedacted.variables"
+        },
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      },
+      {
+        "name": "create-inline-whatsapp-consent-redacted-data",
+        "capturePath": "$.validation.createWhatsAppConsentRedacted.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createWhatsAppConsentRedacted.variables"
         }
       }
     ]

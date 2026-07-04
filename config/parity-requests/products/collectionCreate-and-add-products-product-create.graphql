@@ -1,0 +1,20 @@
+mutation CollectionMembershipProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      createdAt
+      variants(first: 1) {
+        nodes {
+          id
+          price
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
