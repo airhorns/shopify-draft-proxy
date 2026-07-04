@@ -220,6 +220,84 @@ pub(in crate::proxy) fn webhook_subscription_numeric_id(record: &Value) -> u64 {
         .unwrap_or(0)
 }
 
+fn webhook_subscription_gid_tail_sort_value(record: &Value) -> StagedSortValue {
+    let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn webhook_subscription_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("CREATED_AT") {
+        "ID" => webhook_subscription_gid_tail_sort_value(record),
+        // Shopify documents CREATED_AT as the default. Out-of-range values that
+        // reach this adapter fall back to the default rather than gaining a
+        // hidden local-only ordering.
+        _ => StagedSortValue::String(
+            record
+                .get("createdAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        ),
+    };
+    vec![primary, webhook_subscription_gid_tail_sort_value(record)]
+}
+
+pub(in crate::proxy) fn webhook_subscription_sort_key_validation_error(
+    document: &ParsedDocument,
+) -> Option<Value> {
+    document.root_fields.iter().find_map(|field| {
+        if field.name != "webhookSubscriptions" {
+            return None;
+        }
+        let raw_sort_key = field.raw_arguments.get("sortKey")?;
+        match raw_sort_key {
+            RawArgumentValue::Enum(sort_key) | RawArgumentValue::String(sort_key)
+                if !webhook_subscription_sort_key_is_valid(sort_key) =>
+            {
+                Some(json!({
+                    "message": format!("Argument 'sortKey' on Field 'webhookSubscriptions' has an invalid value ({}). Expected type 'WebhookSubscriptionSortKeys'.", sort_key),
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "path": [document.operation_path.clone(), field.name.clone(), "sortKey"],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "Field",
+                        "argumentName": "sortKey"
+                    }
+                }))
+            }
+            RawArgumentValue::Variable {
+                name,
+                value: Some(ResolvedValue::String(sort_key)),
+            } if !webhook_subscription_sort_key_is_valid(sort_key) => {
+                let location = document
+                    .variable_definitions
+                    .get(name)
+                    .map_or(field.location, |definition| definition.location);
+                Some(json!({
+                    "message": format!("Variable ${} of type WebhookSubscriptionSortKeys was provided invalid value", name),
+                    "locations": [{ "line": location.line, "column": location.column }],
+                    "extensions": {
+                        "code": "INVALID_VARIABLE",
+                        "value": sort_key,
+                        "problems": [{
+                            "path": [],
+                            "explanation": format!("Expected \"{}\" to be one of: CREATED_AT, ID", sort_key)
+                        }]
+                    }
+                }))
+            }
+            _ => None,
+        }
+    })
+}
+
+fn webhook_subscription_sort_key_is_valid(value: &str) -> bool {
+    matches!(value, "CREATED_AT" | "ID")
+}
+
 pub(in crate::proxy) fn webhook_subscription_matches_field_args(
     record: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -241,6 +319,14 @@ pub(in crate::proxy) fn webhook_subscription_matches_field_args(
         }
     }
 
+    if let Some(callback_url) = resolved_string_field(arguments, "callbackUrl") {
+        if record["uri"].as_str() != Some(callback_url.as_str())
+            && record["callbackUrl"].as_str() != Some(callback_url.as_str())
+        {
+            return false;
+        }
+    }
+
     let topics = resolved_string_list_arg(arguments, "topics");
     if !topics.is_empty()
         && !record["topic"].as_str().is_some_and(|topic| {
@@ -252,16 +338,16 @@ pub(in crate::proxy) fn webhook_subscription_matches_field_args(
         return false;
     }
 
-    if let Some(query) = resolved_string_field(arguments, "query") {
-        if !webhook_subscription_matches_query(record, &query) {
-            return false;
-        }
-    }
-
     true
 }
 
-pub(in crate::proxy) fn webhook_subscription_matches_query(record: &Value, query: &str) -> bool {
+pub(in crate::proxy) fn webhook_subscription_search_decision(
+    record: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
     for raw_token in query.split_whitespace() {
         let token = raw_token.trim();
         if token.is_empty() || token.eq_ignore_ascii_case("AND") || token.eq_ignore_ascii_case("OR")
@@ -274,32 +360,111 @@ pub(in crate::proxy) fn webhook_subscription_matches_query(record: &Value, query
         let Some((field, value)) = token.split_once(':') else {
             continue;
         };
-        let matches = webhook_subscription_matches_query_term(record, field, value);
+        let Some(matches) = webhook_subscription_matches_query_term(record, field, value) else {
+            return StagedSearchDecision::Unsupported;
+        };
         if matches == negated {
-            return false;
+            return StagedSearchDecision::NoMatch;
         }
     }
-    true
+    StagedSearchDecision::Match
 }
 
 pub(in crate::proxy) fn webhook_subscription_matches_query_term(
     record: &Value,
     field: &str,
     value: &str,
-) -> bool {
+) -> Option<bool> {
     let wanted = value.to_ascii_lowercase();
-    match field.to_ascii_lowercase().as_str() {
-        "id" => record["id"].as_str().is_some_and(|id| {
-            id.eq_ignore_ascii_case(value)
-                || webhook_subscription_legacy_id(id).eq_ignore_ascii_case(value)
-        }),
+    Some(match field.to_ascii_lowercase().as_str() {
+        "id" => webhook_subscription_matches_id_query(record, value),
         "topic" => webhook_subscription_string_field(record, "topic").contains(&wanted),
         "format" => webhook_subscription_string_field(record, "format") == wanted,
-        "uri" | "callbackurl" => {
+        "uri" | "callbackurl" | "callback_url" => {
             webhook_subscription_string_field(record, "uri").contains(&wanted)
                 || webhook_subscription_string_field(record, "callbackUrl").contains(&wanted)
         }
-        _ => false,
+        "created_at" => webhook_subscription_matches_datetime_comparator(
+            record.get("createdAt").and_then(Value::as_str),
+            value,
+        ),
+        "updated_at" => webhook_subscription_matches_datetime_comparator(
+            record.get("updatedAt").and_then(Value::as_str),
+            value,
+        ),
+        _ => return None,
+    })
+}
+
+fn webhook_subscription_matches_id_query(record: &Value, query_value: &str) -> bool {
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    let (operator, expected) = webhook_subscription_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    if operator == "="
+        && record["id"].as_str().is_some_and(|id| {
+            id.eq_ignore_ascii_case(expected)
+                || webhook_subscription_legacy_id(id).eq_ignore_ascii_case(expected)
+        })
+    {
+        return true;
+    }
+    let Some(expected) = expected.parse::<u64>().ok() else {
+        return false;
+    };
+    let actual = webhook_subscription_numeric_id(record);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual == expected,
+    }
+}
+
+fn webhook_subscription_matches_datetime_comparator(
+    actual: Option<&str>,
+    query_value: &str,
+) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = webhook_subscription_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = webhook_subscription_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn webhook_subscription_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn webhook_subscription_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
     }
 }
 
@@ -319,15 +484,20 @@ impl DraftProxy {
                     .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),
-                "webhookSubscriptions" => {
-                    let records = self.webhook_subscription_records_for_connection(field);
-                    selected_connection_json(records, &field.selection)
-                }
+                "webhookSubscriptions" => self.webhook_subscription_connection_field(field),
                 "webhookSubscriptionsCount" => {
                     let records = self.webhook_subscription_records_for_filter_args(field);
+                    let result = staged_connection_query(
+                        records,
+                        &field.arguments,
+                        webhook_subscription_search_decision,
+                        webhook_subscription_staged_sort_key,
+                        value_id_cursor,
+                    );
                     let limit = field.arguments.get("limit").and_then(resolved_as_usize);
-                    let count = limit.map_or(records.len(), |limit| records.len().min(limit));
-                    let precision = if limit.is_some_and(|limit| records.len() > limit) {
+                    let count =
+                        limit.map_or(result.total_count, |limit| result.total_count.min(limit));
+                    let precision = if limit.is_some_and(|limit| result.total_count > limit) {
                         "AT_LEAST"
                     } else {
                         "EXACT"
@@ -342,38 +512,20 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn webhook_subscription_records_for_connection(
+    pub(in crate::proxy) fn webhook_subscription_connection_field(
         &self,
         field: &RootFieldSelection,
-    ) -> Vec<Value> {
-        let mut records = self.webhook_subscription_records_for_filter_args(field);
-        let sort_key =
-            resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "ID".to_string());
-        records.sort_by(|left, right| {
-            let sort_cmp = match sort_key.to_ascii_uppercase().as_str() {
-                "CREATED_AT" => webhook_subscription_string_field(left, "createdAt")
-                    .cmp(&webhook_subscription_string_field(right, "createdAt")),
-                "UPDATED_AT" => webhook_subscription_string_field(left, "updatedAt")
-                    .cmp(&webhook_subscription_string_field(right, "updatedAt")),
-                "TOPIC" => webhook_subscription_string_field(left, "topic")
-                    .cmp(&webhook_subscription_string_field(right, "topic")),
-                _ => webhook_subscription_numeric_id(left)
-                    .cmp(&webhook_subscription_numeric_id(right)),
-            };
-            sort_cmp.then_with(|| {
-                webhook_subscription_numeric_id(left).cmp(&webhook_subscription_numeric_id(right))
-            })
-        });
-        if matches!(
-            field.arguments.get("reverse"),
-            Some(ResolvedValue::Bool(true))
-        ) {
-            records.reverse();
-        }
-        if let Some(first) = field.arguments.get("first").and_then(resolved_as_usize) {
-            records.truncate(first);
-        }
-        records
+    ) -> Value {
+        let records = self.webhook_subscription_records_for_filter_args(field);
+        selected_staged_connection_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            webhook_subscription_search_decision,
+            webhook_subscription_staged_sort_key,
+            selected_json,
+            value_id_cursor,
+        )
     }
 
     pub(in crate::proxy) fn webhook_subscription_records_for_filter_args(

@@ -982,6 +982,12 @@ fn validate_product_options_create(
                 "Option name is too long.",
                 Some("OPTION_NAME_TOO_LONG"),
             ));
+        } else if product_option_name_has_title_delimiter(&name) {
+            errors.push(ProductOptionUserError::new(
+                json!(["options", index.to_string(), "name"]),
+                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+                Some("INVALID_NAME"),
+            ));
         }
         let normalized_name = name.to_ascii_lowercase();
         if !seen_names.insert(normalized_name.clone()) {
@@ -1065,6 +1071,12 @@ fn validate_product_option_update(
                 json!(["option", "name"]),
                 "Option name is too long.",
                 Some("OPTION_NAME_TOO_LONG"),
+            ));
+        } else if product_option_name_has_title_delimiter(&name) {
+            errors.push(ProductOptionUserError::new(
+                json!(["option", "name"]),
+                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+                Some("INVALID_NAME"),
             ));
         }
         if graph

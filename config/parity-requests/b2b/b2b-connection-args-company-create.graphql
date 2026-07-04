@@ -1,0 +1,36 @@
+mutation B2BConnectionArgsCompanyCreate($acmeInput: CompanyCreateInput!, $zetaInput: CompanyCreateInput!) {
+  acme: companyCreate(input: $acmeInput) {
+    company {
+      id
+      name
+      mainContact {
+        id
+        title
+        roleAssignments(first: 5) {
+          nodes {
+            id
+            role { id name }
+            companyLocation { id name }
+          }
+        }
+      }
+      contactRoles(first: 5) {
+        nodes { id name }
+      }
+      locations(first: 5) {
+        nodes { id name }
+      }
+    }
+    userErrors { field message code }
+  }
+  zeta: companyCreate(input: $zetaInput) {
+    company {
+      id
+      name
+      locations(first: 5) {
+        nodes { id name }
+      }
+    }
+    userErrors { field message code }
+  }
+}
