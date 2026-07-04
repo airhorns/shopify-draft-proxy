@@ -107,6 +107,7 @@ impl DraftProxy {
                         "userErrors",
                         "field",
                         "message",
+                        "code",
                     ],
                 )
         });
@@ -131,6 +132,7 @@ impl DraftProxy {
                         "userErrors",
                         "field",
                         "message",
+                        "code",
                     ],
                 )
         });
@@ -165,7 +167,11 @@ impl DraftProxy {
                                 field.response_key.clone(): refund_input_error(
                                     field,
                                     None,
-                                    refund_user_error_with_code(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                                    refund_user_error_with_code(
+                                        json!(["orderId"]),
+                                        "Order does not exist",
+                                        "NOT_FOUND",
+                                    ),
                                     &shop_currency_code,
                                 )
                             }

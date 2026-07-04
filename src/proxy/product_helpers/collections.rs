@@ -700,9 +700,6 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
-        if let Some(publication_id) = self.store.current_publication_id() {
-            return Some(publication_id.to_string());
-        }
         if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
         {
             None
@@ -959,15 +956,21 @@ impl DraftProxy {
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
                 "publishedOnCurrentPublication" => {
-                    let current_channel_published = self
-                        .current_channel_publication_id()
-                        .is_some_and(|id| live_pubs.contains(&id));
-                    json!(
-                        current_channel_published
+                    let published = if self.store.staged.current_channel_publication_resolved {
+                        self.store
+                            .staged
+                            .current_channel_publication_id
+                            .as_deref()
+                            .is_some_and(|id| live_pubs.contains(id))
+                    } else {
+                        self.current_channel_publication_id()
+                            .as_deref()
+                            .is_some_and(|id| live_pubs.contains(id))
                             || self
                                 .store
                                 .resource_is_published_on_current_publication(resource_id)
-                    )
+                    };
+                    json!(published)
                 }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
@@ -1052,6 +1055,13 @@ impl DraftProxy {
                 return None;
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
+            let publishable_selection =
+                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+            if self
+                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
             let mut user_errors = Vec::new();
             let resource_exists = self.publishable_resource_exists(&resource_id, request);
             if !resource_exists {
@@ -1077,13 +1087,11 @@ impl DraftProxy {
                 ));
             }
             if user_errors.is_empty() {
-                let publishable_selection =
-                    selected_child_selection(&field.selection, "publishable").unwrap_or_default();
                 if self.publishable_payload_resource_needs_hydration(
                     &resource_id,
                     &publishable_selection,
                 ) {
-                    self.hydrate_publishable_payload_shop(&resource_id, request);
+                    self.hydrate_publishable_resource(&resource_id, request);
                 }
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before

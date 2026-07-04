@@ -2325,6 +2325,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-connection-query-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-connection-query-windowing-conformance.ts',
+    purpose:
+      'inventoryItems query filters and inventoryTransfers query/sort/reverse/windowing behavior over disposable product-backed inventory and transfers.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-connection-query-windowing.json`,
+      'config/parity-specs/products/inventory-connection-query-windowing.json',
+      'config/parity-requests/products/inventory-connection-location-add.graphql',
+      'config/parity-requests/products/inventory-connection-product-set.graphql',
+      'config/parity-requests/products/inventory-connection-item-update.graphql',
+      'config/parity-requests/products/inventory-connection-items-query.graphql',
+      'config/parity-requests/products/inventory-connection-transfers-page.graphql',
+      'config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
@@ -2591,6 +2620,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable metaobject definitions to supply valid metaobject_definition_id options, records validation branches, deletes the staged metafield definition, then deletes the metaobject definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-validation-option-names',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-option-names-conformance.ts',
+    purpose:
+      'metafieldDefinitionCreate/metafieldDefinitionUpdate validations[] unsupported option-name rejection and number_decimal option coercion.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-option-names.json`,
+      'config/parity-specs/metafields/metafield-definition-validation-option-names.json',
+      'config/parity-requests/metafields/metafield-definition-invalid-validation-options.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable product metafield definitions in a unique namespace, records invalid validation-option branches and a valid decimal control, then deletes every created definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
