@@ -167,8 +167,12 @@ hydrated local orders. Request-status transitions, merchant request records,
 split-off remaining fulfillment orders, and merged line-item quantities are
 written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
-`Order.fulfillmentOrders` reads. These slices operate on local order-backed
-fulfillment records and are not a general fulfillment-service execution engine.
+`Order.fulfillmentOrders` reads. Locally created order fulfillment orders derive
+their initial `assignedLocation` from the first active observed/staged shop
+location that fulfills online orders; the runtime does not fabricate
+`gid://shopify/Location/1` when no such location is known. These slices operate
+on local order-backed fulfillment records and are not a general
+fulfillment-service execution engine.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
