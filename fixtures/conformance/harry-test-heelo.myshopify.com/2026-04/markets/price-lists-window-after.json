@@ -1,0 +1,83 @@
+{
+  "data": {
+    "priceLists": {
+      "edges": [
+        {
+          "cursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0=",
+          "node": {
+            "__typename": "PriceList",
+            "id": "gid://shopify/PriceList/32128106802",
+            "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+            "currency": "CAD",
+            "fixedPricesCount": 1
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0=",
+        "endCursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0="
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 3,
+      "actualQueryCost": 3,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1997,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListsWindowAfter",
+      "variables": {
+        "first": 1,
+        "after": "eyJsYXN0X2lkIjozMTU3NTQwODk0NiwibGFzdF92YWx1ZSI6IjMxNTc1NDA4OTQ2In0="
+      },
+      "query": "query PriceListsWindowAfter($first: Int!, $after: String!) {\n  priceLists(first: $first, after: $after) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        name\n        currency\n        fixedPricesCount\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceLists": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0=",
+                  "node": {
+                    "__typename": "PriceList",
+                    "id": "gid://shopify/PriceList/32128106802",
+                    "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                    "currency": "CAD",
+                    "fixedPricesCount": 1
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjozMjEyODEwNjgwMiwibGFzdF92YWx1ZSI6IjMyMTI4MTA2ODAyIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

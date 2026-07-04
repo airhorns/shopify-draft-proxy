@@ -254,20 +254,6 @@ fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
     matches!(shopify_gid_resource_type(id), Some(resource_type) if resource_type != "MarketCatalog")
 }
 
-fn staged_nodes_connection(
-    records: &BTreeMap<String, Value>,
-    selection: &[SelectedField],
-    with_empty_edges: bool,
-) -> Value {
-    let nodes = records.values().cloned().collect::<Vec<_>>();
-    let connection = if with_empty_edges {
-        connection_json_with_empty_edges(nodes)
-    } else {
-        json!({ "nodes": nodes })
-    };
-    selected_json(&connection, selection)
-}
-
 fn selected_record_field(record: &Value, selection: &SelectedField) -> Option<Value> {
     let projected = selected_json(record, std::slice::from_ref(selection));
     projected.get(&selection.response_key).cloned()
@@ -985,12 +971,14 @@ impl DraftProxy {
                         .staged
                         .price_lists
                         .get(&id)
-                        .map(|price_list| selected_json(price_list, &field.selection))
+                        .map(|price_list| selected_price_list_json(price_list, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "priceLists" => {
-                    staged_nodes_connection(&self.store.staged.price_lists, &field.selection, false)
-                }
+                "priceLists" => selected_price_lists_connection_with_args(
+                    &self.store.staged.price_lists,
+                    &field.arguments,
+                    &field.selection,
+                ),
                 "webPresences" => {
                     let records = self
                         .store
