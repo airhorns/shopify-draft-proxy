@@ -1,0 +1,196 @@
+{
+  "scenarioId": "localization-translatable-resources-reverse",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-04T03:16:57.175Z",
+  "scope": "translatableResources reverse connection argument",
+  "cases": [
+    {
+      "name": "productCreate 1",
+      "query": "mutation LocalizationTranslatableResourcesReverseProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Localization reverse 20260704031655 Alpha",
+          "handle": "localization-reverse-20260704031655-alpha",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231256219954",
+                "title": "Localization reverse 20260704031655 Alpha",
+                "handle": "localization-reverse-20260704031655-alpha",
+                "status": "DRAFT"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "productCreate 2",
+      "query": "mutation LocalizationTranslatableResourcesReverseProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Localization reverse 20260704031655 Beta",
+          "handle": "localization-reverse-20260704031655-beta",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231256252722",
+                "title": "Localization reverse 20260704031655 Beta",
+                "handle": "localization-reverse-20260704031655-beta",
+                "status": "DRAFT"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "translatableResources reverse read",
+      "query": "query LocalizationTranslatableResourcesReverseRead($resourceType: TranslatableResourceType!) {\n  reversedFirst: translatableResources(first: 1, resourceType: $resourceType, reverse: true) {\n    nodes {\n      resourceId\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "resourceType": "PRODUCT"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reversedFirst": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Product/10231256252722"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDIzMTI1NjI1MjcyMiwibGFzdF92YWx1ZSI6IjEwMjMxMjU2MjUyNzIyIn0=",
+                  "node": {
+                    "resourceId": "gid://shopify/Product/10231256252722"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI1NjI1MjcyMiwibGFzdF92YWx1ZSI6IjEwMjMxMjU2MjUyNzIyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI1NjI1MjcyMiwibGFzdF92YWx1ZSI6IjEwMjMxMjU2MjUyNzIyIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "productDelete cleanup",
+      "query": "#graphql\nmutation LocalizationTranslatableResourcesReverseProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10231256252722"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10231256252722",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "productDelete cleanup",
+      "query": "#graphql\nmutation LocalizationTranslatableResourcesReverseProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10231256219954"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10231256219954",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

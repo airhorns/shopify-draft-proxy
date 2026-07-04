@@ -57,12 +57,15 @@ upstream-hydrated WebPresence IDs, and accepted rows project selected
 mode, localization mutation preflight hydrates referenced `Market` and
 `MarketWebPresence` target IDs before local shop-locale and market-scoped
 translation validation.
-For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
-a non-null `published` value, whether `true` or `false`; primary-locale updates
-that only supply `marketWebPresenceIds` remain accepted by this slice.
-The baseline shop locale includes the captured primary English row, and staged
-enable/update/disable effects are merged with that baseline for subsequent
-`shopLocales` reads.
+For `shopLocaleUpdate`, the primary-locale guard uses the primary row in the
+proxy's baseline plus staged shop-locale state and applies when the input
+supplies a non-null `published` value, whether `true` or `false`;
+primary-locale updates that only supply `marketWebPresenceIds` remain accepted
+by this slice. Market-web-presence default-locale projections fall back to the
+same resolved primary locale when no staged web-presence record carries a more
+specific default. The default snapshot baseline includes a captured primary
+English row, and staged enable/update/disable effects are merged with that
+baseline for subsequent `shopLocales` reads.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 product, collection, product-metafield, and market-scoped translation scenarios.
@@ -120,7 +123,9 @@ Collection resources use the same source-backed projection for title, handle,
 body HTML, and SEO fields that exist in local state.
 Unknown or omitted singular `translatableResource` IDs return `null`, and
 empty `translatableResources` connections remain empty instead of fabricating a
-default resource ID.
+default resource ID. `translatableResources(first:/last:/after:/before:,
+reverse:)` applies `reverse` to the local resource-ID order before computing
+the requested cursor window and selected `pageInfo`.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has
