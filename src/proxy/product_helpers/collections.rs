@@ -453,11 +453,11 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &result.records,
             &field.selection,
-            |collection, selection| {
+            |collection, selections| {
                 collection_json(
                     collection,
                     self.collection_product_entries(collection),
-                    selection,
+                    selections,
                     &shop_currency_code,
                 )
             },
@@ -699,9 +699,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn current_channel_publication_id(&self) -> Option<String> {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
-        }
-        if let Some(publication_id) = self.store.current_publication_id() {
-            return Some(publication_id.to_string());
         }
         if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
         {
@@ -959,15 +956,21 @@ impl DraftProxy {
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
                 "publishedOnCurrentPublication" => {
-                    let current_channel_published = self
-                        .current_channel_publication_id()
-                        .is_some_and(|id| live_pubs.contains(&id));
-                    json!(
-                        current_channel_published
+                    let published = if self.store.staged.current_channel_publication_resolved {
+                        self.store
+                            .staged
+                            .current_channel_publication_id
+                            .as_deref()
+                            .is_some_and(|id| live_pubs.contains(id))
+                    } else {
+                        self.current_channel_publication_id()
+                            .as_deref()
+                            .is_some_and(|id| live_pubs.contains(id))
                             || self
                                 .store
                                 .resource_is_published_on_current_publication(resource_id)
-                    )
+                    };
+                    json!(published)
                 }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
@@ -1052,6 +1055,13 @@ impl DraftProxy {
                 return None;
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
+            let publishable_selection =
+                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+            if self
+                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
             let mut user_errors = Vec::new();
             let resource_exists = self.publishable_resource_exists(&resource_id, request);
             if !resource_exists {
@@ -1077,13 +1087,11 @@ impl DraftProxy {
                 ));
             }
             if user_errors.is_empty() {
-                let publishable_selection =
-                    selected_child_selection(&field.selection, "publishable").unwrap_or_default();
                 if self.publishable_payload_resource_needs_hydration(
                     &resource_id,
                     &publishable_selection,
                 ) {
-                    self.hydrate_publishable_payload_shop(&resource_id, request);
+                    self.hydrate_publishable_resource(&resource_id, request);
                 }
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before
@@ -1256,7 +1264,7 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn collection_json_with_publication_fields(
+    pub(in crate::proxy) fn collection_json_with_publication_fields(
         &self,
         collection: &Value,
         selections: &[SelectedField],
@@ -1313,7 +1321,7 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn stage_collection_from_observed_json(&mut self, collection: &Value) {
+    pub(in crate::proxy) fn stage_collection_from_observed_json(&mut self, collection: &Value) {
         if collection
             .get("id")
             .and_then(Value::as_str)
@@ -1357,62 +1365,6 @@ impl DraftProxy {
             return collection.clone();
         };
         merge_observed_collection_into_local(local_collection, collection)
-    }
-
-    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
-        let nodes = response
-            .body
-            .pointer("/data/nodes")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        for node in &nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Product/") {
-                self.store.stage_observed_product_json(node);
-                if let Some(product_id) = node.get("id").and_then(Value::as_str) {
-                    for variant in node
-                        .get("variants")
-                        .and_then(|connection| connection.get("nodes"))
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                    {
-                        let mut variant_value = variant.clone();
-                        if let Some(object) = variant_value.as_object_mut() {
-                            object.insert("productId".to_string(), json!(product_id));
-                        }
-                        if let Some(mut variant) =
-                            product_variant_state_from_observed_json(&variant_value)
-                        {
-                            variant.product_id = product_id.to_string();
-                            self.store.stage_product_variant(variant);
-                        }
-                    }
-                }
-            } else if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(node);
-            } else if id.starts_with("gid://shopify/ProductVariant/") {
-                if let Some(variant) = product_variant_state_from_observed_json(node) {
-                    self.store.stage_product_variant(variant);
-                }
-                if let Some(product) = node.get("product").and_then(product_state_from_json) {
-                    self.store.stage_observed_product(product);
-                }
-            } else if id.starts_with("gid://shopify/InventoryItem/") {
-                self.observe_inventory_item_node(node);
-            } else if id.starts_with("gid://shopify/InventoryLevel/") {
-                self.observe_inventory_level_node(node);
-            }
-        }
-        for node in nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(&node);
-            }
-        }
     }
 
     pub(in crate::proxy) fn collection_mutation(

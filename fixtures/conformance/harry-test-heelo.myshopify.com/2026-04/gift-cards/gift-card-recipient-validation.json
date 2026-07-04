@@ -1,16 +1,17 @@
 {
-  "capturedAt": "2026-06-25T11:47:57.444Z",
+  "capturedAt": "2026-07-04T13:39:34.133Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
     "Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.",
+    "The no-contact sentinel branch records Shopify rejecting a structurally invalid Customer GID as a top-level RESOURCE_NOT_FOUND error instead of treating it as a no-contact recipient.",
     "Setup creates one disposable customer and one active gift card; cleanup deactivates the setup gift card and deletes the setup customer.",
     "The public giftCardUpdate userErrors type in the captured API exposes field/message only; replay expectations add local typed code values."
   ],
   "proxyVariables": {
     "recipientValidation": {
       "activeId": "gid://shopify/GiftCard/recipient-validation-active",
-      "recipientId": "gid://shopify/Customer/10853758566706",
+      "recipientId": "gid://shopify/Customer/10897216012594",
       "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "htmlPreferredName": "<b>Recipient</b>",
@@ -18,7 +19,8 @@
       "futureSendAt": "2026-10-01T00:00:00Z",
       "pastSendAt": "2026-04-28T09:31:02Z",
       "validSendAt": "2026-07-01T00:00:00Z",
-      "missingRecipientId": "gid://shopify/Customer/999999999999"
+      "missingRecipientId": "gid://shopify/Customer/999999999999",
+      "noContactSentinelRecipientId": "gid://shopify/Customer/no-contact-recipient"
     }
   },
   "setup": [
@@ -27,7 +29,7 @@
       "query": "#graphql\n      mutation GiftCardRecipientValidationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
       "variables": {
         "input": {
-          "email": "recipient-validation-1782388076191@example.com",
+          "email": "recipient-validation-1783172372982@example.com",
           "firstName": "Recipient",
           "lastName": "Validation",
           "note": "Disposable gift-card recipient validation customer."
@@ -39,8 +41,8 @@
           "data": {
             "customerCreate": {
               "customer": {
-                "id": "gid://shopify/Customer/10853758566706",
-                "email": "recipient-validation-1782388076191@example.com"
+                "id": "gid://shopify/Customer/10897216012594",
+                "email": "recipient-validation-1783172372982@example.com"
               },
               "userErrors": []
             }
@@ -65,9 +67,9 @@
       "variables": {
         "input": {
           "initialValue": "5.00",
-          "code": "GCRVmqtfu9i7",
+          "code": "GCRVmr6esgs6",
           "note": "Disposable gift-card recipient validation card.",
-          "customerId": "gid://shopify/Customer/10853758566706"
+          "customerId": "gid://shopify/Customer/10897216012594"
         }
       },
       "response": {
@@ -76,13 +78,13 @@
           "data": {
             "giftCardCreate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661474607410",
+                "id": "gid://shopify/GiftCard/662650716466",
                 "enabled": true,
                 "customer": {
-                  "id": "gid://shopify/Customer/10853758566706"
+                  "id": "gid://shopify/Customer/10897216012594"
                 }
               },
-              "giftCardCode": "gcrvmqtfu9i7",
+              "giftCardCode": "gcrvmr6esgs6",
               "userErrors": []
             }
           },
@@ -140,7 +142,7 @@
       "label": "updateMissingRecipientId",
       "query": "#graphql\n  mutation GiftCardRecipientValidationUpdateMissingId($activeId: ID!) {\n    updateMissingRecipientId: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { message: \"missing id\" } }\n    ) {\n      giftCard {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "activeId": "gid://shopify/GiftCard/661474607410"
+        "activeId": "gid://shopify/GiftCard/662650716466"
       },
       "response": {
         "status": 200,
@@ -172,12 +174,53 @@
         }
       }
     },
+    "createNoContactSentinelRecipient": {
+      "label": "createNoContactSentinelRecipient",
+      "query": "#graphql\n  mutation GiftCardRecipientValidationCreateNoContactSentinel($recipientId: ID!) {\n    createNoContactSentinelRecipient: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId } }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "recipientId": "gid://shopify/Customer/no-contact-recipient"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/Customer/no-contact-recipient",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["createNoContactSentinelRecipient"]
+            }
+          ],
+          "data": {
+            "createNoContactSentinelRecipient": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "recipientValidation": {
       "label": "recipientValidation",
       "query": "#graphql\n  mutation GiftCardRecipientValidation(\n    $activeId: ID!\n    $recipientId: ID!\n    $tooLongPreferredName: String!\n    $tooLongMessage: String!\n    $htmlPreferredName: String!\n    $htmlMessage: String!\n    $futureSendAt: DateTime!\n    $pastSendAt: DateTime!\n    $validSendAt: DateTime!\n    $missingRecipientId: ID!\n  ) {\n    createUnknownRecipient: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $missingRecipientId } }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createBlankPreferredName: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, preferredName: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createBlankMessage: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, message: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createLongPreferredName: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createLongMessage: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, message: $tooLongMessage }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createHtmlPreferredName: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createHtmlMessage: giftCardCreate(\n      input: { initialValue: \"10\", recipientAttributes: { id: $recipientId, message: $htmlMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createFutureSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createPastSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    createValidSendAt: giftCardCreate(\n      input: {\n        initialValue: \"10\"\n        recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt }\n      }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    updateLongPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateUnknownRecipient: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $missingRecipientId } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          recipient {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateBlankPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateBlankMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: \"\" } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateLongMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateHtmlPreferredName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateHtmlMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: $htmlMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updatePastSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateFutureSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    updateValidSendAt: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $validSendAt } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          sendNotificationAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "activeId": "gid://shopify/GiftCard/661474607410",
-        "recipientId": "gid://shopify/Customer/10853758566706",
+        "activeId": "gid://shopify/GiftCard/662650716466",
+        "recipientId": "gid://shopify/Customer/10897216012594",
         "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "htmlPreferredName": "<b>Recipient</b>",
@@ -185,7 +228,8 @@
         "futureSendAt": "2026-10-01T00:00:00Z",
         "pastSendAt": "2026-04-28T09:31:02Z",
         "validSendAt": "2026-07-01T00:00:00Z",
-        "missingRecipientId": "gid://shopify/Customer/999999999999"
+        "missingRecipientId": "gid://shopify/Customer/999999999999",
+        "noContactSentinelRecipientId": "gid://shopify/Customer/no-contact-recipient"
       },
       "response": {
         "status": 200,
@@ -319,15 +363,14 @@
               ]
             },
             "createFutureSendAt": {
-              "giftCard": null,
-              "giftCardCode": null,
-              "userErrors": [
-                {
-                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
-                  "code": "INVALID",
-                  "message": "Send notification at must be within 90 days from now"
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662650749234",
+                "recipientAttributes": {
+                  "sendNotificationAt": "2026-10-01T00:00:00Z"
                 }
-              ]
+              },
+              "giftCardCode": "7cca3ee4gaea6a64",
+              "userErrors": []
             },
             "createPastSendAt": {
               "giftCard": null,
@@ -341,14 +384,15 @@
               ]
             },
             "createValidSendAt": {
-              "giftCard": {
-                "id": "gid://shopify/GiftCard/661474640178",
-                "recipientAttributes": {
-                  "sendNotificationAt": "2026-07-01T00:00:00Z"
+              "giftCard": null,
+              "giftCardCode": null,
+              "userErrors": [
+                {
+                  "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                  "code": "INVALID",
+                  "message": "Send notification at must be within 90 days from now"
                 }
-              },
-              "giftCardCode": "53bbgbe9e3d565bc",
-              "userErrors": []
+              ]
             },
             "updateLongPreferredName": null,
             "updateUnknownRecipient": {
@@ -407,6 +451,15 @@
               ]
             },
             "updateFutureSendAt": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662650716466",
+                "recipientAttributes": {
+                  "sendNotificationAt": "2026-10-01T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            },
+            "updateValidSendAt": {
               "giftCard": null,
               "userErrors": [
                 {
@@ -414,15 +467,6 @@
                   "message": "Send notification at must be within 90 days from now"
                 }
               ]
-            },
-            "updateValidSendAt": {
-              "giftCard": {
-                "id": "gid://shopify/GiftCard/661474607410",
-                "recipientAttributes": {
-                  "sendNotificationAt": "2026-07-01T00:00:00Z"
-                }
-              },
-              "userErrors": []
             }
           },
           "extensions": {
@@ -431,7 +475,7 @@
               "actualQueryCost": 202,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1798,
+                "currentlyAvailable": 1797,
                 "restoreRate": 100
               }
             }
@@ -525,7 +569,7 @@
           {
             "field": ["input", "recipientAttributes", "sendNotificationAt"],
             "code": "INVALID",
-            "message": "Send notification at must be within 90 days from now"
+            "message": "sendNotificationAt must be within 90 days from now"
           }
         ],
         "giftCardCode": null
@@ -635,7 +679,7 @@
           {
             "field": ["input", "recipientAttributes", "sendNotificationAt"],
             "code": "INVALID",
-            "message": "Send notification at must be within 90 days from now"
+            "message": "sendNotificationAt must be within 90 days from now"
           }
         ]
       },
@@ -651,10 +695,10 @@
   },
   "cleanup": [
     {
-      "label": "cleanupDeactivate:gid://shopify/GiftCard/661474607410",
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/662650716466",
       "query": "#graphql\n      mutation GiftCardRecipientValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661474607410"
+        "id": "gid://shopify/GiftCard/662650716466"
       },
       "response": {
         "status": 200,
@@ -662,9 +706,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661474607410",
+                "id": "gid://shopify/GiftCard/662650716466",
                 "enabled": false,
-                "deactivatedAt": "2026-06-25T11:47:57Z"
+                "deactivatedAt": "2026-07-04T13:39:33Z"
               },
               "userErrors": []
             }
@@ -675,7 +719,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1830,
+                "currentlyAvailable": 1823,
                 "restoreRate": 100
               }
             }
@@ -684,44 +728,11 @@
       }
     },
     {
-      "label": "cleanupDeactivate:gid://shopify/GiftCard/661474640178",
-      "query": "#graphql\n      mutation GiftCardRecipientValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
-      "variables": {
-        "id": "gid://shopify/GiftCard/661474640178"
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "giftCardDeactivate": {
-              "giftCard": {
-                "id": "gid://shopify/GiftCard/661474640178",
-                "enabled": false,
-                "deactivatedAt": "2026-06-25T11:47:57Z"
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1832,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "label": "cleanupCustomer:gid://shopify/Customer/10853758566706",
+      "label": "cleanupCustomer:gid://shopify/Customer/10897216012594",
       "query": "#graphql\n      mutation GiftCardRecipientValidationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10853758566706"
+          "id": "gid://shopify/Customer/10897216012594"
         }
       },
       "response": {
@@ -744,7 +755,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1834,
+                "currentlyAvailable": 1825,
                 "restoreRate": 100
               }
             }

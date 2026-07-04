@@ -1,0 +1,15 @@
+mutation GiftCardRecipientValidationCreateNoContactSentinel($recipientId: ID!) {
+  createNoContactSentinelRecipient: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId } }
+  ) {
+    giftCard {
+      id
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

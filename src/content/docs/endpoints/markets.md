@@ -99,15 +99,14 @@ uniqueness as case-insensitive before handle generation.
 Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
 enum value unchanged. When `currencySettings` is present without an explicit
 `baseCurrency`, `marketCreate` and `marketUpdate` default the base currency to
-the proxy store's shop currency rather than to a fixture-specific currency.
+the observed shop currency rather than assuming a fixed store currency.
 `currencyName` is projected from a local ISO-4217 display-name table for known
 codes, including the currencies observed in checked-in Markets conformance
 fixtures. If a future Shopify enum value is not yet mapped, the runtime returns
 `Unknown Currency` instead of echoing the ISO code as a misleading display name.
 Base-currency input uses Shopify-style `CurrencyCode` variable coercion: public
 enum values such as `XAF` stage locally, while non-enum values such as `ZZZ`
-return top-level
-`INVALID_VARIABLE` before resolver execution.
+return top-level `INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for staged market,
@@ -141,9 +140,14 @@ the same filtered list.
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
 product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
-staged rows in the checked-in scenarios. Validation covers name, currency,
-parent adjustment, `catalogId` existence/taken checks, unknown resource,
-duplicate fixed-price, missing fixed-price, fixed-price `price` /
+staged rows in the checked-in scenarios. Local `priceLists` reads apply standard
+connection windows and computed `pageInfo` over staged price lists.
+`PriceList.prices` applies read-time connection windows, `originType`, and the
+captured fixed-price ID search filters `variant_id:` and `product_id:`. Other
+`PriceList.prices(query:)` terms intentionally return an empty local connection
+instead of guessing Shopify's broader search grammar. Validation covers name,
+currency, parent adjustment, `catalogId` existence/taken checks, unknown
+resource, duplicate fixed-price, missing fixed-price, fixed-price `price` /
 `compareAtPrice` currency mismatches, fixed-price missing-variant short-circuit
 behavior, product-level fixed-price, no-op, quantity-rule, and price-limit
 branches represented by parity specs. Captured Admin API 2026-04 behavior
@@ -174,14 +178,18 @@ unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 market-localizable resource state or staged market-scoped translations; unknown
 IDs return `null`.
 
-`marketsResolvedValues` projects `currencyCode` from the proxy store's shop
-currency. For a buyer country that matches a staged market region, its
-`priceInclusivity` projection derives `dutiesIncluded` and `taxesIncluded`
-from that market's staged `priceInclusions`. Other
-`marketsResolvedValues` and market/catalog/price-list reads have
-fixture-backed empty, fallback, and buyer-country behavior where captured.
-Unsupported catalog, price-list, B2B/app catalog, contextual pricing, and
-resolved-value derivations are not synthesized beyond the checked-in evidence.
+`marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
+empty, fallback, and buyer-country behavior where captured. Resolved value
+`currencyCode` uses the observed shop currency. For `priceInclusivity`, taxes
+come from the matching active market's tax price-inclusion setting when the
+buyer country resolves to that market, then from observed shop tax-inclusion
+flags when no market-specific setting applies. Duties stay false unless an
+observed base shop state explicitly provides a duty-inclusion flag; public
+Admin GraphQL 2026-04 accepted `INCLUDE_DUTIES_IN_PRICE` on a Market record but
+still resolved `marketsResolvedValues.priceInclusivity.dutiesIncluded` as
+false for the captured buyer signal. Unsupported catalog, price-list, B2B/app
+catalog, contextual pricing, and richer resolved-value derivations are not
+synthesized beyond the checked-in evidence.
 
 ### Boundaries
 
