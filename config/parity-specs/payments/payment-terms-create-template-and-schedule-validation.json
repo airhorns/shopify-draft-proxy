@@ -96,6 +96,22 @@
         }
       },
       {
+        "name": "fulfillment-extra-due-at-error",
+        "capturePath": "$.cases.fulfillmentExtraDueAt.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.cases.fulfillmentExtraDueAt.variables.attrs"
+            }
+          }
+        }
+      },
+      {
         "name": "receipt-issued-at-success-empty-schedule",
         "capturePath": "$.cases.receiptExtraIssuedAt.response.data.paymentTermsCreate",
         "proxyPath": "$.data.paymentTermsCreate",
@@ -120,5 +136,5 @@
       }
     ]
   },
-  "notes": "Executable parity for HAR-674. Live 2026-04 capture shows paymentTermsCreate returns null-field PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors for unknown templates, missing FIXED dueAt, and RECEIPT dueAt, while RECEIPT issuedAt is accepted and produces an empty paymentSchedules connection. The omitted-template branch is rejected by Shopify variable coercion before paymentTermsCreate executes, so focused runtime coverage ensures the proxy no longer defaults it locally. Happy-path paymentTermsCreate remains covered by payment-terms-lifecycle-local-staging."
+  "notes": "Executable parity for payment terms template validation. Live 2026-04 capture shows paymentTermsCreate returns null-field PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors for unknown templates, missing FIXED dueAt, RECEIPT dueAt, and FULFILLMENT dueAt, while RECEIPT issuedAt is accepted and produces an empty paymentSchedules connection. The omitted-template branch is rejected by Shopify variable coercion before paymentTermsCreate executes, so focused runtime coverage ensures the proxy no longer defaults it locally. Happy-path paymentTermsCreate remains covered by payment-terms-lifecycle-local-staging."
 }

@@ -15,6 +15,9 @@ type UserError = {
 };
 
 type MarketPricingData = {
+  shop?: {
+    currencyCode?: string;
+  };
   marketCreate?: {
     market?: {
       id?: string;
@@ -22,6 +25,14 @@ type MarketPricingData = {
       handle?: string;
       status?: string;
       type?: string;
+      currencySettings?: {
+        baseCurrency?: {
+          currencyCode?: string;
+          currencyName?: string;
+        } | null;
+        localCurrencies?: boolean;
+        roundingEnabled?: boolean;
+      } | null;
       priceInclusions?: {
         inclusiveDutiesPricingStrategy?: string;
         inclusiveTaxPricingStrategy?: string;
@@ -35,9 +46,24 @@ type MarketPricingData = {
     handle?: string;
     status?: string;
     type?: string;
+    currencySettings?: {
+      baseCurrency?: {
+        currencyCode?: string;
+        currencyName?: string;
+      } | null;
+      localCurrencies?: boolean;
+      roundingEnabled?: boolean;
+    } | null;
     priceInclusions?: {
       inclusiveDutiesPricingStrategy?: string;
       inclusiveTaxPricingStrategy?: string;
+    } | null;
+  } | null;
+  marketsResolvedValues?: {
+    currencyCode?: string;
+    priceInclusivity?: {
+      dutiesIncluded?: boolean;
+      taxesIncluded?: boolean;
     } | null;
   } | null;
   locations?: {
@@ -73,6 +99,14 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 
+const shopCurrencyQuery = `#graphql
+query MarketPriceInclusionsShopCurrency {
+  shop {
+    currencyCode
+  }
+}
+`;
+
 const marketCreatePriceInclusionsMutation = `#graphql
 mutation MarketCreatePriceInclusions($input: MarketCreateInput!) {
   marketCreate(input: $input) {
@@ -82,6 +116,14 @@ mutation MarketCreatePriceInclusions($input: MarketCreateInput!) {
       handle
       status
       type
+      currencySettings {
+        baseCurrency {
+          currencyCode
+          currencyName
+        }
+        localCurrencies
+        roundingEnabled
+      }
       priceInclusions {
         inclusiveDutiesPricingStrategy
         inclusiveTaxPricingStrategy
@@ -104,9 +146,29 @@ query MarketPriceInclusionsRead($id: ID!) {
     handle
     status
     type
+    currencySettings {
+      baseCurrency {
+        currencyCode
+        currencyName
+      }
+      localCurrencies
+      roundingEnabled
+    }
     priceInclusions {
       inclusiveDutiesPricingStrategy
       inclusiveTaxPricingStrategy
+    }
+  }
+}
+`;
+
+const marketsResolvedValuesReadQuery = `#graphql
+query MarketPriceInclusionsResolvedValuesRead($buyerSignal: BuyerSignalInput!) {
+  marketsResolvedValues(buyerSignal: $buyerSignal) {
+    currencyCode
+    priceInclusivity {
+      dutiesIncluded
+      taxesIncluded
     }
   }
 }
@@ -142,25 +204,96 @@ function createdMarketId(result: ConformanceGraphqlResult<MarketPricingData>): s
   return typeof market?.id === 'string' ? market.id : null;
 }
 
+function marketFromResult(
+  result: ConformanceGraphqlResult<MarketPricingData>,
+  root: 'marketCreate' | 'market',
+): NonNullable<MarketPricingData['market']> | null {
+  return root === 'marketCreate'
+    ? (result.payload.data?.marketCreate?.market ?? null)
+    : (result.payload.data?.market ?? null);
+}
+
+function shopCurrencyCode(result: ConformanceGraphqlResult<MarketPricingData>): string {
+  const currencyCode = result.payload.data?.shop?.currencyCode;
+  if (result.status !== 200 || typeof currencyCode !== 'string' || currencyCode.length === 0) {
+    throw new Error(
+      `shop currency probe did not return a currencyCode: status=${result.status} payload=${JSON.stringify(
+        result.payload,
+      )}`,
+    );
+  }
+  if (currencyCode === 'USD') {
+    throw new Error('marketCreate price-inclusions parity requires a non-USD conformance shop currency.');
+  }
+  return currencyCode;
+}
+
+function assertCurrencySettings(
+  result: ConformanceGraphqlResult<MarketPricingData>,
+  root: 'marketCreate' | 'market',
+  expectedCurrencyCode: string,
+  label: string,
+): void {
+  const market = marketFromResult(result, root);
+  const userErrors = result.payload.data?.marketCreate?.userErrors ?? [];
+  const settings = market?.currencySettings;
+  if (
+    result.status !== 200 ||
+    !market ||
+    userErrors.length > 0 ||
+    settings?.baseCurrency?.currencyCode !== expectedCurrencyCode ||
+    typeof settings?.baseCurrency?.currencyName !== 'string' ||
+    settings?.localCurrencies !== true ||
+    settings?.roundingEnabled !== true
+  ) {
+    throw new Error(
+      `${label} did not return expected shop-currency defaults: status=${result.status} market=${JSON.stringify(
+        market,
+      )} userErrors=${JSON.stringify(userErrors)} errors=${JSON.stringify(result.payload.errors ?? null)}`,
+    );
+  }
+}
+
 function assertPriceInclusions(
   result: ConformanceGraphqlResult<MarketPricingData>,
   root: 'marketCreate' | 'market',
   label: string,
 ): void {
-  const market = root === 'marketCreate' ? result.payload.data?.marketCreate?.market : result.payload.data?.market;
+  const market = marketFromResult(result, root);
   const userErrors = result.payload.data?.marketCreate?.userErrors ?? [];
   const priceInclusions = market?.priceInclusions;
   if (
     result.status !== 200 ||
     !market ||
     userErrors.length > 0 ||
-    priceInclusions?.inclusiveDutiesPricingStrategy !== 'INCLUDE_DUTIES_IN_PRICE' ||
-    priceInclusions.inclusiveTaxPricingStrategy !== 'ADD_TAXES_AT_CHECKOUT'
+    priceInclusions?.inclusiveDutiesPricingStrategy !== 'ADD_DUTIES_AT_CHECKOUT' ||
+    priceInclusions.inclusiveTaxPricingStrategy !== 'INCLUDES_TAXES_IN_PRICE'
   ) {
     throw new Error(
       `${label} did not return expected price inclusions: status=${result.status} market=${JSON.stringify(
         market,
       )} userErrors=${JSON.stringify(userErrors)} errors=${JSON.stringify(result.payload.errors ?? null)}`,
+    );
+  }
+}
+
+function assertResolvedValues(
+  result: ConformanceGraphqlResult<MarketPricingData>,
+  expectedCurrencyCode: string,
+  label: string,
+): void {
+  const resolved = result.payload.data?.marketsResolvedValues;
+  const priceInclusivity = resolved?.priceInclusivity;
+  if (
+    result.status !== 200 ||
+    resolved?.currencyCode !== expectedCurrencyCode ||
+    priceInclusivity?.dutiesIncluded !== false ||
+    priceInclusivity?.taxesIncluded !== true
+  ) {
+    throw new Error(
+      `${label} did not return expected resolved values: status=${result.status} resolved=${JSON.stringify(
+        resolved,
+      )} errors=${JSON.stringify(result.payload.errors ?? null)}`,
     );
   }
 }
@@ -198,6 +331,15 @@ const cleanup: Array<{
 let selectedLocationId: string | null = null;
 
 try {
+  const shopCurrency = await runGraphqlRequest<MarketPricingData>(shopCurrencyQuery, {});
+  const expectedShopCurrencyCode = shopCurrencyCode(shopCurrency);
+  cases.push({
+    name: 'shop currency hydrates non-USD market defaults',
+    query: shopCurrencyQuery,
+    variables: {},
+    response: shopCurrency,
+  });
+
   const createVariables = {
     input: {
       name: `Draft Proxy Pricing ${new Date()
@@ -206,12 +348,16 @@ try {
         .slice(0, 14)}`,
       conditions: {
         regionsCondition: {
-          regions: [{ countryCode: 'CA' }],
+          regions: [{ countryCode: 'DK' }],
         },
       },
+      currencySettings: {
+        localCurrencies: true,
+        roundingEnabled: true,
+      },
       priceInclusions: {
-        taxPricingStrategy: 'ADD_TAXES_AT_CHECKOUT',
-        dutiesPricingStrategy: 'INCLUDE_DUTIES_IN_PRICE',
+        taxPricingStrategy: 'INCLUDES_TAXES_IN_PRICE',
+        dutiesPricingStrategy: 'ADD_DUTIES_AT_CHECKOUT',
       },
     },
   };
@@ -219,6 +365,12 @@ try {
   const marketId = createdMarketId(create);
   if (marketId) createdIds.push(marketId);
   assertPriceInclusions(create, 'marketCreate', 'marketCreate priceInclusions');
+  assertCurrencySettings(
+    create,
+    'marketCreate',
+    expectedShopCurrencyCode,
+    'marketCreate currencySettings from shop currency',
+  );
   cases.push({
     name: 'marketCreate accepts nested priceInclusions on a region market',
     query: marketCreatePriceInclusionsMutation,
@@ -233,11 +385,25 @@ try {
   const readVariables = { id: marketId };
   const read = await runGraphqlRequest<MarketPricingData>(marketPriceInclusionsReadQuery, readVariables);
   assertPriceInclusions(read, 'market', 'market read-after-create priceInclusions');
+  assertCurrencySettings(read, 'market', expectedShopCurrencyCode, 'market read-after-create currencySettings');
   cases.push({
     name: 'market read-after-create returns requested priceInclusions',
     query: marketPriceInclusionsReadQuery,
     variables: readVariables,
     response: read,
+  });
+
+  const resolvedValuesVariables = { buyerSignal: { countryCode: 'DK' } };
+  const resolvedValues = await runGraphqlRequest<MarketPricingData>(
+    marketsResolvedValuesReadQuery,
+    resolvedValuesVariables,
+  );
+  assertResolvedValues(resolvedValues, expectedShopCurrencyCode, 'marketsResolvedValues after priceInclusions create');
+  cases.push({
+    name: 'marketsResolvedValues reflects created market price inclusivity',
+    query: marketsResolvedValuesReadQuery,
+    variables: resolvedValuesVariables,
+    response: resolvedValues,
   });
 
   const locations = await runGraphqlRequest<MarketPricingData>(locationsQuery, {});
