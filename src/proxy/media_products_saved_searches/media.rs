@@ -1591,7 +1591,7 @@ fn filename_from_source(source: &str) -> String {
 // caller omits `contentType`, but the auto-detector maps only image/video
 // results to typed media. Model3d and ExternalVideo require explicit contentType.
 fn infer_content_type_from_source(filename: &str) -> &'static str {
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "heif" => "IMAGE",
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         _ => "FILE",
@@ -1600,7 +1600,7 @@ fn infer_content_type_from_source(filename: &str) -> &'static str {
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     // Extension-first derivation: the recognized extension wins regardless of contentType, and only an unrecognized extension falls back to the contentType default.
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "gif" => "image/gif",
         "heic" => "image/heic",
         "heif" => "image/heif",

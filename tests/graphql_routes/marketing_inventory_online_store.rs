@@ -10043,6 +10043,32 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
         }]})
     );
 
+    let extension_case_mismatch = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.PNG", "filename": "source.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        extension_case_mismatch.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Provided filename extension must match original source.",
+            "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read_after_rejections = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateValidationRead {
+          files(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejections.body["data"]["files"]["nodes"],
+        json!([])
+    );
+
     let duplicate_mode = proxy.process_request(json_graphql_request(
         mutation,
         json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "contentType": "IMAGE", "duplicateResolutionMode": "REPLACE"}]}),
@@ -10342,6 +10368,86 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
     assert!(bodies[0]["query"]
         .as_str()
         .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
+fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": media_id,
+                            "__typename": "MediaImage",
+                            "alt": "Ready image",
+                            "createdAt": "2026-06-05T00:00:00Z",
+                            "fileStatus": "READY",
+                            "image": {
+                                "url": "https://cdn.example.com/ready-image.JPG",
+                                "width": 640,
+                                "height": 480
+                            },
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 320,
+                                    "height": 240
+                                }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": media_id, "filename": "ready-image.jpg"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "The filename extension provided must match the original filename.",
+            "code": "INVALID_FILENAME_EXTENSION"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+    drop(bodies);
+
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileUpdateRejectedRead {
+          files(first: 5) { nodes { id filename } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejected_update.body["data"]["files"]["nodes"],
+        json!([{ "id": media_id, "filename": "ready-image.JPG" }])
+    );
 }
 
 #[test]
