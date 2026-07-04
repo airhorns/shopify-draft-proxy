@@ -1264,7 +1264,7 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn collection_json_with_publication_fields(
+    pub(in crate::proxy) fn collection_json_with_publication_fields(
         &self,
         collection: &Value,
         selections: &[SelectedField],
@@ -1321,7 +1321,7 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn stage_collection_from_observed_json(&mut self, collection: &Value) {
+    pub(in crate::proxy) fn stage_collection_from_observed_json(&mut self, collection: &Value) {
         if collection
             .get("id")
             .and_then(Value::as_str)
@@ -1365,74 +1365,6 @@ impl DraftProxy {
             return collection.clone();
         };
         merge_observed_collection_into_local(local_collection, collection)
-    }
-
-    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
-        let mut nodes = response
-            .body
-            .pointer("/data/nodes")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        if let Some(node) = response
-            .body
-            .pointer("/data/node")
-            .filter(|node| node.is_object())
-        {
-            nodes.push(node.clone());
-        }
-        for node in &nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Product/") {
-                self.store.stage_observed_product_json(node);
-                if let Some(product_id) = node.get("id").and_then(Value::as_str) {
-                    for variant in node
-                        .get("variants")
-                        .and_then(|connection| connection.get("nodes"))
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                    {
-                        let mut variant_value = variant.clone();
-                        if let Some(object) = variant_value.as_object_mut() {
-                            object.insert("productId".to_string(), json!(product_id));
-                        }
-                        if let Some(mut variant) =
-                            product_variant_state_from_observed_json(&variant_value)
-                        {
-                            variant.product_id = product_id.to_string();
-                            self.store.stage_product_variant(variant);
-                        }
-                    }
-                }
-            } else if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(node);
-            } else if id.starts_with("gid://shopify/ProductVariant/") {
-                if let Some(variant) = product_variant_state_from_observed_json(node) {
-                    self.store.stage_product_variant(variant);
-                }
-                if let Some(product) = node.get("product").and_then(product_state_from_json) {
-                    self.store.stage_observed_product(product);
-                }
-            } else if id.starts_with("gid://shopify/InventoryItem/") {
-                self.observe_inventory_item_node(node);
-            } else if id.starts_with("gid://shopify/InventoryLevel/") {
-                self.observe_inventory_level_node(node);
-            } else if matches!(
-                shopify_gid_resource_type(id),
-                Some("ShopAddress" | "ShopPolicy")
-            ) {
-                self.observe_shop_property_node(node);
-            }
-        }
-        for node in nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(&node);
-            }
-        }
     }
 
     pub(in crate::proxy) fn collection_mutation(

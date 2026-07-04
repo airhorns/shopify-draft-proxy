@@ -6181,8 +6181,38 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
         .to_string();
     assert_ne!(policy_id, "gid://shopify/ShopPolicy/42438689001");
 
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedProductVariantForMixedNodeRead($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              variants(first: 1) { nodes { id title } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Mixed node resolver product" } }),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let variant_id = product.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
     let query = r#"
-        query AdminPlatformStorePropertyNodeReads($policyId: ID!) {
+        query AdminPlatformStorePropertyNodeReads($policyId: ID!, $variantId: ID!) {
+          shop { myshopifyDomain }
           shopAddressNode: node(id: "gid://shopify/ShopAddress/900001") {
             __typename
             ... on ShopAddress { id address1 city country formatted }
@@ -6191,17 +6221,22 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
             __typename
             ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
           }
-          nodes(ids: ["gid://shopify/ShopAddress/900001", $policyId]) {
+          productVariantNode: node(id: $variantId) {
+            __typename
+            ... on ProductVariant { id title product { id title } }
+          }
+          nodes(ids: ["gid://shopify/ShopAddress/900001", $policyId, $variantId]) {
             __typename
             ... on ShopAddress { id address1 city country formatted }
             ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
+            ... on ProductVariant { id title product { id title } }
           }
         }
     "#;
 
     let response = proxy.process_request(json_graphql_request(
         query,
-        json!({ "policyId": policy_id.clone() }),
+        json!({ "policyId": policy_id.clone(), "variantId": variant_id.clone() }),
     ));
 
     assert_eq!(response.status, 200);
@@ -6209,6 +6244,9 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
         response.body,
         json!({
             "data": {
+                "shop": {
+                    "myshopifyDomain": "state-shop.myshopify.com"
+                },
                 "shopAddressNode": {
                     "__typename": "ShopAddress",
                     "id": "gid://shopify/ShopAddress/900001",
@@ -6225,6 +6263,15 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
                     "body": "<p>Use the store-state contact channel.</p>",
                     "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                     "translations": []
+                },
+                "productVariantNode": {
+                    "__typename": "ProductVariant",
+                    "id": variant_id,
+                    "title": "Default Title",
+                    "product": {
+                        "id": product_id,
+                        "title": "Mixed node resolver product"
+                    }
                 },
                 "nodes": [
                     {
@@ -6243,6 +6290,15 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
                         "body": "<p>Use the store-state contact channel.</p>",
                         "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                         "translations": []
+                    },
+                    {
+                        "__typename": "ProductVariant",
+                        "id": variant_id,
+                        "title": "Default Title",
+                        "product": {
+                            "id": product_id,
+                            "title": "Mixed node resolver product"
+                        }
                     }
                 ]
             }

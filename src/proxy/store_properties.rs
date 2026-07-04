@@ -227,10 +227,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn shop_query_data(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        fields: &[RootFieldSelection],
+        request: Option<&Request>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
         if !fields
             .iter()
             .all(|field| matches!(field.name.as_str(), "shop" | "node" | "nodes"))
@@ -239,7 +238,7 @@ impl DraftProxy {
         }
         let mut data = serde_json::Map::new();
         let shop = self.store.effective_shop();
-        for field in &fields {
+        for field in fields {
             if field.name == "shop" {
                 data.insert(
                     field.response_key.clone(),
@@ -247,7 +246,7 @@ impl DraftProxy {
                 );
             }
         }
-        if let Some(node_data) = self.shop_property_node_read_data(&fields) {
+        if let Some(node_data) = self.local_node_query_data(fields, true, request) {
             if let Some(node_data) = node_data.as_object() {
                 data.extend(node_data.clone());
             }
@@ -275,81 +274,6 @@ impl DraftProxy {
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),
         })
-    }
-
-    pub(in crate::proxy) fn shop_property_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut saw_shop_property = false;
-        for field in fields {
-            match field.name.as_str() {
-                "node" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if matches!(
-                        shopify_gid_resource_type(&id),
-                        Some("ShopAddress" | "ShopPolicy")
-                    ) {
-                        saw_shop_property = true;
-                        data.insert(
-                            field.response_key.clone(),
-                            self.shop_property_node_value_by_id(&id, &field.selection)
-                                .unwrap_or(Value::Null),
-                        );
-                    } else {
-                        data.insert(
-                            field.response_key.clone(),
-                            local_node_value(
-                                &id,
-                                &field.selection,
-                                Some(&self.store.staged.backup_region),
-                            )
-                            .unwrap_or(Value::Null),
-                        );
-                    }
-                }
-                "nodes" => {
-                    let ids = resolved_string_list_arg(&field.arguments, "ids");
-                    if ids.iter().any(|id| {
-                        matches!(
-                            shopify_gid_resource_type(id),
-                            Some("ShopAddress" | "ShopPolicy")
-                        )
-                    }) {
-                        saw_shop_property = true;
-                        data.insert(
-                            field.response_key.clone(),
-                            Value::Array(
-                                ids.into_iter()
-                                    .map(|id| {
-                                        if matches!(
-                                            shopify_gid_resource_type(&id),
-                                            Some("ShopAddress" | "ShopPolicy")
-                                        ) {
-                                            self.shop_property_node_value_by_id(
-                                                &id,
-                                                &field.selection,
-                                            )
-                                            .unwrap_or(Value::Null)
-                                        } else {
-                                            local_node_value(
-                                                &id,
-                                                &field.selection,
-                                                Some(&self.store.staged.backup_region),
-                                            )
-                                            .unwrap_or(Value::Null)
-                                        }
-                                    })
-                                    .collect(),
-                            ),
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-        saw_shop_property.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn shop_property_node_value_by_id(
