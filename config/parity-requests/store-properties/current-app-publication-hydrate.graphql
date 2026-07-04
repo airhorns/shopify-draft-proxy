@@ -1,0 +1,8 @@
+#graphql
+query StorePropertiesCurrentAppPublicationHydrate {
+  currentAppInstallation {
+    publication {
+      id
+    }
+  }
+}

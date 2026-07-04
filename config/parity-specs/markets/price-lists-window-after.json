@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-lists-window-after",
+  "operationNames": ["priceLists"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "connection-window"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-lists-window-after.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-lists-window-after.graphql",
+    "variablesPath": "config/parity-requests/markets/price-lists-window-after.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 `priceLists(first: 1, after:)` capture using the cursor recorded by `price-lists-window-first-page`. The selected slice proves cursor windows and computed previous-page metadata.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-lists-after-window-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

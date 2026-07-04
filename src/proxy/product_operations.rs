@@ -42,6 +42,20 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductSetInput,
+        );
+        if !length_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                length_errors,
+            ));
+        }
+
         let variant_input_errors = product_set_variant_input_errors(&input);
         if !variant_input_errors.is_empty() {
             return MutationOutcome::response(self.product_set_user_error_response(
@@ -729,7 +743,7 @@ impl DraftProxy {
                 "id": inventory_level_id(&inventory_item_id, location_id),
                 "location": {
                     "id": location_id,
-                    "name": inventory_location_name(location_id)
+                    "name": self.inventory_location_display_name(location_id)
                 },
                 "quantities": [
                     { "name": "available", "quantity": available, "updatedAt": updated_at },
@@ -1089,6 +1103,17 @@ fn product_set_shape_error_response(
             "Options are limited to 3 per product",
             Some("INVALID_INPUT"),
         ));
+    }
+    for (index, option) in product_options.iter().enumerate() {
+        if resolved_string_field(option, "name")
+            .is_some_and(|name| product_option_name_has_title_delimiter(&name))
+        {
+            errors.push(user_error(
+                json!(["input", "productOptions", index.to_string(), "name"]),
+                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+                Some("INVALID_INPUT"),
+            ));
+        }
     }
     if product_options
         .iter()

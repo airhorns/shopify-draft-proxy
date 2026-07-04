@@ -1,10 +1,26 @@
 query OnlineStoreContentSearchFilters(
   $articleTagQuery: String!
   $articleAuthorQuery: String!
+  $articleBlogTitleQuery: String!
   $blogTitleQuery: String!
+  $pageTitleQuery: String!
   $pagePublishedQuery: String!
+  $commentBodyQuery: String!
 ) {
-  articlesByTag: articles(first: 5, query: $articleTagQuery) {
+  articlesUnfilteredIdDesc: articles(first: 2, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      title
+      isPublished
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  articlesByTag: articles(first: 5, query: $articleTagQuery, sortKey: TITLE) {
     nodes {
       id
       title
@@ -27,7 +43,7 @@ query OnlineStoreContentSearchFilters(
       endCursor
     }
   }
-  articlesByAuthor: articles(first: 5, query: $articleAuthorQuery) {
+  articlesByAuthor: articles(first: 5, query: $articleAuthorQuery, sortKey: TITLE) {
     nodes {
       id
       title
@@ -50,7 +66,30 @@ query OnlineStoreContentSearchFilters(
       endCursor
     }
   }
-  blogsByTitle: blogs(first: 5, query: $blogTitleQuery) {
+  articlesByBlogTitle: articles(first: 5, query: $articleBlogTitleQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+      tags
+      isPublished
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  blogsByTitle: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE) {
     nodes {
       id
       title
@@ -68,6 +107,39 @@ query OnlineStoreContentSearchFilters(
       endCursor
     }
   }
+  blogsByTitleReverse: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+      commentPolicy
+      articlesCount {
+        count
+        precision
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  pagesByTitleReverse: pages(first: 5, query: $pageTitleQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+      isPublished
+      publishedAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
   pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {
     nodes {
       id
@@ -75,6 +147,25 @@ query OnlineStoreContentSearchFilters(
       handle
       isPublished
       publishedAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  commentsByBodyCreatedDesc: comments(first: 5, query: $commentBodyQuery, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      body
+      status
+      isPublished
+      createdAt
+      article {
+        id
+        title
+      }
     }
     pageInfo {
       hasNextPage

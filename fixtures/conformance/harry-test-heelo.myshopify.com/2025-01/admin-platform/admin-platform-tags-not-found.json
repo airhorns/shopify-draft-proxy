@@ -1,0 +1,160 @@
+{
+  "scenarioId": "admin-platform-tags-not-found",
+  "capturedAt": "2026-07-03T20:23:40.806Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "liveGatewaySideEffects": false,
+  "notes": "Well-formed Product and Customer GIDs that do not resolve return payload-level tag userErrors instead of top-level transport errors. Requests select the public field/message UserError shape exposed by Admin GraphQL 2025-01.",
+  "cases": {
+    "productAdd": {
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql",
+        "query": "mutation AdminPlatformTagsAddNotFound($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Product/999999999999999",
+          "tags": ["vip"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "tagsAdd": {
+              "node": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Product does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productRemove": {
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql",
+        "query": "mutation AdminPlatformTagsRemoveNotFound($id: ID!, $tags: [String!]!) {\n  tagsRemove(id: $id, tags: $tags) {\n    node {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Product/999999999999999",
+          "tags": ["vip"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "tagsRemove": {
+              "node": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Product does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerAdd": {
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql",
+        "query": "mutation AdminPlatformTagsAddNotFound($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Customer/999999999999999",
+          "tags": ["vip"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "tagsAdd": {
+              "node": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Customer does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerRemove": {
+      "request": {
+        "documentPath": "config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql",
+        "query": "mutation AdminPlatformTagsRemoveNotFound($id: ID!, $tags: [String!]!) {\n  tagsRemove(id: $id, tags: $tags) {\n    node {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Customer/999999999999999",
+          "tags": ["vip"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "tagsRemove": {
+              "node": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Customer does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

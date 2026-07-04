@@ -37,12 +37,37 @@ impl DraftProxy {
 
     fn ensure_current_app_installation(&mut self, request: &Request) -> String {
         let app_id = request_app_gid(request);
+        if let Some(observed_app_id) = self.current_app_installation_app_id_for_request(&app_id) {
+            return observed_app_id;
+        }
         self.store
             .staged
             .installed_apps
             .entry(app_id.clone())
             .or_insert_with(|| current_app_installation_from_request(request));
         app_id
+    }
+
+    pub(in crate::proxy) fn current_app_installation_app_id_for_request(
+        &self,
+        request_app_id: &str,
+    ) -> Option<String> {
+        if self
+            .store
+            .staged
+            .installed_apps
+            .contains_key(request_app_id)
+        {
+            return Some(request_app_id.to_string());
+        }
+        self.store
+            .staged
+            .installed_apps
+            .iter()
+            .find_map(|(app_id, installation)| {
+                (request_app_id_from_installation(installation).as_deref() == Some(request_app_id))
+                    .then(|| app_id.clone())
+            })
     }
 
     fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {

@@ -1,0 +1,25 @@
+{
+  "scenarioId": "event-non-empty-read",
+  "operationNames": ["event", "events", "eventsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "non-empty-read-parity", "pagination-shape", "count-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-non-empty-read.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/events/event-non-empty-read.graphql",
+    "variablesPath": "config/parity-requests/events/event-non-empty-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live-captured top-level Event read against harry-test-heelo.myshopify.com. The capture script discovers a real event ID from events(first: 1, sortKey: ID, reverse: true), then records event(id:), a non-empty events connection, and eventsCount without a query filter. This scenario proves live-hybrid events roots must read through to Shopify instead of using the snapshot no-data serializer for stores with events.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "event-non-empty-read-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

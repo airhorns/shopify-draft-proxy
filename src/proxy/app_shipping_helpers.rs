@@ -160,6 +160,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
+pub(in crate::proxy) const DRAFT_PROXY_REQUEST_APP_ID_FIELD: &str = "__draftProxyRequestAppId";
 
 pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
@@ -202,6 +203,13 @@ pub(in crate::proxy) fn app_installation_id(installation: &Value) -> Option<Stri
         .map(str::to_string)
 }
 
+pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -> Option<String> {
+    installation
+        .get(DRAFT_PROXY_REQUEST_APP_ID_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
     let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
@@ -240,6 +248,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     json!({
         "__typename": "AppInstallation",
         "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
+        "__draftProxyRequestAppId": app_id.clone(),
         "id": installation_id,
         "accessScopes": access_scopes,
         "app": {
@@ -529,21 +538,6 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
     selected_json(&error, selection)
 }
 
-impl DraftProxy {
-    pub(in crate::proxy) fn delivery_profile_location_record(&self, id: &str) -> Value {
-        let mut record = json!({ "id": id });
-        if let Some(name) = self.location_for_read(id).and_then(|location| {
-            location
-                .get("name")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        }) {
-            record["name"] = json!(name);
-        }
-        record
-    }
-}
-
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
     line_item_ids: &[String],
@@ -811,6 +805,7 @@ pub(in crate::proxy) fn delivery_profile_user_errors_json(
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
@@ -840,16 +835,17 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
             }
         }
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 pub(in crate::proxy) fn delivery_profile_update_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
@@ -877,9 +873,13 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
 
 fn delivery_profile_common_shape_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locations")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locations"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
@@ -893,17 +893,21 @@ fn delivery_profile_common_shape_user_errors(
         }
     }
     for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locationsToAdd")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locationsToAdd"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
     }
     Vec::new()
 }
 
-fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
-    location_ids
-        .iter()
-        .any(|id| id == "gid://shopify/Location/999999999")
+fn delivery_profile_has_unknown_location(
+    location_ids: &[String],
+    location_exists: &mut impl FnMut(&str) -> bool,
+) -> bool {
+    location_ids.iter().any(|id| !location_exists(id))
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
@@ -1325,10 +1329,11 @@ fn delivery_profile_zone_countries_from_input(
 
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
+    let country_name = delivery_profile_country_name(code);
     json!({
         "id": shopify_gid("DeliveryCountry", code),
-        "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
-        "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "name": if rest_of_world { "Rest of World".to_string() } else { country_name.clone() },
+        "translatedName": if rest_of_world { "Rest of World".to_string() } else { country_name },
         "code": {
             "countryCode": if rest_of_world { Value::Null } else { json!(code) },
             "restOfWorld": rest_of_world
@@ -1337,13 +1342,8 @@ fn delivery_profile_country_record(code: &str) -> Value {
     })
 }
 
-fn delivery_profile_country_name(code: &str) -> &'static str {
-    match code {
-        "US" => "United States",
-        "CA" => "Canada",
-        "GB" => "United Kingdom",
-        _ => "Country",
-    }
+fn delivery_profile_country_name(code: &str) -> String {
+    country_name_for_code(code).unwrap_or(code).to_string()
 }
 
 pub(in crate::proxy) fn delivery_price_from_method_input(
@@ -1470,23 +1470,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "success" => Some(Value::Bool(success)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn publishable_payload_json(
-    publishable: Value,
-    shop: Value,
-    payload_selection: &[SelectedField],
-    publishable_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&shop, &selection.selection)),
             "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
@@ -2041,14 +2024,6 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(note) = resolved_string_field(input, "note") {
-        if b2b_contains_html_tags(&note) {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Note contains HTML tags",
-                "INVALID",
-                Some(json!("contains_html_tags")),
-            ));
-        }
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],

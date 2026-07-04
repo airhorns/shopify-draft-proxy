@@ -1,0 +1,39 @@
+mutation ShopPricingStateProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      priceRangeV2 {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      priceRange {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          price
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
