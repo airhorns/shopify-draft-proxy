@@ -54,7 +54,9 @@ const deleteDefinitionMutation = `#graphql
   }
 `;
 
-const suffix = Date.now().toString(36);
+const captureStartedAt = new Date();
+const capturedAt = captureStartedAt.toISOString();
+const suffix = captureStartedAt.getTime().toString(36);
 const namespace = `catalog_connection_${suffix}`;
 const createVariables = {
   firstDefinition: definitionInput(namespace, 'beta', 'Zulu'),
@@ -111,6 +113,7 @@ await writeFile(
   `${JSON.stringify(
     {
       scenarioId: 'metafield-definition-catalog-connection',
+      capturedAt,
       storeDomain,
       apiVersion,
       namespace,

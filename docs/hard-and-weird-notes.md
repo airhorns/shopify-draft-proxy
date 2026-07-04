@@ -1543,7 +1543,7 @@ HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` 
 
 Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
 
-A later catalog connection capture with three disposable product definitions showed the default `metafieldDefinitions` order is `ID` order, `first: 1` returns one node with `hasNextPage: true`, and a follow-up `after:` read using the prior page cursor returns the next ID-ordered definition with `hasPreviousPage: true`. Newly created definitions may need a short search-indexing poll before recognized query terms and `sortKey: NAME` reflect them; once indexed, `query: "key:<key>"` narrows to the matching definition and `sortKey: NAME, reverse: true` sorts by definition name descending. An invalid fielded query such as `unknown:value` returns the namespace-filtered rows and includes an `extensions.search` invalid-field warning, so the local query policy ignores unrecognized fielded filters rather than treating them as no-match.
+A catalog connection capture with three disposable product definitions showed two non-obvious read quirks: newly created definitions may need a short search-indexing poll before recognized query terms and `sortKey: NAME` reflect them, and an invalid fielded query such as `unknown:value` returns the namespace-filtered rows with an `extensions.search` invalid-field warning instead of failing closed.
 
 ## 19b. Definition pinning uses owner-type positions and compacts on unpin
 
