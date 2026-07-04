@@ -6906,6 +6906,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-connection-filters',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-connection-filters-conformance.mts',
+    purpose:
+      'top-level locations connection query/sort/reverse/includeInactive/includeLegacy/cursor behavior and locationsCount(query:, limit:) filtered-count parity.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-connection-filters.json`,
+      'config/parity-specs/store-properties/location-connection-filters.json',
+      'config/parity-requests/store-properties/location-connection-location-add.graphql',
+      'config/parity-requests/store-properties/location-connection-fulfillment-service-create.graphql',
+      'config/parity-requests/store-properties/location-connection-deactivate.graphql',
+      'config/parity-requests/store-properties/location-connection-filtered-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable merchant-managed locations and one fulfillment service, deactivates one location for read-after-write filtering, then deletes the fulfillment service and disposable merchant locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',

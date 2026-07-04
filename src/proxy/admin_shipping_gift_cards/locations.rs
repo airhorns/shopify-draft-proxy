@@ -1022,6 +1022,7 @@ impl DraftProxy {
             || !self.store.staged.locations.is_empty()
             || !self.store.staged.locations.order.is_empty()
             || !self.store.staged.locations.tombstones.is_empty()
+            || !self.store.staged.observed_shipping_locations.is_empty()
             || !self.store.staged.fulfillment_service_locations.is_empty()
             || self.store.staged.location_limit_reached
     }
@@ -1039,7 +1040,7 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "location" | "locations" => true,
+            "location" | "locations" | "locationsCount" => true,
             "locationByIdentifier" => resolved_object_field(&field.arguments, "identifier")
                 .map(|identifier| !identifier.contains_key("customId"))
                 .unwrap_or(true),
@@ -1077,6 +1078,7 @@ impl DraftProxy {
                     location.unwrap_or(Value::Null)
                 }
                 "locations" => self.locations_connection_json(&field.arguments, &field.selection),
+                "locationsCount" => self.locations_count_json(&field.arguments, &field.selection),
                 _ => return None,
             })
         });
@@ -1140,16 +1142,127 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let locations = self
-            .store
-            .staged
-            .locations
-            .order
-            .iter()
-            .filter(|id| !self.store.staged.locations.is_tombstoned(id))
-            .filter_map(|id| self.store.staged.locations.get(id).cloned())
-            .collect::<Vec<_>>();
+        let locations = self.locations_for_connection(arguments);
         location_connection_json(locations, arguments, selections)
+    }
+
+    fn locations_count_json(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let result = staged_connection_query(
+            self.locations_for_count(arguments),
+            arguments,
+            location_search_decision,
+            location_staged_sort_key,
+            value_id_cursor,
+        );
+        selected_json(
+            &staged_count_with_limit_precision(result.total_count, arguments),
+            selections,
+        )
+    }
+
+    fn locations_for_connection(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+        let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(false);
+        let include_legacy = resolved_bool_field(arguments, "includeLegacy").unwrap_or(false);
+        self.locations_for_connection_flags(include_inactive, include_legacy)
+    }
+
+    fn locations_for_count(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+        let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(true);
+        let include_legacy = resolved_bool_field(arguments, "includeLegacy").unwrap_or(true);
+        self.locations_for_connection_flags(include_inactive, include_legacy)
+    }
+
+    fn locations_for_connection_flags(
+        &self,
+        include_inactive: bool,
+        include_legacy: bool,
+    ) -> Vec<Value> {
+        let mut locations = Vec::new();
+        let mut seen = BTreeSet::new();
+
+        for id in &self.store.staged.observed_shipping_location_order {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
+        for id in self.store.staged.observed_shipping_locations.keys() {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
+        for id in &self.store.staged.locations.order {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
+        for (id, _) in self.store.staged.locations.iter() {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
+        if include_legacy {
+            for id in &self.store.staged.fulfillment_service_locations.order {
+                self.push_location_connection_record(
+                    id,
+                    include_inactive,
+                    include_legacy,
+                    &mut seen,
+                    &mut locations,
+                );
+            }
+            for (id, _) in self.store.staged.fulfillment_service_locations.iter() {
+                self.push_location_connection_record(
+                    id,
+                    include_inactive,
+                    include_legacy,
+                    &mut seen,
+                    &mut locations,
+                );
+            }
+        }
+
+        locations
+    }
+
+    fn push_location_connection_record(
+        &self,
+        id: &str,
+        include_inactive: bool,
+        include_legacy: bool,
+        seen: &mut BTreeSet<String>,
+        locations: &mut Vec<Value>,
+    ) {
+        if seen.contains(id) {
+            return;
+        }
+        let Some(location) = self.location_for_read(id) else {
+            return;
+        };
+        if !location_visible_in_connection(&location, include_inactive, include_legacy) {
+            return;
+        }
+        seen.insert(id.to_string());
+        locations.push(location);
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -1427,20 +1540,238 @@ impl DraftProxy {
 }
 
 pub(in crate::proxy) fn location_connection_json(
-    mut locations: Vec<Value>,
+    locations: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
-    if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-        locations.truncate(limit);
-    }
-    selected_typed_connection(
-        &locations,
+    let result = staged_connection_query(
+        locations,
+        arguments,
+        location_search_decision,
+        location_staged_sort_key,
+        value_id_cursor,
+    );
+    selected_typed_connection_with_page_info(
+        &result.records,
         selections,
         location_selected_json,
         value_id_cursor,
-        |selections| selected_json(&empty_page_info(), selections),
+        result.page_info,
     )
+}
+
+fn location_visible_in_connection(
+    location: &Value,
+    include_inactive: bool,
+    include_legacy: bool,
+) -> bool {
+    let is_active = location
+        .get("isActive")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let is_legacy = location
+        .get("isFulfillmentService")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    (include_inactive || is_active) && (include_legacy || !is_legacy)
+}
+
+fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match sort_key.unwrap_or("NAME") {
+        "ID" => vec![location_gid_tail_sort_value(location)],
+        "CREATED_AT" => vec![location_sort_string(location, "createdAt")],
+        "UPDATED_AT" => vec![location_sort_string(location, "updatedAt")],
+        "NAME" | "RELEVANCE" => vec![location_sort_string(location, "name")],
+        _ => vec![location_sort_string(location, "name")],
+    }
+}
+
+fn location_gid_tail_sort_value(location: &Value) -> StagedSortValue {
+    let id = location_value_string(location, "id");
+    let tail = resource_id_tail(&id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {
+    let value = location_value_string(location, field);
+    if value.is_empty() {
+        StagedSortValue::Null
+    } else {
+        StagedSortValue::String(value.to_ascii_lowercase())
+    }
+}
+
+fn location_search_decision(location: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    let mut any_supported = false;
+    for group in location_search_or_groups(query) {
+        let mut group_supported = false;
+        let mut group_matches = true;
+        for term in group {
+            if term.eq_ignore_ascii_case("AND") {
+                continue;
+            }
+            match location_search_term_decision(location, term) {
+                StagedSearchDecision::Match => {
+                    group_supported = true;
+                }
+                StagedSearchDecision::NoMatch => {
+                    group_supported = true;
+                    group_matches = false;
+                    break;
+                }
+                StagedSearchDecision::Unsupported => {
+                    group_matches = false;
+                    break;
+                }
+            }
+        }
+        if group_supported {
+            any_supported = true;
+        }
+        if group_matches && group_supported {
+            return StagedSearchDecision::Match;
+        }
+    }
+    if any_supported {
+        StagedSearchDecision::NoMatch
+    } else {
+        StagedSearchDecision::Unsupported
+    }
+}
+
+fn location_search_or_groups(query: &str) -> Vec<Vec<&str>> {
+    let mut groups = vec![Vec::new()];
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("OR") {
+            if groups.last().is_some_and(|group| !group.is_empty()) {
+                groups.push(Vec::new());
+            }
+            continue;
+        }
+        if let Some(group) = groups.last_mut() {
+            group.push(term);
+        }
+    }
+    groups
+        .into_iter()
+        .filter(|group| !group.is_empty())
+        .collect()
+}
+
+fn location_search_term_decision(location: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    if let Some((key, value)) = term.split_once(':') {
+        return location_keyed_search_decision(location, key, value);
+    }
+
+    let needle = normalized_location_search_value(term);
+    let haystack = [
+        location_value_string(location, "id"),
+        location_value_string(location, "legacyResourceId"),
+        location_value_string(location, "name"),
+        location_address_value_string(location, "address1"),
+        location_address_value_string(location, "address2"),
+        location_address_value_string(location, "city"),
+        location_address_value_string(location, "country"),
+        location_address_value_string(location, "countryCode"),
+        location_address_value_string(location, "province"),
+        location_address_value_string(location, "provinceCode"),
+        location_address_value_string(location, "zip"),
+        location_address_value_string(location, "phone"),
+    ]
+    .join(" ")
+    .to_ascii_lowercase();
+    StagedSearchDecision::from_bool(haystack.contains(&needle))
+}
+
+fn location_keyed_search_decision(
+    location: &Value,
+    key: &str,
+    value: &str,
+) -> StagedSearchDecision {
+    let needle = normalized_location_search_value(value);
+    if needle.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    let values = match key {
+        "id" => vec![location_value_string(location, "id")],
+        "legacyResourceId" | "legacy_resource_id" => {
+            vec![location_value_string(location, "legacyResourceId")]
+        }
+        "name" => vec![location_value_string(location, "name")],
+        "address1" | "address" => vec![location_address_value_string(location, "address1")],
+        "address2" => vec![location_address_value_string(location, "address2")],
+        "city" => vec![location_address_value_string(location, "city")],
+        "country" => vec![location_address_value_string(location, "country")],
+        "countryCode" | "country_code" => {
+            vec![location_address_value_string(location, "countryCode")]
+        }
+        "province" => vec![location_address_value_string(location, "province")],
+        "provinceCode" | "province_code" => {
+            vec![location_address_value_string(location, "provinceCode")]
+        }
+        "zip" => vec![location_address_value_string(location, "zip")],
+        "phone" => vec![location_address_value_string(location, "phone")],
+        "isActive" | "is_active" | "active" => {
+            vec![location_bool_search_value(location, "isActive")]
+        }
+        "isFulfillmentService" | "is_fulfillment_service" | "legacy" => {
+            vec![location_bool_search_value(location, "isFulfillmentService")]
+        }
+        _ => return StagedSearchDecision::Unsupported,
+    };
+    StagedSearchDecision::from_bool(values.iter().any(|value| {
+        value.to_ascii_lowercase().contains(&needle)
+            || value
+                .split(|ch: char| !ch.is_ascii_alphanumeric())
+                .any(|part| part.to_ascii_lowercase().starts_with(&needle))
+    }))
+}
+
+fn normalized_location_search_value(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('\'')
+        .trim_matches('"')
+        .trim_end_matches('*')
+        .to_ascii_lowercase()
+}
+
+fn location_bool_search_value(location: &Value, field: &str) -> String {
+    location
+        .get(field)
+        .and_then(Value::as_bool)
+        .map(|value| value.to_string())
+        .unwrap_or_default()
+}
+
+fn location_value_string(location: &Value, field: &str) -> String {
+    location
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn location_address_value_string(location: &Value, field: &str) -> String {
+    location
+        .get("address")
+        .and_then(|address| address.get(field))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn location_address_length_user_errors(
