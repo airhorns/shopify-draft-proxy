@@ -127,6 +127,7 @@ function buildSpec(apiVersion: string, fixturePath: string): JsonRecord {
                 {
                   path: '$.extensions',
                   ignore: true,
+                  regrettable: true,
                   reason:
                     'Shopify includes volatile cost/throttle extensions on this schema-validation envelope; the proxy intentionally omits them instead of returning a fixed canned throttle model.',
                 },

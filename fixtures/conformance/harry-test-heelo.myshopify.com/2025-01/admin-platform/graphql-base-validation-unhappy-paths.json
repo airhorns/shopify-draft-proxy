@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-04T03:25:36.028Z",
+  "capturedAt": "2026-07-04T03:29:48.571Z",
   "source": "live-shopify-admin-graphql",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
@@ -70,10 +70,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationMissingSubselection",
-                "shop"
-              ],
+              "path": ["query GraphqlBaseValidationMissingSubselection", "shop"],
               "extensions": {
                 "code": "selectionMismatch",
                 "nodeName": "field 'shop'",
@@ -94,10 +91,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationMissingSubselection",
-                "shop"
-              ],
+              "path": ["query GraphqlBaseValidationMissingSubselection", "shop"],
               "extensions": {
                 "code": "selectionMismatch",
                 "nodeName": "field 'shop'",
@@ -189,9 +183,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "productCreate"
-              ]
+              "path": ["productCreate"]
             }
           ],
           "data": {
@@ -224,9 +216,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "productCreate"
-              ]
+              "path": ["productCreate"]
             }
           ],
           "data": {
@@ -265,10 +255,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationUnknownQueryRoot",
-                "definitelyNotAShopifyQueryRoot"
-              ],
+              "path": ["query GraphqlBaseValidationUnknownQueryRoot", "definitelyNotAShopifyQueryRoot"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "QueryRoot",
@@ -289,10 +276,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationUnknownQueryRoot",
-                "definitelyNotAShopifyQueryRoot"
-              ],
+              "path": ["query GraphqlBaseValidationUnknownQueryRoot", "definitelyNotAShopifyQueryRoot"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "QueryRoot",
@@ -322,10 +306,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "mutation GraphqlBaseValidationUnknownMutationRoot",
-                "definitelyNotAShopifyMutationRoot"
-              ],
+              "path": ["mutation GraphqlBaseValidationUnknownMutationRoot", "definitelyNotAShopifyMutationRoot"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "Mutation",
@@ -346,10 +327,7 @@
                   "column": 3
                 }
               ],
-              "path": [
-                "mutation GraphqlBaseValidationUnknownMutationRoot",
-                "definitelyNotAShopifyMutationRoot"
-              ],
+              "path": ["mutation GraphqlBaseValidationUnknownMutationRoot", "definitelyNotAShopifyMutationRoot"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "Mutation",
@@ -440,12 +418,7 @@
                   "column": 7
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationUnknownOrderField",
-                "orders",
-                "nodes",
-                "definitelyNotAnOrderField"
-              ],
+              "path": ["query GraphqlBaseValidationUnknownOrderField", "orders", "nodes", "definitelyNotAnOrderField"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "Order",
@@ -466,12 +439,7 @@
                   "column": 7
                 }
               ],
-              "path": [
-                "query GraphqlBaseValidationUnknownOrderField",
-                "orders",
-                "nodes",
-                "definitelyNotAnOrderField"
-              ],
+              "path": ["query GraphqlBaseValidationUnknownOrderField", "orders", "nodes", "definitelyNotAnOrderField"],
               "extensions": {
                 "code": "undefinedField",
                 "typeName": "Order",
@@ -512,9 +480,7 @@
                 },
                 "problems": [
                   {
-                    "path": [
-                      "pubSubTopic"
-                    ],
+                    "path": ["pubSubTopic"],
                     "explanation": "Expected value to not be null"
                   }
                 ]
@@ -541,9 +507,7 @@
                 },
                 "problems": [
                   {
-                    "path": [
-                      "pubSubTopic"
-                    ],
+                    "path": ["pubSubTopic"],
                     "explanation": "Expected value to not be null"
                   }
                 ]

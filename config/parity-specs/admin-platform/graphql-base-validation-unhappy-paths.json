@@ -1,18 +1,8 @@
 {
   "scenarioId": "graphql-base-validation-unhappy-paths",
-  "operationNames": [
-    "shop",
-    "products",
-    "orders",
-    "productCreate",
-    "pubSubWebhookSubscriptionCreate"
-  ],
+  "operationNames": ["shop", "products", "orders", "productCreate", "pubSubWebhookSubscriptionCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "graphql-validation-parity",
-    "schema-validation",
-    "no-upstream-passthrough"
-  ],
+  "assertionKinds": ["graphql-validation-parity", "schema-validation", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/graphql-base-validation-unhappy-paths.json"
   ],
@@ -73,6 +63,7 @@
           {
             "path": "$.extensions",
             "ignore": true,
+            "regrettable": true,
             "reason": "Shopify includes volatile cost/throttle extensions on this schema-validation envelope; the proxy intentionally omits them instead of returning a fixed canned throttle model."
           }
         ]
