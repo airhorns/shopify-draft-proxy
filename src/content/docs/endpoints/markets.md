@@ -75,22 +75,38 @@ Staged country-region nodes are stored as `MarketRegionCountry` records with a
 stable synthesized `id`, deterministic ISO country `name`, `code`, and
 `__typename`, so mutation payloads and downstream `market` / `markets` overlay
 reads expose the same region-node shape.
+Local `markets`, `webPresences`, `market.catalogs`,
+`market.webPresences`, `Catalog.markets`, and `MarketWebPresence.markets`
+projections use the shared connection helpers for selected `nodes`, `edges`,
+stable ID cursors, selected `pageInfo`, and `first` / `last` / `after` /
+`before` cursor windows. Local `markets(query:, sortKey:, reverse:)` applies
+supported query filtering before sort, reverse, and cursor windowing. The local
+query slice supports free-text matching plus `id:`, `name:`, `handle:`,
+`status:`, `type:`, and `enabled:` terms; unrecognized keyed filters are
+treated as unsupported terms and return an empty staged connection rather than
+broadly matching every staged market. Supported deterministic sort keys are
+`ID`, `NAME`, `HANDLE`, `STATUS`, and `TYPE`, with unknown sort keys falling
+back to ID order.
 Unsupported country-region validation is driven by a generated Shopify-derived
 Markets set captured from live `CountryCode` enum probes; the 2026-04 evidence
-rejects `AN`, `BV`, `CU`, `HM`, `IR`, `KP`, and `SY` before staging.
+in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json`
+probed 245 `CountryCode` enum values and rejects `AN`, `BV`, `CU`, `HM`,
+`IR`, `KP`, and `SY` before staging.
 Captured `marketCreate` name validation rejects blank names with `BLANK` then
 `TOO_SHORT`, rejects one-character names with `TOO_SHORT`, and treats name
 uniqueness as case-insensitive before handle generation.
 
 Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
-enum value unchanged. `currencyName` is projected from a local ISO-4217
-display-name table for known codes, including the currencies observed in
-checked-in Markets conformance fixtures. If a future Shopify enum value is not
-yet mapped, the runtime returns `Unknown Currency` instead of echoing the ISO
-code as a misleading display name. Base-currency input uses Shopify-style
-`CurrencyCode` variable coercion: public enum values such as `XAF` stage
-locally, while non-enum values such as `ZZZ` return top-level
-`INVALID_VARIABLE` before resolver execution.
+enum value unchanged. When `currencySettings` is present without an explicit
+`baseCurrency`, `marketCreate` and `marketUpdate` default the base currency to
+the observed shop currency rather than assuming a fixed store currency.
+`currencyName` is projected from a local ISO-4217 display-name table for known
+codes, including the currencies observed in checked-in Markets conformance
+fixtures. If a future Shopify enum value is not yet mapped, the runtime returns
+`Unknown Currency` instead of echoing the ISO code as a misleading display name.
+Base-currency input uses Shopify-style `CurrencyCode` variable coercion: public
+enum values such as `XAF` stage locally, while non-enum values such as `ZZZ`
+return top-level `INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for staged market,
@@ -112,13 +128,26 @@ non-snapshot modes; hardcoded relation IDs are not treated as owned records.
 After a local catalog write, the Markets overlay serves `catalogsCount(type:
 MARKET)` from staged catalog state with `EXACT` precision instead of returning
 null or falling back to cold-only upstream data.
+`catalogs` and `catalogsCount` share the same staged catalog working set for
+market, company-location, and country catalogs. Catalog connection reads honor
+`type`, captured-safe `query` terms for bare text plus `id:`, `title:`,
+`status:`, and `type:`, default `sortKey: ID`, `sortKey: TITLE`, `reverse`,
+cursor windows through `first`, `last`, `after`, and `before`, and return
+selected `nodes`, `edges { cursor node }`, and computed `pageInfo`.
+`catalogsCount(limit:)` applies Shopify-style `EXACT` / `AT_LEAST` precision to
+the same filtered list.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
 product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
-staged rows in the checked-in scenarios. Validation covers name, currency,
-parent adjustment, `catalogId` existence/taken checks, unknown resource,
-duplicate fixed-price, missing fixed-price, fixed-price `price` /
+staged rows in the checked-in scenarios. Local `priceLists` reads apply standard
+connection windows and computed `pageInfo` over staged price lists.
+`PriceList.prices` applies read-time connection windows, `originType`, and the
+captured fixed-price ID search filters `variant_id:` and `product_id:`. Other
+`PriceList.prices(query:)` terms intentionally return an empty local connection
+instead of guessing Shopify's broader search grammar. Validation covers name,
+currency, parent adjustment, `catalogId` existence/taken checks, unknown
+resource, duplicate fixed-price, missing fixed-price, fixed-price `price` /
 `compareAtPrice` currency mismatches, fixed-price missing-variant short-circuit
 behavior, product-level fixed-price, no-op, quantity-rule, and price-limit
 branches represented by parity specs. Captured Admin API 2026-04 behavior
@@ -150,9 +179,17 @@ market-localizable resource state or staged market-scoped translations; unknown
 IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
-empty, fallback, and buyer-country behavior where captured. Unsupported
-catalog, price-list, B2B/app catalog, contextual pricing, and resolved-value
-derivations are not synthesized beyond the checked-in evidence.
+empty, fallback, and buyer-country behavior where captured. Resolved value
+`currencyCode` uses the observed shop currency. For `priceInclusivity`, taxes
+come from the matching active market's tax price-inclusion setting when the
+buyer country resolves to that market, then from observed shop tax-inclusion
+flags when no market-specific setting applies. Duties stay false unless an
+observed base shop state explicitly provides a duty-inclusion flag; public
+Admin GraphQL 2026-04 accepted `INCLUDE_DUTIES_IN_PRICE` on a Market record but
+still resolved `marketsResolvedValues.priceInclusivity.dutiesIncluded` as
+false for the captured buyer signal. Unsupported catalog, price-list, B2B/app
+catalog, contextual pricing, and richer resolved-value derivations are not
+synthesized beyond the checked-in evidence.
 
 ### Boundaries
 
@@ -162,6 +199,8 @@ derivations are not synthesized beyond the checked-in evidence.
 - Catalog membership and price-list semantics outside the modeled
   market-catalog, company-location catalog, country catalog, and
   fixed-price/quantity-pricing slices remain unsupported.
+- Catalog search predicates outside bare text, `id:`, `title:`, `status:`, and
+  `type:` remain unsupported and are treated as no-match filters locally.
 - Captured Admin API 2026-04 parity for non-market `catalogContextUpdate`
   covers `companyLocationIds`; country-code and legacy `locationIds` context
   updates are runtime-test-backed local behavior because those input fields are

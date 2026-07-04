@@ -1,0 +1,460 @@
+{
+  "scenarioId": "webhook-subscription-list-connection",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptions", "webhookSubscriptionDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "pagination-parity", "search-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-list-connection.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.setup.createOne.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhookSubscriptions list connection behavior after three local webhookSubscriptionCreate calls. The capture proves Shopify's CREATED_AT default sort, cursor/pageInfo windows for first/after/last/before, sortKey: ID with reverse, created_at/updated_at query filters, and invalid WebhookSubscriptionSortKeys literal validation. IDs, timestamps, and Shopify's opaque cursors differ from the proxy's deterministic synthetic values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-one",
+        "capturePath": "$.setup.createOne.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a deterministic synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "create-two",
+        "capturePath": "$.setup.createTwo.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.setup.createTwo.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a deterministic synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "create-three",
+        "capturePath": "$.setup.createThree.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.setup.createThree.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a deterministic synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "default-created-at-sort",
+        "capturePath": "$.reads.defaultSort.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variablesCapturePath": "$.reads.defaultSort.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "first-page-window",
+        "capturePath": "$.reads.firstPage.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variablesCapturePath": "$.reads.firstPage.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "second-page-after",
+        "capturePath": "$.reads.secondPage.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variables": {
+            "first": 2,
+            "after": {
+              "fromProxyResponse": "first-page-window",
+              "path": "$.data.webhookSubscriptions.pageInfo.endCursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "last-before-window",
+        "capturePath": "$.reads.beforePage.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variables": {
+            "last": 1,
+            "before": {
+              "fromProxyResponse": "default-created-at-sort",
+              "path": "$.data.webhookSubscriptions.edges[2].cursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "reverse-id-sort",
+        "capturePath": "$.reads.reverseId.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variablesCapturePath": "$.reads.reverseId.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "created-at-query-filter",
+        "capturePath": "$.reads.createdAtFilter.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variablesCapturePath": "$.reads.createdAtFilter.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "updated-at-query-filter",
+        "capturePath": "$.reads.updatedAtFilter.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+          "variablesCapturePath": "$.reads.updatedAtFilter.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy nodes use synthetic IDs."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy nodes use synthetic timestamps."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Proxy edge nodes use synthetic IDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "Shopify cursors are opaque; the proxy uses stable ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "invalid-sort-key-validation",
+        "capturePath": "$.validation.invalidSortKey.response.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-invalid-sort-key.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

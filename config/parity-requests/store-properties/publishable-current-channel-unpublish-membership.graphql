@@ -1,0 +1,27 @@
+mutation PublishableCurrentChannelUnpublishMembership($id: ID!) {
+  publishableUnpublishToCurrentChannel(id: $id) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        resourcePublications(first: 10) {
+          nodes {
+            publication {
+              id
+            }
+            isPublished
+            publishable {
+              ... on Product {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

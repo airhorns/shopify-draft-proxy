@@ -373,6 +373,19 @@ fn function_metadata_proxy() -> DraftProxy {
     function_metadata_proxy_with_hits(Arc::new(Mutex::new(Vec::new())))
 }
 
+fn tax_app_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "write_taxes".to_string(),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-tax-calculations-app".to_string(),
+        "true".to_string(),
+    );
+    request
+}
+
 fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy {
     configured_proxy(
         ReadMode::LiveHybrid,
@@ -477,6 +490,169 @@ fn discount_app_function_upstream_response(
         headers: Default::default(),
         body: response_body,
     }
+}
+
+struct DiscountConnectionSeed {
+    code_zulu_id: String,
+    code_bravo_id: String,
+    automatic_yankee_id: String,
+    automatic_alpha_id: String,
+}
+
+fn seed_discount_connection_mechanics(proxy: &mut DraftProxy) -> DiscountConnectionSeed {
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountConnectionMechanicsSetup {
+          codeZulu: discountCodeBasicCreate(basicCodeDiscount: { title: "Zulu code connection", code: "CONNECTION-ZULU", startsAt: "2026-06-04T00:00:00Z", endsAt: "2026-12-04T00:00:00Z", context: { all: "ALL" }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeBravo: discountCodeBasicCreate(basicCodeDiscount: { title: "Bravo code connection", code: "CONNECTION-BRAVO", startsAt: "2026-06-02T00:00:00Z", endsAt: "2026-12-02T00:00:00Z", context: { all: "ALL" }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticYankee: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Yankee automatic connection", startsAt: "2026-06-03T00:00:00Z", endsAt: "2026-12-03T00:00:00Z" }) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticAlpha: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Alpha automatic connection", startsAt: "2026-06-01T00:00:00Z", endsAt: "2026-12-01T00:00:00Z" }) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    for key in ["codeZulu", "codeBravo", "automaticYankee", "automaticAlpha"] {
+        assert_eq!(setup.body["data"][key]["userErrors"], json!([]));
+    }
+
+    let seed = DiscountConnectionSeed {
+        code_zulu_id: json_string(
+            &setup.body["data"]["codeZulu"]["codeDiscountNode"]["id"],
+            "zulu code discount id",
+        ),
+        code_bravo_id: json_string(
+            &setup.body["data"]["codeBravo"]["codeDiscountNode"]["id"],
+            "bravo code discount id",
+        ),
+        automatic_yankee_id: json_string(
+            &setup.body["data"]["automaticYankee"]["automaticDiscountNode"]["id"],
+            "yankee automatic discount id",
+        ),
+        automatic_alpha_id: json_string(
+            &setup.body["data"]["automaticAlpha"]["automaticDiscountNode"]["id"],
+            "alpha automatic discount id",
+        ),
+    };
+
+    restore_proxy_state(proxy, |state| {
+        let discounts = state["state"]["stagedState"]["discounts"]
+            .as_object_mut()
+            .expect("staged discounts should be dump-restorable");
+        let mut stamp = |id: &str, created_at: &str, updated_at: &str| {
+            let record = discounts
+                .get_mut(id)
+                .unwrap_or_else(|| panic!("missing staged discount {id}"));
+            record["createdAt"] = json!(created_at);
+            record["updatedAt"] = json!(updated_at);
+        };
+        stamp(
+            &seed.code_zulu_id,
+            "2026-06-04T00:00:00Z",
+            "2026-06-14T00:00:00Z",
+        );
+        stamp(
+            &seed.code_bravo_id,
+            "2026-06-02T00:00:00Z",
+            "2026-06-12T00:00:00Z",
+        );
+        stamp(
+            &seed.automatic_yankee_id,
+            "2026-06-03T00:00:00Z",
+            "2026-06-13T00:00:00Z",
+        );
+        stamp(
+            &seed.automatic_alpha_id,
+            "2026-06-01T00:00:00Z",
+            "2026-06-11T00:00:00Z",
+        );
+    });
+
+    seed
+}
+
+fn discount_connection_body_selection(root: &str) -> &'static str {
+    match root {
+        "discountNodes" => {
+            r#"discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }"#
+        }
+        "codeDiscountNodes" => r#"codeDiscount { __typename ... on DiscountCodeBasic { title } }"#,
+        "automaticDiscountNodes" => {
+            r#"automaticDiscount { __typename ... on DiscountAutomaticBasic { title } }"#
+        }
+        other => panic!("unexpected discount connection root {other}"),
+    }
+}
+
+fn discount_connection_body_field(root: &str) -> &'static str {
+    match root {
+        "discountNodes" => "discount",
+        "codeDiscountNodes" => "codeDiscount",
+        "automaticDiscountNodes" => "automaticDiscount",
+        other => panic!("unexpected discount connection root {other}"),
+    }
+}
+
+fn discount_connection_node_titles(connection: &Value, root: &str) -> Vec<String> {
+    let body_field = discount_connection_body_field(root);
+    connection["nodes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{root} nodes should be an array"))
+        .iter()
+        .map(|node| json_string(&node[body_field]["title"], "discount connection node title"))
+        .collect()
+}
+
+fn discount_connection_edge_titles(connection: &Value, root: &str) -> Vec<String> {
+    let body_field = discount_connection_body_field(root);
+    connection["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{root} edges should be an array"))
+        .iter()
+        .map(|edge| {
+            json_string(
+                &edge["node"][body_field]["title"],
+                "discount connection edge node title",
+            )
+        })
+        .collect()
+}
+
+fn read_discount_connection_titles(
+    proxy: &mut DraftProxy,
+    root: &str,
+    sort_key: &str,
+    reverse: bool,
+) -> Vec<String> {
+    let query = format!(
+        r#"
+        query DiscountConnectionSortRead {{
+          root: {root}(first: 10, sortKey: {sort_key}, reverse: {reverse}) {{
+            nodes {{ id {} }}
+          }}
+        }}
+        "#,
+        discount_connection_body_selection(root)
+    );
+    let response = proxy.process_request(json_graphql_request(&query, json!({})));
+    assert_eq!(
+        response.status, 200,
+        "{root} sortKey {sort_key} reverse {reverse} returned {:?}",
+        response.body
+    );
+    discount_connection_node_titles(&response.body["data"]["root"], root)
 }
 
 fn cad_snapshot_proxy() -> DraftProxy {
@@ -654,6 +830,166 @@ fn create_free_shipping_code_discount(proxy: &mut DraftProxy, title: &str, code:
         &create.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
         "free shipping code discount id",
     )
+}
+
+#[test]
+fn discount_code_status_recomputes_from_the_proxy_clock_on_reads_and_filters() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateClockedDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                ... on DiscountCodeBasic {
+                  status
+                  startsAt
+                  endsAt
+                  createdAt
+                  updatedAt
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Clocked status",
+            "code": "CLOCKED-STATUS",
+            "startsAt": "2026-07-02T12:00:00Z",
+            "endsAt": "2026-07-04T12:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let node = &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"];
+    let id = json_string(&node["id"], "clocked discount id");
+    assert_eq!(node["codeDiscount"]["status"], json!("ACTIVE"));
+    assert_eq!(
+        node["codeDiscount"]["createdAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        node["codeDiscount"]["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_252_800);
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadClockedDiscount($id: ID!, $query: String!) {
+          codeDiscountNode(id: $id) {
+            codeDiscount {
+              ... on DiscountCodeBasic { status }
+            }
+          }
+          discountNodes(query: $query) {
+            nodes {
+              id
+              discount {
+                ... on DiscountCodeBasic { status }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": id, "query": "status:expired" }),
+    ));
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        read.body["data"]["discountNodes"]["nodes"],
+        json!([{
+            "id": id,
+            "discount": { "status": "EXPIRED" }
+        }])
+    );
+}
+
+#[test]
+fn discount_mutation_timestamps_advance_with_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let create_id = create_basic_code_discount(&mut proxy, "Clocked timestamp", "CLOCKED-TIME");
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCreatedDiscount($id: ID!) {
+          codeDiscountNode(id: $id) {
+            codeDiscount {
+              ... on DiscountCodeBasic { createdAt updatedAt status startsAt endsAt }
+            }
+          }
+        }
+        "#,
+        json!({ "id": create_id }),
+    ));
+    let created_discount = &created.body["data"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(created_discount["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(created_discount["updatedAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(created_discount["status"], json!("ACTIVE"));
+
+    set_clock(&clock, 1_783_166_400);
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateClockedDiscount($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode {
+              codeDiscount { ... on DiscountCodeBasic { createdAt updatedAt status } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": create_id, "input": {
+            "title": "Clocked timestamp updated",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
+        }}),
+    ));
+    let updated_discount =
+        &update.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(updated_discount["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(updated_discount["updatedAt"], json!("2026-07-04T12:00:00Z"));
+    assert!(updated_discount["updatedAt"].as_str() > created_discount["updatedAt"].as_str());
+
+    set_clock(&clock, 1_783_252_800);
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateClockedDiscount($id: ID!) {
+          discountCodeDeactivate(id: $id) {
+            codeDiscountNode {
+              codeDiscount { ... on DiscountCodeBasic { updatedAt status endsAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": create_id }),
+    ));
+    let deactivated_discount =
+        &deactivate.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(
+        deactivated_discount["updatedAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+    assert_eq!(deactivated_discount["status"], json!("EXPIRED"));
+    assert_eq!(
+        deactivated_discount["endsAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+    assert!(deactivated_discount["updatedAt"].as_str() > updated_discount["updatedAt"].as_str());
 }
 
 #[test]
@@ -3368,6 +3704,325 @@ fn discount_automatic_nodes_read_returns_empty_connection_without_staged_discoun
 }
 
 #[test]
+fn discount_nodes_connection_windows_edges_page_info_and_count_limit() {
+    let mut proxy = snapshot_proxy();
+    let seed = seed_discount_connection_mechanics(&mut proxy);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountNodesWindowFirst {
+          discountNodes(first: 2, sortKey: TITLE) {
+            nodes {
+              id
+              discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+            }
+            edges {
+              cursor
+              node {
+                id
+                discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          limitedCount: discountNodesCount(limit: 2) { count precision }
+          exactCount: discountNodesCount(limit: 4) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    let first_connection = &first_page.body["data"]["discountNodes"];
+    assert_eq!(
+        discount_connection_node_titles(first_connection, "discountNodes"),
+        vec!["Alpha automatic connection", "Bravo code connection"]
+    );
+    assert_eq!(
+        discount_connection_edge_titles(first_connection, "discountNodes"),
+        vec!["Alpha automatic connection", "Bravo code connection"]
+    );
+    assert_eq!(
+        first_connection["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": seed.automatic_alpha_id,
+            "endCursor": seed.code_bravo_id
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["limitedCount"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        first_page.body["data"]["exactCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountNodesWindowAfter($after: String!) {
+          discountNodes(first: 2, after: $after, sortKey: TITLE) {
+            nodes {
+              id
+              discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+            }
+            edges {
+              cursor
+              node {
+                id
+                discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": seed.code_bravo_id }),
+    ));
+    assert_eq!(second_page.status, 200);
+    let second_connection = &second_page.body["data"]["discountNodes"];
+    assert_eq!(
+        discount_connection_node_titles(second_connection, "discountNodes"),
+        vec!["Yankee automatic connection", "Zulu code connection"]
+    );
+    assert_eq!(
+        second_connection["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": seed.automatic_yankee_id,
+            "endCursor": seed.code_zulu_id
+        })
+    );
+}
+
+#[test]
+fn discount_list_roots_honor_all_sort_keys_and_reverse() {
+    let mut proxy = snapshot_proxy();
+    seed_discount_connection_mechanics(&mut proxy);
+
+    for sort_key in ["CREATED_AT", "ENDS_AT", "STARTS_AT", "TITLE", "UPDATED_AT"] {
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, false),
+            vec![
+                "Alpha automatic connection",
+                "Bravo code connection",
+                "Yankee automatic connection",
+                "Zulu code connection"
+            ],
+            "{sort_key} should sort all discount nodes by the requested value"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, true),
+            vec![
+                "Zulu code connection",
+                "Yankee automatic connection",
+                "Bravo code connection",
+                "Alpha automatic connection"
+            ],
+            "{sort_key} reverse should reverse all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, false),
+            vec!["Bravo code connection", "Zulu code connection"],
+            "{sort_key} should sort code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, true),
+            vec!["Zulu code connection", "Bravo code connection"],
+            "{sort_key} reverse should reverse code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
+            vec!["Alpha automatic connection", "Yankee automatic connection"],
+            "{sort_key} should sort automatic discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
+            vec!["Yankee automatic connection", "Alpha automatic connection"],
+            "{sort_key} reverse should reverse automatic discount nodes"
+        );
+    }
+
+    for sort_key in ["ID", "RELEVANCE"] {
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, false),
+            vec![
+                "Zulu code connection",
+                "Bravo code connection",
+                "Yankee automatic connection",
+                "Alpha automatic connection"
+            ],
+            "{sort_key} should use id order for all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, true),
+            vec![
+                "Alpha automatic connection",
+                "Yankee automatic connection",
+                "Bravo code connection",
+                "Zulu code connection"
+            ],
+            "{sort_key} reverse should reverse id order for all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, false),
+            vec!["Zulu code connection", "Bravo code connection"],
+            "{sort_key} should use id order for code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, true),
+            vec!["Bravo code connection", "Zulu code connection"],
+            "{sort_key} reverse should reverse id order for code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
+            vec!["Yankee automatic connection", "Alpha automatic connection"],
+            "{sort_key} should use id order for automatic discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
+            vec!["Alpha automatic connection", "Yankee automatic connection"],
+            "{sort_key} reverse should reverse id order for automatic discount nodes"
+        );
+    }
+}
+
+#[test]
+fn discount_redeem_code_connection_windows_edges_and_page_info() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeWindowCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Redeem code connection window",
+            "code": "CONNECTION-CODE-BASE",
+            "startsAt": "2026-06-10T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let discount_id = json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "redeem code window discount id",
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeWindowAdd($discountId: ID!) {
+          discountRedeemCodeBulkAdd(discountId: $discountId, codes: [
+            { code: "CONNECTION-CODE-A" },
+            { code: "CONNECTION-CODE-B" },
+            { code: "CONNECTION-CODE-C" }
+          ]) {
+            bulkCreation { codesCount }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id.clone() }),
+    ));
+    assert_eq!(
+        add.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeWindowFirst($discountId: ID!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 2) {
+                  nodes { id code }
+                  edges { cursor node { code } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id.clone() }),
+    ));
+    let first_codes = &first_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
+    assert_eq!(
+        first_codes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| json_string(&node["code"], "redeem code"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+    );
+    assert_eq!(
+        first_codes["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| json_string(&edge["node"]["code"], "redeem code edge"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+    );
+    assert_eq!(first_codes["pageInfo"]["hasNextPage"], json!(true));
+    assert_eq!(first_codes["pageInfo"]["hasPreviousPage"], json!(false));
+    assert_eq!(
+        first_codes["pageInfo"]["startCursor"],
+        first_codes["edges"][0]["cursor"]
+    );
+    assert_eq!(
+        first_codes["pageInfo"]["endCursor"],
+        first_codes["edges"][1]["cursor"]
+    );
+    let after = json_string(
+        &first_codes["pageInfo"]["endCursor"],
+        "redeem code first page end cursor",
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeWindowAfter($discountId: ID!, $after: String!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 2, after: $after) {
+                  nodes { code }
+                  edges { cursor node { code } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id, "after": after }),
+    ));
+    let second_codes = &second_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
+    assert_eq!(
+        second_codes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| json_string(&node["code"], "redeem code"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-B", "CONNECTION-CODE-C"]
+    );
+    assert_eq!(second_codes["pageInfo"]["hasNextPage"], json!(false));
+    assert_eq!(second_codes["pageInfo"]["hasPreviousPage"], json!(true));
+}
+
+#[test]
 fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_and_function_roots() {
     let mut proxy = function_metadata_proxy();
     let stage = r#"mutation StageFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) { validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionHandle createdAt updatedAt shopifyFunction { id title handle apiType } } userErrors { field message code } } cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } } taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } } }"#;
@@ -3397,7 +4052,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         })
     );
 
-    let stage_response = proxy.process_request(json_graphql_request(stage, json!({
+    let stage_response = proxy.process_request(tax_app_graphql_request(stage, json!({
         "validation": { "functionHandle": "validation-local", "title": "Local validation", "enable": true, "blockOnFailure": true },
         "cartFunctionHandle": "cart-transform-local",
         "cartBlockOnFailure": true,
@@ -3670,10 +4325,105 @@ fn functions_validation_reads_reject_fabricated_output_fields() {
 }
 
 #[test]
+fn tax_app_configure_stages_configuration_for_node_readback() {
+    let mut proxy = function_metadata_proxy();
+
+    let configure = proxy.process_request(tax_app_graphql_request(
+        r#"
+        mutation ConfigureTaxApp($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": true }),
+    ));
+    assert_eq!(
+        configure.body["data"]["taxAppConfigure"]["userErrors"],
+        json!([])
+    );
+    let configuration = configure.body["data"]["taxAppConfigure"]["taxAppConfiguration"].clone();
+    let configuration_id = json_string(&configuration["id"], "tax app configuration id");
+    assert_synthetic_gid(&configuration_id, "TaxAppConfiguration");
+    assert_ne!(configuration_id, "gid://shopify/TaxAppConfiguration/local");
+
+    let read = proxy.process_request(tax_app_graphql_request(
+        r#"
+        query ReadTaxAppConfiguration($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on TaxAppConfiguration { id ready state updatedAt }
+          }
+        }
+        "#,
+        json!({ "id": configuration_id.clone() }),
+    ));
+    let mut expected_read = configuration.clone();
+    expected_read["__typename"] = json!("TaxAppConfiguration");
+    assert_eq!(read.body["data"]["node"], expected_read);
+
+    let update = proxy.process_request(tax_app_graphql_request(
+        r#"
+        mutation UpdateTaxAppReadiness($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": false }),
+    ));
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["id"],
+        json!(configuration_id)
+    );
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["ready"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["state"],
+        json!("NOT_READY")
+    );
+}
+
+#[test]
+fn tax_app_configure_requires_tax_calculations_app_authority() {
+    let mut proxy = function_metadata_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConfigureTaxAppWithoutAuthority($ready: Boolean!) {
+          taxAppConfigure(ready: $ready) {
+            taxAppConfiguration { id ready state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ready": true }),
+    ));
+
+    assert_eq!(response.body["data"]["taxAppConfigure"], Value::Null);
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0]["message"],
+        json!("Access denied for taxAppConfigure field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app.")
+    );
+    assert_eq!(errors[0]["extensions"]["code"], json!("ACCESS_DENIED"));
+    assert_eq!(
+        errors[0]["extensions"]["requiredAccess"],
+        json!("`write_taxes` access scope. Also: The caller must be a tax calculations app.")
+    );
+    assert_eq!(errors[0]["path"], json!(["taxAppConfigure"]));
+}
+
+#[test]
 fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let mut proxy = function_metadata_proxy();
 
-    let stage = proxy.process_request(json_graphql_request(
+    let stage = proxy.process_request(tax_app_graphql_request(
         r#"
         mutation StageOwnedFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) {
           validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle createdAt updatedAt shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
@@ -5295,6 +6045,108 @@ fn localization_translatable_resources_do_not_fabricate_empty_connections() {
     );
     let serialized = serde_json::to_string(&read.body).unwrap();
     assert!(!serialized.contains("gid://shopify/Collection/9801098789170"));
+}
+
+#[test]
+fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
+    let mut proxy = snapshot_proxy();
+
+    let first_product_id = create_fallback_localization_product(&mut proxy);
+    let second_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSecondLocalizationProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Second Localization Product",
+                "handle": "second-localization-product",
+                "descriptionHtml": "<p>Second localization body</p>",
+                "productType": "snowboard"
+            }
+        }),
+    ));
+    assert_eq!(
+        second_product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let second_product_id = json_string(
+        &second_product.body["data"]["productCreate"]["product"]["id"],
+        "second localization product id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query TranslatableResourcesReverseWindow($after: String!) {
+          forward: translatableResources(first: 1, resourceType: PRODUCT) {
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: translatableResources(first: 1, resourceType: PRODUCT, reverse: true) {
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversedAfter: translatableResources(first: 1, resourceType: PRODUCT, reverse: true, after: $after) {
+            nodes { resourceId }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": second_product_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["forward"],
+        json!({
+            "edges": [{
+                "cursor": first_product_id,
+                "node": { "resourceId": first_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversed"],
+        json!({
+            "edges": [{
+                "cursor": second_product_id,
+                "node": { "resourceId": second_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": second_product_id,
+                "endCursor": second_product_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversedAfter"],
+        json!({
+            "nodes": [{ "resourceId": first_product_id }],
+            "edges": [{
+                "cursor": first_product_id,
+                "node": { "resourceId": first_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
 }
 
 #[test]

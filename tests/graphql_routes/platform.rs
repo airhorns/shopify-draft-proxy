@@ -3103,6 +3103,249 @@ fn generic_location_add_stages_location_and_downstream_reads() {
 }
 
 #[test]
+fn top_level_locations_connection_filters_sorts_windows_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let zulu_id = add_platform_location(&mut proxy, "Zulu Connection", false);
+    let alpha_id = add_platform_location(&mut proxy, "Alpha Connection", false);
+    let beta_id = add_platform_location(&mut proxy, "Beta Connection", false);
+    let fulfillment_service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLegacyLocation($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService {
+              location { id name isActive isFulfillmentService }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Carrier Connection" }),
+    ));
+    assert_eq!(
+        fulfillment_service.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    let legacy_location_id = fulfillment_service.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateConnectionLocation($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "locations-connection-filter") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": beta_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["location"],
+        json!({
+            "id": beta_id,
+            "name": "Beta Connection",
+            "isActive": false
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationConnectionRead($alphaCursor: String!, $zuluCursor: String!) {
+          defaultLocations: locations(first: 10) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeInactive: locations(first: 10, includeInactive: true) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeLegacy: locations(first: 10, includeLegacy: true) {
+            nodes { id name isActive isFulfillmentService }
+          }
+          queryAlpha: locations(first: 10, query: "name:Alpha") {
+            nodes { id name isActive }
+          }
+          nameFirst: locations(first: 1, sortKey: NAME) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterAlpha: locations(first: 1, after: $alphaCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          beforeZulu: locations(last: 1, before: $zuluCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: locations(first: 10, reverse: true) {
+            nodes { id name }
+          }
+          activeCount: locationsCount { count precision }
+          inactiveCount: locationsCount(includeInactive: true) { count precision }
+          legacyCount: locationsCount(includeLegacy: true) { count precision }
+          limitedCount: locationsCount(includeInactive: true, includeLegacy: true, limit: 3) { count precision }
+          queryCount: locationsCount(query: "name:Alpha") { count precision }
+        }
+        "#,
+        json!({
+            "alphaCursor": alpha_id,
+            "zuluCursor": zulu_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["defaultLocations"],
+        json!({
+            "nodes": [
+                {
+                    "id": alpha_id,
+                    "name": "Alpha Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                },
+                {
+                    "id": zulu_id,
+                    "name": "Zulu Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["includeInactive"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": beta_id,
+                "name": "Beta Connection",
+                "isActive": false,
+                "isFulfillmentService": false
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["includeLegacy"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": legacy_location_id,
+                "name": "Carrier Connection",
+                "isActive": true,
+                "isFulfillmentService": true
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["queryAlpha"]["nodes"],
+        json!([{ "id": alpha_id, "name": "Alpha Connection", "isActive": true }])
+    );
+    assert_eq!(
+        read.body["data"]["nameFirst"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterAlpha"],
+        json!({
+            "nodes": [{ "id": zulu_id, "name": "Zulu Connection" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": zulu_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["beforeZulu"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversed"]["nodes"],
+        json!([
+            { "id": zulu_id, "name": "Zulu Connection" },
+            { "id": alpha_id, "name": "Alpha Connection" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["inactiveCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["legacyCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["limitedCount"],
+        json!({ "count": 3, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        read.body["data"]["queryCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn generic_location_edit_stages_location_validates_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let primary = proxy.process_request(json_graphql_request(
@@ -3309,8 +3552,11 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
     assert_eq!(
-        read.body["data"]["locations"]["nodes"][0],
-        json!({ "id": primary_id, "name": "Edited Primary" })
+        read.body["data"]["locations"]["nodes"],
+        json!([
+            { "id": backup_id, "name": "Edit Backup" },
+            { "id": primary_id, "name": "Edited Primary" }
+        ])
     );
 
     let log = log_snapshot(&proxy);
