@@ -604,7 +604,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("discountNodes", Query, Discounts, true, []),
         entry!("discountNodesCount", Query, Discounts, true, []),
         entry!("discountNode", Query, Discounts, true, []),
-        entry!("codeDiscountNodes", Query, Discounts, false, []),
+        entry!("codeDiscountNodes", Query, Discounts, true, ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"]),
         entry!("codeDiscountNode", Query, Discounts, true, []),
         entry!("codeDiscountNodeByCode", Query, Discounts, true, []),
         entry!("discountRedeemCodeBulkCreation", Query, Discounts, true, []),

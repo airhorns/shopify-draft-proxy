@@ -479,6 +479,169 @@ fn discount_app_function_upstream_response(
     }
 }
 
+struct DiscountConnectionSeed {
+    code_zulu_id: String,
+    code_bravo_id: String,
+    automatic_yankee_id: String,
+    automatic_alpha_id: String,
+}
+
+fn seed_discount_connection_mechanics(proxy: &mut DraftProxy) -> DiscountConnectionSeed {
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountConnectionMechanicsSetup {
+          codeZulu: discountCodeBasicCreate(basicCodeDiscount: { title: "Zulu code connection", code: "CONNECTION-ZULU", startsAt: "2026-06-04T00:00:00Z", endsAt: "2026-12-04T00:00:00Z", context: { all: "ALL" }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeBravo: discountCodeBasicCreate(basicCodeDiscount: { title: "Bravo code connection", code: "CONNECTION-BRAVO", startsAt: "2026-06-02T00:00:00Z", endsAt: "2026-12-02T00:00:00Z", context: { all: "ALL" }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticYankee: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Yankee automatic connection", startsAt: "2026-06-03T00:00:00Z", endsAt: "2026-12-03T00:00:00Z" }) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticAlpha: discountAutomaticBasicCreate(automaticBasicDiscount: { title: "Alpha automatic connection", startsAt: "2026-06-01T00:00:00Z", endsAt: "2026-12-01T00:00:00Z" }) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    for key in ["codeZulu", "codeBravo", "automaticYankee", "automaticAlpha"] {
+        assert_eq!(setup.body["data"][key]["userErrors"], json!([]));
+    }
+
+    let seed = DiscountConnectionSeed {
+        code_zulu_id: json_string(
+            &setup.body["data"]["codeZulu"]["codeDiscountNode"]["id"],
+            "zulu code discount id",
+        ),
+        code_bravo_id: json_string(
+            &setup.body["data"]["codeBravo"]["codeDiscountNode"]["id"],
+            "bravo code discount id",
+        ),
+        automatic_yankee_id: json_string(
+            &setup.body["data"]["automaticYankee"]["automaticDiscountNode"]["id"],
+            "yankee automatic discount id",
+        ),
+        automatic_alpha_id: json_string(
+            &setup.body["data"]["automaticAlpha"]["automaticDiscountNode"]["id"],
+            "alpha automatic discount id",
+        ),
+    };
+
+    restore_proxy_state(proxy, |state| {
+        let discounts = state["state"]["stagedState"]["discounts"]
+            .as_object_mut()
+            .expect("staged discounts should be dump-restorable");
+        let mut stamp = |id: &str, created_at: &str, updated_at: &str| {
+            let record = discounts
+                .get_mut(id)
+                .unwrap_or_else(|| panic!("missing staged discount {id}"));
+            record["createdAt"] = json!(created_at);
+            record["updatedAt"] = json!(updated_at);
+        };
+        stamp(
+            &seed.code_zulu_id,
+            "2026-06-04T00:00:00Z",
+            "2026-06-14T00:00:00Z",
+        );
+        stamp(
+            &seed.code_bravo_id,
+            "2026-06-02T00:00:00Z",
+            "2026-06-12T00:00:00Z",
+        );
+        stamp(
+            &seed.automatic_yankee_id,
+            "2026-06-03T00:00:00Z",
+            "2026-06-13T00:00:00Z",
+        );
+        stamp(
+            &seed.automatic_alpha_id,
+            "2026-06-01T00:00:00Z",
+            "2026-06-11T00:00:00Z",
+        );
+    });
+
+    seed
+}
+
+fn discount_connection_body_selection(root: &str) -> &'static str {
+    match root {
+        "discountNodes" => {
+            r#"discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }"#
+        }
+        "codeDiscountNodes" => r#"codeDiscount { __typename ... on DiscountCodeBasic { title } }"#,
+        "automaticDiscountNodes" => {
+            r#"automaticDiscount { __typename ... on DiscountAutomaticBasic { title } }"#
+        }
+        other => panic!("unexpected discount connection root {other}"),
+    }
+}
+
+fn discount_connection_body_field(root: &str) -> &'static str {
+    match root {
+        "discountNodes" => "discount",
+        "codeDiscountNodes" => "codeDiscount",
+        "automaticDiscountNodes" => "automaticDiscount",
+        other => panic!("unexpected discount connection root {other}"),
+    }
+}
+
+fn discount_connection_node_titles(connection: &Value, root: &str) -> Vec<String> {
+    let body_field = discount_connection_body_field(root);
+    connection["nodes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{root} nodes should be an array"))
+        .iter()
+        .map(|node| json_string(&node[body_field]["title"], "discount connection node title"))
+        .collect()
+}
+
+fn discount_connection_edge_titles(connection: &Value, root: &str) -> Vec<String> {
+    let body_field = discount_connection_body_field(root);
+    connection["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{root} edges should be an array"))
+        .iter()
+        .map(|edge| {
+            json_string(
+                &edge["node"][body_field]["title"],
+                "discount connection edge node title",
+            )
+        })
+        .collect()
+}
+
+fn read_discount_connection_titles(
+    proxy: &mut DraftProxy,
+    root: &str,
+    sort_key: &str,
+    reverse: bool,
+) -> Vec<String> {
+    let query = format!(
+        r#"
+        query DiscountConnectionSortRead {{
+          root: {root}(first: 10, sortKey: {sort_key}, reverse: {reverse}) {{
+            nodes {{ id {} }}
+          }}
+        }}
+        "#,
+        discount_connection_body_selection(root)
+    );
+    let response = proxy.process_request(json_graphql_request(&query, json!({})));
+    assert_eq!(
+        response.status, 200,
+        "{root} sortKey {sort_key} reverse {reverse} returned {:?}",
+        response.body
+    );
+    discount_connection_node_titles(&response.body["data"]["root"], root)
+}
+
 fn cad_snapshot_proxy() -> DraftProxy {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "CAD");
@@ -3365,6 +3528,325 @@ fn discount_automatic_nodes_read_returns_empty_connection_without_staged_discoun
             "endCursor": null
         })
     );
+}
+
+#[test]
+fn discount_nodes_connection_windows_edges_page_info_and_count_limit() {
+    let mut proxy = snapshot_proxy();
+    let seed = seed_discount_connection_mechanics(&mut proxy);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountNodesWindowFirst {
+          discountNodes(first: 2, sortKey: TITLE) {
+            nodes {
+              id
+              discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+            }
+            edges {
+              cursor
+              node {
+                id
+                discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          limitedCount: discountNodesCount(limit: 2) { count precision }
+          exactCount: discountNodesCount(limit: 4) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    let first_connection = &first_page.body["data"]["discountNodes"];
+    assert_eq!(
+        discount_connection_node_titles(first_connection, "discountNodes"),
+        vec!["Alpha automatic connection", "Bravo code connection"]
+    );
+    assert_eq!(
+        discount_connection_edge_titles(first_connection, "discountNodes"),
+        vec!["Alpha automatic connection", "Bravo code connection"]
+    );
+    assert_eq!(
+        first_connection["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": seed.automatic_alpha_id,
+            "endCursor": seed.code_bravo_id
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["limitedCount"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        first_page.body["data"]["exactCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountNodesWindowAfter($after: String!) {
+          discountNodes(first: 2, after: $after, sortKey: TITLE) {
+            nodes {
+              id
+              discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+            }
+            edges {
+              cursor
+              node {
+                id
+                discount { __typename ... on DiscountCodeBasic { title } ... on DiscountAutomaticBasic { title } }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": seed.code_bravo_id }),
+    ));
+    assert_eq!(second_page.status, 200);
+    let second_connection = &second_page.body["data"]["discountNodes"];
+    assert_eq!(
+        discount_connection_node_titles(second_connection, "discountNodes"),
+        vec!["Yankee automatic connection", "Zulu code connection"]
+    );
+    assert_eq!(
+        second_connection["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": seed.automatic_yankee_id,
+            "endCursor": seed.code_zulu_id
+        })
+    );
+}
+
+#[test]
+fn discount_list_roots_honor_all_sort_keys_and_reverse() {
+    let mut proxy = snapshot_proxy();
+    seed_discount_connection_mechanics(&mut proxy);
+
+    for sort_key in ["CREATED_AT", "ENDS_AT", "STARTS_AT", "TITLE", "UPDATED_AT"] {
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, false),
+            vec![
+                "Alpha automatic connection",
+                "Bravo code connection",
+                "Yankee automatic connection",
+                "Zulu code connection"
+            ],
+            "{sort_key} should sort all discount nodes by the requested value"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, true),
+            vec![
+                "Zulu code connection",
+                "Yankee automatic connection",
+                "Bravo code connection",
+                "Alpha automatic connection"
+            ],
+            "{sort_key} reverse should reverse all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, false),
+            vec!["Bravo code connection", "Zulu code connection"],
+            "{sort_key} should sort code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, true),
+            vec!["Zulu code connection", "Bravo code connection"],
+            "{sort_key} reverse should reverse code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
+            vec!["Alpha automatic connection", "Yankee automatic connection"],
+            "{sort_key} should sort automatic discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
+            vec!["Yankee automatic connection", "Alpha automatic connection"],
+            "{sort_key} reverse should reverse automatic discount nodes"
+        );
+    }
+
+    for sort_key in ["ID", "RELEVANCE"] {
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, false),
+            vec![
+                "Zulu code connection",
+                "Bravo code connection",
+                "Yankee automatic connection",
+                "Alpha automatic connection"
+            ],
+            "{sort_key} should use id order for all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "discountNodes", sort_key, true),
+            vec![
+                "Alpha automatic connection",
+                "Yankee automatic connection",
+                "Bravo code connection",
+                "Zulu code connection"
+            ],
+            "{sort_key} reverse should reverse id order for all discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, false),
+            vec!["Zulu code connection", "Bravo code connection"],
+            "{sort_key} should use id order for code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "codeDiscountNodes", sort_key, true),
+            vec!["Bravo code connection", "Zulu code connection"],
+            "{sort_key} reverse should reverse id order for code discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
+            vec!["Yankee automatic connection", "Alpha automatic connection"],
+            "{sort_key} should use id order for automatic discount nodes"
+        );
+        assert_eq!(
+            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
+            vec!["Alpha automatic connection", "Yankee automatic connection"],
+            "{sort_key} reverse should reverse id order for automatic discount nodes"
+        );
+    }
+}
+
+#[test]
+fn discount_redeem_code_connection_windows_edges_and_page_info() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeWindowCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Redeem code connection window",
+            "code": "CONNECTION-CODE-BASE",
+            "startsAt": "2026-06-10T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let discount_id = json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "redeem code window discount id",
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeWindowAdd($discountId: ID!) {
+          discountRedeemCodeBulkAdd(discountId: $discountId, codes: [
+            { code: "CONNECTION-CODE-A" },
+            { code: "CONNECTION-CODE-B" },
+            { code: "CONNECTION-CODE-C" }
+          ]) {
+            bulkCreation { codesCount }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id.clone() }),
+    ));
+    assert_eq!(
+        add.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeWindowFirst($discountId: ID!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 2) {
+                  nodes { id code }
+                  edges { cursor node { code } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id.clone() }),
+    ));
+    let first_codes = &first_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
+    assert_eq!(
+        first_codes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| json_string(&node["code"], "redeem code"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+    );
+    assert_eq!(
+        first_codes["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| json_string(&edge["node"]["code"], "redeem code edge"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+    );
+    assert_eq!(first_codes["pageInfo"]["hasNextPage"], json!(true));
+    assert_eq!(first_codes["pageInfo"]["hasPreviousPage"], json!(false));
+    assert_eq!(
+        first_codes["pageInfo"]["startCursor"],
+        first_codes["edges"][0]["cursor"]
+    );
+    assert_eq!(
+        first_codes["pageInfo"]["endCursor"],
+        first_codes["edges"][1]["cursor"]
+    );
+    let after = json_string(
+        &first_codes["pageInfo"]["endCursor"],
+        "redeem code first page end cursor",
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeWindowAfter($discountId: ID!, $after: String!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 2, after: $after) {
+                  nodes { code }
+                  edges { cursor node { code } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id, "after": after }),
+    ));
+    let second_codes = &second_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
+    assert_eq!(
+        second_codes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| json_string(&node["code"], "redeem code"))
+            .collect::<Vec<_>>(),
+        vec!["CONNECTION-CODE-B", "CONNECTION-CODE-C"]
+    );
+    assert_eq!(second_codes["pageInfo"]["hasNextPage"], json!(false));
+    assert_eq!(second_codes["pageInfo"]["hasPreviousPage"], json!(true));
 }
 
 #[test]
