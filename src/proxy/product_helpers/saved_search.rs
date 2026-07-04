@@ -419,6 +419,9 @@ fn saved_search_reserved_filter(resource_type: &str, key: &str) -> bool {
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
     let base_key = saved_search_base_filter_key(key);
+    if base_key == "default" {
+        return true;
+    }
     match resource_type {
         "PRODUCT" => {
             matches!(
@@ -599,7 +602,7 @@ pub(in crate::proxy) fn saved_search_search_terms(query: &str) -> String {
 }
 
 pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name: &str) -> bool {
-    let normalized = name.trim().to_lowercase();
+    let normalized = name.to_lowercase();
     let reserved = match resource_type {
         "PRODUCT" => &["all products"][..],
         "ORDER" => &["all"][..],
@@ -780,6 +783,9 @@ pub(in crate::proxy) fn saved_search_filters_for_api_client(
 }
 
 pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(String, String)> {
+    if term == "*" {
+        return Some(("default".to_string(), "true".to_string()));
+    }
     let (raw_key, raw_value) = term.split_once(':')?;
     if raw_key.is_empty() || raw_value.is_empty() {
         return None;
@@ -918,10 +924,9 @@ impl DraftProxy {
         name: &str,
         except_id: Option<&str>,
     ) -> bool {
-        let candidate = name.trim();
         self.saved_search_records_for_resource(resource_type)
             .iter()
-            .any(|record| Some(record.id.as_str()) != except_id && record.name.trim() == candidate)
+            .any(|record| Some(record.id.as_str()) != except_id && record.name == name)
     }
 
     pub(in crate::proxy) fn saved_search_mutation_fields(

@@ -1142,9 +1142,10 @@ impl DraftProxy {
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let (id, order_input, _) = self.staged_order_input_and_first_line(field);
         let price_set = payment_terms_order_total_price_set(&order_input);
+        let order_name = self.next_order_name();
         let order = json!({
             "id": id,
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "currentTotalPriceSet": price_set.clone(),
             "totalPriceSet": price_set.clone(),
             "totalOutstandingSet": price_set,

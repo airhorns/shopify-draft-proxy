@@ -1,0 +1,46 @@
+query WebhookSubscriptionListConnectionRead(
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $query: String
+  $sortKey: WebhookSubscriptionSortKeys
+  $reverse: Boolean
+) {
+  webhookSubscriptions(
+    first: $first
+    after: $after
+    last: $last
+    before: $before
+    query: $query
+    sortKey: $sortKey
+    reverse: $reverse
+  ) {
+    nodes {
+      id
+      topic
+      format
+      createdAt
+      updatedAt
+      endpoint {
+        __typename
+        ... on WebhookHttpEndpoint {
+          callbackUrl
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        topic
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

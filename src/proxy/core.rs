@@ -285,6 +285,8 @@ impl DraftProxy {
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
+                "currentChannelPublicationId": self.store.staged.current_channel_publication_id.clone(),
+                "currentChannelPublicationResolved": self.store.staged.current_channel_publication_resolved,
                 "resourcePublications": self.store.staged.resource_publications.iter().map(|(resource, pubs)| {
                     (resource.clone(), pubs.iter().cloned().collect::<Vec<String>>())
                 }).collect::<std::collections::BTreeMap<String, Vec<String>>>(),
@@ -445,6 +447,9 @@ impl DraftProxy {
         if self.store.staged.next_order_customer_order_id != 1 {
             snapshot["stagedState"]["nextOrderCustomerOrderId"] =
                 json!(self.store.staged.next_order_customer_order_id);
+        }
+        if self.store.staged.next_order_number != 1 {
+            snapshot["stagedState"]["nextOrderNumber"] = json!(self.store.staged.next_order_number);
         }
         if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
             snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
@@ -686,6 +691,9 @@ impl DraftProxy {
                 .staged
                 .function_fulfillment_constraint_rule_order
                 .clone());
+        }
+        if let Some(configuration) = &self.store.staged.tax_app_configuration {
+            snapshot["stagedState"]["taxAppConfiguration"] = configuration.clone();
         }
         if let Some(order) = &self.store.staged.order_edit_existing_order {
             snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
@@ -1036,6 +1044,14 @@ impl DraftProxy {
                 .collect();
         self.store.staged.publications =
             value_map_from_json(state["stagedState"].get("publications"));
+        self.store.staged.current_channel_publication_id = state["stagedState"]
+            .get("currentChannelPublicationId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.current_channel_publication_resolved = state["stagedState"]
+            .get("currentChannelPublicationResolved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.resource_publications = state["stagedState"]["resourcePublications"]
             .as_object()
             .map(|map| {
@@ -1235,6 +1251,11 @@ impl DraftProxy {
         );
         self.store.staged.next_order_id = state["stagedState"]
             .get("nextOrderId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_order_number = state["stagedState"]
+            .get("nextOrderNumber")
             .and_then(Value::as_u64)
             .unwrap_or(1)
             .max(1);
@@ -1669,6 +1690,10 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.tax_app_configuration = state["stagedState"]
+            .get("taxAppConfiguration")
+            .filter(|value| value.is_object())
+            .cloned();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -1683,11 +1708,15 @@ impl DraftProxy {
         let mut next_refund_id = self.store.staged.next_refund_id.max(1);
         let mut next_refund_line_item_id = self.store.staged.next_refund_line_item_id.max(1);
         let mut next_transaction_id = self.store.staged.order_payment_next_transaction_id.max(3);
+        let mut next_order_number = self.store.staged.next_order_number.max(1);
 
         for (order_id, order) in &self.store.staged.orders {
             advance_counter_past_gid_tail(&mut next_order_id, order_id);
             if let Some(record_id) = order.get("id").and_then(Value::as_str) {
                 advance_counter_past_gid_tail(&mut next_order_id, record_id);
+            }
+            if let Some(name) = order.get("name").and_then(Value::as_str) {
+                advance_order_number_past_order_name(&mut next_order_number, name);
             }
             for transaction in json_records(&order["transactions"]) {
                 advance_counter_past_value_id(&mut next_transaction_id, transaction);
@@ -1704,6 +1733,7 @@ impl DraftProxy {
         }
 
         self.store.staged.next_order_id = next_order_id;
+        self.store.staged.next_order_number = next_order_number;
         self.store.staged.next_refund_id = next_refund_id;
         self.store.staged.next_refund_line_item_id = next_refund_line_item_id;
         self.store.staged.order_payment_next_transaction_id = next_transaction_id;
@@ -1801,6 +1831,16 @@ fn advance_counter_past_gid_tail(counter: &mut u64, id: &str) {
     if let Ok(numeric) = resource_id_tail(id).parse::<u64>() {
         *counter = (*counter).max(numeric.saturating_add(1));
     }
+}
+
+fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
+    let Some(number) = name
+        .strip_prefix('#')
+        .and_then(|suffix| suffix.parse::<u64>().ok())
+    else {
+        return;
+    };
+    *counter = (*counter).max(number.saturating_add(1));
 }
 
 fn json_records(value: &Value) -> Vec<&Value> {

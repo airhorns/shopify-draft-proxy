@@ -7435,6 +7435,131 @@ fn carrier_services_connection_paginates_edges_nodes_and_active_false_filter() {
 }
 
 #[test]
+fn carrier_services_connection_combines_filters_and_honors_sort_reverse() {
+    let mut proxy = snapshot_proxy();
+
+    for (name, active) in [
+        ("Carrier active first", true),
+        ("Carrier inactive", false),
+        ("Carrier active second", true),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+              carrierServiceCreate(input: $input) {
+                carrierService { id name active }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": {
+                "name": name,
+                "callbackUrl": "https://mock.shop/rates",
+                "supportsServiceDiscovery": true,
+                "active": active
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["carrierServiceCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let active_first_id = "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic";
+    let active_second_id = "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic";
+
+    let combined = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesCombinedFilters($query: String) {
+          carrierServices(first: 5, query: $query, sortKey: ID) {
+            nodes { id name active }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "active:true id:3" }),
+    ));
+    assert_eq!(
+        combined.body["data"]["carrierServices"]["nodes"],
+        json!([{
+            "id": active_second_id,
+            "name": "Carrier active second",
+            "active": true
+        }])
+    );
+    assert_eq!(
+        combined.body["data"]["carrierServices"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": format!("cursor:{active_second_id}"),
+            "endCursor": format!("cursor:{active_second_id}")
+        })
+    );
+
+    let active_reversed = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesSortedReverse($query: String) {
+          carrierServices(first: 1, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "active:true" }),
+    ));
+    assert_eq!(
+        active_reversed.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": active_second_id,
+                "name": "Carrier active second",
+                "active": true
+            }],
+            "edges": [{
+                "cursor": format!("cursor:{active_second_id}"),
+                "node": {
+                    "id": active_second_id,
+                    "name": "Carrier active second",
+                    "active": true
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{active_second_id}"),
+                "endCursor": format!("cursor:{active_second_id}")
+            }
+        })
+    );
+
+    let unsupported = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServicesUnsupportedFilter($query: String) {
+          carrierServices(first: 5, query: $query, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": format!("active:true unknown:{active_first_id}") }),
+    ));
+    assert_eq!(
+        unsupported.body["data"]["carrierServices"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+}
+
+#[test]
 fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_fields() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -8016,6 +8141,152 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         json!("deliveryProfileRemove")
     );
     assert_eq!(log["entries"][4]["status"], json!("staged"));
+}
+
+#[test]
+fn delivery_profiles_connection_windows_and_computes_page_info() {
+    let mut proxy = snapshot_proxy();
+    for name in [
+        "Connection profile alpha",
+        "Connection profile beta",
+        "Connection profile gamma",
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation DeliveryProfileCreateForConnection($profile: DeliveryProfileInput!) {
+              deliveryProfileCreate(profile: $profile) {
+                profile { id name }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "profile": { "name": name } }),
+        ));
+        assert_eq!(
+            create.body["data"]["deliveryProfileCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let alpha_id = "gid://shopify/DeliveryProfile/1?shopify-draft-proxy=synthetic";
+    let beta_id = "gid://shopify/DeliveryProfile/2?shopify-draft-proxy=synthetic";
+    let gamma_id = "gid://shopify/DeliveryProfile/3?shopify-draft-proxy=synthetic";
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesFirstPage($first: Int) {
+          deliveryProfiles(first: $first) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 2 }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": alpha_id, "name": "Connection profile alpha" },
+                { "id": beta_id, "name": "Connection profile beta" }
+            ],
+            "edges": [
+                {
+                    "cursor": alpha_id,
+                    "node": { "id": alpha_id, "name": "Connection profile alpha" }
+                },
+                {
+                    "cursor": beta_id,
+                    "node": { "id": beta_id, "name": "Connection profile beta" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": beta_id
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesSecondPage($first: Int, $after: String) {
+          deliveryProfiles(first: $first, after: $after) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 2,
+            "after": first_page.body["data"]["deliveryProfiles"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [{ "id": gamma_id, "name": "Connection profile gamma" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": gamma_id,
+                "endCursor": gamma_id
+            }
+        })
+    );
+
+    let middle_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesMiddlePage($last: Int, $before: String) {
+          deliveryProfiles(last: $last, before: $before) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "last": 1, "before": gamma_id }),
+    ));
+    assert_eq!(
+        middle_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [{ "id": beta_id, "name": "Connection profile beta" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": beta_id,
+                "endCursor": beta_id
+            }
+        })
+    );
+
+    let reverse_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesReversePage($first: Int) {
+          deliveryProfiles(first: $first, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 2 }),
+    ));
+    assert_eq!(
+        reverse_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": gamma_id, "name": "Connection profile gamma" },
+                { "id": beta_id, "name": "Connection profile beta" }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": gamma_id,
+                "endCursor": beta_id
+            }
+        })
+    );
 }
 
 #[test]

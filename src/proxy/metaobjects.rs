@@ -430,6 +430,13 @@ fn metaobject_definition_type_identity_error(
 
 const MIN_FIELD_KEY_LENGTH: usize = 2;
 const MAX_FIELD_KEY_LENGTH: usize = 64;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/definition-create-field-validations.json
+// and fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_FIELD_LIMIT: usize = 40;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT: usize = 40;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_SHOP_LIMIT: usize = 128;
 const FIELD_KEY_INVALID_MESSAGE: &str = "Key contains one or more invalid characters.";
 
 fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
@@ -440,12 +447,8 @@ fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("app--")
 }
 
-fn metaobject_definition_field_limit(meta_type: &str) -> usize {
-    if meta_type.starts_with("shopify--form-") {
-        100
-    } else {
-        40
-    }
+fn metaobject_definition_field_limit(_meta_type: &str) -> usize {
+    METAOBJECT_DEFINITION_FIELD_LIMIT
 }
 
 fn metaobject_definition_max_fields_error(max_fields: usize) -> Value {
@@ -553,10 +556,12 @@ fn metaobject_definition_create_validation_errors(
                 .unwrap_or(false)
         })
         .count();
-    if admin_filterable_count > 40 {
+    if admin_filterable_count > METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT {
         errors.push(metaobject_field_error(
             vec!["definition", "fieldDefinitions"],
-            "Maximum 40 admin filterable fields per metaobject definition",
+            &format!(
+                "Maximum {METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT} admin filterable fields per metaobject definition"
+            ),
             "INVALID",
         ));
     }
@@ -614,10 +619,12 @@ fn metaobject_definition_create_validation_errors(
         }
     }
 
-    if existing_definitions >= 128 {
+    if existing_definitions >= METAOBJECT_DEFINITION_SHOP_LIMIT {
         errors.push(metaobject_field_error(
             vec!["definition"],
-            "Maximum number of metaobject definitions exceeded",
+            &format!(
+                "Total definition count exceeds the limit of {METAOBJECT_DEFINITION_SHOP_LIMIT}"
+            ),
             "MAX_DEFINITIONS_EXCEEDED",
         ));
     }

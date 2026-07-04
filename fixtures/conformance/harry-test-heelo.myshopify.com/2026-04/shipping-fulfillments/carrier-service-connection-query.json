@@ -1,0 +1,197 @@
+{
+  "capturedAt": "2026-07-04T10:07:10.538Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures DeliveryCarrierService connection query behavior after creating two disposable inactive carrier services through live Shopify Admin GraphQL.",
+    "The connection read uses active:false, sortKey ID, and reverse:true; Shopify returns the second created carrier before the first.",
+    "The read filter intentionally uses active:false instead of id-specific filters so the same request can replay against proxy-synthetic carrier IDs. Captured live carrier tails were 104477655346 and 104477688114.",
+    "Both created carrier services are deleted during cleanup."
+  ],
+  "firstCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-create.graphql",
+    "variables": {
+      "input": {
+        "name": "Hermes Carrier Connection mr677bed A",
+        "callbackUrl": "https://mock.shop/carrier-service-connection-a",
+        "supportsServiceDiscovery": false,
+        "active": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/104477655346",
+              "name": "Hermes Carrier Connection mr677bed A",
+              "active": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-create.graphql",
+    "variables": {
+      "input": {
+        "name": "Hermes Carrier Connection mr677bed B",
+        "callbackUrl": "https://mock.shop/carrier-service-connection-b",
+        "supportsServiceDiscovery": false,
+        "active": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/104477688114",
+              "name": "Hermes Carrier Connection mr677bed B",
+              "active": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "sortedReverseRead": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-read.graphql",
+    "variables": {
+      "first": 2,
+      "query": "active:false",
+      "sortKey": "ID",
+      "reverse": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServices": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DeliveryCarrierService/104477688114",
+                "name": "Hermes Carrier Connection mr677bed B",
+                "active": false
+              },
+              {
+                "id": "gid://shopify/DeliveryCarrierService/104477655346",
+                "name": "Hermes Carrier Connection mr677bed A",
+                "active": false
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDQ0Nzc2ODgxMTQsImxhc3RfdmFsdWUiOiIxMDQ0Nzc2ODgxMTQifQ==",
+                "node": {
+                  "id": "gid://shopify/DeliveryCarrierService/104477688114",
+                  "name": "Hermes Carrier Connection mr677bed B",
+                  "active": false
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDQ0Nzc2NTUzNDYsImxhc3RfdmFsdWUiOiIxMDQ0Nzc2NTUzNDYifQ==",
+                "node": {
+                  "id": "gid://shopify/DeliveryCarrierService/104477655346",
+                  "name": "Hermes Carrier Connection mr677bed A",
+                  "active": false
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDQ0Nzc2ODgxMTQsImxhc3RfdmFsdWUiOiIxMDQ0Nzc2ODgxMTQifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMDQ0Nzc2NTUzNDYsImxhc3RfdmFsdWUiOiIxMDQ0Nzc2NTUzNDYifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceDelete": {
+            "deletedId": "gid://shopify/DeliveryCarrierService/104477655346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceDelete": {
+            "deletedId": "gid://shopify/DeliveryCarrierService/104477688114",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
