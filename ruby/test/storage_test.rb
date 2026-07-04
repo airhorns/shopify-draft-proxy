@@ -379,6 +379,36 @@ class ShopifyDraftProxyStorageTest < Minitest::Test
     proxy&.dispose
   end
 
+  def test_state_version_of_matches_the_runtime_response_header
+    proxy = ShopifyDraftProxy.create(
+      read_mode: "snapshot",
+      shopify_admin_origin: "https://shopify.example",
+    )
+
+    # A pristine dump's token is the pristine constant and equals the header the
+    # runtime stamps on a pure read.
+    health = proxy.process_request(method: "GET", path: "/__meta/health")
+    assert_equal(
+      ShopifyDraftProxy::DraftProxy::PRISTINE_STATE_VERSION,
+      ShopifyDraftProxy::DraftProxy.state_version_of(proxy.dump_state),
+    )
+    assert_equal(
+      health.headers.fetch("x-sdp-state-version"),
+      ShopifyDraftProxy::DraftProxy.state_version_of(proxy.dump_state),
+    )
+
+    # After a staged mutation the token advances and still equals the header the
+    # runtime stamped for that same state, so a userland dump/restore caller can
+    # detect the change from the dump alone, without a storage adapter.
+    staged = stage_saved_search(proxy, "Versioned")
+    assert_equal(
+      staged.headers.fetch("x-sdp-state-version"),
+      ShopifyDraftProxy::DraftProxy.state_version_of(proxy.dump_state),
+    )
+  ensure
+    proxy&.dispose
+  end
+
   private
 
   def stage_saved_search(proxy, name)

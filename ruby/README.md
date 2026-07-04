@@ -161,6 +161,46 @@ skipped write self-heals. A raised save therefore means "this mutation applied
 but was not persisted" — rescue it if your backend can be flaky, or use
 `persist: :manual` to control exactly when writes happen.
 
+## Driving persistence yourself (dump / restore)
+
+A storage adapter is optional. Instead of handing the proxy a `storage:` object,
+you can persist state entirely from your own code: seed a fresh proxy with a
+previously saved dump, run one operation, and save the new dump — plain
+`dump_state` / `state:` serialization, with no adapter and no runtime
+cooperation.
+
+To match the adapter's "persist only when state actually changed" cadence
+without diffing whole dumps, use the version token. Every response carries the
+current token in its `x-sdp-state-version` header, and
+`ShopifyDraftProxy::DraftProxy.state_version_of(dump)` computes that same token
+for any dump Hash. Compare the seed dump's token against the response header and
+save only when they differ:
+
+```ruby
+seed = load_dump_from_somewhere # a prior #dump_state, or nil
+
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  state: seed,
+)
+baseline =
+  if seed
+    ShopifyDraftProxy::DraftProxy.state_version_of(seed)
+  else
+    ShopifyDraftProxy::DraftProxy::PRISTINE_STATE_VERSION
+  end
+
+response = proxy.process_graphql_request({ query: mutation })
+
+version = response.headers["x-sdp-state-version"]
+save_dump_somewhere(proxy.dump_state) if version && version != baseline
+proxy.dispose
+```
+
+A pure read leaves the token unchanged, so it writes nothing — the same
+persist-on-change behavior the built-in adapter gives you, driven from your own
+code.
+
 ## Native Extension Build
 
 The native extension lives in `native/` and compiles to:

@@ -158,15 +158,15 @@ module ShopifyDraftProxy
         instance
       end
 
-      # Everything below is internal (private class methods). `new` and
-      # `native_new` above stay public.
-      private
-
-      # Compute the state-version token for a dump Hash, mirroring the Rust
-      # `state_version()` tuple so a client-side comparison stays consistent with
-      # the `x-sdp-state-version` response header. Accepts string- or
+      # Compute the state-version token for a state dump Hash: an opaque token
+      # that is equal iff two dumps carry the same persistable state — the same
+      # value the runtime stamps on every response as the `x-sdp-state-version`
+      # header. Callers that drive their own dump/restore persistence (rather than
+      # a storage adapter) use it to tell whether an operation changed staged
+      # state: compare this token for the seed dump against the response header
+      # and persist the new dump only when they differ. Accepts string- or
       # symbol-keyed dumps.
-      def sdp_version_of(dump)
+      def state_version_of(dump)
         log = dump["log"] || dump[:log] || {}
         entries = log["entries"] || log[:entries] || []
         settled = entries.count { |entry| (entry["status"] || entry[:status]) != "staged" }
@@ -234,7 +234,7 @@ module ShopifyDraftProxy
         if @sdp_persist_mode == :each_mutation
           sdp_persist!
         else
-          @sdp_state_version = self.class.send(:sdp_version_of, native_dump_state({ "created_at" => nil }))
+          @sdp_state_version = self.class.state_version_of(native_dump_state({ "created_at" => nil }))
         end
       end
       result
@@ -278,7 +278,7 @@ module ShopifyDraftProxy
       # pristine proxy, so record that version without writing it back out.
       @sdp_state_version =
         if effective_state
-          self.class.send(:sdp_version_of, effective_state)
+          self.class.state_version_of(effective_state)
         else
           PRISTINE_STATE_VERSION
         end
@@ -309,7 +309,7 @@ module ShopifyDraftProxy
     def sdp_persist!
       dump = native_dump_state({ "created_at" => nil })
       @sdp_storage.save(dump)
-      @sdp_state_version = self.class.send(:sdp_version_of, dump)
+      @sdp_state_version = self.class.state_version_of(dump)
     end
   end
 end
