@@ -787,6 +787,28 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn replace_owner_metafields_from_connection(
+        &mut self,
+        owner_id: &str,
+        connection: &Value,
+    ) {
+        let mut records = connection
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if let Some(page_info) = connection.get("pageInfo") {
+            apply_metafield_connection_cursors(&mut records, page_info);
+        }
+        self.store
+            .staged
+            .owner_metafields
+            .insert(owner_id.to_string(), Vec::new());
+        for record in records {
+            self.upsert_owner_metafield_record(owner_id, record);
+        }
+    }
+
     fn upsert_owner_metafield_record(&mut self, owner_id: &str, mut record: Value) {
         let Some(namespace) = record
             .get("namespace")
@@ -1177,39 +1199,18 @@ impl DraftProxy {
     ) -> Value {
         let namespace = resolved_string_field(&selection.arguments, "namespace");
         let mut records = self.owner_metafields(owner_id, namespace.as_deref());
-
-        // Relay pagination over the owner's metafields (stored id-ascending, which
-        // mirrors Shopify's default metafield ordering). `after` drops everything up
-        // to and including the cursor record; `first` truncates and drives
-        // hasNextPage so chained `metafields(first:n, after:)` reads page correctly.
-        let mut has_previous_page = false;
-        if let Some(after) = resolved_string_field(&selection.arguments, "after") {
-            if let Some(index) = records
-                .iter()
-                .position(|record| metafield_cursor(record).as_deref() == Some(after.as_str()))
-            {
-                records = records.split_off(index + 1);
-                has_previous_page = true;
-            }
+        if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
         }
-        let total_after_cursor = records.len();
-        let mut has_next_page = false;
-        if let Some(first) = resolved_int_field(&selection.arguments, "first") {
-            if first >= 0 {
-                let limit = first as usize;
-                has_next_page = total_after_cursor > limit;
-                records.truncate(limit);
-            }
-        }
-
-        let start_cursor = records.first().and_then(metafield_cursor);
-        let end_cursor = records.last().and_then(metafield_cursor);
+        let (records, page_info) = connection_window(&records, &selection.arguments, |record| {
+            metafield_cursor(record).unwrap_or_default()
+        });
         selected_typed_connection_with_page_info(
             &records,
             &selection.selection,
             selected_json,
             |metafield| metafield_cursor(metafield).unwrap_or_default(),
-            connection_page_info(has_next_page, has_previous_page, start_cursor, end_cursor),
+            page_info,
         )
     }
 

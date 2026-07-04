@@ -1,7 +1,108 @@
 use super::*;
 
-pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
-    connection_json(nodes)
+fn return_matches_id(return_value: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    return_value
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn return_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    actual
+        .to_ascii_lowercase()
+        .contains(&query_value.to_ascii_lowercase())
+}
+
+fn return_search_decision(return_value: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        let term = term.trim().trim_matches('"').trim_matches('\'');
+        if term.is_empty() {
+            continue;
+        }
+        let decision = if let Some((key, value)) = term.split_once(':') {
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "id" => StagedSearchDecision::from_bool(return_matches_id(return_value, value)),
+                "name" => StagedSearchDecision::from_bool(return_search_string_matches(
+                    return_value.get("name").and_then(Value::as_str),
+                    value,
+                )),
+                "status" => StagedSearchDecision::from_bool(
+                    return_value["status"]
+                        .as_str()
+                        .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+                ),
+                _ => StagedSearchDecision::Unsupported,
+            }
+        } else {
+            StagedSearchDecision::from_bool(
+                return_matches_id(return_value, term)
+                    || return_search_string_matches(
+                        return_value.get("name").and_then(Value::as_str),
+                        term,
+                    )
+                    || return_search_string_matches(
+                        return_value.get("status").and_then(Value::as_str),
+                        term,
+                    ),
+            )
+        };
+        match decision {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn return_sort_key(return_value: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+    let tail = return_value
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    let id_value = tail
+        .parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
+    vec![id_value]
+}
+
+fn selected_return_connection(
+    returns: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let result = staged_connection_query(
+        returns,
+        arguments,
+        return_search_decision,
+        return_sort_key,
+        value_id_cursor,
+    );
+    selected_json(
+        &connection_json_with_cursor(
+            result.records,
+            |_, node| value_id_cursor(node),
+            result.page_info,
+        ),
+        selection,
+    )
 }
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
@@ -626,15 +727,21 @@ impl DraftProxy {
             .and_then(|order| order["updatedAt"].as_str())
             .unwrap_or("2024-01-01T00:00:03.000Z")
             .to_string();
-        selected_json(
-            &json!({
-                "id": order_id,
-                "name": name,
-                "updatedAt": updated_at,
-                "returns": return_connection(returns)
-            }),
-            selection,
-        )
+        let order = json!({
+            "id": order_id,
+            "name": name,
+            "updatedAt": updated_at
+        });
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "returns" => Some(selected_return_connection(
+                returns.clone(),
+                &field.arguments,
+                &field.selection,
+            )),
+            _ => selected_json(&order, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
     }
 
     /// `returnApproveRequest`: a REQUESTED return transitions to OPEN and

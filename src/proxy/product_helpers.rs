@@ -1218,9 +1218,6 @@ fn product_collections_connection_json(
             left_title.cmp(right_title)
         });
     }
-    if selection.arguments.get("reverse") == Some(&ResolvedValue::Bool(true)) {
-        collections.reverse();
-    }
     selected_connection_json_with_args(
         collections,
         &selection.arguments,

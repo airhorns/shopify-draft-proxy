@@ -876,19 +876,12 @@ impl DraftProxy {
                         .filter(|(id, _)| !self.store.staged.media_files.is_tombstoned(id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
-                    // Order by sortKey: ID (the numeric resource id), then honor
-                    // `reverse`. Synthetic creation order tracks the numeric id,
+                    // Order by sortKey: ID (the numeric resource id). Synthetic creation order tracks the numeric id,
                     // so this also approximates the default CREATED_AT ordering. A
                     // lexicographic string sort over the full gid would interleave
                     // by typename (GenericFile < MediaImage < Video), so it must be
                     // numeric.
                     files.sort_by_key(media_file_numeric_id);
-                    if matches!(
-                        field.arguments.get("reverse"),
-                        Some(ResolvedValue::Bool(true))
-                    ) {
-                        files.reverse();
-                    }
                     data.insert(
                         field.response_key,
                         selected_connection_json_with_args(

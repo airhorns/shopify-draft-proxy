@@ -138,7 +138,8 @@ Local staged mutations:
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
   line items, while `returnCancel`, `returnClose`, `returnReopen`, and `removeFromReturn` enforce captured
   status/editability preconditions before updating local return state. Top-level `return(id:)` and nested `Order.returns`
-  read from the same order graph. Broader calculation, returnable fulfillment, processing, reverse-delivery, and
+  read from the same order graph; the nested return connection applies local `query:` terms, cursor windowing, and
+  computed `pageInfo` over staged return rows. Broader calculation, returnable fulfillment, processing, reverse-delivery, and
   reverse-fulfillment-order roots are tracked in `/endpoints/returns/` until conformance-backed local models exist.
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.

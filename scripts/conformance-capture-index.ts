@@ -12177,6 +12177,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}store-credit-account-parity.json`,
       'config/parity-specs/customers/store-credit-account-local-staging.json',
+      'config/parity-requests/customers/storeCreditAccount-readback-parity.graphql',
+      'config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
@@ -12322,6 +12324,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
       'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
+      'config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql',
+      'config/parity-requests/customers/customer-merge-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customer graph; merge consumes source and cleanup removes remaining artifacts.',
