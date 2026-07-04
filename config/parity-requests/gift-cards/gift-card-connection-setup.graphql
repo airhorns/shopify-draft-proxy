@@ -1,0 +1,51 @@
+mutation GiftCardConnectionSetup(
+  $firstCode: String!
+  $secondCode: String!
+  $thirdCode: String!
+  $firstAmount: Decimal!
+  $secondAmount: Decimal!
+  $thirdAmount: Decimal!
+) {
+  first: giftCardCreate(input: { initialValue: $firstAmount, code: $firstCode, note: "Connection mechanics first" }) {
+    giftCard {
+      id
+      lastCharacters
+      initialValue {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  second: giftCardCreate(input: { initialValue: $secondAmount, code: $secondCode, note: "Connection mechanics second" }) {
+    giftCard {
+      id
+      lastCharacters
+      initialValue {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  third: giftCardCreate(input: { initialValue: $thirdAmount, code: $thirdCode, note: "Connection mechanics third" }) {
+    giftCard {
+      id
+      lastCharacters
+      initialValue {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

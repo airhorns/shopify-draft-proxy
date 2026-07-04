@@ -7683,6 +7683,201 @@ fn gift_card_snapshot_legacy_seed_id_without_state_returns_not_found() {
 }
 
 #[test]
+fn gift_card_connection_returns_edges_cursors_windows_sort_and_reverse() {
+    let mut proxy = snapshot_proxy();
+    let specs = [
+        ("gid://shopify/GiftCard/100", "0100", "2026-06-03T00:00:00Z"),
+        ("gid://shopify/GiftCard/200", "0200", "2026-06-01T00:00:00Z"),
+        ("gid://shopify/GiftCard/300", "0300", "2026-06-02T00:00:00Z"),
+    ];
+    restore_proxy_state(&mut proxy, |restored| {
+        let mut cards = serde_json::Map::new();
+        for (id, last_characters, created_at) in specs {
+            let mut card = legacy_gift_card_fixture(id);
+            card["lastCharacters"] = json!(last_characters);
+            card["createdAt"] = json!(created_at);
+            card["updatedAt"] = json!(created_at);
+            cards.insert(id.to_string(), card);
+        }
+        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardConnectionMechanics($after: String!, $before: String!, $query: String!) {
+          defaultWindow: giftCards(first: 2) {
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reverseWindow: giftCards(first: 2, reverse: true) {
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterWindow: giftCards(first: 1, after: $after, reverse: true) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          beforeLastWindow: giftCards(last: 1, before: $before, reverse: true) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          createdOrder: giftCards(first: 3, sortKey: CREATED_AT) {
+            nodes { id }
+          }
+          filtered: giftCards(first: 2, query: $query) {
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({
+            "after": "gid://shopify/GiftCard/300",
+            "before": "gid://shopify/GiftCard/100",
+            "query": "id:200"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["defaultWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": "gid://shopify/GiftCard/100",
+                    "node": { "id": "gid://shopify/GiftCard/100", "lastCharacters": "0100" }
+                },
+                {
+                    "cursor": "gid://shopify/GiftCard/200",
+                    "node": { "id": "gid://shopify/GiftCard/200", "lastCharacters": "0200" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/100",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["reverseWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": "gid://shopify/GiftCard/300",
+                    "node": { "id": "gid://shopify/GiftCard/300", "lastCharacters": "0300" }
+                },
+                {
+                    "cursor": "gid://shopify/GiftCard/200",
+                    "node": { "id": "gid://shopify/GiftCard/200", "lastCharacters": "0200" }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/300",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["afterWindow"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["beforeLastWindow"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["createdOrder"]["nodes"],
+        json!([
+            { "id": "gid://shopify/GiftCard/200" },
+            { "id": "gid://shopify/GiftCard/300" },
+            { "id": "gid://shopify/GiftCard/100" }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["filtered"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/GiftCard/200",
+                "node": { "id": "gid://shopify/GiftCard/200" }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/GiftCard/200",
+                "endCursor": "gid://shopify/GiftCard/200"
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_cards_count_honors_limit_precision_after_query_filtering() {
+    let mut proxy = snapshot_proxy();
+    restore_proxy_state(&mut proxy, |restored| {
+        let mut cards = serde_json::Map::new();
+        for id in [
+            "gid://shopify/GiftCard/100",
+            "gid://shopify/GiftCard/200",
+            "gid://shopify/GiftCard/300",
+        ] {
+            cards.insert(id.to_string(), legacy_gift_card_fixture(id));
+        }
+        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardCountPrecision($query: String!) {
+          overLimit: giftCardsCount(limit: 2) { count precision }
+          exactAtLimit: giftCardsCount(limit: 3) { count precision }
+          filteredExact: giftCardsCount(query: $query, limit: 1) { count precision }
+          selectedCountOnly: giftCardsCount(limit: 2) { count }
+        }"#,
+        json!({ "query": "id:200" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["overLimit"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        response.body["data"]["exactAtLimit"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        response.body["data"]["filteredExact"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        response.body["data"]["selectedCountOnly"],
+        json!({ "count": 2 })
+    );
+}
+
+#[test]
 fn gift_card_update_hydrates_non_seed_live_hybrid_card_before_staging() {
     let hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&hits);

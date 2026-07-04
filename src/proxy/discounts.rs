@@ -3944,14 +3944,6 @@ pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction
     }
 }
 
-pub(in crate::proxy) fn gift_card_connection_json(
-    cards: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    let full = connection_json_with_empty_edges(cards.to_vec());
-    selected_json(&full, selections)
-}
-
 pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     message: &str,
     operation_path: &str,
