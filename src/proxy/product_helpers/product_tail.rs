@@ -1472,16 +1472,7 @@ fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
 }
 
 fn app_granted_access_scopes(request: &Request) -> BTreeSet<String> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
-        .map(|header| {
-            header
-                .split(',')
-                .map(str::trim)
-                .filter(|scope| !scope.is_empty())
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
+    app_access_scope_handles(&current_app_installation_from_request(request))
 }
 
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
