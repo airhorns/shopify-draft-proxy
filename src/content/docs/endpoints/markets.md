@@ -99,15 +99,14 @@ uniqueness as case-insensitive before handle generation.
 Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
 enum value unchanged. When `currencySettings` is present without an explicit
 `baseCurrency`, `marketCreate` and `marketUpdate` default the base currency to
-the observed proxy store's shop currency rather than to a fixture-specific
-currency. `currencyName` is projected from a local ISO-4217 display-name table
-for known codes, including the currencies observed in checked-in Markets
-conformance fixtures. If a future Shopify enum value is not yet mapped, the
-runtime returns `Unknown Currency` instead of echoing the ISO code as a
-misleading display name. Base-currency input uses Shopify-style `CurrencyCode`
-variable coercion: public enum values such as `XAF` stage locally, while
-non-enum values such as `ZZZ` return top-level `INVALID_VARIABLE` before
-resolver execution.
+the observed shop currency rather than assuming a fixed store currency.
+`currencyName` is projected from a local ISO-4217 display-name table for known
+codes, including the currencies observed in checked-in Markets conformance
+fixtures. If a future Shopify enum value is not yet mapped, the runtime returns
+`Unknown Currency` instead of echoing the ISO code as a misleading display name.
+Base-currency input uses Shopify-style `CurrencyCode` variable coercion: public
+enum values such as `XAF` stage locally, while non-enum values such as `ZZZ`
+return top-level `INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for staged market,

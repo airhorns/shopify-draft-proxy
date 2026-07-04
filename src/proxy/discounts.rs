@@ -1885,7 +1885,7 @@ impl DraftProxy {
                     .discounts
                     .is_tombstoned(discount_id(record))
             })
-            .cloned()
+            .map(|record| self.discount_record_with_effective_status(record))
             .collect()
     }
 
@@ -1897,46 +1897,10 @@ impl DraftProxy {
         discount_status_from_dates(starts_at, &record["endsAt"], self.current_epoch_seconds())
     }
 
-    fn discount_body_for_record_with_selection(
-        &self,
-        record: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        let mut body = discount_body_for_record_with_selection(record, selection);
-        body["status"] = json!(self.effective_discount_status(record));
-        body
-    }
-
-    fn discount_body_for_record(&self, record: &Value) -> Value {
-        self.discount_body_for_record_with_selection(record, &[])
-    }
-
-    fn discount_node_for_record_with_selection(
-        &self,
-        record: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        if discount_kind(record) == "automatic" {
-            let discount_selection =
-                selected_child_selection(selection, "automaticDiscount").unwrap_or_default();
-            json!({
-                "id": discount_id(record),
-                "automaticDiscount": self.discount_body_for_record_with_selection(record, &discount_selection),
-                "__typename": "DiscountAutomaticNode"
-            })
-        } else {
-            let discount_selection =
-                selected_child_selection(selection, "codeDiscount").unwrap_or_default();
-            json!({
-                "id": discount_id(record),
-                "codeDiscount": self.discount_body_for_record_with_selection(record, &discount_selection),
-                "__typename": "DiscountCodeNode"
-            })
-        }
-    }
-
-    fn discount_node_for_record(&self, record: &Value) -> Value {
-        self.discount_node_for_record_with_selection(record, &[])
+    fn discount_record_with_effective_status(&self, record: &Value) -> Value {
+        let mut record = record.clone();
+        record["status"] = json!(self.effective_discount_status(&record));
+        record
     }
 
     fn selected_discount_node_for_record(
@@ -1944,28 +1908,8 @@ impl DraftProxy {
         record: &Value,
         selection: &[SelectedField],
     ) -> Value {
-        selected_json(
-            &self.discount_node_for_record_with_selection(record, selection),
-            selection,
-        )
-    }
-
-    fn discount_admin_node_for_record_with_selection(
-        &self,
-        record: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        let discount_selection =
-            selected_child_selection(selection, "discount").unwrap_or_default();
-        json!({
-            "id": discount_id(record),
-            "discount": self.discount_body_for_record_with_selection(record, &discount_selection),
-            "__typename": if discount_kind(record) == "automatic" {
-                "DiscountAutomaticNode"
-            } else {
-                "DiscountCodeNode"
-            }
-        })
+        let record = self.discount_record_with_effective_status(record);
+        selected_discount_node_for_record(&record, selection)
     }
 
     fn selected_discount_admin_node_for_record(
@@ -1973,10 +1917,16 @@ impl DraftProxy {
         record: &Value,
         selection: &[SelectedField],
     ) -> Value {
-        selected_json(
-            &self.discount_admin_node_for_record_with_selection(record, selection),
-            selection,
-        )
+        let record = self.discount_record_with_effective_status(record);
+        selected_discount_admin_node_for_record(&record, selection)
+    }
+
+    fn discount_body_for_record(&self, record: &Value) -> Value {
+        discount_body_for_record(&self.discount_record_with_effective_status(record))
+    }
+
+    fn discount_node_for_record(&self, record: &Value) -> Value {
+        discount_node_for_record(&self.discount_record_with_effective_status(record))
     }
 
     fn discount_matches_query(&self, record: &Value, query: &str) -> bool {
@@ -3430,6 +3380,64 @@ fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
         api_type.as_str(),
         "discount" | "product_discounts" | "order_discounts" | "shipping_discounts"
     )
+}
+
+fn selected_discount_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
+    selected_json(
+        &discount_node_for_record_with_selection(record, selection),
+        selection,
+    )
+}
+
+fn selected_discount_admin_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
+    selected_json(
+        &discount_admin_node_for_record_with_selection(record, selection),
+        selection,
+    )
+}
+
+fn discount_node_for_record(record: &Value) -> Value {
+    discount_node_for_record_with_selection(record, &[])
+}
+
+fn discount_node_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {
+    if discount_kind(record) == "automatic" {
+        let discount_selection =
+            selected_child_selection(selection, "automaticDiscount").unwrap_or_default();
+        json!({
+            "id": discount_id(record),
+            "automaticDiscount": discount_body_for_record_with_selection(record, &discount_selection),
+            "__typename": "DiscountAutomaticNode"
+        })
+    } else {
+        let discount_selection =
+            selected_child_selection(selection, "codeDiscount").unwrap_or_default();
+        json!({
+            "id": discount_id(record),
+            "codeDiscount": discount_body_for_record_with_selection(record, &discount_selection),
+            "__typename": "DiscountCodeNode"
+        })
+    }
+}
+
+fn discount_admin_node_for_record_with_selection(
+    record: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let discount_selection = selected_child_selection(selection, "discount").unwrap_or_default();
+    json!({
+        "id": discount_id(record),
+        "discount": discount_body_for_record_with_selection(record, &discount_selection),
+        "__typename": if discount_kind(record) == "automatic" {
+            "DiscountAutomaticNode"
+        } else {
+            "DiscountCodeNode"
+        }
+    })
+}
+
+fn discount_body_for_record(record: &Value) -> Value {
+    discount_body_for_record_with_selection(record, &[])
 }
 
 fn discount_body_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {

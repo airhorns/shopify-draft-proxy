@@ -3995,6 +3995,7 @@ fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity()
         create_query,
         json!({"input": {
             "name": "Denmark Inclusive",
+            "enabled": true,
             "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
             "currencySettings": {"localCurrencies": true, "roundingEnabled": true},
             "priceInclusions": {
