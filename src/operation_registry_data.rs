@@ -108,7 +108,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("businessEntities", Query, StoreProperties, false, []),
         entry!("businessEntity", Query, StoreProperties, false, []),
         entry!("companies", Query, B2b, true, []),
-        entry!("companiesCount", Query, B2b, false, []),
+        entry!("companiesCount", Query, B2b, true, ["tests/graphql_routes.rs"]),
         entry!("company", Query, B2b, true, ["tests/graphql_routes.rs"]),
         entry!("companyContact", Query, B2b, true, []),
         entry!("companyContactRole", Query, B2b, false, []),

@@ -4061,3 +4061,24 @@ Practical rule:
   local update or membership mutation touched it; keep `UPDATED_AT` ordering
   pinned to the stored effective timestamp until a capture proves which mutation
   families actually move that ordering
+
+## 96. B2B `companyLocations` search can overstate second-page `hasNextPage`
+
+Admin GraphQL 2025-01 live capture for the B2B connection-arguments scenario on
+`harry-test-heelo.myshopify.com` showed immediate search-index lag for freshly
+created `companies(query: "name:<token>")` and
+`companyLocations(query: "name:<token>")` reads; polling resolved the missing
+nodes. After the two expected disposable `companyLocations` nodes were indexed,
+the second `first: 1, after: <page-one-cursor>, query: "name:<token>",
+sortKey: NAME, reverse: true` page still reported `hasNextPage: true` even
+though the node was the second expected match. A wider same-filter probe with
+`first: 10` returned exactly the two disposable locations with
+`hasNextPage: false`.
+
+Practical rule:
+
+- poll B2B search-based live captures until the expected freshly created nodes
+  are visible before recording read-after-write evidence
+- compare the actual windowed nodes and stable pageInfo fields, but do not make
+  the local staged model reproduce the transient root `companyLocations`
+  second-page `hasNextPage` overstatement
