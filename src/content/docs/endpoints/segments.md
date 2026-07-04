@@ -51,6 +51,7 @@ Segment lifecycle mutations stage locally and retain the original raw mutation f
 Segment query grammar support has two tiers:
 
 - Save-time validation for `segmentCreate`, `segmentUpdate`, and direct member query creation accepts the captured grammar for supported filter names, comparison operators, `IS NULL` / `IS NOT NULL`, `CONTAINS` / `NOT CONTAINS`, `BETWEEN`, boolean `AND` / `OR`, parentheses, escaped string literals, and relative date literals.
+- Malformed save-time segment queries return payload-level userErrors derived from the query text, including token/column messages for unexpected tokens and unknown filters, with an input-derived fallback for unsupported malformed values.
 - Member evaluation is narrower. The proxy evaluates `number_of_orders` comparisons and exact customer tag `CONTAINS` / `NOT CONTAINS` against normalized local customer state. Other save-accepted filters can be stored but do not imply local membership evaluation.
 
 Customer segment member query behavior:

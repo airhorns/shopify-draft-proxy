@@ -547,28 +547,13 @@ fn member_query_segment_id_invalid_literal_error(
 /// message. The reported column is the position just past the previous token
 /// (where the parser expected an operator / continuation).
 fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
-    // Tokenize on whitespace, tracking 1-indexed start / end columns.
-    let chars: Vec<char> = query.chars().collect();
-    let mut tokens: Vec<(String, usize, usize)> = Vec::new();
-    let mut start: Option<usize> = None;
-    for (index, ch) in chars.iter().enumerate() {
-        if ch.is_whitespace() {
-            if let Some(begin) = start.take() {
-                tokens.push((chars[begin..index].iter().collect(), begin + 1, index));
-            }
-        } else if start.is_none() {
-            start = Some(index);
-        }
-    }
-    if let Some(begin) = start.take() {
-        tokens.push((chars[begin..].iter().collect(), begin + 1, chars.len()));
-    }
+    let tokens = segment_query_tokens(query);
     if tokens.is_empty() {
         return None;
     }
     let mut index = 0;
     // An optional leading boolean NOT prefix is consumed before the filter name.
-    if tokens[index].0.eq_ignore_ascii_case("not") {
+    if tokens[index].text.eq_ignore_ascii_case("not") {
         index += 1;
     }
     if index >= tokens.len() {
@@ -577,13 +562,50 @@ fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
     // Consume the filter identifier; an operator must follow.
     index += 1;
     if index < tokens.len() {
-        let (token, _, _) = &tokens[index];
-        if !segment_query_token_is_operator(token) {
-            let column = tokens[index - 1].2 + 1;
-            return Some(format!("Line 1 Column {column}: '{token}' is unexpected."));
+        let token = &tokens[index];
+        if !segment_query_token_is_operator(&token.text) {
+            let column = tokens[index - 1].end_column + 1;
+            return Some(format!(
+                "Line 1 Column {column}: '{}' is unexpected.",
+                token.text
+            ));
         }
     }
     None
+}
+
+#[derive(Debug)]
+struct SegmentQueryToken {
+    text: String,
+    start_column: usize,
+    end_column: usize,
+}
+
+fn segment_query_tokens(query: &str) -> Vec<SegmentQueryToken> {
+    let chars: Vec<char> = query.chars().collect();
+    let mut tokens = Vec::new();
+    let mut start: Option<usize> = None;
+    for (index, ch) in chars.iter().enumerate() {
+        if ch.is_whitespace() {
+            if let Some(begin) = start.take() {
+                tokens.push(SegmentQueryToken {
+                    text: chars[begin..index].iter().collect(),
+                    start_column: begin + 1,
+                    end_column: index,
+                });
+            }
+        } else if start.is_none() {
+            start = Some(index);
+        }
+    }
+    if let Some(begin) = start.take() {
+        tokens.push(SegmentQueryToken {
+            text: chars[begin..].iter().collect(),
+            start_column: begin + 1,
+            end_column: chars.len(),
+        });
+    }
+    tokens
 }
 
 /// Whether a token can begin the operator / continuation that follows a segment
@@ -608,26 +630,58 @@ fn segment_query_token_is_operator(token: &str) -> bool {
 
 fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
     let stripped = query.trim();
-    if stripped == "not a valid segment query ???" {
-        return vec![
-            segment_user_error(
-                json!(["query"]),
-                "Query Line 1 Column 6: 'valid' is unexpected.",
-            ),
-            segment_user_error(
-                json!(["query"]),
-                "Query Line 1 Column 4: 'a' filter cannot be found.",
-            ),
-        ];
-    }
     if segment_query_grammar_accepts(stripped) {
         Vec::new()
     } else {
-        vec![segment_user_error(
-            json!(["query"]),
-            "Invalid segment query",
-        )]
+        segment_query_grammar_error_messages(stripped)
+            .into_iter()
+            .map(|message| segment_user_error(json!(["query"]), &message))
+            .collect()
     }
+}
+
+fn segment_query_grammar_error_messages(query: &str) -> Vec<String> {
+    let mut messages = Vec::new();
+    if let Some(message) = segment_query_unexpected_token_message(query) {
+        messages.push(format!("Query {message}"));
+    }
+    if let Some(message) = segment_query_filter_not_found_message(query) {
+        messages.push(message);
+    }
+    if messages.is_empty() {
+        messages.push(segment_query_input_derived_invalid_message(query));
+    }
+    messages
+}
+
+fn segment_query_filter_not_found_message(query: &str) -> Option<String> {
+    let tokens = segment_query_tokens(query);
+    let mut index = 0;
+    let mut column = tokens.first()?.start_column;
+    if tokens[index].text.eq_ignore_ascii_case("not") {
+        column = tokens[index].end_column + 1;
+        index += 1;
+    }
+    let token = tokens.get(index)?;
+    if segment_query_filter_name_is_known(&token.text) {
+        return None;
+    }
+    Some(format!(
+        "Query Line 1 Column {column}: '{}' filter cannot be found.",
+        token.text
+    ))
+}
+
+fn segment_query_input_derived_invalid_message(query: &str) -> String {
+    segment_query_tokens(query)
+        .last()
+        .map(|token| {
+            format!(
+                "Query Line 1 Column {}: segment query is invalid near '{}'.",
+                token.start_column, token.text
+            )
+        })
+        .unwrap_or_else(|| "Invalid segment query".to_string())
 }
 
 fn segment_query_grammar_accepts(query: &str) -> bool {
@@ -670,24 +724,24 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
     false
 }
 
-fn segment_query_predicate_accepts(query: &str) -> bool {
-    let filters = [
-        "number_of_orders",
-        "amount_spent",
-        "customer_countries",
-        "customer_tags",
-        "email_subscription_status",
-        "last_order_date",
-        "companies",
-    ];
+const SEGMENT_QUERY_FILTERS: &[&str] = &[
+    "number_of_orders",
+    "amount_spent",
+    "customer_countries",
+    "customer_tags",
+    "email_subscription_status",
+    "last_order_date",
+    "companies",
+];
 
+fn segment_query_predicate_accepts(query: &str) -> bool {
     let Some((filter, rest)) = split_segment_query_filter(query) else {
         return false;
     };
     if !segment_query_filter_name_is_valid(filter) {
         return false;
     }
-    let is_known_filter = filters.contains(&filter);
+    let is_known_filter = segment_query_filter_name_is_known(filter);
     if !is_known_filter {
         return segment_query_unknown_filter_accepts(rest);
     }
@@ -749,6 +803,10 @@ fn segment_query_filter_name_is_valid(filter: &str) -> bool {
     };
     (first.is_ascii_alphabetic() || first == '_')
         && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn segment_query_filter_name_is_known(filter: &str) -> bool {
+    SEGMENT_QUERY_FILTERS.contains(&filter)
 }
 
 fn segment_query_unknown_filter_accepts(rest: &str) -> bool {

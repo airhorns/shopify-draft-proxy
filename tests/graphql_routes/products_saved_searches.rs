@@ -8151,6 +8151,43 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
             { "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }
         ])
     );
+
+    let differently_malformed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Different query grammar malformed segment-query-grammar-local",
+            "query": "not another valid segment query ???"
+        }),
+    ));
+    assert_eq!(
+        differently_malformed.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        differently_malformed.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 12: 'valid' is unexpected." },
+            { "field": ["query"], "message": "Query Line 1 Column 4: 'another' filter cannot be found." }
+        ])
+    );
+
+    let malformed_value = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Invalid value grammar malformed segment-query-grammar-local",
+            "query": "amount_spent > banana"
+        }),
+    ));
+    assert_eq!(
+        malformed_value.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        malformed_value.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 16: segment query is invalid near 'banana'." }
+        ])
+    );
 }
 
 #[test]
