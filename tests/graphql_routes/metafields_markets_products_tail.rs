@@ -3290,6 +3290,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     );
 
     let mut currency_proxy = snapshot_proxy();
+    restore_shop_currency(&mut currency_proxy, "CAD");
     let currency_create = currency_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Currency Flags", "status": "ACTIVE", "enabled": true, "currencySettings": {"baseCurrency": "USD", "localCurrencies": true, "roundingEnabled": true}}}),
@@ -3321,6 +3322,14 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     assert_eq!(
         eur_read.body["data"]["market"]["currencySettings"],
         eur_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+    let shop_default_currency = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Shop Currency Default", "currencySettings": {"localCurrencies": true}}}),
+    ));
+    assert_eq!(
+        shop_default_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"}, "localCurrencies": true, "roundingEnabled": false})
     );
     for (code, name) in [
         ("GBP", "British Pound"),
@@ -3473,6 +3482,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
 #[test]
 fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market_fields = r#"
       id name handle status enabled type
       conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
@@ -3612,13 +3622,35 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
+    let default_currency_create = proxy.process_request(json_graphql_request(
+        &create_query,
+        json!({"input": {"name": "Default Currency Update", "status": "ACTIVE", "enabled": true}}),
+    ));
+    let default_currency_market_id = default_currency_create.body["data"]["marketCreate"]["market"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let default_currency_update = proxy.process_request(json_graphql_request(
+        &update_query,
+        json!({"id": default_currency_market_id, "input": {"currencySettings": {"roundingEnabled": true}}}),
+    ));
+    assert_eq!(
+        default_currency_update.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"},
+            "localCurrencies": false,
+            "roundingEnabled": true
+        })
+    );
+
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 4);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 6);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
-    assert!(log["entries"][3]["rawBody"]
+    assert!(log["entries"][5]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
@@ -3668,6 +3700,7 @@ fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity()
         create_query,
         json!({"input": {
             "name": "Denmark Inclusive",
+            "enabled": true,
             "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
             "currencySettings": {"localCurrencies": true, "roundingEnabled": true},
             "priceInclusions": {
@@ -3713,7 +3746,7 @@ fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity()
     );
     assert_eq!(
         resolved.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({"dutiesIncluded": true, "taxesIncluded": true})
+        json!({"dutiesIncluded": false, "taxesIncluded": true})
     );
 
     let update_seed = proxy.process_request(json_graphql_request(
@@ -6261,6 +6294,7 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
 #[test]
 fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market = proxy.process_request(json_graphql_request(
         r#"
         mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
@@ -6270,7 +6304,15 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
           }
         }
         "#,
-        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+        json!({"input": {
+            "name": "Cold Field Market",
+            "enabled": true,
+            "regions": [{"countryCode": "CA"}],
+            "priceInclusions": {
+                "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+                "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            }
+        }}),
     ));
     assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
     let market_id = market.body["data"]["marketCreate"]["market"]["id"]
@@ -6331,11 +6373,11 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["currencyCode"],
-        json!("USD")
+        json!("CAD")
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
@@ -6344,6 +6386,45 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
         json!([])
+    );
+}
+
+#[test]
+fn markets_resolved_values_falls_back_to_observed_shop_tax_inclusivity() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "currencyCode": "GBP",
+        "taxesIncluded": true
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsResolvedValuesShopTaxFallback {
+          marketsResolvedValues(buyerSignal: { countryCode: GB }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("GBP")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
     );
 }
 
@@ -9250,7 +9331,24 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
 #[test]
 fn product_create_length_validation_errors_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
-    let too_long = "a".repeat(260);
+    let too_long = "a".repeat(256);
+
+    let title = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-input-validation.graphql"
+        ),
+        json!({
+            "product": {
+                "title": too_long
+            }
+        }),
+    ));
+    assert_eq!(title.status, 200);
+    assert_eq!(title.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        title.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }])
+    );
 
     let handle = proxy.process_request(json_graphql_request(
         include_str!(
@@ -9311,6 +9409,87 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
             { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
         ])
     );
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn product_set_scalar_length_validation_errors_match_shopify_shapes() {
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productSet-input-length-validation.graphql"
+    );
+    let scenarios = [
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input", "title"], "message": "is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Handle length",
+                    "handle": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Vendor length",
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Product type length",
+                    "vendor": "Hermes",
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"]["productSet"]["product"], json!(null));
+        assert_eq!(
+            response.body["data"]["productSet"]["productSetOperation"],
+            json!(null)
+        );
+        assert_eq!(
+            response.body["data"]["productSet"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
 }
 
 #[test]

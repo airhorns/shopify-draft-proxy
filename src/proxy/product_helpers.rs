@@ -9,6 +9,7 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+const PRODUCT_SCALAR_MAX_LENGTH: usize = 255;
 const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
 pub(in crate::proxy) const PRODUCT_OPTION_NAME_TITLE_DELIMITER: &str = " / ";
 pub(in crate::proxy) const PRODUCT_OPTION_NAME_DELIMITER_MESSAGE: &str =
@@ -1175,6 +1176,62 @@ pub(in crate::proxy) fn product_json_with_currency(
     currency_code: &str,
 ) -> Value {
     product_json_with_variants_and_currency(product, &[], selections, currency_code)
+}
+
+pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_fields(query, variables)
+        .as_ref()
+        .is_some_and(|fields| product_root_fields_select_shop_currency_money(fields))
+}
+
+pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
+    fields: &[RootFieldSelection],
+) -> bool {
+    fields
+        .iter()
+        .any(product_root_field_selects_shop_currency_money)
+}
+
+fn product_root_field_selects_shop_currency_money(field: &RootFieldSelection) -> bool {
+    if product_selections_include_names(&field.selection, &["priceRange", "priceRangeV2"]) {
+        return true;
+    }
+    if !product_selections_include_names(&field.selection, &["adjustmentValue", "summary"]) {
+        return false;
+    }
+    if matches!(
+        field.name.as_str(),
+        "sellingPlanGroupCreate" | "sellingPlanGroupUpdate"
+    ) {
+        return resolved_value_contains_field(
+            &ResolvedValue::Object(field.arguments.clone()),
+            "fixedValue",
+        );
+    }
+    true
+}
+
+fn product_selections_include_names(selections: &[SelectedField], names: &[&str]) -> bool {
+    selections.iter().any(|selection| {
+        names.iter().any(|field_name| {
+            selection.name == *field_name || selection.response_key == *field_name
+        }) || product_selections_include_names(&selection.selection, names)
+    })
+}
+
+fn resolved_value_contains_field(value: &ResolvedValue, field_name: &str) -> bool {
+    match value {
+        ResolvedValue::Object(fields) => fields.iter().any(|(name, value)| {
+            name == field_name || resolved_value_contains_field(value, field_name)
+        }),
+        ResolvedValue::List(values) => values
+            .iter()
+            .any(|value| resolved_value_contains_field(value, field_name)),
+        _ => false,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -3292,6 +3349,141 @@ pub(in crate::proxy) fn product_input(
     {
         Some(ResolvedValue::Object(input)) => Some(input),
         _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) enum ProductScalarLengthValidationShape {
+    ProductInput,
+    ProductSetInput,
+}
+
+pub(in crate::proxy) fn product_scalar_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    shape: ProductScalarLengthValidationShape,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in [
+        ProductScalarLengthField::Title,
+        ProductScalarLengthField::Handle,
+        ProductScalarLengthField::Vendor,
+        ProductScalarLengthField::ProductType,
+    ] {
+        errors.extend(product_scalar_field_length_user_errors(input, field, shape));
+    }
+
+    if matches!(shape, ProductScalarLengthValidationShape::ProductSetInput)
+        && !input.contains_key("handle")
+    {
+        if let Some(title) = resolved_string_field(input, "title") {
+            let derived_handle = slugify_handle(&title);
+            if derived_handle.chars().count() > PRODUCT_SCALAR_MAX_LENGTH {
+                errors.push(product_set_scalar_length_user_error(
+                    ProductScalarLengthField::Handle,
+                ));
+            }
+        }
+    }
+
+    errors
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ProductScalarLengthField {
+    Title,
+    Handle,
+    Vendor,
+    ProductType,
+    CustomProductType,
+}
+
+fn product_scalar_field_length_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: ProductScalarLengthField,
+    shape: ProductScalarLengthValidationShape,
+) -> Vec<Value> {
+    let Some(value) = resolved_string_field(input, product_scalar_length_field_name(field)) else {
+        return Vec::new();
+    };
+    if value.chars().count() <= PRODUCT_SCALAR_MAX_LENGTH {
+        return Vec::new();
+    }
+
+    let mut errors = vec![product_scalar_length_user_error(field, shape)];
+    if matches!(field, ProductScalarLengthField::ProductType) {
+        errors.push(product_scalar_length_user_error(
+            ProductScalarLengthField::CustomProductType,
+            shape,
+        ));
+    }
+    errors
+}
+
+fn product_scalar_length_field_name(field: ProductScalarLengthField) -> &'static str {
+    match field {
+        ProductScalarLengthField::Title => "title",
+        ProductScalarLengthField::Handle => "handle",
+        ProductScalarLengthField::Vendor => "vendor",
+        ProductScalarLengthField::ProductType => "productType",
+        ProductScalarLengthField::CustomProductType => "customProductType",
+    }
+}
+
+fn product_scalar_length_user_error(
+    field: ProductScalarLengthField,
+    shape: ProductScalarLengthValidationShape,
+) -> Value {
+    match shape {
+        ProductScalarLengthValidationShape::ProductInput => length_user_error(
+            [product_scalar_length_field_name(field)],
+            product_scalar_length_field_label(field),
+            LengthUserErrorBound::TooLong {
+                maximum: PRODUCT_SCALAR_MAX_LENGTH,
+            },
+        ),
+        ProductScalarLengthValidationShape::ProductSetInput => {
+            product_set_scalar_length_user_error(field)
+        }
+    }
+}
+
+fn product_set_scalar_length_user_error(field: ProductScalarLengthField) -> Value {
+    match field {
+        ProductScalarLengthField::Title => user_error_omit_code(
+            ["input", "title"],
+            &format!("is too long (maximum is {PRODUCT_SCALAR_MAX_LENGTH} characters)"),
+            None,
+        ),
+        ProductScalarLengthField::Handle => user_error_omit_code(
+            ["input"],
+            &too_long_message("Handle", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::Vendor => user_error_omit_code(
+            ["input"],
+            &too_long_message("Vendor", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::ProductType => user_error_omit_code(
+            ["input"],
+            &too_long_message("Product type", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+        ProductScalarLengthField::CustomProductType => user_error_omit_code(
+            ["input"],
+            &too_long_message("Custom product type", PRODUCT_SCALAR_MAX_LENGTH),
+            None,
+        ),
+    }
+}
+
+fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'static str {
+    match field {
+        ProductScalarLengthField::Title => "Title",
+        ProductScalarLengthField::Handle => "Handle",
+        ProductScalarLengthField::Vendor => "Vendor",
+        ProductScalarLengthField::ProductType => "Product type",
+        ProductScalarLengthField::CustomProductType => "Custom product type",
     }
 }
 

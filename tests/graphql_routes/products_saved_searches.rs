@@ -72,6 +72,58 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+#[test]
+fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["query"].as_str(), Some("query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "JPY",
+                            "taxesIncluded": true,
+                            "taxShipping": true
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMoneyRangeCurrency {
+          product(id: "gid://shopify/Product/1") {
+            id
+            priceRangeV2 {
+              minVariantPrice { amount currencyCode }
+              maxVariantPrice { amount currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"]["priceRangeV2"]["minVariantPrice"]["currencyCode"],
+        json!("JPY")
+    );
+    assert_eq!(
+        response.body["data"]["product"]["priceRangeV2"]["maxVariantPrice"]["currencyCode"],
+        json!("JPY")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
 fn create_product_for_relationship_test(
     proxy: &mut DraftProxy,
     title: &str,
@@ -7692,6 +7744,99 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
             }
         })
     );
+}
+
+#[test]
+fn product_update_scalar_length_validation_errors_leave_product_unchanged() {
+    let product_id = "gid://shopify/Product/1";
+    let base_product = ProductRecord {
+        id: product_id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Original product".to_string(),
+        handle: "original-product".to_string(),
+        status: "ACTIVE".to_string(),
+        vendor: "Original vendor".to_string(),
+        product_type: "Original type".to_string(),
+        ..ProductRecord::default()
+    };
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productUpdate-input-length-validation.graphql"
+    );
+    let expected_product = json!({
+        "id": product_id,
+        "title": "Original product",
+        "vendor": "Original vendor",
+        "productType": "Original type"
+    });
+    let scenarios = [
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "title": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["vendor"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "product": {
+                    "id": product_id,
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["productType"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy().with_base_products(vec![base_product.clone()]);
+        let update = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(update.status, 200);
+        assert_eq!(
+            update.body["data"]["productUpdate"]["product"],
+            expected_product
+        );
+        assert_eq!(
+            update.body["data"]["productUpdate"]["userErrors"],
+            expected_errors
+        );
+
+        let read_back = proxy.process_request(json_graphql_request(
+            r#"
+            query ProductUpdateLengthRead($id: ID!) {
+              product(id: $id) {
+                id
+                title
+                vendor
+                productType
+              }
+            }
+            "#,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(read_back.body["data"]["product"], expected_product);
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
 }
 
 #[test]
