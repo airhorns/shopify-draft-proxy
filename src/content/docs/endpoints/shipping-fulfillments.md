@@ -167,8 +167,16 @@ hydrated local orders. Request-status transitions, merchant request records,
 split-off remaining fulfillment orders, and merged line-item quantities are
 written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
-`Order.fulfillmentOrders` reads. These slices operate on local order-backed
-fulfillment records and are not a general fulfillment-service execution engine.
+`Order.fulfillmentOrders` reads. Top-level `fulfillmentOrders(...)` follows the
+captured connection arguments for staged local records: `includeClosed` defaults
+to `false`, `sortKey: ID` and timestamp-like sort keys are applied before
+`reverse`, and cursor windows are cut from the filtered/sorted list. Nested
+`Order.fulfillmentOrders(...)` keeps the public Order-field argument boundary
+captured from Shopify: local projection applies `displayable`, `first`/`last`,
+cursors, and `reverse` there instead of inventing top-level `includeClosed` /
+`sortKey` behavior for the nested field. These slices operate on local
+order-backed fulfillment records and are not a general fulfillment-service
+execution engine.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the

@@ -1285,7 +1285,7 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
     let root_list_after_merge = proxy.process_request(json_graphql_request(
         r#"
         query ReadRootAfterMerge {
-          fulfillmentOrders(first: 5) { nodes { id } }
+          fulfillmentOrders(first: 5, includeClosed: true) { nodes { id } }
         }
         "#,
         json!({}),
@@ -4764,10 +4764,14 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
     ));
-    assert_eq!(
-        after_hold.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["status"],
-        json!("ON_HOLD")
-    );
+    let after_hold_nodes = after_hold.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    let held_order = after_hold_nodes
+        .iter()
+        .find(|node| node["id"] == json!(fulfillment_order_id))
+        .unwrap();
+    assert_eq!(held_order["status"], json!("ON_HOLD"));
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
@@ -4818,10 +4822,12 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         after_release.body["data"]["manualHoldsFulfillmentOrders"]["nodes"],
         json!([])
     );
-    assert_eq!(
-        after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"][1]["status"],
-        json!("CLOSED")
-    );
+    let after_release_nodes = after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(after_release_nodes
+        .iter()
+        .any(|node| node["status"] == json!("CLOSED")));
     assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
         .unwrap()
@@ -5050,6 +5056,12 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         .any(|node| node["id"] == json!(moved_id)
             && node["fulfillBy"] == json!("2026-12-01T00:00:00Z")));
     assert!(nodes.iter().any(|node| node["status"] == json!("CLOSED")));
+    let all_nodes = read.body["data"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(all_nodes
+        .iter()
+        .any(|node| node["status"] == json!("CLOSED")));
 }
 
 #[test]
@@ -5160,6 +5172,42 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
         read.body["data"]["fulfillmentOrder"]["requestStatus"],
         json!("CLOSED")
     );
+
+    let order_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadClosedFulfillmentOrderFromOrder($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 10) {
+              nodes { id status requestStatus }
+            }
+          }
+          defaultRoot: fulfillmentOrders(first: 10) {
+            nodes { id status requestStatus }
+          }
+          allRoot: fulfillmentOrders(first: 10, includeClosed: true) {
+            nodes { id status requestStatus }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        order_read.body["data"]["order"]["fulfillmentOrders"]["nodes"],
+        json!([{
+            "id": fulfillment_order_id,
+            "status": "INCOMPLETE",
+            "requestStatus": "CLOSED"
+        }])
+    );
+    assert_eq!(order_read.body["data"]["defaultRoot"]["nodes"], json!([]));
+    assert_eq!(
+        order_read.body["data"]["allRoot"]["nodes"],
+        json!([{
+            "id": fulfillment_order_id,
+            "status": "INCOMPLETE",
+            "requestStatus": "CLOSED"
+        }])
+    );
 }
 
 #[test]
@@ -5217,6 +5265,69 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
     assert_eq!(
         reroute.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
         json!("NOT_IMPLEMENTED")
+    );
+}
+
+#[test]
+fn fulfillment_orders_honors_sort_key_and_reverse() {
+    let mut proxy = snapshot_proxy();
+    let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 3);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitFulfillmentOrderForRootSort($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder { id }
+              remainingFulfillmentOrder { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "splits": [{
+                "fulfillmentOrderId": fulfillment_order_id,
+                "fulfillmentOrderLineItems": [{
+                    "id": fulfillment_order_line_item_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([])
+    );
+    let original_id = split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["fulfillmentOrder"]["id"]
+        .clone();
+    let remaining_id = split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["remainingFulfillmentOrder"]["id"]
+        .clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSortedFulfillmentOrders {
+          ascending: fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id }
+          }
+          descending: fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID, reverse: true) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["ascending"]["nodes"],
+        json!([{ "id": original_id }, { "id": remaining_id }])
+    );
+    assert_eq!(
+        read.body["data"]["descending"]["nodes"],
+        json!([{ "id": remaining_id }, { "id": original_id }])
     );
 }
 
