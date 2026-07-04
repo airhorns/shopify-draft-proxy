@@ -594,6 +594,7 @@ impl DraftProxy {
         let mut source_errors = Vec::new();
         let mut created = Vec::new();
         let mut staged = Vec::new();
+        let mut ready_on_read_ids = Vec::new();
         for (index, item) in media_inputs.iter().enumerate() {
             let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
             if !media_source_is_valid(&original_source) {
@@ -620,7 +621,7 @@ impl DraftProxy {
                 None,
                 Some(&original_source),
             ));
-            let mut staged_node = product_media_node_with_type(
+            let staged_node = product_media_node_with_type(
                 &id,
                 &alt,
                 &media_content_type,
@@ -632,8 +633,8 @@ impl DraftProxy {
                 None,
                 Some(&original_source),
             );
-            staged_node["__draftProxyReadyOnRead"] = json!(true);
             staged.push(staged_node);
+            ready_on_read_ids.push(id);
         }
 
         if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
@@ -649,6 +650,10 @@ impl DraftProxy {
         product_media_nodes.extend(created.clone());
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
+            self.store
+                .staged
+                .media_ready_on_read
+                .extend(ready_on_read_ids);
         }
 
         Some(json!({
@@ -723,6 +728,7 @@ impl DraftProxy {
                     }
                 }
                 updated.push(node.clone());
+                self.store.staged.media_ready_on_read.remove(&id);
             }
         }
 
@@ -793,6 +799,9 @@ impl DraftProxy {
                 !media_ids.iter().any(|deleted| deleted == id)
             })
             .collect();
+        for id in &media_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
         self.stage_product_media_nodes(&product_id, remaining.clone());
 
         Some(json!({
@@ -831,10 +840,16 @@ impl DraftProxy {
                 .and_then(|position| position.parse::<usize>().ok())
                 .unwrap_or(usize::MAX)
         });
-        let media = moves
+        let move_ids = moves
             .iter()
             .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .map(|id| self.product_reorder_media_node(&product_id, &id))
+            .collect::<Vec<_>>();
+        for id in &move_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
+        let media = move_ids
+            .iter()
+            .map(|id| self.product_reorder_media_node(&product_id, id))
             .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
@@ -891,6 +906,7 @@ impl DraftProxy {
             return;
         }
 
+        let ready_on_read_ids = self.store.staged.media_ready_on_read.clone();
         let product_ids = self
             .store
             .staged
@@ -902,14 +918,19 @@ impl DraftProxy {
             let Some(product) = self.store.staged.products.get_mut(&product_id) else {
                 continue;
             };
+            let mut promoted = Vec::new();
             for node in &mut product.media {
-                if node.get("__draftProxyReadyOnRead").and_then(Value::as_bool) != Some(true) {
+                let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                    continue;
+                };
+                if !ready_on_read_ids.contains(&id) {
                     continue;
                 }
                 promote_product_media_node_to_ready(node);
-                if let Some(object) = node.as_object_mut() {
-                    object.remove("__draftProxyReadyOnRead");
-                }
+                promoted.push(id);
+            }
+            for id in promoted {
+                self.store.staged.media_ready_on_read.remove(&id);
             }
         }
     }
@@ -959,9 +980,6 @@ impl DraftProxy {
             product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
         });
         node["status"] = json!("PROCESSING");
-        if let Some(object) = node.as_object_mut() {
-            object.remove("__draftProxyReadyOnRead");
-        }
         node
     }
 }

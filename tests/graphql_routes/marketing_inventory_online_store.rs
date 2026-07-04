@@ -11594,31 +11594,65 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
             captured_bodies.lock().unwrap().push(body.clone());
-            assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("MediaFileUpdateRejectedRead"));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "nodes": [{
-                            "id": media_id,
-                            "__typename": "MediaImage",
-                            "alt": "Ready image",
-                            "createdAt": "2026-06-05T00:00:00Z",
-                            "fileStatus": "READY",
-                            "image": {
-                                "url": "https://cdn.example.com/ready-image.JPG",
-                                "width": 640,
-                                "height": 480
-                            },
-                            "preview": {
+                        "files": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-image.JPG",
                                 "image": {
                                     "url": "https://cdn.example.com/ready-image.JPG",
-                                    "width": 320,
-                                    "height": 240
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     }
                 }),
             }
@@ -11663,6 +11697,11 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
         read_after_rejected_update.body["data"]["files"]["nodes"],
         json!([{ "id": media_id, "filename": "ready-image.JPG" }])
     );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateRejectedRead")));
 }
 
 #[test]

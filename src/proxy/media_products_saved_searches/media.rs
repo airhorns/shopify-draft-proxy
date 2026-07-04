@@ -135,9 +135,8 @@ impl DraftProxy {
                     "UPLOADED",
                     &created_at,
                 );
-                let mut staged_file = file.clone();
-                staged_file["__draftProxyReadyOnRead"] = json!(true);
-                self.store.staged.media_files.insert(id, staged_file);
+                self.store.staged.media_ready_on_read.insert(id.clone());
+                self.store.staged.media_files.insert(id, file.clone());
                 file
             })
             .collect::<Vec<_>>();
@@ -976,14 +975,19 @@ impl DraftProxy {
         let ids = self
             .store
             .staged
-            .media_files
+            .media_ready_on_read
             .iter()
-            .map(|(id, _)| id.clone())
+            .cloned()
             .collect::<Vec<_>>();
+        let mut promoted = Vec::new();
         for id in ids {
             if let Some(file) = self.store.staged.media_files.get_mut(&id) {
                 promote_media_file_record_to_ready(file);
+                promoted.push(id);
             }
+        }
+        for id in promoted {
+            self.store.staged.media_ready_on_read.remove(&id);
         }
     }
 
@@ -2004,16 +2008,10 @@ fn connection_nodes(connection: &Value) -> Vec<Value> {
 }
 
 fn promote_media_file_record_to_ready(file: &mut Value) {
-    if file.get("__draftProxyReadyOnRead").and_then(Value::as_bool) != Some(true) {
-        return;
-    }
     file["fileStatus"] = json!("READY");
     file["updateStatus"] = json!("READY");
     if file.get("status").is_some() {
         file["status"] = json!("READY");
-    }
-    if let Some(object) = file.as_object_mut() {
-        object.remove("__draftProxyReadyOnRead");
     }
 }
 

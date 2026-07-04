@@ -299,6 +299,15 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        if !self.store.staged.media_ready_on_read.is_empty() {
+            snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
+                .store
+                .staged
+                .media_ready_on_read
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.product_operations.is_empty() {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
@@ -1074,6 +1083,12 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
+        self.store.staged.media_ready_on_read = state["stagedState"]
+            .get("mediaReadyOnReadIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.shop_policies.replace_with_order(
             shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
             string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
