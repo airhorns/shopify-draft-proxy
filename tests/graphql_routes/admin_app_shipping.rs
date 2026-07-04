@@ -5163,6 +5163,105 @@ fn data_sale_opt_out_validation_and_sanitization_boundaries_match_captured_shape
 }
 
 #[test]
+fn data_sale_opt_out_accepts_unicode_letter_emails_and_downstream_reads() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let downstream_read = r#"
+        query DataSaleOptOutUnicodeDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#;
+
+    for email in [
+        "héllo@example.com",
+        "josé@exämple.com",
+        "hi@münchen.de",
+        "日本@example.com",
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(mutation, json!({ "email": email })));
+        assert_eq!(response.status, 200, "mutation status for {email}");
+        let customer_id = response.body["data"]["dataSaleOptOut"]["customerId"]
+            .as_str()
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected non-null customerId for {email}; payload was {}",
+                    response.body["data"]["dataSaleOptOut"]
+                )
+            })
+            .to_string();
+        assert_eq!(
+            response.body["data"]["dataSaleOptOut"]["userErrors"],
+            json!([]),
+            "userErrors for {email}"
+        );
+
+        let state = state_snapshot(&proxy);
+        let customers = state["stagedState"]["customers"].as_object().unwrap();
+        assert_eq!(customers.len(), 1, "staged customer count for {email}");
+        assert_eq!(
+            customers[&customer_id]["email"],
+            json!(email),
+            "staged email for {email}"
+        );
+        assert_eq!(
+            customers[&customer_id]["dataSaleOptOut"],
+            json!(true),
+            "staged opt-out flag for {email}"
+        );
+
+        let log = log_snapshot(&proxy);
+        assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(log["entries"][0]["status"], json!("staged"));
+        assert!(log["entries"][0]["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains("dataSaleOptOut"));
+
+        let read = proxy.process_request(json_graphql_request(
+            downstream_read,
+            json!({
+                "id": customer_id,
+                "identifier": { "emailAddress": email },
+                "query": "tag:created-by-dns-form",
+                "first": 5
+            }),
+        ));
+        let expected_customer = json!({
+            "id": customer_id,
+            "email": email,
+            "dataSaleOptOut": true,
+            "defaultEmailAddress": { "emailAddress": email }
+        });
+        assert_eq!(
+            read.body["data"]["customer"], expected_customer,
+            "customer(id:) read for {email}"
+        );
+        assert_eq!(
+            read.body["data"]["customerByIdentifier"], expected_customer,
+            "customerByIdentifier(emailAddress:) read for {email}"
+        );
+        assert_eq!(
+            read.body["data"]["customers"]["nodes"],
+            json!([expected_customer]),
+            "customers tag search for {email}"
+        );
+    }
+}
+
+#[test]
 fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
     let mutation = r#"
         mutation DataSaleOptOut($email: String!) {
@@ -5276,16 +5375,24 @@ fn data_sale_opt_out_matches_core_strict_format_residual_boundaries() {
         }]
     });
     let local_200_email = format!("{}@e.co", "a".repeat(200));
+    let unicode_local_129_email = format!("{}@e.co", "é".repeat(129));
+    let unicode_tld_65_email = format!("user@example.{}", "é".repeat(65));
+    let unicode_local_128_email = format!("{}@e.co", "é".repeat(128));
+    let unicode_tld_64_email = format!("user@example.{}", "é".repeat(64));
     let invalid_emails = [
         ("digit-tld", "foo@bar.co2".to_string()),
         ("digit-in-tld", "user@example.c0m".to_string()),
         ("hyphen-in-tld", "user@example.c-o".to_string()),
         ("local-over-128", local_200_email),
+        ("unicode-local-129-chars", unicode_local_129_email),
+        ("unicode-tld-65-chars", unicode_tld_65_email),
     ];
     let valid_emails = [
         ("single-character-tld", "user@example.x".to_string()),
         ("quoted-local-atom", "ab\"cd@example.com".to_string()),
         ("local-128", format!("{}@e.co", "a".repeat(128))),
+        ("unicode-local-128-chars", unicode_local_128_email),
+        ("unicode-tld-64-chars", unicode_tld_64_email),
     ];
     let mut failures = Vec::new();
 
