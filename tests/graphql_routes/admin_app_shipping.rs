@@ -8058,7 +8058,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     );
     assert_eq!(
         profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"][0]["name"],
-        json!("Shop location")
+        json!("Profile source")
     );
 
     let read = proxy.process_request(json_graphql_request(

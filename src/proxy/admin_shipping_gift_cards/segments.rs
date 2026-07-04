@@ -551,12 +551,7 @@ fn member_query_segment_id_invalid_literal_error(
     })
 }
 
-/// Locate the first token that cannot continue a `[NOT] <filter> <operator>`
-/// prefix and render Shopify's `Line 1 Column N: 'TOKEN' is unexpected.` lexer
-/// message. The reported column is the position just past the previous token
-/// (where the parser expected an operator / continuation).
-fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
-    // Tokenize on whitespace, tracking 1-indexed start / end columns.
+fn segment_query_token_spans(query: &str) -> Vec<(String, usize, usize)> {
     let chars: Vec<char> = query.chars().collect();
     let mut tokens: Vec<(String, usize, usize)> = Vec::new();
     let mut start: Option<usize> = None;
@@ -572,6 +567,15 @@ fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
     if let Some(begin) = start.take() {
         tokens.push((chars[begin..].iter().collect(), begin + 1, chars.len()));
     }
+    tokens
+}
+
+/// Locate the first token that cannot continue a `[NOT] <filter> <operator>`
+/// prefix and render Shopify's `Line 1 Column N: 'TOKEN' is unexpected.` lexer
+/// message. The reported column is the position just past the previous token
+/// (where the parser expected an operator / continuation).
+fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
+    let tokens = segment_query_token_spans(query);
     if tokens.is_empty() {
         return None;
     }
@@ -593,6 +597,38 @@ fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn segment_query_unknown_filter_message(query: &str) -> Option<String> {
+    let tokens = segment_query_token_spans(query);
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut index = 0;
+    let mut column = tokens[index].1;
+    if tokens[index].0.eq_ignore_ascii_case("not") {
+        column = tokens[index].2 + 1;
+        index += 1;
+    }
+    if index >= tokens.len() {
+        return None;
+    }
+    let filter = &tokens[index].0;
+    if !segment_query_filter_name_is_valid(filter) || segment_query_filter_is_known(filter) {
+        return None;
+    }
+    let rest = tokens
+        .iter()
+        .skip(index + 1)
+        .map(|(token, _, _)| token.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if segment_query_unknown_filter_accepts(&rest) {
+        return None;
+    }
+    Some(format!(
+        "Line 1 Column {column}: '{filter}' filter cannot be found."
+    ))
 }
 
 /// Whether a token can begin the operator / continuation that follows a segment
@@ -620,10 +656,26 @@ fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
     if segment_query_grammar_accepts(stripped) {
         Vec::new()
     } else {
-        let message = segment_query_unexpected_token_message(stripped)
-            .map(|message| format!("Query {message}"))
-            .unwrap_or_else(|| "Invalid segment query".to_string());
-        vec![segment_user_error(json!(["query"]), &message)]
+        let mut errors = Vec::new();
+        if let Some(message) = segment_query_unexpected_token_message(stripped) {
+            errors.push(segment_user_error(
+                json!(["query"]),
+                &format!("Query {message}"),
+            ));
+        }
+        if let Some(message) = segment_query_unknown_filter_message(stripped) {
+            errors.push(segment_user_error(
+                json!(["query"]),
+                &format!("Query {message}"),
+            ));
+        }
+        if errors.is_empty() {
+            errors.push(segment_user_error(
+                json!(["query"]),
+                "Invalid segment query",
+            ));
+        }
+        errors
     }
 }
 
@@ -668,24 +720,13 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
 }
 
 fn segment_query_predicate_accepts(query: &str) -> bool {
-    let filters = [
-        "number_of_orders",
-        "amount_spent",
-        "customer_countries",
-        "customer_tags",
-        "email_subscription_status",
-        "last_order_date",
-        "companies",
-    ];
-
     let Some((filter, rest)) = split_segment_query_filter(query) else {
         return false;
     };
     if !segment_query_filter_name_is_valid(filter) {
         return false;
     }
-    let is_known_filter = filters.contains(&filter);
-    if !is_known_filter {
+    if !segment_query_filter_is_known(filter) {
         return segment_query_unknown_filter_accepts(rest);
     }
 
@@ -727,6 +768,19 @@ fn segment_query_predicate_accepts(query: &str) -> bool {
         };
     }
     false
+}
+
+fn segment_query_filter_is_known(filter: &str) -> bool {
+    matches!(
+        filter,
+        "number_of_orders"
+            | "amount_spent"
+            | "customer_countries"
+            | "customer_tags"
+            | "email_subscription_status"
+            | "last_order_date"
+            | "companies"
+    )
 }
 
 fn split_segment_query_filter(query: &str) -> Option<(&str, &str)> {
