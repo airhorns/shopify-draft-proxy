@@ -3270,6 +3270,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'selling-plans',
+    captureId: 'selling-plan-group-cap-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-cap-validation-conformance.ts',
+    purpose:
+      'Selling-plan cap validation for 31 accepted/32 rejected selling plans per group and 32 accepted selling-plan groups per product resource.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-cap-validation.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroup-cap-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable selling-plan groups and one disposable product, captures plan-count cap and product-resource membership boundaries, then deletes all created resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'selling-plans',
     captureId: 'selling-plan-group-summary',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-summary-conformance.ts',

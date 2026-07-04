@@ -1,0 +1,4142 @@
+{
+  "capturedAt": "2026-07-04T07:27:37.114Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Real Shopify Admin GraphQL cap capture for selling-plan group plan count and selling-plan groups per product resource.",
+  "confirmedCaps": {
+    "sellingPlansPerGroup": {
+      "acceptedCount": 31,
+      "rejectedCount": 32,
+      "acceptedScenario": "thirtyOnePlansCreate",
+      "rejectedScenario": "tooManyPlansCreate"
+    },
+    "sellingPlanGroupsPerProductResource": {
+      "observedAcceptedCount": 32,
+      "rejectedCount": null,
+      "acceptedScenario": "joinThirtyOneGroups",
+      "extendedAcceptedScenario": "joinThirtyTwoGroups",
+      "notes": "Public Admin GraphQL accepted 32 groups for one product; the old local 31-group cap is not a public Shopify cap."
+    }
+  },
+  "scenarios": {
+    "thirtyOnePlansCreate": {
+      "label": "sellingPlanGroupCreate accepts 31 selling plans",
+      "request": {
+        "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "Cap validation 31 plans mr61hsz2",
+            "merchantCode": "cap-validation-31-plans-mr61hsz2",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "Monthly delivery 1",
+                "options": ["Monthly 1"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 2",
+                "options": ["Monthly 2"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 3",
+                "options": ["Monthly 3"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 4",
+                "options": ["Monthly 4"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 5",
+                "options": ["Monthly 5"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 6",
+                "options": ["Monthly 6"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 7",
+                "options": ["Monthly 7"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 8",
+                "options": ["Monthly 8"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 9",
+                "options": ["Monthly 9"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 10",
+                "options": ["Monthly 10"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 11",
+                "options": ["Monthly 11"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 12",
+                "options": ["Monthly 12"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 13",
+                "options": ["Monthly 13"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 14",
+                "options": ["Monthly 14"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 15",
+                "options": ["Monthly 15"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 16",
+                "options": ["Monthly 16"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 17",
+                "options": ["Monthly 17"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 18",
+                "options": ["Monthly 18"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 19",
+                "options": ["Monthly 19"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 20",
+                "options": ["Monthly 20"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 21",
+                "options": ["Monthly 21"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 22",
+                "options": ["Monthly 22"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 23",
+                "options": ["Monthly 23"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 24",
+                "options": ["Monthly 24"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 25",
+                "options": ["Monthly 25"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 26",
+                "options": ["Monthly 26"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 27",
+                "options": ["Monthly 27"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 28",
+                "options": ["Monthly 28"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 29",
+                "options": ["Monthly 29"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 30",
+                "options": ["Monthly 30"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 31",
+                "options": ["Monthly 31"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3126100274",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7286653234"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7286686002"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7286718770"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7286751538"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlan/7286784306"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooManyPlansCreate": {
+      "label": "sellingPlanGroupCreate rejects 32 selling plans",
+      "request": {
+        "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "Cap validation too many plans mr61hsz2",
+            "merchantCode": "cap-validation-too-many-plans-mr61hsz2",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "Monthly delivery 1",
+                "options": ["Monthly 1"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 2",
+                "options": ["Monthly 2"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 3",
+                "options": ["Monthly 3"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 4",
+                "options": ["Monthly 4"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 5",
+                "options": ["Monthly 5"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 6",
+                "options": ["Monthly 6"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 7",
+                "options": ["Monthly 7"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 8",
+                "options": ["Monthly 8"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 9",
+                "options": ["Monthly 9"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 10",
+                "options": ["Monthly 10"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 11",
+                "options": ["Monthly 11"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 12",
+                "options": ["Monthly 12"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 13",
+                "options": ["Monthly 13"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 14",
+                "options": ["Monthly 14"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 15",
+                "options": ["Monthly 15"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 16",
+                "options": ["Monthly 16"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 17",
+                "options": ["Monthly 17"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 18",
+                "options": ["Monthly 18"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 19",
+                "options": ["Monthly 19"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 20",
+                "options": ["Monthly 20"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 21",
+                "options": ["Monthly 21"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 22",
+                "options": ["Monthly 22"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 23",
+                "options": ["Monthly 23"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 24",
+                "options": ["Monthly 24"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 25",
+                "options": ["Monthly 25"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 26",
+                "options": ["Monthly 26"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 27",
+                "options": ["Monthly 27"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 28",
+                "options": ["Monthly 28"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 29",
+                "options": ["Monthly 29"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 30",
+                "options": ["Monthly 30"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 31",
+                "options": ["Monthly 31"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              },
+              {
+                "name": "Monthly delivery 32",
+                "options": ["Monthly 32"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Selling plan groups can't have more than 31 selling plans.",
+                "code": "SELLING_PLAN_COUNT_UPPER_BOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productSetup": {
+      "label": "productCreate resource cap setup",
+      "request": {
+        "query": "#graphql\n  mutation ProductCreateParityPlan($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        descriptionHtml\n        templateSuffix\n        seo {\n          title\n          description\n        }\n      }\n      shop {\n        id\n        name\n        myshopifyDomain\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "Selling plan cap product mr61hsz2",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231390929202",
+              "title": "Selling plan cap product mr61hsz2",
+              "handle": "selling-plan-cap-product-mr61hsz2",
+              "status": "DRAFT",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "groupCreates": [
+      {
+        "label": "sellingPlanGroupCreate setup group 1",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 01 mr61hsz2",
+              "merchantCode": "cap-validation-group-01-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126133042",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287669042"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 2",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 02 mr61hsz2",
+              "merchantCode": "cap-validation-group-02-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126165810",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287701810"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 3",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 03 mr61hsz2",
+              "merchantCode": "cap-validation-group-03-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126198578",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287734578"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 4",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 04 mr61hsz2",
+              "merchantCode": "cap-validation-group-04-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126231346",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287767346"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 5",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 05 mr61hsz2",
+              "merchantCode": "cap-validation-group-05-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126264114",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287800114"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 6",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 06 mr61hsz2",
+              "merchantCode": "cap-validation-group-06-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126296882",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287832882"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 7",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 07 mr61hsz2",
+              "merchantCode": "cap-validation-group-07-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126329650",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287865650"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 8",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 08 mr61hsz2",
+              "merchantCode": "cap-validation-group-08-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126362418",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287898418"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 9",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 09 mr61hsz2",
+              "merchantCode": "cap-validation-group-09-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126395186",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287931186"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 10",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 10 mr61hsz2",
+              "merchantCode": "cap-validation-group-10-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126427954",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287963954"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 11",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 11 mr61hsz2",
+              "merchantCode": "cap-validation-group-11-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126460722",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7287996722"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 12",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 12 mr61hsz2",
+              "merchantCode": "cap-validation-group-12-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126493490",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288029490"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 13",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 13 mr61hsz2",
+              "merchantCode": "cap-validation-group-13-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126526258",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288062258"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 14",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 14 mr61hsz2",
+              "merchantCode": "cap-validation-group-14-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126559026",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288095026"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 15",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 15 mr61hsz2",
+              "merchantCode": "cap-validation-group-15-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126591794",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288127794"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 16",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 16 mr61hsz2",
+              "merchantCode": "cap-validation-group-16-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126624562",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288160562"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 17",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 17 mr61hsz2",
+              "merchantCode": "cap-validation-group-17-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126657330",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288193330"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 18",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 18 mr61hsz2",
+              "merchantCode": "cap-validation-group-18-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126690098",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288226098"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 19",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 19 mr61hsz2",
+              "merchantCode": "cap-validation-group-19-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126722866",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288258866"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 20",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 20 mr61hsz2",
+              "merchantCode": "cap-validation-group-20-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126755634",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288291634"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 21",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 21 mr61hsz2",
+              "merchantCode": "cap-validation-group-21-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126788402",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288324402"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 22",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 22 mr61hsz2",
+              "merchantCode": "cap-validation-group-22-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126821170",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288357170"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 23",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 23 mr61hsz2",
+              "merchantCode": "cap-validation-group-23-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126853938",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288389938"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 24",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 24 mr61hsz2",
+              "merchantCode": "cap-validation-group-24-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126886706",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288422706"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 25",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 25 mr61hsz2",
+              "merchantCode": "cap-validation-group-25-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126919474",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288455474"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 26",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 26 mr61hsz2",
+              "merchantCode": "cap-validation-group-26-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126952242",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288488242"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 27",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 27 mr61hsz2",
+              "merchantCode": "cap-validation-group-27-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3126985010",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288521010"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 28",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 28 mr61hsz2",
+              "merchantCode": "cap-validation-group-28-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127017778",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288553778"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 29",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 29 mr61hsz2",
+              "merchantCode": "cap-validation-group-29-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127050546",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288586546"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 30",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 30 mr61hsz2",
+              "merchantCode": "cap-validation-group-30-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127083314",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288619314"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 31",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 31 mr61hsz2",
+              "merchantCode": "cap-validation-group-31-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127116082",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288652082"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "sellingPlanGroupCreate setup group 32",
+        "request": {
+          "query": "#graphql\n  mutation SellingPlanGroupCreateActiveModelValidation($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "name": "Cap validation group 32 mr61hsz2",
+              "merchantCode": "cap-validation-group-32-mr61hsz2",
+              "options": ["Delivery frequency"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly delivery 1",
+                  "options": ["Monthly 1"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127148850",
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288684850"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "joinThirtyOneGroups": {
+      "label": "productJoinSellingPlanGroups accepts 31 groups",
+      "request": {
+        "query": "#graphql\n  mutation ProductRelationshipProductJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {\n    productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {\n      product {\n        id\n        sellingPlanGroups(first: 5) {\n          nodes {\n            id\n            name\n            merchantCode\n          }\n        }\n        sellingPlanGroupsCount {\n          count\n          precision\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10231390929202",
+          "sellingPlanGroupIds": [
+            "gid://shopify/SellingPlanGroup/3126133042",
+            "gid://shopify/SellingPlanGroup/3126165810",
+            "gid://shopify/SellingPlanGroup/3126198578",
+            "gid://shopify/SellingPlanGroup/3126231346",
+            "gid://shopify/SellingPlanGroup/3126264114",
+            "gid://shopify/SellingPlanGroup/3126296882",
+            "gid://shopify/SellingPlanGroup/3126329650",
+            "gid://shopify/SellingPlanGroup/3126362418",
+            "gid://shopify/SellingPlanGroup/3126395186",
+            "gid://shopify/SellingPlanGroup/3126427954",
+            "gid://shopify/SellingPlanGroup/3126460722",
+            "gid://shopify/SellingPlanGroup/3126493490",
+            "gid://shopify/SellingPlanGroup/3126526258",
+            "gid://shopify/SellingPlanGroup/3126559026",
+            "gid://shopify/SellingPlanGroup/3126591794",
+            "gid://shopify/SellingPlanGroup/3126624562",
+            "gid://shopify/SellingPlanGroup/3126657330",
+            "gid://shopify/SellingPlanGroup/3126690098",
+            "gid://shopify/SellingPlanGroup/3126722866",
+            "gid://shopify/SellingPlanGroup/3126755634",
+            "gid://shopify/SellingPlanGroup/3126788402",
+            "gid://shopify/SellingPlanGroup/3126821170",
+            "gid://shopify/SellingPlanGroup/3126853938",
+            "gid://shopify/SellingPlanGroup/3126886706",
+            "gid://shopify/SellingPlanGroup/3126919474",
+            "gid://shopify/SellingPlanGroup/3126952242",
+            "gid://shopify/SellingPlanGroup/3126985010",
+            "gid://shopify/SellingPlanGroup/3127017778",
+            "gid://shopify/SellingPlanGroup/3127050546",
+            "gid://shopify/SellingPlanGroup/3127083314",
+            "gid://shopify/SellingPlanGroup/3127116082"
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productJoinSellingPlanGroups": {
+            "product": {
+              "id": "gid://shopify/Product/10231390929202",
+              "sellingPlanGroups": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126133042",
+                    "name": "Cap validation group 01 mr61hsz2",
+                    "merchantCode": "cap-validation-group-01-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126165810",
+                    "name": "Cap validation group 02 mr61hsz2",
+                    "merchantCode": "cap-validation-group-02-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126198578",
+                    "name": "Cap validation group 03 mr61hsz2",
+                    "merchantCode": "cap-validation-group-03-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126231346",
+                    "name": "Cap validation group 04 mr61hsz2",
+                    "merchantCode": "cap-validation-group-04-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126264114",
+                    "name": "Cap validation group 05 mr61hsz2",
+                    "merchantCode": "cap-validation-group-05-mr61hsz2"
+                  }
+                ]
+              },
+              "sellingPlanGroupsCount": {
+                "count": 31,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "joinThirtyTwoGroups": {
+      "label": "productJoinSellingPlanGroups accepts 32nd group",
+      "request": {
+        "query": "#graphql\n  mutation ProductRelationshipProductJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {\n    productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {\n      product {\n        id\n        sellingPlanGroups(first: 5) {\n          nodes {\n            id\n            name\n            merchantCode\n          }\n        }\n        sellingPlanGroupsCount {\n          count\n          precision\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10231390929202",
+          "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/3127148850"]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productJoinSellingPlanGroups": {
+            "product": {
+              "id": "gid://shopify/Product/10231390929202",
+              "sellingPlanGroups": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126133042",
+                    "name": "Cap validation group 01 mr61hsz2",
+                    "merchantCode": "cap-validation-group-01-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126165810",
+                    "name": "Cap validation group 02 mr61hsz2",
+                    "merchantCode": "cap-validation-group-02-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126198578",
+                    "name": "Cap validation group 03 mr61hsz2",
+                    "merchantCode": "cap-validation-group-03-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126231346",
+                    "name": "Cap validation group 04 mr61hsz2",
+                    "merchantCode": "cap-validation-group-04-mr61hsz2"
+                  },
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3126264114",
+                    "name": "Cap validation group 05 mr61hsz2",
+                    "merchantCode": "cap-validation-group-05-mr61hsz2"
+                  }
+                ]
+              },
+              "sellingPlanGroupsCount": {
+                "count": 32,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3127148850",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127148850",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3127116082",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127116082",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3127083314",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127083314",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3127050546",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127050546",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3127017778",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127017778",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126985010",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126985010",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126952242",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126952242",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126919474",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126919474",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126886706",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126886706",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126853938",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126853938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126821170",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126821170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126788402",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126788402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126755634",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126755634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126722866",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126722866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126690098",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126690098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126657330",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126657330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126624562",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126624562",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126591794",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126591794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126559026",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126559026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126526258",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126526258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126493490",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126493490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126460722",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126460722",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126427954",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126427954",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126395186",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126395186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126362418",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126362418",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126329650",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126329650",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126296882",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126296882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126264114",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126264114",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126231346",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126231346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126198578",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126198578",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126165810",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126165810",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126133042",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126133042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3126100274",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3126100274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup productDelete gid://shopify/Product/10231390929202",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231390929202",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

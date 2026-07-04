@@ -312,21 +312,22 @@ and mutation/no-mutation behavior.
 ## Current: Selling-plan product membership guardrails can diverge from public Admin probes
 
 Internal source notes for product and variant selling-plan group join/leave roots
-require validation before staging: blank group ID lists, duplicate IDs within one
-request, too many post-join memberships, and leave requests for groups that are
-not direct members should all return payload `userErrors` without changing local
-membership state. The local runtime models that guard contract and covers it with
-focused product mutation tests, but no checked-in products parity fixture is
-retained for those divergent local-only branches.
+described validation before staging: blank group ID lists, duplicate IDs within
+one request, too many post-join memberships, and leave requests for groups that
+are not direct members should all return payload `userErrors` without changing
+local membership state. The local runtime keeps focused product mutation
+coverage for the blank, duplicate, and leave-non-member guardrails, but does not
+enforce the old 31-groups-per-resource cap because public Admin GraphQL did not
+reproduce it.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
-coverage as the current internal guardrail contract, and re-capture against a
-target that reproduces the internal package behavior before changing those
-codes/messages or adding parity evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. A later 2026-04 cap capture
+accepted 32 selling-plan groups joined to one product with empty `userErrors`,
+so `SELLING_PLAN_GROUPS_TOO_MANY` should be treated as an internal-source-only
+branch unless a future public capture reproduces it.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
