@@ -6769,9 +6769,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-missing-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-invalid-format.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-strict-format-residual.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-unicode-letter-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
       'config/parity-specs/privacy/data-sale-opt-out-invalid-format.json',
       'config/parity-specs/privacy/data-sale-opt-out-strict-format-residual.json',
+      'config/parity-specs/privacy/data-sale-opt-out-unicode-letter-email.json',
       'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
     ],
     cleanupBehavior:
