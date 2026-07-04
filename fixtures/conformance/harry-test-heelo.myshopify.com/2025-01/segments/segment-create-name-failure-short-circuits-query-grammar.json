@@ -1,0 +1,205 @@
+{
+  "capturedAt": "2026-07-03T22:32:51.422Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateBlankNameInvalidQuery",
+      "request": {
+        "query": "mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "",
+          "query": "not a valid segment query ???"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateLongNameInvalidQuery",
+      "request": {
+        "query": "mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "query": "not a valid segment query ???"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["name"],
+                  "message": "Name is too long (maximum is 255 characters)"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateBlankNameAndQuery",
+      "request": {
+        "query": "mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "",
+          "query": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                },
+                {
+                  "__typename": "UserError",
+                  "field": ["query"],
+                  "message": "Query can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateSetup",
+      "request": {
+        "query": "mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "Segment validation order 1783117971058",
+          "query": "number_of_orders >= 1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/652756877618"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateBlankNameInvalidQuery",
+      "request": {
+        "query": "mutation SegmentUpdateNameQueryValidationOrder($id: ID!, $name: String, $query: String) {\n  segmentUpdate(id: $id, name: $name, query: $query) {\n    segment {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652756877618",
+          "name": "",
+          "query": "not a valid segment query ???"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "__typename": "UserError",
+                  "field": ["name"],
+                  "message": "Name can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence that segmentCreate and segmentUpdate perform Change-level name/query presence and length validation before CDP query grammar validation.",
+    "When name fails presence or length validation, Shopify returns only the name userError for grammatically invalid query text.",
+    "Query presence and length remain Change-level errors and can be emitted alongside name validation errors."
+  ],
+  "upstreamCalls": []
+}

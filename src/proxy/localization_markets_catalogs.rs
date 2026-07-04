@@ -55,6 +55,11 @@ const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str = "query MarketsMutationPrefligh
 /// keyed on the de-duplicated product ids.
 const FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }";
 
+/// Quantity pricing/rules mutations validate against an observed price list and
+/// product variants. In live-hybrid parity this exact preflight captures that
+/// real Shopify context before the supported mutation stays local.
+const QUANTITY_PRICING_RULES_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }";
+
 const CATALOG_RELATION_PRICE_LIST_PREFLIGHT_QUERY: &str = "query CatalogRelationPriceListHydrate($id: ID!) { priceList(id: $id) { __typename id name currency parent { adjustment { type value } } catalog { id } } }";
 
 const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelationPublicationHydrate($id: ID!) { publication(id: $id) { __typename id name autoPublish } }";
@@ -94,6 +99,47 @@ fn first_market_localization_market_id(
                         .find_map(|market_id| resolved_value_string(&market_id))
                 })
         })
+}
+
+fn quantity_pricing_rules_preflight_variant_ids(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    let mut ids = BTreeSet::new();
+    if let Some(input) = resolved_object_field(variables, "input") {
+        for key in [
+            "pricesToDeleteByVariantId",
+            "quantityRulesToDeleteByVariantId",
+            "quantityPriceBreaksToDeleteByVariantId",
+        ] {
+            ids.extend(list_string_field(&input, key));
+        }
+        for key in [
+            "pricesToAdd",
+            "quantityRulesToAdd",
+            "quantityPriceBreaksToAdd",
+        ] {
+            for item in resolved_object_list_field(&input, key) {
+                if let Some(id) = resolved_string_field(&item, "variantId") {
+                    ids.insert(id);
+                }
+            }
+        }
+    }
+    ids.extend(list_string_field(variables, "variantIds"));
+    for rule in resolved_object_list_field(variables, "quantityRules") {
+        if let Some(id) = resolved_string_field(&rule, "variantId") {
+            ids.insert(id);
+        }
+    }
+    ids.into_iter().collect()
+}
+
+fn quantity_pricing_needs_price_break_preflight(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    resolved_object_field(variables, "input")
+        .map(|input| !list_string_field(&input, "quantityPriceBreaksToDelete").is_empty())
+        .unwrap_or(false)
 }
 
 fn market_localization_preflight_variables(variables: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -1993,6 +2039,39 @@ impl DraftProxy {
     /// capture scripts record. Gated on LiveHybrid so other read modes are untouched.
     /// The cassette serves recorded real Shopify data, which the generic staging
     /// logic below loads into the local store — no fixture is hardcoded.
+    pub(in crate::proxy) fn quantity_pricing_rules_mutation_preflight(
+        &mut self,
+        request: &Request,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(price_list_id) =
+            resolved_string_field(variables, "priceListId").filter(|id| !id.is_empty())
+        else {
+            return;
+        };
+        let variant_ids = quantity_pricing_rules_preflight_variant_ids(variables);
+        let known_price_list = self.store.staged.price_lists.contains_key(&price_list_id);
+        let known_variants = variant_ids
+            .iter()
+            .all(|id| self.store.has_product_variant_reference(id));
+        if known_price_list
+            && known_variants
+            && !quantity_pricing_needs_price_break_preflight(variables)
+        {
+            return;
+        }
+
+        let body = json!({
+            "query": QUANTITY_PRICING_RULES_PREFLIGHT_QUERY,
+            "variables": resolved_variables_json(variables),
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
+    }
+
     pub(in crate::proxy) fn fixed_price_mutation_preflight(
         &mut self,
         fields: &[RootFieldSelection],
@@ -3141,7 +3220,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -3174,6 +3253,15 @@ impl DraftProxy {
             let field_index = index.to_string();
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
+            let market_id = resolved_object_string(translation_input, "marketId");
+            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "marketId"]),
+                    "The market corresponding to the `marketId` argument doesn't exist",
+                    Some("MARKET_DOES_NOT_EXIST"),
+                ));
+                continue;
+            }
             if locale == primary_locale {
                 user_errors.push(user_error(
                     json!(["translations", field_index, "locale"]),
@@ -3187,15 +3275,6 @@ impl DraftProxy {
                     json!(["translations", field_index, "locale"]),
                     "Locale is not a valid locale for the shop",
                     Some("INVALID_LOCALE_FOR_SHOP"),
-                ));
-                continue;
-            }
-            let market_id = resolved_object_string(translation_input, "marketId");
-            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
-                user_errors.push(user_error(
-                    json!(["translations", field_index, "marketId"]),
-                    "The market corresponding to the `marketId` argument doesn't exist",
-                    Some("MARKET_DOES_NOT_EXIST"),
                 ));
                 continue;
             }
@@ -3300,7 +3379,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -4033,10 +4112,26 @@ impl DraftProxy {
         if resource_id.is_empty() {
             return false;
         }
-        if resource_id.starts_with("gid://shopify/Product/") {
-            return self.store.has_localization_product(resource_id);
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some(_) => true,
+            _ => false,
         }
-        true
+    }
+
+    /// Mutations must reject resource IDs the proxy cannot resolve locally, while
+    /// read roots still keep Shopify-like empty placeholders for unmodeled types.
+    fn localization_translation_mutation_resource_exists(&self, resource_id: &str) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some("PackingSlipTemplate") => true,
+            _ => false,
+        }
     }
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {

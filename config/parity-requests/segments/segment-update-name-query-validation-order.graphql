@@ -1,0 +1,12 @@
+mutation SegmentUpdateNameQueryValidationOrder($id: ID!, $name: String, $query: String) {
+  segmentUpdate(id: $id, name: $name, query: $query) {
+    segment {
+      id
+    }
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}

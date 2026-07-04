@@ -203,9 +203,14 @@ await writeFile(
         expectedDifferences: [],
         targets: [
           {
-            name: 'unknown-option-name',
-            capturePath: '$.primary.response.data.unknown',
-            proxyPath: '$.data.unknown',
+            name: 'text-type-ineligible-validation-option',
+            capturePath: '$.primary.response.data.textUnsupportedOption',
+            proxyPath: '$.data.textUnsupportedOption',
+          },
+          {
+            name: 'boolean-type-ineligible-validation-option',
+            capturePath: '$.primary.response.data.booleanUnsupportedOption',
+            proxyPath: '$.data.booleanUnsupportedOption',
           },
           {
             name: 'duplicate-option-name',
@@ -253,7 +258,7 @@ await writeFile(
         ],
       },
       notes:
-        'Captured against Shopify Admin API validation branches for metafield definition validations[]. The scenario verifies create-time unknown/duplicate/required/coercion/min-max errors and update-time metaobject_definition_id immutability. Validation failures return null definitions and do not allocate local staged definitions.',
+        'Captured against Shopify Admin API validation branches for metafield definition validations[]. The scenario verifies create-time type-ineligible/duplicate/required/coercion/min-max errors across multiple metafield types and update-time metaobject_definition_id immutability. Validation failures return null definitions and do not allocate local staged definitions.',
     },
     null,
     2,

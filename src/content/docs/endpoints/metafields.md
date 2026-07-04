@@ -30,7 +30,7 @@ The serializer currently covers these selected definition fields:
 - `metafieldsCount`
 - `metafields`
 
-Catalog filters cover owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
+Catalog filters cover owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `name`, `owner_type` / `ownerType`, and `type`. Recognized fielded query terms must match; unrecognized fielded terms are ignored, matching Shopify's captured `extensions.search` warning behavior where the data result falls back to the other filters instead of failing closed. Catalog ordering honors `sortKey` with default `ID`, supports `NAME`, `PINNED_POSITION`, and `RELEVANCE`, and applies `reverse` after sorting. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions. Catalog connections use node-derived cursors and standard `first` / `after` / `last` / `before` windows, so `pageInfo` reflects the returned slice instead of a canned envelope.
 
 ### Metafield definition lifecycle mutations
 
@@ -140,6 +140,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json`
 - `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
+- `config/parity-specs/metafields/metafield-definition-catalog-connection.json`
 - `config/parity-specs/metafields/metafield-definition-capability-eligibility.json`
 - `config/parity-specs/metafields/metafield-definition-update-name-description-length.json`
 - `config/parity-specs/metafields/metafield-definition-update-constraints.json`
