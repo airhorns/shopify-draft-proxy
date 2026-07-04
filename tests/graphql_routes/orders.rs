@@ -9188,6 +9188,47 @@ fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
     );
 }
 
+fn seed_abandonment_delivery_status(
+    proxy: &mut DraftProxy,
+    abandonment_id: &str,
+    marketing_activity_id: &str,
+    email_state: &str,
+    email_sent_at: Value,
+) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    let mut delivery_statuses = serde_json::Map::new();
+    delivery_statuses.insert(
+        marketing_activity_id.to_string(),
+        json!({
+            "deliveryStatus": email_state,
+            "deliveredAt": email_sent_at.clone()
+        }),
+    );
+    let mut record = json!({
+        "id": abandonment_id,
+        "emailState": email_state,
+        "emailSentAt": email_sent_at
+    });
+    record["__draftProxyDeliveryStatuses"] = Value::Object(delivery_statuses);
+    let staged_state = restored["state"]["stagedState"]
+        .as_object_mut()
+        .expect("state dump should include stagedState object");
+    let abandonments = staged_state
+        .entry("abandonments".to_string())
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .expect("staged abandonment state should be an object");
+    abandonments.insert(abandonment_id.to_string(), record);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
 #[test]
 fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
     let fixture: Value = serde_json::from_str(include_str!(
@@ -9196,9 +9237,17 @@ fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
     .unwrap();
     let mut proxy = snapshot_proxy();
 
+    let forward_variables = fixture["cases"]["forward"]["variables"].clone();
+    seed_abandonment_delivery_status(
+        &mut proxy,
+        forward_variables["abandonmentId"].as_str().unwrap(),
+        forward_variables["marketingActivityId"].as_str().unwrap(),
+        "SENDING",
+        Value::Null,
+    );
     let forward = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
-        fixture["cases"]["forward"]["variables"].clone(),
+        forward_variables,
     ));
     assert_eq!(forward.body, fixture["cases"]["forward"]["expected"]);
 
@@ -9226,9 +9275,32 @@ fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
         "sameStatus",
         "futureDeliveredAt",
     ] {
+        let variables = fixture["cases"][case_name]["variables"].clone();
+        let seed_activity_id = if case_name == "unknownMarketingActivity" {
+            "gid://shopify/MarketingActivity/2002"
+        } else {
+            variables["marketingActivityId"].as_str().unwrap()
+        };
+        let (email_state, email_sent_at) = match case_name {
+            "futureDeliveredAt" => ("SENDING", Value::Null),
+            _ => (
+                "DELIVERED",
+                json!(fixture["cases"][case_name]["expected"]["data"]
+                    ["abandonmentUpdateActivitiesDeliveryStatuses"]["abandonment"]["emailSentAt"]
+                    .as_str()
+                    .unwrap()),
+            ),
+        };
+        seed_abandonment_delivery_status(
+            &mut proxy,
+            variables["abandonmentId"].as_str().unwrap(),
+            seed_activity_id,
+            email_state,
+            email_sent_at,
+        );
         let response = proxy.process_request(json_graphql_request(
             include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
-            fixture["cases"][case_name]["variables"].clone(),
+            variables,
         ));
         assert_eq!(
             response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
@@ -9237,6 +9309,131 @@ fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
             "abandonment delivery-status case {case_name} should match fixture"
         );
     }
+}
+
+#[test]
+fn abandonment_delivery_status_requires_staged_abandonment_for_ordinary_ids() {
+    let mut proxy = snapshot_proxy();
+    let known_abandonment_id = "gid://shopify/Abandonment/3101";
+    let known_activity_id = "gid://shopify/MarketingActivity/4101";
+    let delivered_at = "2026-06-20T10:00:00Z";
+    seed_abandonment_delivery_status(
+        &mut proxy,
+        known_abandonment_id,
+        known_activity_id,
+        "SENDING",
+        Value::Null,
+    );
+
+    let found = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateKnownAbandonment($abandonmentId: ID!, $marketingActivityId: ID!, $deliveredAt: DateTime) {
+          abandonmentUpdateActivitiesDeliveryStatuses(
+            abandonmentId: $abandonmentId
+            marketingActivityId: $marketingActivityId
+            deliveryStatus: DELIVERED
+            deliveredAt: $deliveredAt
+          ) {
+            abandonment { id emailState emailSentAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "abandonmentId": known_abandonment_id,
+            "marketingActivityId": known_activity_id,
+            "deliveredAt": delivered_at
+        }),
+    ));
+    assert_eq!(found.status, 200);
+    assert_eq!(
+        found.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": {
+                "id": known_abandonment_id,
+                "emailState": "DELIVERED",
+                "emailSentAt": delivered_at
+            },
+            "userErrors": []
+        })
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingAbandonment($abandonmentId: ID!, $marketingActivityId: ID!, $deliveredAt: DateTime) {
+          abandonmentUpdateActivitiesDeliveryStatuses(
+            abandonmentId: $abandonmentId
+            marketingActivityId: $marketingActivityId
+            deliveryStatus: DELIVERED
+            deliveredAt: $deliveredAt
+          ) {
+            abandonment { id emailState emailSentAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/3102",
+            "marketingActivityId": "gid://shopify/MarketingActivity/4102",
+            "deliveredAt": delivered_at
+        }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": Value::Null,
+            "userErrors": [{
+                "field": ["abandonmentId"],
+                "message": "abandonment_not_found"
+            }]
+        })
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn abandonment_delivery_status_omitted_delivered_at_uses_runtime_timestamp() {
+    let mut proxy = snapshot_proxy();
+    let abandonment_id = "gid://shopify/Abandonment/3103";
+    let activity_id = "gid://shopify/MarketingActivity/4103";
+    seed_abandonment_delivery_status(
+        &mut proxy,
+        abandonment_id,
+        activity_id,
+        "SENDING",
+        Value::Null,
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateKnownAbandonmentWithoutDeliveredAt($abandonmentId: ID!, $marketingActivityId: ID!) {
+          abandonmentUpdateActivitiesDeliveryStatuses(
+            abandonmentId: $abandonmentId
+            marketingActivityId: $marketingActivityId
+            deliveryStatus: DELIVERED
+          ) {
+            abandonment { id emailState emailSentAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "abandonmentId": abandonment_id,
+            "marketingActivityId": activity_id
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(payload["abandonment"]["id"], json!(abandonment_id));
+    assert_eq!(payload["abandonment"]["emailState"], json!("DELIVERED"));
+    let email_sent_at = payload["abandonment"]["emailSentAt"]
+        .as_str()
+        .expect("omitted deliveredAt should synthesize a runtime timestamp");
+    assert_ne!(email_sent_at, "2026-04-27T00:00:00Z");
 }
 
 #[test]
