@@ -1,0 +1,676 @@
+{
+  "variables": {
+    "runId": "1783175824302",
+    "query": "status:scheduled",
+    "first": 2,
+    "countLimit": 2,
+    "startsAt": "2026-07-18T14:37:04.302Z",
+    "alphaAutomatic": "zzzzzz SDP connection 1783175824302 Alpha automatic",
+    "bravoCode": "zzzzzz SDP connection 1783175824302 Bravo code",
+    "yankeeAutomatic": "zzzzzz SDP connection 1783175824302 Yankee automatic",
+    "zuluCode": "zzzzzz SDP connection 1783175824302 Zulu code",
+    "zuluSeedCode": "SDPCONNZSEED1783175824302",
+    "zuluAddedCode": "SDPCONNZADD1783175824302",
+    "zuluSecondAddedCode": "SDPCONNZPLUS1783175824302",
+    "zuluThirdAddedCode": "SDPCONNZTAIL1783175824302",
+    "bravoSeedCode": "SDPCONNBSEED1783175824302",
+    "zuluCodeId": "gid://shopify/DiscountCodeNode/1658181550386",
+    "bravoCodeId": "gid://shopify/DiscountCodeNode/1658181615922",
+    "yankeeAutomaticId": "gid://shopify/DiscountAutomaticNode/1658181583154",
+    "alphaAutomaticId": "gid://shopify/DiscountAutomaticNode/1658181648690"
+  },
+  "requests": {
+    "create": {
+      "query": "mutation DiscountConnectionMechanicsCreate(\n  $zuluCode: DiscountCodeBasicInput!\n  $yankeeAutomatic: DiscountAutomaticBasicInput!\n  $bravoCode: DiscountCodeBasicInput!\n  $alphaAutomatic: DiscountAutomaticBasicInput!\n) {\n  zuluCode: discountCodeBasicCreate(basicCodeDiscount: $zuluCode) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 2) {\n            nodes {\n              id\n              code\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  yankeeAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $yankeeAutomatic) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bravoCode: discountCodeBasicCreate(basicCodeDiscount: $bravoCode) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 2) {\n            nodes {\n              id\n              code\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  alphaAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $alphaAutomatic) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "zuluCode": {
+          "title": "zzzzzz SDP connection 1783175824302 Zulu code",
+          "code": "SDPCONNZSEED1783175824302",
+          "startsAt": "2026-07-18T14:37:04.302Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "yankeeAutomatic": {
+          "title": "zzzzzz SDP connection 1783175824302 Yankee automatic",
+          "startsAt": "2026-07-18T14:37:04.302Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "bravoCode": {
+          "title": "zzzzzz SDP connection 1783175824302 Bravo code",
+          "code": "SDPCONNBSEED1783175824302",
+          "startsAt": "2026-07-18T14:37:04.302Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "alphaAutomatic": {
+          "title": "zzzzzz SDP connection 1783175824302 Alpha automatic",
+          "startsAt": "2026-07-18T14:37:04.302Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "addCodes": {
+      "query": "mutation DiscountConnectionMechanicsBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n    bulkCreation {\n      done\n      codesCount\n      importedCount\n      failedCount\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1658181550386",
+        "codes": [
+          {
+            "code": "SDPCONNZADD1783175824302"
+          },
+          {
+            "code": "SDPCONNZPLUS1783175824302"
+          },
+          {
+            "code": "SDPCONNZTAIL1783175824302"
+          }
+        ]
+      }
+    },
+    "readFirst": {
+      "query": "query DiscountConnectionMechanicsReadFirst($query: String!, $first: Int!, $nestedId: ID!, $countLimit: Int!) {\n  discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n        }\n        ... on DiscountAutomaticBasic {\n          title\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n          }\n          ... on DiscountAutomaticBasic {\n            title\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  codeDiscountNodesReverse: codeDiscountNodes(first: 2, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  automaticDiscountNodesReverse: automaticDiscountNodes(first: 2, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedCount: discountNodesCount(query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n  nestedCode: codeDiscountNode(id: $nestedId) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        codes(first: 2) {\n          nodes {\n            code\n          }\n          edges {\n            cursor\n            node {\n              code\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "status:scheduled",
+        "first": 2,
+        "nestedId": "gid://shopify/DiscountCodeNode/1658181550386",
+        "countLimit": 2
+      }
+    },
+    "readAfter": {
+      "query": "query DiscountConnectionMechanicsReadAfter($query: String!, $first: Int!, $after: String!) {\n  discountNodes(first: $first, after: $after, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n        }\n        ... on DiscountAutomaticBasic {\n          title\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n          }\n          ... on DiscountAutomaticBasic {\n            title\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "status:scheduled",
+        "first": 2,
+        "after": "eyJsYXN0X2lkIjoxNjU4MTgxNTgzMTU0LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgeWFua2VlIGF1dG9tYXRpYyJ9"
+      }
+    },
+    "cleanupCode": {
+      "query": "#graphql\n  mutation DiscountConnectionMechanicsDeleteCode($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n"
+    },
+    "cleanupAutomatic": {
+      "query": "#graphql\n  mutation DiscountConnectionMechanicsDeleteAutomatic($id: ID!) {\n    discountAutomaticDelete(id: $id) {\n      deletedAutomaticDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n"
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "create": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "zuluCode": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1658181550386",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "zzzzzz SDP connection 1783175824302 Zulu code",
+              "status": "SCHEDULED",
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22245890228530",
+                    "code": "SDPCONNZSEED1783175824302"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDIyODUzMCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjI4NTMwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDIyODUzMCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjI4NTMwIn0="
+                }
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "yankeeAutomatic": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1658181583154",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "zzzzzz SDP connection 1783175824302 Yankee automatic",
+              "status": "SCHEDULED"
+            }
+          },
+          "userErrors": []
+        },
+        "bravoCode": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1658181615922",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "zzzzzz SDP connection 1783175824302 Bravo code",
+              "status": "SCHEDULED",
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22245890261298",
+                    "code": "SDPCONNBSEED1783175824302"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDI2MTI5OCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjYxMjk4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDI2MTI5OCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjYxMjk4In0="
+                }
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "alphaAutomatic": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1658181648690",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "zzzzzz SDP connection 1783175824302 Alpha automatic",
+              "status": "SCHEDULED"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 50,
+          "actualQueryCost": 50,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1950,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addCodes": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountRedeemCodeBulkAdd": {
+          "bulkCreation": {
+            "done": false,
+            "codesCount": 3,
+            "importedCount": 0,
+            "failedCount": 0
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1975,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readFirst": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1658181550386",
+              "discount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Zulu code"
+              }
+            },
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1658181583154",
+              "discount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Yankee automatic"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTUwMzg2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgenVsdSBjb2RlIn0=",
+              "node": {
+                "id": "gid://shopify/DiscountCodeNode/1658181550386",
+                "discount": {
+                  "__typename": "DiscountCodeBasic",
+                  "title": "zzzzzz SDP connection 1783175824302 Zulu code"
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTgzMTU0LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgeWFua2VlIGF1dG9tYXRpYyJ9",
+              "node": {
+                "id": "gid://shopify/DiscountAutomaticNode/1658181583154",
+                "discount": {
+                  "__typename": "DiscountAutomaticBasic",
+                  "title": "zzzzzz SDP connection 1783175824302 Yankee automatic"
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTUwMzg2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgenVsdSBjb2RlIn0=",
+            "endCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTgzMTU0LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgeWFua2VlIGF1dG9tYXRpYyJ9"
+          }
+        },
+        "codeDiscountNodesReverse": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1658181550386",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Zulu code"
+              }
+            },
+            {
+              "id": "gid://shopify/DiscountCodeNode/1658181615922",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Bravo code"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTUwMzg2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgenVsdSBjb2RlIn0=",
+            "endCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjE1OTIyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgYnJhdm8gY29kZSJ9"
+          }
+        },
+        "automaticDiscountNodesReverse": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1658181648690",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Alpha automatic"
+              }
+            },
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1658181583154",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Yankee automatic"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjQ4NjkwLCJsYXN0X3ZhbHVlIjoxNzgzMTc1ODI0MDAwfQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNTgzMTU0LCJsYXN0X3ZhbHVlIjoxNzgzMTc1ODI0MDAwfQ=="
+          }
+        },
+        "limitedCount": {
+          "count": 2,
+          "precision": "AT_LEAST"
+        },
+        "nestedCode": {
+          "id": "gid://shopify/DiscountCodeNode/1658181550386",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "zzzzzz SDP connection 1783175824302 Zulu code",
+            "codes": {
+              "nodes": [
+                {
+                  "code": "SDPCONNZSEED1783175824302"
+                },
+                {
+                  "code": "SDPCONNZADD1783175824302"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDIyODUzMCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjI4NTMwIn0=",
+                  "node": {
+                    "code": "SDPCONNZSEED1783175824302"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyMjI0NTg5MTg5OTY5OCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkxODk5Njk4In0=",
+                  "node": {
+                    "code": "SDPCONNZADD1783175824302"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MDIyODUzMCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkwMjI4NTMwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjI0NTg5MTg5OTY5OCwibGFzdF92YWx1ZSI6IjIyMjQ1ODkxODk5Njk4In0="
+              }
+            },
+            "codesCount": {
+              "count": 4,
+              "precision": "EXACT"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 31,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1969,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfter": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1658181615922",
+              "discount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Bravo code"
+              }
+            },
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1658181648690",
+              "discount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "zzzzzz SDP connection 1783175824302 Alpha automatic"
+              }
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjE1OTIyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgYnJhdm8gY29kZSJ9",
+              "node": {
+                "id": "gid://shopify/DiscountCodeNode/1658181615922",
+                "discount": {
+                  "__typename": "DiscountCodeBasic",
+                  "title": "zzzzzz SDP connection 1783175824302 Bravo code"
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjQ4NjkwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgYWxwaGEgYXV0b21hdGljIn0=",
+              "node": {
+                "id": "gid://shopify/DiscountAutomaticNode/1658181648690",
+                "discount": {
+                  "__typename": "DiscountAutomaticBasic",
+                  "title": "zzzzzz SDP connection 1783175824302 Alpha automatic"
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjE1OTIyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgYnJhdm8gY29kZSJ9",
+            "endCursor": "eyJsYXN0X2lkIjoxNjU4MTgxNjQ4NjkwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBjb25uZWN0aW9uIDE3ODMxNzU4MjQzMDIgYWxwaGEgYXV0b21hdGljIn0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1658181550386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1658181615922",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1658181583154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1658181648690",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -3578,6 +3578,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-resource-type-limit',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-resource-type-limit.mts',
+    purpose:
+      'MetafieldDefinitionCreate PRODUCT ownerType resource limit behavior and second-namespace rejection at the live ownerType boundary.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}metafield-definition-resource-type-limit.json`],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions until Shopify returns RESOURCE_TYPE_LIMIT_EXCEEDED, probes a second namespace at the boundary, then deletes every created definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
@@ -3782,6 +3795,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Validation branches create no records; successful valid-type and hyphen-key definitions are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-limit-caps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-limit-caps-conformance.mts',
+    purpose:
+      'MetaobjectDefinitionCreate field-count, admin-filterable field, reserved shopify--form, and shop definition count limit behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [`${CAPTURE_ROOT}metaobject-definition-limit-caps.json`],
+    cleanupBehavior:
+      'Creates and deletes a 40-field admin-filterable probe definition, records rejected field-count/reserved-type branches, then creates disposable definitions until Shopify returns MAX_DEFINITIONS_EXCEEDED and deletes every created definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8509,6 +8535,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-connection-mechanics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-connection-mechanics-conformance.ts',
+    purpose:
+      'Discount connection first/after windows, TITLE and automatic CREATED_AT reverse ordering, discountNodesCount(limit:) precision, and nested DiscountRedeemCodeConnection pageInfo.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-connection-mechanics.json`,
+      'config/parity-specs/discounts/discount-connection-mechanics.json',
+      'config/parity-requests/discounts/discount-connection-mechanics-bulk-add.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-create.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-read-after.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-read-first.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable scheduled code discounts and two disposable scheduled automatic discounts; bulk-adds redeem codes to one code discount; deletes all created discounts after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-add-remove-overlap',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-add-remove-overlap-conformance.ts',
@@ -9390,6 +9436,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}functions-live-owner-metadata-read.json`,
       'config/parity-specs/functions/functions-live-owner-metadata-read.json',
+      'config/parity-specs/functions/functions-tax-app-configure-authority-boundary.json',
+      'config/parity-requests/functions/functions-tax-app-configure-authority.graphql',
     ],
     cleanupBehavior:
       'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
