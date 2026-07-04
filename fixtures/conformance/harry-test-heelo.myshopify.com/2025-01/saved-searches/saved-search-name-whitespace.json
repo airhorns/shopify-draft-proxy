@@ -233,10 +233,7 @@
           "savedSearch": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name has already been taken"
             }
           ]
@@ -270,10 +267,7 @@
           "savedSearch": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name has already been taken"
             }
           ]
