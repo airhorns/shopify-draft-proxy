@@ -61,6 +61,263 @@ fn create_metaobject_definition_for_test(
 }
 
 #[test]
+fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
+    let mut proxy = snapshot_proxy();
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "redirect_definition_test",
+            "name": "Redirect definition test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "old-redirect-definition"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["capabilities"]["onlineStore"]["data"],
+        json!({"urlHandle": "old-redirect-definition", "canCreateRedirects": true})
+    );
+    let definition_id = definition_create.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_entry = r#"
+        mutation CreateRedirectEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (handle, title) in [
+        ("first-redirect-row", "First redirect row"),
+        ("second-redirect-row", "Second redirect row"),
+    ] {
+        let entry = proxy.process_request(json_graphql_request(
+            create_entry,
+            json!({"metaobject": {
+                "type": "redirect_definition_test",
+                "handle": handle,
+                "capabilities": {
+                    "publishable": {"status": "ACTIVE"},
+                    "onlineStore": {"templateSuffix": ""}
+                },
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            entry.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "capabilities": {
+                    "onlineStore": {
+                        "enabled": true,
+                        "data": {"urlHandle": "new-redirect-definition", "createRedirects": true}
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirects($pathQuery: String!, $targetQuery: String!) {
+          byPath: urlRedirects(first: 1, query: $pathQuery) {
+            nodes { id path target }
+          }
+          reverseByTarget: urlRedirects(first: 1, sortKey: TARGET, reverse: true) {
+            nodes { path target }
+          }
+          matchingTargetCount: urlRedirectsCount(query: $targetQuery) { count precision }
+        }
+        "#,
+        json!({
+            "pathQuery": "path:/pages/old-redirect-definition/first-redirect-row",
+            "targetQuery": "target:/pages/new-redirect-definition/first-redirect-row"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["target"],
+        json!("/pages/new-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["reverseByTarget"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/second-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["matchingTargetCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+
+    let redirect_id = read.body["data"]["byPath"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirect($id: ID!) {
+          urlRedirect(id: $id) { path target }
+        }
+        "#,
+        json!({"id": redirect_id}),
+    ));
+    assert_eq!(
+        singular.body["data"]["urlRedirect"],
+        json!({
+            "path": "/pages/old-redirect-definition/first-redirect-row",
+            "target": "/pages/new-redirect-definition/first-redirect-row"
+        })
+    );
+
+    let handle_entry = proxy.process_request(json_graphql_request(
+        create_entry,
+        json!({"metaobject": {
+            "type": "redirect_definition_test",
+            "handle": "handle-redirect-old",
+            "capabilities": {
+                "publishable": {"status": "ACTIVE"},
+                "onlineStore": {"templateSuffix": ""}
+            },
+            "fields": [{"key": "title", "value": "Handle redirect row"}]
+        }}),
+    ));
+    let handle_entry_id = handle_entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let handle_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectHandle($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": handle_entry_id,
+            "metaobject": {
+                "handle": "handle-redirect-new",
+                "redirectNewHandle": true,
+                "fields": [{"key": "title", "value": "Handle redirect row"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        handle_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let handle_redirect = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHandleRedirect($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "path:/pages/new-redirect-definition/handle-redirect-old"}),
+    ));
+    assert_eq!(
+        handle_redirect.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-07-04T20:40:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirects"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirectOrder"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredRedirects($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "target:/pages/new-redirect-definition/handle-redirect-new"}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -2810,7 +3067,7 @@ fn inventory_adjust_quantities_mirrors_on_hand_for_captured_non_available_names(
 #[test]
 fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
     let mut proxy = inventory_seed_proxy();
-    let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";
+    let unknown_inventory_item_id = "gid://shopify/InventoryItem/424242424242";
     let location_id = add_inventory_test_location(&mut proxy, "Known location");
 
     let set = proxy.process_request(json_graphql_request(
@@ -2908,7 +3165,7 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) =
         create_inventory_test_item(&mut proxy, "UNKNOWN-LOCATION");
-    let unknown_location_id = "gid://shopify/Location/999999999999";
+    let unknown_location_id = "gid://shopify/Location/515151515151";
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -3013,6 +3270,89 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
         .iter()
         .any(|level| level["location"]["id"] == json!(unknown_location_id)));
     assert_no_inventory_quantity_logs(&proxy);
+}
+
+#[test]
+fn inventory_level_reads_preserve_fulfillment_service_location_names() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "FS-LOCATION-NAME");
+
+    let service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInventoryFulfillmentService($name: String!) {
+          fulfillmentServiceCreate(name: $name, inventoryManagement: true) {
+            fulfillmentService { location { id name } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"name": "Named Fulfillment Stockroom"}),
+    ));
+    assert_eq!(
+        service.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    let location =
+        &service.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"];
+    let location_id = location["id"].as_str().unwrap().to_string();
+    assert_eq!(location["name"], json!("Named Fulfillment Stockroom"));
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetAtFulfillmentLocation($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name location { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0]
+            ["location"],
+        json!({"id": location_id, "name": "Named Fulfillment Stockroom"})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentLocationInventoryLevelName($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 5) {
+              nodes {
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    let level = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|level| level["location"]["id"] == json!(location_id))
+        .expect("inventory level at fulfillment service location should be readable");
+    assert_eq!(
+        level["location"],
+        json!({"id": location_id, "name": "Named Fulfillment Stockroom"})
+    );
+    assert_eq!(
+        level["quantities"],
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4}
+        ])
+    );
 }
 
 #[test]
@@ -3299,7 +3639,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         }
         "#,
         json!({"idempotencyKey": "set-on-hand-unknown-item", "input": {"reason": "correction", "setQuantities": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/999999999999", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
+            {"inventoryItemId": "gid://shopify/InventoryItem/626262626262", "locationId": location_id, "quantity": 1, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -3324,7 +3664,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         }
         "#,
         json!({"idempotencyKey": "set-on-hand-unknown-location", "input": {"reason": "correction", "setQuantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "quantity": 1, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/737373737373", "quantity": 1, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -4059,7 +4399,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
           }
         }
         "#,
-        json!({"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "available": -1}),
+        json!({"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/848484848484", "available": -1}),
     ));
     let activate_errors = invalid_activate.body["data"]["inventoryActivate"]["userErrors"]
         .as_array()
@@ -4321,7 +4661,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
           }
         }
         "#,
-        json!({"id": "gid://shopify/InventoryItem/999999999999", "input": {"tracked": true}}),
+        json!({"id": "gid://shopify/InventoryItem/959595959595", "input": {"tracked": true}}),
     ));
     assert_eq!(
         missing_item.body["data"]["inventoryItemUpdate"]["inventoryItem"],
@@ -4763,7 +5103,7 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
         }
         "#,
         json!({"idempotencyKey": "inventory-adjust-missing-change-from", "input": {"name": "available", "reason": "correction", "changes": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/missing-change", "locationId": "gid://shopify/Location/1", "delta": 1}
+            {"inventoryItemId": "gid://shopify/InventoryItem/474747474747", "locationId": "gid://shopify/Location/1", "delta": 1}
         ]}}),
     ));
 
@@ -5085,6 +5425,83 @@ fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
 }
 
 #[test]
+fn inventory_transfer_create_keeps_empty_hydrated_origin_quantities_zero() {
+    let origin_id = "gid://shopify/Location/111111111111";
+    let destination_id = "gid://shopify/Location/222222222222";
+    let inventory_item_id = "gid://shopify/InventoryItem/333333333333";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"nodes": [
+                {
+                    "__typename": "Location",
+                    "id": "gid://shopify/Location/111111111111",
+                    "name": "Zero Origin",
+                    "isActive": true
+                },
+                {
+                    "__typename": "Location",
+                    "id": "gid://shopify/Location/222222222222",
+                    "name": "Zero Destination",
+                    "isActive": true
+                },
+                {
+                    "__typename": "InventoryItem",
+                    "id": "gid://shopify/InventoryItem/333333333333",
+                    "tracked": true,
+                    "requiresShipping": true,
+                    "variant": {
+                        "id": "gid://shopify/ProductVariant/333333333333",
+                        "title": "Zero Transfer Variant",
+                        "inventoryQuantity": 0,
+                        "product": {
+                            "id": "gid://shopify/Product/333333333333",
+                            "title": "Zero Transfer Product",
+                            "handle": "zero-transfer-product",
+                            "status": "ACTIVE",
+                            "totalInventory": 0,
+                            "tracksInventory": true
+                        }
+                    },
+                    "inventoryLevels": {"nodes": [{
+                        "id": "gid://shopify/InventoryLevel/333333333333-111111111111?inventory_item_id=gid://shopify/InventoryItem/333333333333",
+                        "location": {"id": "gid://shopify/Location/111111111111", "name": "Zero Origin"},
+                        "quantities": []
+                    }]}
+                }
+            ]}}),
+        }
+    });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]["status"],
+        json!("DRAFT")
+    );
+
+    assert_eq!(
+        transfer_level_quantities(&mut proxy, inventory_item_id, origin_id),
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "reserved", "quantity": 0},
+            {"name": "on_hand", "quantity": 0}
+        ])
+    );
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = inventory_seed_proxy();
 
@@ -5247,7 +5664,7 @@ fn inventory_transfer_create_and_set_items_validate_before_staging() {
             "lineItems": [
                 {"inventoryItemId": inventory_item_id, "quantity": 1},
                 {"inventoryItemId": inventory_item_id, "quantity": -1},
-                {"inventoryItemId": "gid://shopify/InventoryItem/unknown", "quantity": 1}
+                {"inventoryItemId": "gid://shopify/InventoryItem/444444444444", "quantity": 1}
             ]
         }}),
     ));
@@ -8243,6 +8660,143 @@ fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_ru
 }
 
 #[test]
+fn metaobject_definition_create_limits_field_and_admin_filterable_counts() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key capabilities { adminFilterable { enabled } } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let admin_filterable_field = |index: usize| {
+        json!({
+            "key": format!("field_{index:03}"),
+            "name": format!("Field {index}"),
+            "type": "single_line_text_field",
+            "capabilities": { "adminFilterable": { "enabled": true } }
+        })
+    };
+
+    let accepted_fields = (0..40).map(admin_filterable_field).collect::<Vec<_>>();
+    let accepted = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_40",
+            "name": "Admin Filterable Field Limit 40",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": accepted_fields
+        }}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        40
+    );
+
+    let rejected_fields = (0..41).map(admin_filterable_field).collect::<Vec<_>>();
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "admin_filterable_field_limit_41",
+            "name": "Admin Filterable Field Limit 41",
+            "displayNameKey": "field_000",
+            "fieldDefinitions": rejected_fields
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                },
+                {
+                    "field": ["definition", "fieldDefinitions"],
+                    "message": "Maximum 40 admin filterable fields per metaobject definition",
+                    "code": "INVALID",
+                    "elementKey": null,
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+}
+
+#[test]
+fn metaobject_definition_create_reports_captured_shop_definition_limit() {
+    let mut proxy = snapshot_proxy();
+
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let field_definition = json!({
+        "key": "title",
+        "name": "Title",
+        "type": "single_line_text_field"
+    });
+
+    for index in 0..128 {
+        let created = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "type": format!("definition_limit_{index:03}"),
+                "name": format!("Definition Limit {index}"),
+                "displayNameKey": "title",
+                "fieldDefinitions": [field_definition.clone()]
+            }}),
+        ));
+        assert_eq!(
+            created.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([]),
+            "definition {index} should be accepted"
+        );
+    }
+
+    let rejected = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "definition_limit_128",
+            "name": "Definition Limit 128",
+            "displayNameKey": "title",
+            "fieldDefinitions": [field_definition]
+        }}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Total definition count exceeds the limit of 128",
+                "code": "MAX_DEFINITIONS_EXCEEDED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_app_type_uses_request_api_client_id() {
     let mut proxy = snapshot_proxy();
     let create_definition = r#"
@@ -9221,7 +9775,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
     let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
     let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_create_handle.is_empty());
+    assert_eq!(blank_create_handle, "blank-create");
     assert_eq!(
         blank_create_metaobject["displayName"],
         json!("Blank create")
@@ -9240,8 +9794,7 @@ fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
     );
     let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
     let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
-    assert!(!blank_upsert_handle.is_empty());
-    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(blank_upsert_handle, "blank-upsert");
     assert_eq!(
         blank_upsert_metaobject["displayName"],
         json!("Blank upsert")
@@ -10040,7 +10593,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
     );
 
     // Delete the file this test actually created (MediaImage/2). The engine
@@ -10136,7 +10689,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                     "id": "gid://shopify/MediaImage/2",
                     "alt": "Local runtime file",
                     "createdAt": "2024-01-01T00:00:01.000Z",
-                    "fileStatus": "UPLOADED",
+                    "fileStatus": "READY",
                     "filename": "local-runtime.jpg",
                     "image": {
                         "url": "https://cdn.example.com/local-runtime.jpg",
@@ -10166,6 +10719,302 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn media_file_create_poll_ready_then_update_succeeds() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Ready lifecycle", "contentType": "IMAGE", "filename": "ready-lifecycle.jpg", "originalSource": "https://cdn.example.com/ready-lifecycle.jpg"}]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let file_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("fileCreate should return an id")
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["fileStatus"],
+        json!("UPLOADED")
+    );
+
+    let poll = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileReadyLifecyclePoll {
+          files(first: 5) {
+            nodes { id alt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        poll.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": file_id,
+                "alt": "Ready lifecycle",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{file_id}"),
+                "endCursor": format!("cursor:{file_id}")
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": file_id, "alt": "Updated after ready"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": file_id,
+                "alt": "Updated after ready",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searches() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/777",
+                                "alt": "Upstream file",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "upstream-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-file.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }, {
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/778",
+                                "alt": "Upstream processing file",
+                                "createdAt": "2026-07-01T00:00:01Z",
+                                "updatedAt": "2026-07-01T00:00:01Z",
+                                "fileStatus": "PROCESSING",
+                                "filename": "upstream-processing-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                                "endCursor": "cursor:gid://shopify/MediaImage/778"
+                            }
+                        },
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/888",
+                                "name": "Ready files",
+                                "query": "file_status:ready",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesColdRead {
+          files(first: 5) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/777",
+                "alt": "Upstream file",
+                "fileStatus": "READY",
+                "filename": "upstream-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-file.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }, {
+                "id": "gid://shopify/MediaImage/778",
+                "alt": "Upstream processing file",
+                "fileStatus": "PROCESSING",
+                "filename": "upstream-processing-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                "endCursor": "cursor:gid://shopify/MediaImage/778"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/888",
+                "name": "Ready files",
+                "query": "file_status:ready",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        1,
+        "cold media files read should forward upstream"
+    );
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("files") && query.contains("fileSavedSearches")));
+}
+
+#[test]
+fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/889",
+                                "name": "Recent files",
+                                "query": "created_at:>=2026-01-01",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSavedSearchColdRead {
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/889",
+                "name": "Recent files",
+                "query": "created_at:>=2026-01-01",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "standalone fileSavedSearches read should forward upstream"
     );
 }
 
@@ -10219,7 +11068,7 @@ fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
             "id": "gid://shopify/GenericFile/3",
             "filename": "alpha-file.pdf",
             "contentType": "FILE",
-            "fileStatus": "UPLOADED"
+            "fileStatus": "READY"
         }])
     );
     assert_eq!(
@@ -10483,8 +11332,8 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     assert_eq!(
         files_read.body["data"]["files"]["nodes"],
         json!([
-            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
-            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "second.jpg"}
         ])
     );
 }
@@ -10658,6 +11507,32 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
         }]})
     );
 
+    let extension_case_mismatch = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.PNG", "filename": "source.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        extension_case_mismatch.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Provided filename extension must match original source.",
+            "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read_after_rejections = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileCreateValidationRead {
+          files(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejections.body["data"]["files"]["nodes"],
+        json!([])
+    );
+
     let duplicate_mode = proxy.process_request(json_graphql_request(
         mutation,
         json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "contentType": "IMAGE", "duplicateResolutionMode": "REPLACE"}]}),
@@ -10787,7 +11662,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "GenericFile",
             "id": "gid://shopify/GenericFile/2",
             "alt": "Omitted GLB",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "model.glb",
             "mimeType": "model/gltf-binary",
             "url": "https://cdn.example.com/model.glb"
@@ -10813,7 +11688,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "Model3d",
             "id": "gid://shopify/Model3d/3",
             "alt": "Explicit model",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "explicit-model.glb",
             "mimeType": "model/gltf-binary",
             "mediaErrors": [],
@@ -10957,6 +11832,125 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
     assert!(bodies[0]["query"]
         .as_str()
         .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
+fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("MediaFileUpdateRejectedRead"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-image.JPG",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": media_id, "filename": "ready-image.jpg"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "The filename extension provided must match the original filename.",
+            "code": "INVALID_FILENAME_EXTENSION"
+        }]})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+    drop(bodies);
+
+    let read_after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileUpdateRejectedRead {
+          files(first: 5) { nodes { id filename } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejected_update.body["data"]["files"]["nodes"],
+        json!([{ "id": media_id, "filename": "ready-image.JPG" }])
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateRejectedRead")));
 }
 
 #[test]
@@ -11490,7 +12484,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
         json!({
             "nodes": [{
                 "id": "gid://shopify/MediaImage/2",
-                "fileStatus": "UPLOADED",
+                "fileStatus": "READY",
                 "__typename": "MediaImage",
                 "mediaErrors": [],
                 "mediaWarnings": []
@@ -11875,11 +12869,11 @@ fn online_store_articles_published_status_query_controls_visibility() {
     let articles = proxy.process_request(json_graphql_request(
         r#"
         mutation ArticleStatusSetup($blogId: ID!) {
-          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, isPublished: true }) {
+          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag"], isPublished: true }) {
             article { id title isPublished }
             userErrors { field message code }
           }
-          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, isPublished: false }) {
+          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag", "draft-tag"], isPublished: false }) {
             article { id title isPublished }
             userErrors { field message code }
           }
@@ -11905,6 +12899,12 @@ fn online_store_articles_published_status_query_controls_visibility() {
           explicitPublished: articles(first: 10, query: "published_status:published") { nodes { id title isPublished } }
           anyStatus: articles(first: 10, query: "published_status:any") { nodes { id title isPublished } }
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
+          byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
+          titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
+          unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
         }
         "#,
         json!({}),
@@ -11912,7 +12912,10 @@ fn online_store_articles_published_status_query_controls_visibility() {
 
     assert_eq!(
         read.body["data"]["defaultPublished"]["nodes"],
-        json!([{"id": published_id, "title": "Published article", "isPublished": true}])
+        json!([
+            {"id": published_id, "title": "Published article", "isPublished": true},
+            {"id": draft_id, "title": "Draft article", "isPublished": false}
+        ])
     );
     assert_eq!(
         read.body["data"]["explicitPublished"]["nodes"],
@@ -11929,6 +12932,237 @@ fn online_store_articles_published_status_query_controls_visibility() {
         read.body["data"]["unpublishedOnly"]["nodes"],
         json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
     );
+    let published_article =
+        json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
+    assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(
+        read.body["data"]["titleSorted"]["nodes"],
+        json!([
+            {"id": draft_id, "title": "Draft article"},
+            {"id": published_id, "title": "Published article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["titleSortedReverse"]["nodes"],
+        json!([
+            {"id": published_id, "title": "Published article"},
+            {"id": draft_id, "title": "Draft article"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogPageConnectionSetup {
+          zBlog: blogCreate(blog: { title: "Zulu content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          aBlog: blogCreate(blog: { title: "Alpha content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          zPage: pageCreate(page: { title: "Zulu content page", body: "<p>Zulu page body</p>", isPublished: true }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+          aPage: pageCreate(page: { title: "Alpha content page", body: "<p>Alpha page body</p>", isPublished: false }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["zBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["zPage"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aPage"]["userErrors"], json!([]));
+    let z_blog = create.body["data"]["zBlog"]["blog"]["id"].clone();
+    let a_blog = create.body["data"]["aBlog"]["blog"]["id"].clone();
+    let z_page = create.body["data"]["zPage"]["page"]["id"].clone();
+    let a_page = create.body["data"]["aPage"]["page"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BlogPageConnectionFilters {
+          blogsByTitle: blogs(first: 10, query: "title:'Alpha content blog'") { nodes { id title } }
+          blogsSorted: blogs(first: 10, sortKey: TITLE) { nodes { id title } }
+          blogsSortedReverse: blogs(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          blogsUnknownFilter: blogs(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+          pagesByTitle: pages(first: 10, query: "title:'Alpha content page'") { nodes { id title isPublished } }
+          pagesPublished: pages(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          pagesUnpublished: pages(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          pagesSorted: pages(first: 10, sortKey: TITLE) { nodes { id title } }
+          pagesSortedReverse: pages(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          pagesUnknownFilter: pages(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["blogsByTitle"]["nodes"],
+        json!([{"id": a_blog, "title": "Alpha content blog"}])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSorted"]["nodes"],
+        json!([
+            {"id": a_blog, "title": "Alpha content blog"},
+            {"id": z_blog, "title": "Zulu content blog"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSortedReverse"]["nodes"],
+        json!([
+            {"id": z_blog, "title": "Zulu content blog"},
+            {"id": a_blog, "title": "Alpha content blog"}
+        ])
+    );
+    assert_eq!(read.body["data"]["blogsUnknownFilter"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["pagesByTitle"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesPublished"]["nodes"],
+        json!([{"id": z_page, "title": "Zulu content page", "isPublished": true}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesUnpublished"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSorted"]["nodes"],
+        json!([
+            {"id": a_page, "title": "Alpha content page"},
+            {"id": z_page, "title": "Zulu content page"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSortedReverse"]["nodes"],
+        json!([
+            {"id": z_page, "title": "Zulu content page"},
+            {"id": a_page, "title": "Alpha content page"}
+        ])
+    );
+    assert_eq!(read.body["data"]["pagesUnknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_comments_connection_filters_sort_and_reverse_hydrated_state() {
+    let article_id = "gid://shopify/Article/9102";
+    let alpha_comment_id = "gid://shopify/Comment/9103";
+    let zulu_comment_id = "gid://shopify/Comment/9104";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let upstream_calls = upstream_calls.clone();
+            move |_request| {
+                *upstream_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "__typename": "Comment",
+                                        "id": zulu_comment_id,
+                                        "status": "SPAM",
+                                        "body": "Zulu comment body",
+                                        "bodyHtml": "<p>Zulu comment body</p>",
+                                        "isPublished": false,
+                                        "publishedAt": null,
+                                        "createdAt": "2026-01-02T00:00:00Z",
+                                        "updatedAt": "2026-01-02T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    },
+                                    {
+                                        "__typename": "Comment",
+                                        "id": alpha_comment_id,
+                                        "status": "PUBLISHED",
+                                        "body": "Alpha comment body",
+                                        "bodyHtml": "<p>Alpha comment body</p>",
+                                        "isPublished": true,
+                                        "publishedAt": "2026-01-01T00:00:00Z",
+                                        "createdAt": "2026-01-01T00:00:00Z",
+                                        "updatedAt": "2026-01-01T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-a",
+                                    "endCursor": "cursor-z"
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateComments {
+          comments(first: 10) {
+            nodes { id body status isPublished publishedAt createdAt updatedAt article { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CommentConnectionFilters {
+          bodyQuery: comments(first: 10, query: "body:'Alpha comment'") { nodes { id body status } }
+          statusQuery: comments(first: 10, query: "status:SPAM") { nodes { id body status } }
+          createdSorted: comments(first: 10, sortKey: CREATED_AT) { nodes { id body createdAt } }
+          createdSortedReverse: comments(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id body createdAt } }
+          unknownFilter: comments(first: 10, query: "not_a_real_filter:value") { nodes { id body } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["bodyQuery"]["nodes"],
+        json!([{"id": alpha_comment_id, "body": "Alpha comment body", "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["statusQuery"]["nodes"],
+        json!([{"id": zulu_comment_id, "body": "Zulu comment body", "status": "SPAM"}])
+    );
+    assert_eq!(
+        read.body["data"]["createdSorted"]["nodes"],
+        json!([
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"},
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["createdSortedReverse"]["nodes"],
+        json!([
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"},
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]

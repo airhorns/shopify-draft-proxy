@@ -1,0 +1,13 @@
+mutation CarrierServiceConnectionQueryCreate($input: DeliveryCarrierServiceCreateInput!) {
+  carrierServiceCreate(input: $input) {
+    carrierService {
+      id
+      name
+      active
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

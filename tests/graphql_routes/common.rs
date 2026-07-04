@@ -14,6 +14,19 @@ pub(super) fn snapshot_proxy() -> DraftProxy {
     configured_proxy(ReadMode::Snapshot, None)
 }
 
+pub(super) fn utc_time(unix_seconds: i64) -> time::OffsetDateTime {
+    time::OffsetDateTime::from_unix_timestamp(unix_seconds)
+        .expect("test timestamp should be representable")
+}
+
+pub(super) fn snapshot_proxy_with_clock(clock: Arc<Mutex<time::OffsetDateTime>>) -> DraftProxy {
+    snapshot_proxy().with_clock(move || *clock.lock().unwrap())
+}
+
+pub(super) fn set_clock(clock: &Arc<Mutex<time::OffsetDateTime>>, unix_seconds: i64) {
+    *clock.lock().unwrap() = utc_time(unix_seconds);
+}
+
 pub(super) fn configured_proxy(
     read_mode: ReadMode,
     unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,

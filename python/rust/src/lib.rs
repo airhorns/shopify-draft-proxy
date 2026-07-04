@@ -17,6 +17,13 @@ use shopify_draft_proxy::upstream::{
 const DEFAULT_API_VERSION: &str = "2025-01";
 const STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
+pyo3::create_exception!(
+    shopify_draft_proxy._native,
+    DraftProxyCommitError,
+    PyRuntimeError,
+    "Commit replay failed before all staged mutations were replayed."
+);
+
 #[pyclass(name = "DraftProxy")]
 struct PyDraftProxy {
     inner: Mutex<RustDraftProxy>,
@@ -245,9 +252,11 @@ impl PyDraftProxy {
         let status = response.status;
         let body = response.body;
         if status != 200 || !body.get("ok").and_then(Value::as_bool).unwrap_or(false) {
-            return Err(PyRuntimeError::new_err(format!(
-                "DraftProxy.commit failed with status {status}: {body}"
-            )));
+            let err = DraftProxyCommitError::new_err(format!(
+                "DraftProxy.commit failed with status {status}"
+            ));
+            err.value_bound(py).setattr("result", value_to_py(py, &body)?)?;
+            return Err(err);
         }
         value_to_py(py, &body)
     }
@@ -323,6 +332,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyDraftProxy>()?;
     module.add_function(wrap_pyfunction!(create_draft_proxy, module)?)?;
     module.add("DRAFT_PROXY_STATE_DUMP_SCHEMA", STATE_DUMP_SCHEMA)?;
+    module.add(
+        "DraftProxyCommitError",
+        module.py().get_type_bound::<DraftProxyCommitError>(),
+    )?;
     Ok(())
 }
 

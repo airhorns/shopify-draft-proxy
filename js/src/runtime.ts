@@ -1,10 +1,10 @@
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type {
   AppConfig,
-  DraftProxyCommitAttempt,
   DraftProxyCommitResult,
   DraftProxyConfigSnapshot,
   DraftProxyGraphQLRequestOptions,
@@ -22,6 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
 const activeChildren = new Set<ChildProcessWithoutNullStreams>();
 let cleanupRegistered = false;
+let rustServerBinaryPath: string | undefined;
 
 function registerCleanup(): void {
   if (cleanupRegistered) return;
@@ -53,6 +54,43 @@ function allocatePort(): number {
 
 function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function rustBinaryName(): string {
+  return process.platform === 'win32' ? 'shopify-draft-proxy-server.exe' : 'shopify-draft-proxy-server';
+}
+
+function releaseBinaryIn(targetDir: string): string {
+  return resolve(targetDir, 'release', rustBinaryName());
+}
+
+function cargoMetadataTargetDir(): string | undefined {
+  const result = spawnSync('cargo', ['metadata', '--format-version', '1', '--no-deps'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) return undefined;
+  try {
+    const metadata = JSON.parse(result.stdout) as { target_directory?: unknown };
+    return typeof metadata.target_directory === 'string' ? metadata.target_directory : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveRustServerBinaryPath(): string {
+  if (rustServerBinaryPath === undefined) {
+    const cargoMetadataTarget = cargoMetadataTargetDir();
+    rustServerBinaryPath = [
+      releaseBinaryIn(resolve(repoRoot, 'target')),
+      process.env['CARGO_TARGET_DIR'] === undefined ? undefined : releaseBinaryIn(process.env['CARGO_TARGET_DIR']),
+      cargoMetadataTarget === undefined ? undefined : releaseBinaryIn(cargoMetadataTarget),
+    ].find((candidate) => candidate !== undefined && existsSync(candidate));
+  }
+  if (rustServerBinaryPath === undefined) {
+    throw new Error('Rust DraftProxy runtime binary not found. Run `corepack pnpm build` before creating a proxy.');
+  }
+  return rustServerBinaryPath;
 }
 
 function bodyToString(body: unknown): string {
@@ -227,7 +265,7 @@ export class DraftProxy {
     const port = allocatePort();
     this.#origin = `http://127.0.0.1:${port}`;
     registerCleanup();
-    this.#child = spawn('./target/release/shopify-draft-proxy-server', [], {
+    this.#child = spawn(resolveRustServerBinaryPath(), [], {
       cwd: repoRoot,
       env: envForConfig(options, port),
     });
@@ -345,23 +383,11 @@ export class DraftProxy {
 
   async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
     const response = await this.processRequest({ method: 'POST', path: '/__meta/commit', headers });
-    const body = response.body as { ok?: boolean; committed?: number; failed?: number };
-    const log = this.getLog() as { entries?: Array<Record<string, unknown>> };
-    const attempts: DraftProxyCommitAttempt[] = (log.entries ?? []).map((entry) => ({
-      logEntryId: String(entry['id'] ?? ''),
-      operationName: (entry['operationName'] ?? null) as string | null,
-      path: String(entry['path'] ?? ''),
-      success: entry['status'] === 'committed',
-      status: String(entry['status'] ?? ''),
-      upstreamStatus: null,
-      upstreamBody: null,
-      upstreamError: null,
-      responseBody: null,
-    }));
-    if (!body.ok) {
-      throw new DraftProxyCommitError({ ok: false, stopIndex: body.failed ?? null, attempts });
+    const body = response.body as DraftProxyCommitResult;
+    if (response.status !== 200 || !body.ok) {
+      throw new DraftProxyCommitError(body);
     }
-    return { stopIndex: null, attempts };
+    return body;
   }
 }
 

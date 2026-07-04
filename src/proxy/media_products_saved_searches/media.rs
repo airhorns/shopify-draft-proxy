@@ -135,6 +135,7 @@ impl DraftProxy {
                     "UPLOADED",
                     &created_at,
                 );
+                self.store.staged.media_ready_on_read.insert(id.clone());
                 self.store.staged.media_files.insert(id, file.clone());
                 file
             })
@@ -860,14 +861,28 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn media_files_read(
-        &self,
+        &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let api_client_id = saved_search_request_api_client_id(request);
+        let fields = root_fields(query, variables).unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let mut response = (self.upstream_transport)(request.clone());
+            if (200..300).contains(&response.status) {
+                self.hydrate_media_files_read_state(request, &fields, &response.body["data"]);
+                response.body["data"] = self.media_files_read_data(request, &fields);
+            }
+            return response;
+        }
+        self.promote_polled_media_files_to_ready(&fields);
+        ok_json(json!({"data": self.media_files_read_data(request, &fields)}))
+    }
+
+    fn media_files_read_data(&self, request: &Request, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for field in fields {
             match field.name.as_str() {
                 "files" => {
                     let files = self
@@ -881,7 +896,7 @@ impl DraftProxy {
                     let arguments =
                         self.media_files_arguments_with_saved_search_query(&field.arguments);
                     data.insert(
-                        field.response_key,
+                        field.response_key.clone(),
                         selected_staged_connection_with_args(
                             files,
                             &arguments,
@@ -896,13 +911,84 @@ impl DraftProxy {
                 "fileSavedSearches" => {
                     data.insert(
                         field.response_key.clone(),
-                        self.saved_search_connection_field(&field, &api_client_id),
+                        self.saved_search_connection_field(field, &api_client_id),
                     );
                 }
                 _ => continue,
             }
         }
-        ok_json(json!({"data": Value::Object(data)}))
+        Value::Object(data)
+    }
+
+    fn hydrate_media_files_read_state(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+        data: &Value,
+    ) {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for field in fields {
+            let Some(connection) = data.get(&field.response_key) else {
+                continue;
+            };
+            match field.name.as_str() {
+                "files" => self.observe_media_files_connection(connection),
+                "fileSavedSearches" => {
+                    self.observe_file_saved_searches_connection(connection, &api_client_id)
+                }
+                _ => {}
+            }
+        }
+        self.promote_polled_media_files_to_ready(fields);
+    }
+
+    fn observe_media_files_connection(&mut self, connection: &Value) {
+        for node in connection_nodes(connection) {
+            if let Some(record) = media_file_record_from_node(&node) {
+                if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                    if !self.store.staged.media_files.is_tombstoned(&id) {
+                        self.store.staged.media_files.entry(id).or_insert(record);
+                    }
+                }
+            }
+        }
+    }
+
+    fn observe_file_saved_searches_connection(&mut self, connection: &Value, api_client_id: &str) {
+        for node in connection_nodes(connection) {
+            let Some(record) = saved_search_record_from_node(&node, "FILE", api_client_id) else {
+                continue;
+            };
+            if !self.store.staged.saved_searches.is_tombstoned(&record.id) {
+                self.store
+                    .base
+                    .saved_searches
+                    .insert(record.id.clone(), record);
+            }
+        }
+    }
+
+    fn promote_polled_media_files_to_ready(&mut self, fields: &[RootFieldSelection]) {
+        if !fields.iter().any(|field| field.name == "files") {
+            return;
+        }
+        let ids = self
+            .store
+            .staged
+            .media_ready_on_read
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut promoted = Vec::new();
+        for id in ids {
+            if let Some(file) = self.store.staged.media_files.get_mut(&id) {
+                promote_media_file_record_to_ready(file);
+                promoted.push(id);
+            }
+        }
+        for id in promoted {
+            self.store.staged.media_ready_on_read.remove(&id);
+        }
     }
 
     fn media_files_arguments_with_saved_search_query(
@@ -1902,6 +1988,33 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     Some(record)
 }
 
+fn connection_nodes(connection: &Value) -> Vec<Value> {
+    let mut nodes = connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    nodes.extend(
+        connection
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| edge.get("node").cloned()),
+    );
+    nodes
+}
+
+fn promote_media_file_record_to_ready(file: &mut Value) {
+    file["fileStatus"] = json!("READY");
+    file["updateStatus"] = json!("READY");
+    if file.get("status").is_some() {
+        file["status"] = json!("READY");
+    }
+}
+
 // Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.
 fn media_file_cursor(record: &Value) -> String {
     format!("cursor:{}", value_id_cursor(record))
@@ -1948,7 +2061,7 @@ fn filename_from_source(source: &str) -> String {
 // caller omits `contentType`, but the auto-detector maps only image/video
 // results to typed media. Model3d and ExternalVideo require explicit contentType.
 fn infer_content_type_from_source(filename: &str) -> &'static str {
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "heif" => "IMAGE",
         "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
         _ => "FILE",
@@ -1957,7 +2070,7 @@ fn infer_content_type_from_source(filename: &str) -> &'static str {
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     // Extension-first derivation: the recognized extension wins regardless of contentType, and only an unrecognized extension falls back to the contentType default.
-    match file_extension(filename).as_str() {
+    match file_extension(filename).to_ascii_lowercase().as_str() {
         "gif" => "image/gif",
         "heic" => "image/heic",
         "heif" => "image/heif",
