@@ -34,10 +34,10 @@ Snapshot reads are served from normalized marketing activity and event records h
 
 - Missing singular activity/event lookups return `null`.
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, false page booleans, and null cursors.
-- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Captured Shopify cursors are reused when present; locally seeded records without captured cursors use stable synthetic `cursor:<gid>` cursors.
-- Local activity filtering supports captured/default text fields, `title`, `app_name`, `id`, date terms, scheduled date terms, exact `tactic`, `marketingActivityIds`, and `remoteIds`.
-- Local event filtering supports default text, `description`, `id`, `started_at`, and exact `type`.
-- Modeled activity sort keys are `CREATED_AT`, `ID`, and `TITLE`. Modeled event sort keys are `ID` and `STARTED_AT`.
+- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Local records use stable synthetic `cursor:<gid>` cursors and honor `first`, `last`, `after`, `before`, `reverse`, and modeled `sortKey` arguments with computed page booleans.
+- Local activity filtering supports `marketingActivityIds`, `remoteIds`, bare/default full-text terms, and keyed query terms for `app_id`, `app_name`, `created_at`, `id`, `marketing_campaign_id`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, `title`, and `updated_at`. Legacy local query aliases such as `remote_id`, `description`, `status`, and `channel_handle` remain accepted. Unrecognized keyed terms are evaluated as default full-text against the supplied value instead of fail-closing the entire connection.
+- Local event filtering supports bare/default full-text terms plus `description`, `id`, `remote_id`, `channel_handle`, `started_at`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, and `type`.
+- Modeled activity sort keys are `CREATED_AT` (default), `ID`, and `TITLE`. Modeled event sort keys are `ID` (default) and `STARTED_AT`.
 
 External activity lifecycle:
 

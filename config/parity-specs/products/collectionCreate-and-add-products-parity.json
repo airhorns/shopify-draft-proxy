@@ -1,12 +1,21 @@
 {
   "scenarioId": "collection-create-and-add-products-parity",
-  "operationNames": ["collectionCreate", "collectionAddProducts", "collectionRemoveProducts"],
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkUpdate",
+    "collectionCreate",
+    "collectionAddProducts",
+    "collectionRemoveProducts",
+    "collection"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "user-errors-parity",
-    "custom-vs-smart-collection-guards",
-    "downstream-read-parity"
+    "custom-vs-smart-collection-behavior",
+    "downstream-read-parity",
+    "connection-windowing-parity",
+    "sort-key-parity"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-and-add-products-parity.json"
@@ -16,7 +25,7 @@
     "variablesCapturePath": "$.longTitle.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, productsCount read-after-add behavior, and collectionAddProducts duplicate-membership no-op success. The duplicate target creates a custom collection, adds the seed product, then adds the same product again; Shopify returns the collection with empty userErrors. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.",
+  "notes": "Executable parity for collectionCreate validation, enum coercion, smart collection add/remove behavior, productsCount read-after-add behavior, collectionAddProducts duplicate-membership no-op success, and Collection.products windowing/pageInfo/sortKey/reverse behavior. The duplicate target creates a custom collection, adds the seed product, then adds the same product again; Shopify returns the collection with empty userErrors. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, and v1 collectionAddProducts/collectionRemoveProducts accept smart collections, so this spec preserves the observed allowed behavior instead of adding local rejections. The products connection targets create disposable products with distinct titles/prices, add them to a manual custom collection, compare first/after cursor windows, and compare the ProductCollectionSortKeys exposed by this API version. Admin API 2025-01 rejects INVENTORY on this field, so inventory ordering is documented and covered by focused Rust tests rather than this 2025-01 parity target.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -71,7 +80,7 @@
         "proxyPath": "$.data"
       },
       {
-        "name": "smart-add-products-user-error",
+        "name": "smart-add-products-live-behavior",
         "capturePath": "$.smartAdd.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
@@ -90,7 +99,7 @@
         "proxyPath": "$.data"
       },
       {
-        "name": "smart-remove-products-user-error",
+        "name": "smart-remove-products-live-behavior",
         "capturePath": "$.smartRemove.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-remove.graphql",
@@ -106,7 +115,14 @@
             ]
           }
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionRemoveProducts.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Shopify and the local parity harness allocate collection remove job identifiers independently."
+          }
+        ]
       },
       {
         "name": "custom-create",
@@ -168,6 +184,319 @@
           }
         },
         "proxyPath": "$.data"
+      },
+      {
+        "name": "window-product-zulu-create",
+        "capturePath": "$.windowProducts.zulu.create.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-product-create.graphql",
+          "variablesCapturePath": "$.windowProducts.zulu.create.variables"
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.title", "$.productCreate.userErrors"]
+      },
+      {
+        "name": "window-product-alpha-create",
+        "capturePath": "$.windowProducts.alpha.create.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-product-create.graphql",
+          "variablesCapturePath": "$.windowProducts.alpha.create.variables"
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.title", "$.productCreate.userErrors"]
+      },
+      {
+        "name": "window-product-mike-create",
+        "capturePath": "$.windowProducts.mike.create.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-product-create.graphql",
+          "variablesCapturePath": "$.windowProducts.mike.create.variables"
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.title", "$.productCreate.userErrors"]
+      },
+      {
+        "name": "window-product-zulu-price-update",
+        "capturePath": "$.windowProducts.zulu.priceUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-price-update.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "window-product-zulu-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "window-product-zulu-create",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "price": {
+                  "fromCapturePath": "$.windowProducts.zulu.priceUpdate.variables.variants[0].price"
+                }
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productVariantsBulkUpdate.productVariants[0].price",
+          "$.productVariantsBulkUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "window-product-alpha-price-update",
+        "capturePath": "$.windowProducts.alpha.priceUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-price-update.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "window-product-alpha-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "window-product-alpha-create",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "price": {
+                  "fromCapturePath": "$.windowProducts.alpha.priceUpdate.variables.variants[0].price"
+                }
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productVariantsBulkUpdate.productVariants[0].price",
+          "$.productVariantsBulkUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "window-product-mike-price-update",
+        "capturePath": "$.windowProducts.mike.priceUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-price-update.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "window-product-mike-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "window-product-mike-create",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "price": {
+                  "fromCapturePath": "$.windowProducts.mike.priceUpdate.variables.variants[0].price"
+                }
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productVariantsBulkUpdate.productVariants[0].price",
+          "$.productVariantsBulkUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "window-collection-create",
+        "capturePath": "$.windowCollectionCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+          "variablesCapturePath": "$.windowCollectionCreate.variables"
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.collectionCreate.collection.title",
+          "$.collectionCreate.collection.sortOrder",
+          "$.collectionCreate.userErrors"
+        ]
+      },
+      {
+        "name": "window-collection-add-products",
+        "capturePath": "$.windowCollectionAdd.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "window-collection-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromProxyResponse": "window-product-zulu-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              {
+                "fromProxyResponse": "window-product-alpha-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              {
+                "fromProxyResponse": "window-product-mike-create",
+                "path": "$.data.productCreate.product.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.collectionAddProducts.collection.products.nodes[0].title",
+          "$.collectionAddProducts.collection.products.nodes[1].title",
+          "$.collectionAddProducts.collection.products.nodes[2].title",
+          "$.collectionAddProducts.userErrors"
+        ]
+      },
+      {
+        "name": "collection-products-manual-first-page",
+        "capturePath": "$.windowFirstRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-window-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "window-collection-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "first": {
+              "fromCapturePath": "$.windowFirstRead.variables.first"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          }
+        ]
+      },
+      {
+        "name": "collection-products-manual-after-page",
+        "capturePath": "$.windowAfterRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-after-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "window-collection-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "first": {
+              "fromCapturePath": "$.windowAfterRead.variables.first"
+            },
+            "after": {
+              "fromProxyResponse": "collection-products-manual-first-page",
+              "path": "$.data.collection.products.pageInfo.endCursor"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Collection product connection cursors are opaque server tokens."
+          }
+        ]
+      },
+      {
+        "name": "collection-products-sort-keys-and-reverse",
+        "capturePath": "$.windowSortRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-sort-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "window-collection-create",
+              "path": "$.data.collectionCreate.collection.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.collectionDefault.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.manual.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.bestSelling.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.created.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.idSort.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.price.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.relevance.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          },
+          {
+            "path": "$.collection.titleReverse.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local parity harness allocate product identifiers independently."
+          }
+        ]
       }
     ]
   }

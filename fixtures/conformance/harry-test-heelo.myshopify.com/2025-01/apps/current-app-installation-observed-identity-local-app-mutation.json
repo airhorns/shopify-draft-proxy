@@ -1,0 +1,194 @@
+{
+  "capturedAt": "2026-07-04T06:32:46.175Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "Captures the installed app identity returned by currentAppInstallation before and after a real delegateAccessTokenCreate call.",
+    "The conformance app is a custom app, so the fixture records Shopify rejecting appSubscriptionCreate with \"Custom apps cannot use the Billing API\" and uses delegateAccessTokenCreate as the real app-domain mutation that this app can execute.",
+    "The capture asserts Shopify keeps currentAppInstallation.id and app identity stable across the app mutation. The created delegate token is destroyed in cleanup when Shopify returns a token."
+  ],
+  "observedIdentity": {
+    "id": "gid://shopify/AppInstallation/913990517042",
+    "appId": "gid://shopify/App/347082227713",
+    "appHandle": "hermes-conformance-products",
+    "appTitle": "hermes-conformance-products"
+  },
+  "readbackIdentity": {
+    "id": "gid://shopify/AppInstallation/913990517042",
+    "appId": "gid://shopify/App/347082227713",
+    "appHandle": "hermes-conformance-products",
+    "appTitle": "hermes-conformance-products"
+  },
+  "delegateTokenDestroyed": true,
+  "scenarios": {
+    "observedCurrentInstallation": {
+      "label": "observedCurrentInstallation",
+      "query": "query CurrentAppInstallationObservedIdentity {\n  currentAppInstallation {\n    id\n    app {\n      id\n      handle\n      title\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentAppInstallation": {
+            "id": "gid://shopify/AppInstallation/913990517042",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "handle": "hermes-conformance-products",
+              "title": "hermes-conformance-products"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "billingMutationProbe": {
+      "label": "billingMutationProbe",
+      "query": "#graphql\n  mutation CustomAppBillingProbe(\n    $name: String!\n    $returnUrl: URL!\n    $lineItems: [AppSubscriptionLineItemInput!]!\n  ) {\n    appSubscriptionCreate(name: $name, returnUrl: $returnUrl, test: true, lineItems: $lineItems) {\n      appSubscription {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "name": "Observed identity test plan mr5zjm27",
+        "returnUrl": "https://app.example.test/return",
+        "lineItems": [
+          {
+            "plan": {
+              "appRecurringPricingDetails": {
+                "price": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                },
+                "interval": "EVERY_30_DAYS"
+              }
+            }
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "appSubscriptionCreate": {
+            "appSubscription": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Custom apps cannot use the Billing API"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createDelegateToken": {
+      "label": "createDelegateToken",
+      "query": "mutation DelegateAccessTokenCreateShopPayload {\n  delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 300 }) {\n    delegateAccessToken {\n      accessToken\n    }\n    shop {\n      id\n      myshopifyDomain\n      currencyCode\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "delegateAccessTokenCreate": {
+            "delegateAccessToken": {
+              "accessToken": "[redacted-live-delegate-token]"
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterCreate": {
+      "label": "readAfterCreate",
+      "query": "query CurrentAppInstallationObservedIdentity {\n  currentAppInstallation {\n    id\n    app {\n      id\n      handle\n      title\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentAppInstallation": {
+            "id": "gid://shopify/AppInstallation/913990517042",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "handle": "hermes-conformance-products",
+              "title": "hermes-conformance-products"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup delegateAccessTokenDestroy",
+      "query": "mutation DelegateAccessTokenDestroyShopPayload($token: String!) {\n  delegateAccessTokenDestroy(accessToken: $token) {\n    shop {\n      id\n    }\n    status\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "token": "[redacted-live-delegate-token]"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "delegateAccessTokenDestroy": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994"
+            },
+            "status": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

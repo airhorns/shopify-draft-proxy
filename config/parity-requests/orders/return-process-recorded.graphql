@@ -36,6 +36,7 @@ mutation ReturnProcessRecorded($input: ReturnProcessInput!) {
     userErrors {
       field
       message
+      code
     }
   }
 }

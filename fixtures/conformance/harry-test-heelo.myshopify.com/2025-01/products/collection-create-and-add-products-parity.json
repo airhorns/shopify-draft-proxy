@@ -2,9 +2,9 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "seedProduct": {
-    "id": "gid://shopify/Product/9801098789170",
-    "title": "The Inventory Not Tracked Snowboard",
-    "handle": "the-inventory-not-tracked-snowboard",
+    "id": "gid://shopify/Product/9899732336946",
+    "title": "Test Product - 3580",
+    "handle": "test-product-3580",
     "status": "ACTIVE"
   },
   "longTitle": {
@@ -41,16 +41,16 @@
   "reservedLike": {
     "variables": {
       "input": {
-        "title": "Frontpage collection membership 1782282454240"
+        "title": "Frontpage collection membership 1783136707945"
       }
     },
     "response": {
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/513795490098",
-            "title": "Frontpage collection membership 1782282454240",
-            "handle": "frontpage-collection-membership-1782282454240",
+            "id": "gid://shopify/Collection/514084340018",
+            "title": "Frontpage collection membership 1783136707945",
+            "handle": "frontpage-collection-membership-1783136707945",
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "productsCount": {
@@ -77,7 +77,7 @@
   "invalidSort": {
     "variables": {
       "input": {
-        "title": "Collection membership invalid sort 1782282454240",
+        "title": "Collection membership invalid sort 1783136707945",
         "sortOrder": "INVALID_VALUE"
       }
     },
@@ -94,7 +94,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "title": "Collection membership invalid sort 1782282454240",
+              "title": "Collection membership invalid sort 1783136707945",
               "sortOrder": "INVALID_VALUE"
             },
             "problems": [
@@ -111,14 +111,14 @@
   "smartCreate": {
     "variables": {
       "input": {
-        "title": "Collection membership Smart 1782282454240",
+        "title": "Collection membership Smart 1783136707945",
         "ruleSet": {
           "appliedDisjunctively": false,
           "rules": [
             {
               "column": "TITLE",
               "relation": "CONTAINS",
-              "condition": "Collection membership"
+              "condition": "No matching smart seed 1783136707945"
             }
           ]
         }
@@ -128,9 +128,9 @@
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/513795522866",
-            "title": "Collection membership Smart 1782282454240",
-            "handle": "collection-membership-smart-1782282454240",
+            "id": "gid://shopify/Collection/514084372786",
+            "title": "Collection membership Smart 1783136707945",
+            "handle": "collection-membership-smart-1783136707945",
             "sortOrder": "BEST_SELLING",
             "ruleSet": {
               "appliedDisjunctively": false,
@@ -138,7 +138,7 @@
                 {
                   "column": "TITLE",
                   "relation": "CONTAINS",
-                  "condition": "Collection membership"
+                  "condition": "No matching smart seed 1783136707945"
                 }
               ]
             },
@@ -165,28 +165,34 @@
   },
   "smartAdd": {
     "variables": {
-      "id": "gid://shopify/Collection/513795522866",
-      "productIds": ["gid://shopify/Product/9801098789170"]
+      "id": "gid://shopify/Collection/514084372786",
+      "productIds": ["gid://shopify/Product/9899732336946"]
     },
     "response": {
       "data": {
         "collectionAddProducts": {
-          "collection": null,
-          "userErrors": [
-            {
-              "field": ["id"],
-              "message": "Can't manually add products to a smart collection"
+          "collection": {
+            "id": "gid://shopify/Collection/514084372786",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580"
+                }
+              ]
             }
-          ]
+          },
+          "userErrors": []
         }
       },
       "extensions": {
         "cost": {
           "requestedQueryCost": 15,
-          "actualQueryCost": 10,
+          "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -195,19 +201,17 @@
   },
   "smartRemove": {
     "variables": {
-      "id": "gid://shopify/Collection/513795522866",
-      "productIds": ["gid://shopify/Product/9801098789170"]
+      "id": "gid://shopify/Collection/514084372786",
+      "productIds": ["gid://shopify/Product/9899732336946"]
     },
     "response": {
       "data": {
         "collectionRemoveProducts": {
-          "job": null,
-          "userErrors": [
-            {
-              "field": ["id"],
-              "message": "Can't manually remove products from a smart collection"
-            }
-          ]
+          "job": {
+            "id": "gid://shopify/Job/898decfa-074d-4099-95d8-b183b6349396",
+            "done": false
+          },
+          "userErrors": []
         }
       },
       "extensions": {
@@ -226,16 +230,16 @@
   "customCreate": {
     "variables": {
       "input": {
-        "title": "Collection membership Custom 1782282454240"
+        "title": "Collection membership Custom 1783136707945"
       }
     },
     "response": {
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/513795555634",
-            "title": "Collection membership Custom 1782282454240",
-            "handle": "collection-membership-custom-1782282454240",
+            "id": "gid://shopify/Collection/514084405554",
+            "title": "Collection membership Custom 1783136707945",
+            "handle": "collection-membership-custom-1783136707945",
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "productsCount": {
@@ -261,20 +265,20 @@
   },
   "customAdd": {
     "variables": {
-      "id": "gid://shopify/Collection/513795555634",
-      "productIds": ["gid://shopify/Product/9801098789170"]
+      "id": "gid://shopify/Collection/514084405554",
+      "productIds": ["gid://shopify/Product/9899732336946"]
     },
     "response": {
       "data": {
         "collectionAddProducts": {
           "collection": {
-            "id": "gid://shopify/Collection/513795555634",
+            "id": "gid://shopify/Collection/514084405554",
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard"
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580"
                 }
               ]
             }
@@ -297,20 +301,20 @@
   },
   "customDuplicateAdd": {
     "variables": {
-      "id": "gid://shopify/Collection/513795555634",
-      "productIds": ["gid://shopify/Product/9801098789170"]
+      "id": "gid://shopify/Collection/514084405554",
+      "productIds": ["gid://shopify/Product/9899732336946"]
     },
     "response": {
       "data": {
         "collectionAddProducts": {
           "collection": {
-            "id": "gid://shopify/Collection/513795555634",
+            "id": "gid://shopify/Collection/514084405554",
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard"
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580"
                 }
               ]
             }
@@ -333,12 +337,12 @@
   },
   "customRead": {
     "variables": {
-      "id": "gid://shopify/Collection/513795555634"
+      "id": "gid://shopify/Collection/514084405554"
     },
     "response": {
       "data": {
         "collection": {
-          "id": "gid://shopify/Collection/513795555634",
+          "id": "gid://shopify/Collection/514084405554",
           "productsCount": {
             "count": 1,
             "precision": "EXACT"
@@ -346,9 +350,9 @@
           "products": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/9801098789170",
-                "title": "The Inventory Not Tracked Snowboard",
-                "handle": "the-inventory-not-tracked-snowboard"
+                "id": "gid://shopify/Product/9899732336946",
+                "title": "Test Product - 3580",
+                "handle": "test-product-3580"
               }
             ]
           }
@@ -360,7 +364,631 @@
           "actualQueryCost": 5,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1994,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "windowProducts": {
+    "zulu": {
+      "create": {
+        "variables": {
+          "product": {
+            "title": "Collection window Zulu 1783136707945",
+            "status": "ACTIVE"
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945",
+                "handle": "collection-window-zulu-1783136707945",
+                "createdAt": "2026-07-04T03:45:09Z",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51422576378162",
+                      "price": "0.00"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "priceUpdate": {
+        "variables": {
+          "productId": "gid://shopify/Product/10231258186034",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51422576378162",
+              "price": "30.00"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258186034"
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51422576378162",
+                  "price": "30.00"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "productId": "gid://shopify/Product/10231258186034",
+      "variantId": "gid://shopify/ProductVariant/51422576378162"
+    },
+    "alpha": {
+      "create": {
+        "variables": {
+          "product": {
+            "title": "Collection window Alpha 1783136707945",
+            "status": "ACTIVE"
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945",
+                "handle": "collection-window-alpha-1783136707945",
+                "createdAt": "2026-07-04T03:45:10Z",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51422576410930",
+                      "price": "0.00"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "priceUpdate": {
+        "variables": {
+          "productId": "gid://shopify/Product/10231258218802",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51422576410930",
+              "price": "10.00"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258218802"
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51422576410930",
+                  "price": "10.00"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "productId": "gid://shopify/Product/10231258218802",
+      "variantId": "gid://shopify/ProductVariant/51422576410930"
+    },
+    "mike": {
+      "create": {
+        "variables": {
+          "product": {
+            "title": "Collection window Mike 1783136707945",
+            "status": "ACTIVE"
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945",
+                "handle": "collection-window-mike-1783136707945",
+                "createdAt": "2026-07-04T03:45:11Z",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51422576443698",
+                      "price": "0.00"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "priceUpdate": {
+        "variables": {
+          "productId": "gid://shopify/Product/10231258251570",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51422576443698",
+              "price": "20.00"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10231258251570"
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51422576443698",
+                  "price": "20.00"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "productId": "gid://shopify/Product/10231258251570",
+      "variantId": "gid://shopify/ProductVariant/51422576443698"
+    }
+  },
+  "windowCollectionCreate": {
+    "variables": {
+      "input": {
+        "title": "Collection products window 1783136707945",
+        "sortOrder": "MANUAL"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514084438322",
+            "title": "Collection products window 1783136707945",
+            "handle": "collection-products-window-1783136707945",
+            "sortOrder": "MANUAL",
+            "ruleSet": null,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "windowCollectionAdd": {
+    "variables": {
+      "id": "gid://shopify/Collection/514084438322",
+      "productIds": [
+        "gid://shopify/Product/10231258186034",
+        "gid://shopify/Product/10231258218802",
+        "gid://shopify/Product/10231258251570"
+      ]
+    },
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/514084438322",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10231258186034",
+                  "title": "Collection window Zulu 1783136707945",
+                  "handle": "collection-window-zulu-1783136707945"
+                },
+                {
+                  "id": "gid://shopify/Product/10231258218802",
+                  "title": "Collection window Alpha 1783136707945",
+                  "handle": "collection-window-alpha-1783136707945"
+                },
+                {
+                  "id": "gid://shopify/Product/10231258251570",
+                  "title": "Collection window Mike 1783136707945",
+                  "handle": "collection-window-mike-1783136707945"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "windowFirstRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/514084438322",
+      "first": 2
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/514084438322",
+          "products": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODE4NjAzNCwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1In0=",
+                "node": {
+                  "id": "gid://shopify/Product/10231258186034",
+                  "title": "Collection window Zulu 1783136707945"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODIxODgwMiwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIn0=",
+                "node": {
+                  "id": "gid://shopify/Product/10231258218802",
+                  "title": "Collection window Alpha 1783136707945"
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODE4NjAzNCwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1In0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODIxODgwMiwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIn0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "windowAfterRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/514084438322",
+      "first": 2,
+      "after": "eyJsYXN0X2lkIjoxMDIzMTI1ODIxODgwMiwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIn0="
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/514084438322",
+          "products": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODI1MTU3MCwibGFzdF92YWx1ZSI6IjAwMGR6dnVwODhpIn0=",
+                "node": {
+                  "id": "gid://shopify/Product/10231258251570",
+                  "title": "Collection window Mike 1783136707945"
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODI1MTU3MCwibGFzdF92YWx1ZSI6IjAwMGR6dnVwODhpIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI1ODI1MTU3MCwibGFzdF92YWx1ZSI6IjAwMGR6dnVwODhpIn0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "windowSortRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/514084438322"
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/514084438322",
+          "collectionDefault": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "manual": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "bestSelling": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "created": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "idSort": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "price": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "relevance": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "titleReverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231258186034",
+                "title": "Collection window Zulu 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258251570",
+                "title": "Collection window Mike 1783136707945"
+              },
+              {
+                "id": "gid://shopify/Product/10231258218802",
+                "title": "Collection window Alpha 1783136707945"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 33,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1967,
             "restoreRate": 100
           }
         }
@@ -371,7 +999,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/9801098789170"]
+        "ids": ["gid://shopify/Product/9899732336946"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
@@ -380,9 +1008,9 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/9801098789170",
-                "title": "The Inventory Not Tracked Snowboard",
-                "handle": "the-inventory-not-tracked-snowboard",
+                "id": "gid://shopify/Product/9899732336946",
+                "title": "Test Product - 3580",
+                "handle": "test-product-3580",
                 "status": "ACTIVE",
                 "collections": {
                   "nodes": [],

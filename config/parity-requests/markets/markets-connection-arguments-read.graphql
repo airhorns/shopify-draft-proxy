@@ -1,0 +1,25 @@
+query MarketsConnectionArgumentsRead($first: Int!, $query: String!, $reverse: Boolean!) {
+  filtered: markets(first: $first, query: $query, sortKey: NAME, reverse: $reverse) {
+    nodes {
+      id
+      name
+      status
+      type
+    }
+    edges {
+      cursor
+      node {
+        id
+        name
+        status
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

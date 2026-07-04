@@ -1,6 +1,5 @@
 use super::*;
 
-const MAX_SELLING_PLAN_GROUPS_PER_RESOURCE: usize = 31;
 const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
 const INT32_MAX: i64 = i32::MAX as i64;
@@ -21,12 +20,11 @@ impl DraftProxy {
                 }
                 "sellingPlanGroups" => {
                     let groups = self.store.selling_plan_groups();
-                    selected_typed_connection_with_args(
-                        &groups,
+                    selected_selling_plan_group_connection(
+                        groups,
                         &field.arguments,
                         &field.selection,
                         |group, selections| self.selling_plan_group_json(group, selections),
-                        |group| group.id.clone(),
                     )
                 }
                 // Membership read-back queries pair `sellingPlanGroup` with sibling
@@ -169,7 +167,8 @@ impl DraftProxy {
             description: resolved_string_field(&input, "description").unwrap_or_default(),
             options: list_string_field(&input, "options"),
             position: resolved_int_field(&input, "position").unwrap_or(1),
-            created_at,
+            created_at: created_at.clone(),
+            updated_at: created_at,
             name,
             selling_plans,
             product_ids: unique_product_ids,
@@ -384,16 +383,6 @@ impl DraftProxy {
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
-        if self.resource_membership_count_after_add(resource_kind, &ids)
-            > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE
-        {
-            return fail(
-                self,
-                vec![too_many_groups_error(resource_kind.ids_arg())],
-                "Selling plan group membership cap validation failed; original raw mutation retained for observability.",
-            );
-        }
-
         extend_unique_strings(members, ids.clone());
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
@@ -633,22 +622,15 @@ impl DraftProxy {
                 Some("GROUP_DOES_NOT_EXIST"),
             )];
         }
-        if is_join {
-            let current = self.direct_group_ids_for_resource(resource_kind, resource_id);
-            let additions = group_ids
-                .iter()
-                .filter(|group_id| !current.contains(*group_id))
-                .count();
-            if current.len() + additions > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE {
-                return vec![too_many_groups_error("sellingPlanGroupIds")];
-            }
-        } else if group_ids.iter().any(|group_id| {
-            self.store
-                .selling_plan_group_by_id(group_id)
-                .is_some_and(|group| {
-                    !resource_members(group, resource_kind).contains(&resource_id.to_string())
-                })
-        }) {
+        if !is_join
+            && group_ids.iter().any(|group_id| {
+                self.store
+                    .selling_plan_group_by_id(group_id)
+                    .is_some_and(|group| {
+                        !resource_members(group, resource_kind).contains(&resource_id.to_string())
+                    })
+            })
+        {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group is not a member.",
@@ -656,22 +638,6 @@ impl DraftProxy {
             )];
         }
         Vec::new()
-    }
-
-    fn resource_membership_count_after_add(
-        &self,
-        resource_kind: ResourceKind,
-        resource_ids: &[String],
-    ) -> usize {
-        resource_ids
-            .iter()
-            .map(|resource_id| {
-                self.direct_group_ids_for_resource(resource_kind, resource_id)
-                    .len()
-                    + 1
-            })
-            .max()
-            .unwrap_or(0)
     }
 
     fn direct_group_ids_for_resource(
@@ -688,14 +654,6 @@ impl DraftProxy {
                     .any(|id| id == resource_id)
             })
             .map(|group| group.id)
-            .collect()
-    }
-
-    fn selling_plan_groups_for_product(&self, product_id: &str) -> Vec<SellingPlanGroupRecord> {
-        self.store
-            .selling_plan_groups()
-            .into_iter()
-            .filter(|group| group.product_ids.iter().any(|id| id == product_id))
             .collect()
     }
 
@@ -839,7 +797,7 @@ impl DraftProxy {
                     .iter()
                     .any(|id| variant_ids.contains(id))
         });
-        let count = self.selling_plan_groups_for_product(&product.id).len();
+        let count = groups.len();
         self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
@@ -870,12 +828,11 @@ impl DraftProxy {
         let mut object = base.as_object().cloned().unwrap_or_default();
         for selection in selections {
             let value = match selection.name.as_str() {
-                "sellingPlanGroups" => Some(selected_typed_connection_with_args(
-                    &groups,
+                "sellingPlanGroups" => Some(selected_nested_selling_plan_group_connection(
+                    groups.clone(),
                     &selection.arguments,
                     &selection.selection,
                     selling_plan_group_summary_json,
-                    |group| group.id.clone(),
                 )),
                 "sellingPlanGroupsCount" => Some(selected_count_json(count, &selection.selection)),
                 _ => None,
@@ -921,6 +878,298 @@ impl ResourceKind {
             Self::ProductVariant => "productVariant",
         }
     }
+}
+
+fn selected_selling_plan_group_connection<NodeJson>(
+    records: Vec<SellingPlanGroupRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+) -> Value
+where
+    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
+{
+    selected_staged_connection_with_args(
+        records,
+        arguments,
+        root_selection,
+        selling_plan_group_search_decision,
+        selling_plan_group_staged_sort_key,
+        node_json,
+        |group| group.id.clone(),
+    )
+}
+
+fn selected_nested_selling_plan_group_connection<NodeJson>(
+    mut records: Vec<SellingPlanGroupRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+) -> Value
+where
+    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
+{
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        records.reverse();
+    }
+    selected_typed_connection_with_args(&records, arguments, root_selection, node_json, |group| {
+        group.id.clone()
+    })
+}
+
+fn selling_plan_group_effective_updated_at(group: &SellingPlanGroupRecord) -> &str {
+    if group.updated_at.is_empty() {
+        &group.created_at
+    } else {
+        &group.updated_at
+    }
+}
+
+fn selling_plan_group_gid_tail_sort_value(id: &str) -> StagedSortValue {
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn selling_plan_group_staged_sort_key(
+    group: &SellingPlanGroupRecord,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let id_sort = selling_plan_group_gid_tail_sort_value(&group.id);
+    let primary = match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => StagedSortValue::String(group.created_at.clone()),
+        "NAME" => StagedSortValue::String(group.name.to_ascii_lowercase()),
+        "UPDATED_AT" => {
+            StagedSortValue::String(selling_plan_group_effective_updated_at(group).to_string())
+        }
+        _ => id_sort.clone(),
+    };
+    vec![primary, id_sort]
+}
+
+fn selling_plan_group_search_decision(
+    group: &SellingPlanGroupRecord,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+
+    for term in query.split_whitespace() {
+        let term = trim_selling_plan_group_search_value(term);
+        if term.is_empty() || term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        match selling_plan_group_search_term_decision(group, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+
+    StagedSearchDecision::Match
+}
+
+fn selling_plan_group_search_term_decision(
+    group: &SellingPlanGroupRecord,
+    term: &str,
+) -> StagedSearchDecision {
+    let Some((key, value)) = term.split_once(':') else {
+        return StagedSearchDecision::from_bool(selling_plan_group_text_matches(group, term));
+    };
+    let key = key.to_ascii_lowercase();
+    let value = trim_selling_plan_group_search_value(value);
+    if value.is_empty() {
+        return StagedSearchDecision::NoMatch;
+    }
+
+    match key.as_str() {
+        "app_id" => {
+            StagedSearchDecision::from_bool(selling_plan_group_app_id_matches(group, value))
+        }
+        "category" => {
+            StagedSearchDecision::from_bool(selling_plan_group_categories_match(group, value))
+        }
+        "created_at" => {
+            StagedSearchDecision::from_bool(timestamp_search_matches(&group.created_at, value))
+        }
+        "delivery_frequency" => StagedSearchDecision::from_bool(
+            selling_plan_group_delivery_frequency_matches(group, value),
+        ),
+        "id" => StagedSearchDecision::from_bool(resource_id_search_matches(&group.id, value)),
+        "name" => StagedSearchDecision::from_bool(search_text_matches(&group.name, value)),
+        "percentage_off" => {
+            StagedSearchDecision::from_bool(selling_plan_group_percentage_off_matches(group, value))
+        }
+        _ => StagedSearchDecision::Unsupported,
+    }
+}
+
+fn trim_selling_plan_group_search_value(value: &str) -> &str {
+    value
+        .trim()
+        .trim_matches('\'')
+        .trim_matches('"')
+        .trim_matches('(')
+        .trim_matches(')')
+}
+
+fn split_search_comparison(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<"] {
+        if let Some(operand) = value.strip_prefix(operator) {
+            return (operator, trim_selling_plan_group_search_value(operand));
+        }
+    }
+    ("=", value)
+}
+
+fn search_text_matches(haystack: &str, value: &str) -> bool {
+    let needle = trim_selling_plan_group_search_value(value)
+        .trim_end_matches('*')
+        .to_ascii_lowercase();
+    !needle.is_empty() && haystack.to_ascii_lowercase().contains(&needle)
+}
+
+fn selling_plan_group_text_matches(group: &SellingPlanGroupRecord, term: &str) -> bool {
+    let mut haystack = format!(
+        "{} {} {} {}",
+        group.name,
+        group.merchant_code,
+        group.description,
+        group.options.join(" ")
+    );
+    for plan in &group.selling_plans {
+        haystack.push(' ');
+        haystack.push_str(&plan.name);
+        haystack.push(' ');
+        haystack.push_str(&plan.description);
+        haystack.push(' ');
+        haystack.push_str(&plan.category);
+    }
+    search_text_matches(&haystack, term)
+}
+
+fn selling_plan_group_app_id_matches(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    if value.eq_ignore_ascii_case("CURRENT") || value.eq_ignore_ascii_case("ALL") {
+        return true;
+    }
+    group
+        .app_id
+        .as_deref()
+        .map(|app_id| app_id == value || resource_id_tail(app_id) == value)
+        .unwrap_or(false)
+}
+
+fn selling_plan_group_categories_match(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    let values = value
+        .split(',')
+        .map(trim_selling_plan_group_search_value)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    !values.is_empty()
+        && group.selling_plans.iter().any(|plan| {
+            values
+                .iter()
+                .any(|value| plan.category.eq_ignore_ascii_case(value))
+        })
+}
+
+fn timestamp_search_matches(timestamp: &str, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    match operator {
+        ">" => timestamp > operand,
+        ">=" => timestamp >= operand,
+        "<" => timestamp < operand,
+        "<=" => timestamp <= operand,
+        _ => timestamp.starts_with(operand),
+    }
+}
+
+fn resource_id_search_matches(id: &str, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    let id_tail = resource_id_tail(id);
+    if operator == "=" {
+        return id == operand || id_tail == resource_id_tail(operand);
+    }
+    let Ok(id_number) = id_tail.parse::<i64>() else {
+        return false;
+    };
+    let Ok(operand_number) = resource_id_tail(operand).parse::<i64>() else {
+        return false;
+    };
+    numeric_i64_comparison_matches(id_number, operator, operand_number)
+}
+
+fn numeric_i64_comparison_matches(value: i64, operator: &str, operand: i64) -> bool {
+    match operator {
+        ">" => value > operand,
+        ">=" => value >= operand,
+        "<" => value < operand,
+        "<=" => value <= operand,
+        _ => value == operand,
+    }
+}
+
+fn numeric_f64_comparison_matches(value: f64, operator: &str, operand: f64) -> bool {
+    match operator {
+        ">" => value > operand,
+        ">=" => value >= operand,
+        "<" => value < operand,
+        "<=" => value <= operand,
+        _ => (value - operand).abs() < f64::EPSILON,
+    }
+}
+
+fn selling_plan_group_delivery_frequency_matches(
+    group: &SellingPlanGroupRecord,
+    value: &str,
+) -> bool {
+    let needle = value.to_ascii_lowercase();
+    group.selling_plans.iter().any(|plan| {
+        if plan
+            .delivery_policy
+            .to_string()
+            .to_ascii_lowercase()
+            .contains(&needle)
+        {
+            return true;
+        }
+        let interval = plan
+            .delivery_policy
+            .get("interval")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let interval_count = plan
+            .delivery_policy
+            .get("intervalCount")
+            .and_then(Value::as_i64)
+            .unwrap_or(1);
+        needle == interval.to_ascii_lowercase()
+            || needle == format!("{} {}", interval_count, interval).to_ascii_lowercase()
+    })
+}
+
+fn selling_plan_group_percentage_off_matches(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    let Ok(operand) = operand.parse::<f64>() else {
+        return false;
+    };
+    group
+        .selling_plans
+        .iter()
+        .flat_map(|plan| plan.pricing_policies.iter())
+        .filter(|policy| policy.get("adjustmentType").and_then(Value::as_str) == Some("PERCENTAGE"))
+        .filter_map(|policy| {
+            policy
+                .pointer("/adjustmentValue/percentage")
+                .and_then(Value::as_f64)
+        })
+        .any(|percentage| numeric_f64_comparison_matches(percentage, operator, operand))
 }
 
 fn mutation_root_field(
@@ -1789,14 +2038,6 @@ fn group_does_not_exist_error() -> Value {
         ["id"],
         "Selling plan group does not exist.",
         Some("GROUP_DOES_NOT_EXIST"),
-    )
-}
-
-fn too_many_groups_error(field: &str) -> Value {
-    user_error(
-        [field],
-        "Exceeded maximum number of selling plan groups per resource.",
-        Some("SELLING_PLAN_GROUPS_TOO_MANY"),
     )
 }
 

@@ -62,6 +62,45 @@ proxy = ShopifyDraftProxy.create(
 A transport is anything responding to `#call`. When omitted, the default
 `Net::HTTP` transport is installed.
 
+## Persisting state (dump / restore)
+
+The gem keeps proxy state in process memory. To persist it across processes — a
+file, Redis, a database row, ... — drive serialization from your own code: seed
+a fresh proxy with a previously saved dump, run an operation, and save the new
+dump. This is plain `dump_state` / `state:` serialization, with no runtime
+cooperation required.
+
+To persist only when state actually changed — without diffing whole dumps — use
+the version token. Every response carries the current token in its
+`x-sdp-state-version` header, and
+`ShopifyDraftProxy::DraftProxy.state_version_of(dump)` computes that same token
+for any dump Hash. Compare the seed dump's token against the response header and
+save only when they differ:
+
+```ruby
+seed = load_dump_from_somewhere # a prior #dump_state, or nil
+
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  state: seed,
+)
+baseline =
+  if seed
+    ShopifyDraftProxy::DraftProxy.state_version_of(seed)
+  else
+    ShopifyDraftProxy::DraftProxy::PRISTINE_STATE_VERSION
+  end
+
+response = proxy.process_graphql_request({ query: mutation })
+
+version = response.headers["x-sdp-state-version"]
+save_dump_somewhere(proxy.dump_state) if version && version != baseline
+proxy.dispose
+```
+
+A pure read leaves the token unchanged, so it writes nothing — you persist
+exactly when staged state changed, driven entirely from your own code.
+
 ## Native Extension Build
 
 The native extension lives in `native/` and compiles to:

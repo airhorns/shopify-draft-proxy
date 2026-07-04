@@ -30,7 +30,7 @@ The serializer currently covers these selected definition fields:
 - `metafieldsCount`
 - `metafields`
 
-Catalog filters cover owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
+Catalog filters cover owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `name`, `owner_type` / `ownerType`, and `type`. Recognized fielded query terms must match; unrecognized fielded terms are ignored, matching Shopify's captured `extensions.search` warning behavior where the data result falls back to the other filters instead of failing closed. Catalog ordering honors `sortKey` with default `ID`, supports `NAME`, `PINNED_POSITION`, and `RELEVANCE`, and applies `reverse` after sorting. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions. Catalog connections use node-derived cursors and standard `first` / `after` / `last` / `before` windows, so `pageInfo` reflects the returned slice instead of a canned envelope.
 
 ### Metafield definition lifecycle mutations
 
@@ -73,6 +73,8 @@ Definition create/update/delete support extends beyond `PRODUCT` because definit
 Executable product-owned `metafieldsSet` set/read parity covers 96 Shopify custom-data value types in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json`, replayed by `config/parity-specs/metafields/custom-data-metafield-type-matrix.json`.
 
 Custom namespace keys that coincide with type names are ordinary merchant keys, not type-shape sentinels. `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafieldsSet-custom-namespace-typed-keys.json` and `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json` cover non-empty `custom.json`, `custom.rating`, and `custom.money` writes plus immediate product read-back. The local write path stages those records through the normal owner-metafield model so selected `value`, `jsonValue`, identity, owner type, timestamps, and non-empty compare digests are derived from the submitted value.
+
+Product-owner `metafields(...)` connection reads over staged owner metafields support `keys` and `reverse` in addition to the existing namespace and cursor windowing behavior. Captured Admin GraphQL 2025-01 evidence shows raw keys such as `"bravo"` do not match; `keys` entries must be qualified as `namespace.key`, matching records are ordered by the supplied key list, and selected `key` values are serialized back in that same qualified form. `reverse: true` flips the filtered connection before `first`/`after` paging.
 
 The matrix covers scalar text, number, boolean, date/date-time, URL/color/language, JSON/rich text/link/money/rating, measurement types, supported `list.*` variants, and product/variant/collection reference values. The local model now normalizes captured Shopify value behavior for this slice: date-time values gain an explicit `+00:00` offset, decimal `jsonValue` stays string-shaped, measurement `value` JSON serializes uppercase units and integer measurement numbers as `.0`, list measurement `jsonValue` uses Shopify's lowercase or abbreviated units, and rating value strings use Shopify's key order.
 
@@ -140,6 +142,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json`
 - `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
+- `config/parity-specs/metafields/metafield-definition-catalog-connection.json`
 - `config/parity-specs/metafields/metafield-definition-capability-eligibility.json`
 - `config/parity-specs/metafields/metafield-definition-update-name-description-length.json`
 - `config/parity-specs/metafields/metafield-definition-update-constraints.json`
@@ -156,6 +159,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafield-definitions/validation-affects-values.json`
 - `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
 - `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
+- `config/parity-specs/products/metafields-owner-connection-args.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
 - `corepack pnpm conformance:capture -- --run metafield-definition-pinning`

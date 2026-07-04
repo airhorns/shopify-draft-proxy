@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
@@ -221,6 +222,92 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const connectionArgsQuery = `#graphql
+  query SellingPlanGroupConnectionArgs(
+    $productId: ID!
+    $variantId: ID!
+    $matchQuery: String!
+    $betaQuery: String!
+    $percentageQuery: String!
+    $frequencyQuery: String!
+    $categoryQuery: String!
+    $unknownQuery: String!
+  ) {
+    defaultId: sellingPlanGroups(first: 3, query: $matchQuery) {
+      nodes { id name merchantCode }
+    }
+    nameReverse: sellingPlanGroups(first: 2, query: $matchQuery, sortKey: NAME, reverse: true) {
+      nodes { id name merchantCode }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    updatedReverse: sellingPlanGroups(first: 1, query: $matchQuery, sortKey: UPDATED_AT, reverse: true) {
+      nodes { id name merchantCode }
+    }
+    betaOnly: sellingPlanGroups(first: 5, query: $betaQuery, sortKey: ID) {
+      nodes { id name merchantCode }
+    }
+    percentageOnly: sellingPlanGroups(first: 5, query: $percentageQuery, sortKey: ID) {
+      nodes { id name merchantCode }
+    }
+    frequencyMatch: sellingPlanGroups(first: 5, query: $frequencyQuery, sortKey: ID) {
+      nodes { id name merchantCode }
+    }
+    categoryMatch: sellingPlanGroups(first: 5, query: $categoryQuery, sortKey: ID) {
+      nodes { id name merchantCode }
+    }
+    unknownFilter: sellingPlanGroups(first: 5, query: $unknownQuery) {
+      nodes { id name merchantCode }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    product(id: $productId) {
+      id
+      sellingPlanGroupsCount { count precision }
+      sellingPlanGroups(first: 2, reverse: true) {
+        nodes { id name merchantCode }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+    productVariant(id: $variantId) {
+      id
+      sellingPlanGroupsCount { count precision }
+      sellingPlanGroups(first: 2, reverse: true) {
+        nodes { id name merchantCode }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+`;
+
+const connectionAfterArgsQuery = `#graphql
+  query SellingPlanGroupConnectionAfterArgs(
+    $productId: ID!
+    $variantId: ID!
+    $topAfter: String!
+    $productAfter: String!
+    $variantAfter: String!
+    $matchQuery: String!
+  ) {
+    afterWindow: sellingPlanGroups(first: 1, after: $topAfter, query: $matchQuery, sortKey: NAME, reverse: true) {
+      nodes { id name merchantCode }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    product(id: $productId) {
+      id
+      sellingPlanGroups(first: 1, after: $productAfter, reverse: true) {
+        nodes { id name merchantCode }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+    productVariant(id: $variantId) {
+      id
+      sellingPlanGroups(first: 1, after: $variantAfter, reverse: true) {
+        nodes { id name merchantCode }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+`;
+
 function assertHttpOk(result: ConformanceGraphqlResult, label: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
     throw new Error(`${label} failed: ${JSON.stringify(result, null, 2)}`);
@@ -252,14 +339,65 @@ async function capture(label: string, query: string, variables: Record<string, u
   };
 }
 
+async function captureConnectionArgsWithRetry(variables: Record<string, unknown>): Promise<Capture> {
+  let lastCapture: Capture | null = null;
+  for (let attempt = 1; attempt <= 15; attempt += 1) {
+    const result = await runGraphqlRaw(connectionArgsQuery, variables);
+    assertHttpOk(result, `connection args read attempt ${attempt}`);
+    lastCapture = {
+      label: 'connection args read',
+      request: { query: connectionArgsQuery, variables },
+      status: result.status,
+      response: result.payload,
+    };
+    const data = captureData(lastCapture);
+    const topAfter = readObject(readObject(data['nameReverse'])['pageInfo'])['endCursor'];
+    if (typeof topAfter === 'string' && topAfter.length > 0) {
+      return lastCapture;
+    }
+    await sleep(2000);
+  }
+  throw new Error(`connection args read never returned a top-level cursor: ${JSON.stringify(lastCapture, null, 2)}`);
+}
+
 function captureData(captureResult: Capture): Record<string, unknown> {
   return readObject(readObject(captureResult.response)['data']);
+}
+
+function sellingPlanGroupFromCapture(captureResult: Capture): Record<string, unknown> {
+  return readObject(readObject(captureData(captureResult)['sellingPlanGroupCreate'])['sellingPlanGroup']);
+}
+
+function connectionGroupInput(name: string, merchantCode: string, percentage?: number): Record<string, unknown> {
+  const pricingPolicies =
+    percentage === undefined ? [] : [{ fixed: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage } } }];
+  return {
+    name,
+    merchantCode,
+    description: `Temporary connection-argument group ${name}`,
+    position: 1,
+    options: ['Delivery frequency'],
+    sellingPlansToCreate: [
+      {
+        name: `${name} monthly`,
+        description: `Temporary connection-argument plan ${name}`,
+        options: ['Monthly'],
+        position: 1,
+        category: 'SUBSCRIPTION',
+        billingPolicy: { recurring: { interval: 'MONTH', intervalCount: 1 } },
+        deliveryPolicy: { recurring: { interval: 'MONTH', intervalCount: 1, cutoff: 0 } },
+        inventoryPolicy: { reserve: 'ON_FULFILLMENT' },
+        pricingPolicies,
+      },
+    ],
+  };
 }
 
 const suffix = Date.now().toString(36);
 let productId: string | null = null;
 let variantId: string | null = null;
 let groupId: string | null = null;
+const extraGroupIds: string[] = [];
 let seedProducts: unknown[] = [];
 const captures: Capture[] = [];
 const cleanup: Array<{ label: string; status: number; response: unknown }> = [];
@@ -406,7 +544,82 @@ try {
   );
   captures.push(await capture('sellingPlanGroupDelete success', deleteGroupMutation, { id: groupId }));
   captures.push(await capture('read after delete', readGroupQuery, { id: groupId, productId, variantId }));
+
+  const connectionToken = `connection${suffix}`;
+  captures.push(
+    await capture('connection setup alpha group', createGroupMutation, {
+      input: connectionGroupInput(`${connectionToken}alpha`, `${connectionToken}-alpha`),
+      resources: { productIds: [productId] },
+      productId,
+      variantId,
+    }),
+  );
+  const alphaGroupId = sellingPlanGroupFromCapture(captures.at(-1)!)['id'] as string;
+  extraGroupIds.push(alphaGroupId);
+  captures.push(
+    await capture('connection setup beta group', createGroupMutation, {
+      input: connectionGroupInput(`${connectionToken}beta`, `${connectionToken}-beta`, 15),
+      resources: { productIds: [productId] },
+      productId,
+      variantId,
+    }),
+  );
+  const betaGroupId = sellingPlanGroupFromCapture(captures.at(-1)!)['id'] as string;
+  extraGroupIds.push(betaGroupId);
+  captures.push(
+    await capture('connection setup gamma group', createGroupMutation, {
+      input: connectionGroupInput(`${connectionToken}gamma`, `${connectionToken}-gamma`),
+      resources: { productIds: [productId] },
+      productId,
+      variantId,
+    }),
+  );
+  const gammaGroupId = sellingPlanGroupFromCapture(captures.at(-1)!)['id'] as string;
+  extraGroupIds.push(gammaGroupId);
+  await sleep(1500);
+  captures.push(
+    await capture('connection beta update for updatedAt sort', updateGroupMutation, {
+      id: betaGroupId,
+      input: { description: `Updated ${connectionToken}beta for UPDATED_AT sort` },
+      productId,
+      variantId,
+    }),
+  );
+  captures.push(
+    await captureConnectionArgsWithRetry({
+      productId,
+      variantId,
+      matchQuery: connectionToken,
+      betaQuery: `name:${connectionToken}beta`,
+      percentageQuery: `name:${connectionToken}beta AND percentage_off:15`,
+      frequencyQuery: `${connectionToken} AND delivery_frequency:MONTH`,
+      categoryQuery: `${connectionToken} AND category:SUBSCRIPTION`,
+      unknownQuery: `name:${connectionToken} AND unknown_filter:beta`,
+    }),
+  );
+  const connectionReadData = captureData(captures.at(-1)!);
+  const topAfter = readObject(readObject(connectionReadData['nameReverse'])['pageInfo'])['endCursor'];
+  const productAfter = readObject(
+    readObject(readObject(connectionReadData['product'])['sellingPlanGroups'])['pageInfo'],
+  )['endCursor'];
+  const variantAfter = readObject(
+    readObject(readObject(connectionReadData['productVariant'])['sellingPlanGroups'])['pageInfo'],
+  )['endCursor'];
+  captures.push(
+    await capture('connection after-window read', connectionAfterArgsQuery, {
+      productId,
+      variantId,
+      topAfter,
+      productAfter,
+      variantAfter,
+      matchQuery: connectionToken,
+    }),
+  );
 } finally {
+  for (const id of extraGroupIds) {
+    const result = await runGraphqlRaw(deleteGroupMutation, { id });
+    cleanup.push({ label: 'cleanup extra sellingPlanGroupDelete', status: result.status, response: result.payload });
+  }
   if (groupId) {
     const result = await runGraphqlRaw(deleteGroupMutation, { id: groupId });
     cleanup.push({ label: 'cleanup sellingPlanGroupDelete', status: result.status, response: result.payload });

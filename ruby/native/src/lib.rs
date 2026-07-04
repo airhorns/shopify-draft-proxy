@@ -221,15 +221,17 @@ impl NativeDraftProxy {
             headers,
             body: String::new(),
         };
+        // The core always answers with a well-formed commit result body — `ok:
+        // true` (HTTP 200) on full success, or an inspectable `ok: false` (HTTP
+        // 502) carrying `committed`/`failed`/`stopIndex`/`attempts`/`error` when a
+        // staged mutation's replay fails. Return that body verbatim rather than
+        // raising on the non-2xx result: the Ruby wrapper decides success vs
+        // failure from `ok` and raises a typed `CommitError` that keeps the full
+        // result, so the upstream cause is never discarded at the binding (this
+        // is what the JS binding does in `runtime.ts`; the old Ruby binding threw
+        // the detail away).
         let response = self.0.borrow_mut().process_request(request);
-        let body = json_to_ruby(response.body)?;
-        if response.status != 200 || !body.funcall::<_, _, bool>("dig", ("ok",))? {
-            return Err(Error::new(
-                Ruby::get_with(body).exception_runtime_error(),
-                format!("DraftProxy.commit failed with status {}", response.status),
-            ));
-        }
-        Ok(body)
+        json_to_ruby(response.body)
     }
 }
 

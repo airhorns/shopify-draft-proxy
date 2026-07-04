@@ -1,0 +1,56 @@
+query GiftCardConnectionWindows($query: String!, $after: String!, $before: String!, $reverseAfter: String!) {
+  afterWindow: giftCards(first: 1, query: $query, sortKey: ID, after: $after) {
+    edges {
+      cursor
+      node {
+        lastCharacters
+        initialValue {
+          amount
+          currencyCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  beforeLastWindow: giftCards(last: 1, query: $query, sortKey: ID, before: $before) {
+    edges {
+      cursor
+      node {
+        lastCharacters
+        initialValue {
+          amount
+          currencyCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: ID, reverse: true, after: $reverseAfter) {
+    edges {
+      cursor
+      node {
+        lastCharacters
+        initialValue {
+          amount
+          currencyCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

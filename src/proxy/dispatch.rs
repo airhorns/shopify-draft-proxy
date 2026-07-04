@@ -9,21 +9,15 @@ macro_rules! try_root_fields {
     };
 }
 
-/// Catalog-aggregate search predicates that the local product overlay cannot
-/// faithfully evaluate from its partial staged state, because they depend on
-/// store-wide aggregates computed across every location (e.g. `inventory_total:`
-/// sums inventory across all locations). A `products`/`productsCount` search
-/// carrying one of these must be answered upstream against the full catalog —
-/// serving it from the overlay would fabricate wrong matches.
-///
-/// Everything else is locally servable. The overlay applies the modeled
-/// Shopify-style product search subset against observed/staged store state, and
-/// unsupported fielded filters resolve as explicit local no-matches instead of
-/// surfacing the full local catalog. Malformed search syntax stays forgiving for
-/// the cases covered by live evidence (for example a bare leading `(` or
-/// dangling `OR`) rather than returning top-level GraphQL errors.
+/// Catalog search predicates that the local product overlay cannot faithfully
+/// evaluate from observed/staged state alone. Store-wide aggregate predicates
+/// such as `inventory_total:` and `variants.price:` need Shopify's full catalog
+/// index; serving them from a partial overlay fabricates wrong matches.
 fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
+    let predicate = predicate.to_ascii_lowercase();
     predicate.contains("inventory_total:")
+        || predicate.contains("variants.price:")
+        || predicate.contains("metafields.")
 }
 
 fn no_dispatcher(domain: &str, root_field: &str) -> Response {
@@ -74,13 +68,7 @@ impl DraftProxy {
     /// wrong matches, so such a query is forwarded upstream where the real
     /// backend (or a recorded cassette) resolves it authoritatively, even when
     /// unrelated overlay state has been staged.
-    fn product_query_needs_upstream_catalog_search(
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
-            return false;
-        };
+    fn product_query_needs_upstream_catalog_search(fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| {
             matches!(
                 field.name.as_str(),
@@ -91,6 +79,44 @@ impl DraftProxy {
                     if catalog_search_predicate_requires_full_catalog(predicate)
             )
         })
+    }
+
+    fn product_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        if Self::product_query_needs_upstream_catalog_search(fields) {
+            return true;
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        fields
+            .iter()
+            .any(|field| self.live_hybrid_product_field_needs_upstream(field))
+    }
+
+    fn live_hybrid_product_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "products" | "productsCount" => true,
+            "product" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty()
+                    || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+            }
+            "productByIdentifier" => !self.product_identifier_has_local_answer(field),
+            _ => false,
+        }
+    }
+
+    fn product_identifier_has_local_answer(&self, field: &RootFieldSelection) -> bool {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+            return false;
+        };
+        if let Some(id) = resolved_string_field(&identifier, "id") {
+            return self.store.has_product(&id) || self.store.product_is_tombstoned(&id);
+        }
+        if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            return self.store.product_by_handle(&handle).is_some();
+        }
+        false
     }
 
     fn should_route_owner_metafields_read(
@@ -135,7 +161,8 @@ impl DraftProxy {
             | "productFeed"
             | "productFeeds"
             | "productVariant" => {
-                if Self::product_query_needs_upstream_catalog_search(query, variables) {
+                let fields = root_fields(query, variables).unwrap_or_default();
+                if self.product_read_needs_upstream(&fields) {
                     (self.upstream_transport)(request.clone())
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
@@ -149,7 +176,6 @@ impl DraftProxy {
                     // before serving, so the overlay read can fill them in for real
                     // instead of relying on seeded cursor state.
                     self.hydrate_inventory_level_cursors_for_read(request, query);
-                    let fields = root_fields(query, variables).unwrap_or_default();
                     ok_json(json!({
                         "data": self.product_overlay_read_data(&fields)
                     }))
@@ -171,18 +197,17 @@ impl DraftProxy {
                 let fields = try_root_fields!(query, variables);
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
-            "collections" => {
-                // The catalog's opaque cursors and server-side query filtering
-                // cannot be reconstructed from local state, so a de-seeded
-                // scenario forwards the top-level `collections` list read upstream
-                // (the proxy reads it from real Shopify rather than replaying a
-                // `/__meta/seed` snapshot). A scenario that still seeds the
-                // recorded connections is served locally.
-                if self.store.staged.collection_catalog.is_empty() {
-                    (self.upstream_transport)(request.clone())
-                } else {
+            "collections" | "collectionsCount" => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.store.has_collection_state()
+                {
+                    self.hydrate_collections_for_read(request);
+                }
+                if self.store.has_collection_state() {
                     let fields = try_root_fields!(query, variables);
-                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                    ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
+                } else {
+                    (self.upstream_transport)(request.clone())
                 }
             }
             "publication"
@@ -1119,10 +1144,8 @@ impl DraftProxy {
                     .uninstalled_app_ids
                     .contains(&request_app_id)
                     || self
-                        .store
-                        .staged
-                        .installed_apps
-                        .contains_key(&request_app_id)
+                        .current_app_installation_app_id_for_request(&request_app_id)
+                        .is_some()
                     || !self.store.staged.app_subscriptions.is_empty()
                     || !self.store.staged.app_one_time_purchases.is_empty()
                     || self
@@ -1676,8 +1699,16 @@ impl DraftProxy {
             (CapabilityDomain::Webhooks, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.webhook_subscriptions_query_data(&fields) }))
+                let Some(document) = parsed_document(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
+                    ok_json(json!({ "errors": [error] }))
+                } else {
+                    ok_json(json!({
+                        "data": self.webhook_subscriptions_query_data(&document.root_fields)
+                    }))
+                }
             }
             (CapabilityDomain::Webhooks, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
@@ -1687,6 +1718,9 @@ impl DraftProxy {
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                if self.config.read_mode == ReadMode::LiveHybrid {
+                    return (self.upstream_transport)(request.clone());
+                }
                 let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": event_empty_read_data(&fields) }))
             }
@@ -1805,10 +1839,16 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
-                    return quantity_pricing_by_variant_update_response(&query, &variables);
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
+                    return quantity_pricing_by_variant_update_response(
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
+                    self.quantity_pricing_rules_mutation_preflight(request, &variables);
                     return quantity_rules_mutation_response(
                         root_field,
                         &query,
@@ -2606,7 +2646,7 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
-                self.media_files_read(&query, &variables)
+                self.media_files_read(request, &query, &variables)
             }
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
