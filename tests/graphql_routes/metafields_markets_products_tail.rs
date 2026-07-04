@@ -6037,6 +6037,185 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
 }
 
 #[test]
+fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
+    let mut proxy = snapshot_proxy();
+    let market_create_query = r#"
+        mutation CatalogConnectionMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (name, country_code) in [("Alpha Region", "CA"), ("Beta Region", "FR")] {
+        let response = proxy.process_request(json_graphql_request(
+            market_create_query,
+            json!({"input": {"name": name, "regions": [{"countryCode": country_code}]}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let catalog_create_query = r#"
+        mutation CatalogConnectionCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status __typename }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let alpha = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Alpha Market",
+                "status": "ACTIVE",
+                "context": { "driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"] }
+            }
+        }),
+    ));
+    assert_eq!(alpha.body["data"]["catalogCreate"]["userErrors"], json!([]));
+    let alpha_id = alpha.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let beta = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Beta Market",
+                "status": "DRAFT",
+                "context": { "driverType": "MARKET", "marketIds": ["gid://shopify/Market/2"] }
+            }
+        }),
+    ));
+    assert_eq!(beta.body["data"]["catalogCreate"]["userErrors"], json!([]));
+    let beta_id = beta.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let country = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Country Market",
+                "status": "ACTIVE",
+                "context": { "driverType": "COUNTRY", "countryCodes": ["US"] }
+            }
+        }),
+    ));
+    assert_eq!(
+        country.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first_page_query = r#"
+        query CatalogConnectionFirstPage($query: String!) {
+          catalogs(first: 1, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
+            nodes { id title status __typename }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          catalogsCount(type: MARKET, query: $query, limit: 1) {
+            count
+            precision
+          }
+        }
+    "#;
+    let first_page = proxy.process_request(json_graphql_request(
+        first_page_query,
+        json!({"query": "Market"}),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["nodes"],
+        json!([{
+            "id": beta_id,
+            "title": "Beta Market",
+            "status": "DRAFT",
+            "__typename": "MarketCatalog"
+        }])
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["edges"],
+        json!([{ "cursor": beta_id, "node": { "id": beta_id, "title": "Beta Market" } }])
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": beta_id,
+            "endCursor": beta_id
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "AT_LEAST" })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogConnectionSecondPage($query: String!, $after: String!) {
+          catalogs(first: 1, after: $after, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"query": "Market", "after": beta_id}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["catalogs"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha Market" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["catalogs"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": alpha_id,
+            "endCursor": alpha_id
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogConnectionCatalogDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": beta_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["catalogDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        first_page_query,
+        json!({"query": "Market"}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalogs"]["nodes"],
+        json!([{
+            "id": alpha_id,
+            "title": "Alpha Market",
+            "status": "ACTIVE",
+            "__typename": "MarketCatalog"
+        }])
+    );
+    assert_eq!(
+        after_delete.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     let create_query = r#"
         mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {

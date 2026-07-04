@@ -268,6 +268,152 @@ fn staged_nodes_connection(
     selected_json(&connection, selection)
 }
 
+fn catalog_gid_tail_sort_value(catalog: &Value) -> StagedSortValue {
+    let tail = catalog
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn catalog_normalized_string(catalog: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        catalog
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn catalog_staged_sort_key(catalog: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = catalog_gid_tail_sort_value(catalog);
+    let primary = match sort_key.unwrap_or("ID") {
+        "TITLE" => catalog_normalized_string(catalog, "title"),
+        "ID" => id.clone(),
+        _ => id.clone(),
+    };
+    vec![primary, id]
+}
+
+fn catalog_type_value(catalog: &Value) -> String {
+    if let Some(driver_type) = catalog.get("contextDriverType").and_then(Value::as_str) {
+        return driver_type.to_ascii_uppercase();
+    }
+    let type_name = catalog
+        .get("__typename")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            catalog
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(shopify_gid_resource_type)
+        })
+        .unwrap_or("MarketCatalog");
+    match type_name {
+        "MarketCatalog" | "MARKET" => "MARKET",
+        "CompanyLocationCatalog" | "COMPANY_LOCATION" => "COMPANY_LOCATION",
+        "CountryCatalog" | "COUNTRY" => "COUNTRY",
+        "AppCatalog" | "APP" => "APP",
+        "NoneCatalog" | "NONE" => "NONE",
+        other => other,
+    }
+    .to_ascii_uppercase()
+}
+
+fn catalog_matches_type(catalog: &Value, type_filter: Option<&str>) -> bool {
+    type_filter
+        .map(|expected| catalog_type_value(catalog).eq_ignore_ascii_case(expected))
+        .unwrap_or(true)
+}
+
+fn catalog_search_decision(
+    catalog: &Value,
+    query: Option<&str>,
+    type_filter: Option<&str>,
+) -> StagedSearchDecision {
+    if !catalog_matches_type(catalog, type_filter) {
+        return StagedSearchDecision::NoMatch;
+    }
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        match catalog_search_term_decision(catalog, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn catalog_search_term_decision(catalog: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    if let Some((key, value)) = term.split_once(':') {
+        let value = value.trim().trim_matches('\'').trim_matches('"');
+        return match key {
+            "id" => StagedSearchDecision::from_bool(
+                catalog
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| {
+                        id.eq_ignore_ascii_case(value)
+                            || resource_id_tail(id).eq_ignore_ascii_case(value)
+                    })
+                    .unwrap_or(false),
+            ),
+            "status" => StagedSearchDecision::from_bool(
+                catalog
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+            ),
+            "title" => StagedSearchDecision::from_bool(catalog_text_matches(
+                catalog.get("title").and_then(Value::as_str),
+                value,
+            )),
+            "type" => StagedSearchDecision::from_bool(
+                catalog_type_value(catalog).eq_ignore_ascii_case(value),
+            ),
+            _ => StagedSearchDecision::Unsupported,
+        };
+    }
+
+    let fields = [
+        catalog.get("id").and_then(Value::as_str),
+        catalog.get("title").and_then(Value::as_str),
+        catalog.get("status").and_then(Value::as_str),
+        catalog.get("__typename").and_then(Value::as_str),
+    ];
+    StagedSearchDecision::from_bool(
+        fields
+            .into_iter()
+            .any(|value| catalog_text_matches(value, term)),
+    )
+}
+
+fn catalog_text_matches(value: Option<&str>, term: &str) -> bool {
+    let needle = term.trim_end_matches('*').to_ascii_lowercase();
+    !needle.is_empty()
+        && value
+            .map(|value| value.to_ascii_lowercase().contains(&needle))
+            .unwrap_or(false)
+}
+
 fn selected_catalog_error(
     field: &RootFieldSelection,
     path: Vec<&str>,
@@ -761,9 +907,7 @@ impl DraftProxy {
                         .map(|catalog| selected_json(catalog, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "catalogs" => {
-                    staged_nodes_connection(&self.store.staged.catalogs, &field.selection, false)
-                }
+                "catalogs" => self.catalogs_connection_value(field),
                 "catalogsCount" => self.catalogs_count_value(field),
                 "priceList" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -814,7 +958,51 @@ impl DraftProxy {
     }
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
-        selected_count_json(self.store.staged.catalogs.len(), &field.selection)
+        selected_json(
+            &staged_count_with_limit_precision(
+                self.matching_catalogs_query(&field.arguments).total_count,
+                &field.arguments,
+            ),
+            &field.selection,
+        )
+    }
+
+    fn matching_catalogs_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<Value> {
+        let type_filter = resolved_string_field(arguments, "type");
+        staged_connection_query(
+            self.store
+                .staged
+                .catalogs
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            move |catalog, query| catalog_search_decision(catalog, query, type_filter.as_deref()),
+            catalog_staged_sort_key,
+            value_id_cursor,
+        )
+    }
+
+    fn catalogs_connection_from_args(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let result = self.matching_catalogs_query(arguments);
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            selected_json,
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    fn catalogs_connection_value(&self, field: &RootFieldSelection) -> Value {
+        self.catalogs_connection_from_args(&field.arguments, &field.selection)
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
@@ -827,22 +1015,9 @@ impl DraftProxy {
                     resolved_market,
                     &selection.selection,
                 )),
-                "catalogs" => {
-                    let records = self
-                        .store
-                        .staged
-                        .catalogs
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    Some(selected_typed_connection_with_args(
-                        &records,
-                        &selection.arguments,
-                        &selection.selection,
-                        selected_json,
-                        value_id_cursor,
-                    ))
-                }
+                "catalogs" => Some(
+                    self.catalogs_connection_from_args(&selection.arguments, &selection.selection),
+                ),
                 "webPresences" => {
                     let records = self
                         .store
