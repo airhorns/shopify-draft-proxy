@@ -12220,6 +12220,7 @@ fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardina
 #[test]
 fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     let mut proxy = snapshot_proxy();
+    restore_customer_payment_method_fixture_state(&mut proxy);
 
     let response = proxy.process_request(json_graphql_request(
         include_str!(
@@ -12276,9 +12277,349 @@ fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     );
 }
 
+fn restore_customer_payment_method_state(
+    proxy: &mut DraftProxy,
+    customer_payment_methods: Value,
+    customer_index: Value,
+) {
+    restore_customer_payment_method_state_with_shop(
+        proxy,
+        customer_payment_methods,
+        customer_index,
+        Some("gid://shopify/Shop/source"),
+    );
+}
+
+fn restore_customer_payment_method_state_with_shop(
+    proxy: &mut DraftProxy,
+    customer_payment_methods: Value,
+    customer_index: Value,
+    source_shop_id: Option<&str>,
+) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    if let Some(source_shop_id) = source_shop_id {
+        restored["state"]["baseState"]["shop"] = json!({ "id": source_shop_id });
+    }
+    restored["state"]["stagedState"]["customerPaymentMethods"] = customer_payment_methods;
+    restored["state"]["stagedState"]["customerPaymentMethodCustomerIndex"] = customer_index;
+    restored["state"]["stagedState"]["nextCustomerPaymentMethodId"] = json!(1);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
+fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
+    restore_customer_payment_method_state(
+        proxy,
+        json!({
+            "gid://shopify/CustomerPaymentMethod/base-card": {
+                "id": "gid://shopify/CustomerPaymentMethod/base-card",
+                "customer": { "id": "gid://shopify/Customer/8801" },
+                "instrument": {
+                    "__typename": "CustomerCreditCard",
+                    "lastDigits": Value::Null,
+                    "maskedNumber": Value::Null,
+                    "billingAddress": {
+                        "firstName": Value::Null,
+                        "lastName": Value::Null,
+                        "address1": "123 Main St",
+                        "city": "Ottawa",
+                        "zip": "K1A0B1",
+                        "countryCodeV2": "CA",
+                        "provinceCode": "ON"
+                    }
+                },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": { "nodes": [] }
+            },
+            "gid://shopify/CustomerPaymentMethod/base-paypal": {
+                "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
+                "customer": { "id": "gid://shopify/Customer/8801" },
+                "instrument": {
+                    "__typename": "CustomerPaypalBillingAgreement",
+                    "paypalAccountEmail": Value::Null,
+                    "inactive": false
+                },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": { "nodes": [] }
+            },
+            "gid://shopify/CustomerPaymentMethod/base-shop-pay": {
+                "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+                "customer": { "id": "gid://shopify/Customer/8801" },
+                "instrument": { "__typename": "CustomerShopPayAgreement" },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": { "nodes": [] }
+            },
+            "gid://shopify/CustomerPaymentMethod/active-contract": {
+                "id": "gid://shopify/CustomerPaymentMethod/active-contract",
+                "customer": { "id": "gid://shopify/Customer/revoke-sentinel" },
+                "instrument": {
+                    "__typename": "CustomerCreditCard",
+                    "lastDigits": Value::Null,
+                    "maskedNumber": Value::Null
+                },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": {
+                    "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }]
+                }
+            },
+            "gid://shopify/CustomerPaymentMethod/already-revoked": {
+                "id": "gid://shopify/CustomerPaymentMethod/already-revoked",
+                "customer": { "id": "gid://shopify/Customer/revoke-sentinel" },
+                "instrument": {
+                    "__typename": "CustomerCreditCard",
+                    "lastDigits": Value::Null,
+                    "maskedNumber": Value::Null
+                },
+                "revokedAt": "2026-05-01T00:00:00.000Z",
+                "revokedReason": "CUSTOMER_REVOKED",
+                "activeSubscriptionContracts": { "nodes": [] }
+            }
+        }),
+        json!({
+            "gid://shopify/Customer/8801": [
+                "gid://shopify/CustomerPaymentMethod/base-card",
+                "gid://shopify/CustomerPaymentMethod/base-paypal",
+                "gid://shopify/CustomerPaymentMethod/base-shop-pay"
+            ],
+            "gid://shopify/Customer/revoke-sentinel": [
+                "gid://shopify/CustomerPaymentMethod/active-contract",
+                "gid://shopify/CustomerPaymentMethod/already-revoked"
+            ]
+        }),
+    );
+}
+
+#[test]
+fn customer_payment_methods_do_not_seed_fixture_records_for_unhydrated_customers() {
+    let mut proxy = snapshot_proxy();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUnhydratedCustomerPaymentMethods {
+          baseCard: customerPaymentMethod(
+            id: "gid://shopify/CustomerPaymentMethod/base-card",
+            showRevoked: true
+          ) {
+            id
+          }
+          customer(id: "gid://shopify/Customer/8801") {
+            paymentMethods(first: 10, showRevoked: true) {
+              nodes { id }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["customer"]["paymentMethods"]["nodes"],
+        json!([])
+    );
+    assert_eq!(read.body["data"]["baseCard"], Value::Null);
+    assert!(state_snapshot(&proxy)["stagedState"]
+        .get("customerPaymentMethods")
+        .is_none());
+}
+
+#[test]
+fn customer_payment_method_eligibility_uses_record_type_and_source_shop_state() {
+    let mut proxy = snapshot_proxy();
+    restore_customer_payment_method_state_with_shop(
+        &mut proxy,
+        json!({
+            "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name": {
+                "id": "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name",
+                "customer": { "id": "gid://shopify/Customer/8801" },
+                "instrument": { "__typename": "CustomerCreditCard" },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": { "nodes": [] }
+            },
+            "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name": {
+                "id": "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name",
+                "customer": { "id": "gid://shopify/Customer/8801" },
+                "instrument": { "__typename": "CustomerShopPayAgreement" },
+                "revokedAt": Value::Null,
+                "revokedReason": Value::Null,
+                "activeSubscriptionContracts": { "nodes": [] }
+            }
+        }),
+        json!({
+            "gid://shopify/Customer/8801": [
+                "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name",
+                "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name"
+            ]
+        }),
+        Some("gid://shopify/Shop/source-from-record"),
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentMethodEligibilityFromState {
+          cardDuplication: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name"
+            targetShopId: "gid://shopify/Shop/target"
+            targetCustomerId: "gid://shopify/Customer/8802"
+          ) { encryptedDuplicationData userErrors { field message code } }
+          sameShopDuplication: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name"
+            targetShopId: "gid://shopify/Shop/source-from-record"
+            targetCustomerId: "gid://shopify/Customer/8802"
+          ) { encryptedDuplicationData userErrors { field message code } }
+          otherShopDuplication: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name"
+            targetShopId: "gid://shopify/Shop/target"
+            targetCustomerId: "gid://shopify/Customer/8802"
+          ) { encryptedDuplicationData userErrors { field message code } }
+          cardUpdateUrl: customerPaymentMethodGetUpdateUrl(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name"
+          ) { updatePaymentMethodUrl userErrors { field message code } }
+          shopPayUpdateUrl: customerPaymentMethodGetUpdateUrl(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name"
+          ) { updatePaymentMethodUrl userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["cardDuplication"]["userErrors"],
+        json!([{
+            "field": ["customerPaymentMethodId"],
+            "message": "Invalid instrument",
+            "code": "INVALID_INSTRUMENT"
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["sameShopDuplication"]["userErrors"],
+        json!([{
+            "field": ["targetShopId"],
+            "message": "Target shop is not eligible for payment method duplication",
+            "code": "SAME_SHOP"
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["otherShopDuplication"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        response.body["data"]["otherShopDuplication"]["encryptedDuplicationData"]
+            .as_str()
+            .is_some_and(|token| token
+                .starts_with("shopify-draft-proxy:customer-payment-method-duplication:"))
+    );
+    assert_eq!(
+        response.body["data"]["cardUpdateUrl"]["userErrors"],
+        json!([{
+            "field": ["customerPaymentMethodId"],
+            "message": "Invalid instrument",
+            "code": "INVALID_INSTRUMENT"
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["shopPayUpdateUrl"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        response.body["data"]["shopPayUpdateUrl"]["updatePaymentMethodUrl"]
+            .as_str()
+            .is_some_and(|url| url.contains("shop-pay-without-sentinel-name"))
+    );
+}
+
+#[test]
+fn customer_payment_method_mixed_customer_create_uses_customer_semantics_and_allocator() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["nextSyntheticId"] = json!(42);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedPaymentMethodAndCustomerCreate {
+          remoteCreate: customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/8801"
+            remoteReference: {
+              stripePaymentMethod: {
+                customerId: "cus_valid"
+                paymentMethodId: "pm_valid"
+              }
+            }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field message code }
+          }
+          customerCreate(input: {
+            email: "mixed-payment-method@example.test"
+            firstName: "Ada"
+            lastName: "Lovelace"
+          }) {
+            customer {
+              id
+              email
+              firstName
+              lastName
+              displayName
+              defaultEmailAddress { emailAddress }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["remoteCreate"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/1")
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["customer"]["id"],
+        json!("gid://shopify/Customer/42")
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["customer"]["email"],
+        json!("mixed-payment-method@example.test")
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["customer"]["displayName"],
+        json!("Ada Lovelace")
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["customer"]["defaultEmailAddress"]["emailAddress"],
+        json!("mixed-payment-method@example.test")
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+}
+
 #[test]
 fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     let mut proxy = snapshot_proxy();
+    restore_customer_payment_method_fixture_state(&mut proxy);
     let billing_address = json!({
         "firstName": "Sensitive",
         "lastName": "Billing",
@@ -12516,6 +12857,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 #[test]
 fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
+    restore_customer_payment_method_fixture_state(&mut proxy);
 
     let update = proxy.process_request(json_graphql_request(
         r#"

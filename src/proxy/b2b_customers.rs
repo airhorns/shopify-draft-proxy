@@ -1053,7 +1053,7 @@ impl DraftProxy {
         ok_json(body)
     }
 
-    fn selected_customer_mutation_payload(
+    pub(in crate::proxy) fn selected_customer_mutation_payload(
         &self,
         payload: &Value,
         selection: &[SelectedField],
@@ -1076,7 +1076,7 @@ impl DraftProxy {
         })
     }
 
-    fn customer_mutation_payload(
+    pub(in crate::proxy) fn customer_mutation_payload(
         &mut self,
         request: &Request,
         field: &RootFieldSelection,
