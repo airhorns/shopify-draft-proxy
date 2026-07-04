@@ -1,0 +1,9 @@
+mutation CollectionTopLevelStagedReadDelete($input: CollectionDeleteInput!) {
+  collectionDelete(input: $input) {
+    deletedCollectionId
+    userErrors {
+      field
+      message
+    }
+  }
+}

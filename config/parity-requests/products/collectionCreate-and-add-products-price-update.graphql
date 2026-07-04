@@ -1,0 +1,16 @@
+mutation CollectionMembershipProductPriceUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    product {
+      id
+    }
+    productVariants {
+      id
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
