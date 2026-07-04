@@ -2876,17 +2876,37 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helper
         json!([{ "topic": "ORDERS_PAID", "format": "XML" }])
     );
 
-    let reverse_topic = proxy.process_request(json_graphql_request(
-        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, sortKey: TOPIC, reverse: true) { nodes { topic } } }",
+    let reverse_id = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptions(first: 5, sortKey: ID, reverse: true) { nodes { legacyResourceId topic } } }",
         json!({}),
     ));
     assert_eq!(
-        reverse_topic.body["data"]["webhookSubscriptions"]["nodes"],
+        reverse_id.body["data"]["webhookSubscriptions"]["nodes"],
         json!([
-            { "topic": "PRODUCTS_CREATE" },
-            { "topic": "ORDERS_PAID" },
-            { "topic": "ORDERS_CREATE" }
+            { "legacyResourceId": "3", "topic": "PRODUCTS_CREATE" },
+            { "legacyResourceId": "2", "topic": "ORDERS_PAID" },
+            { "legacyResourceId": "1", "topic": "ORDERS_CREATE" }
         ])
+    );
+
+    let invalid_sort_key = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery InvalidWebhookSubscriptionSortKey { webhookSubscriptions(first: 1, sortKey: TOPIC) { nodes { id } pageInfo { hasNextPage } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_sort_key.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'sortKey' on Field 'webhookSubscriptions' has an invalid value (TOPIC). Expected type 'WebhookSubscriptionSortKeys'.",
+                "locations": [{ "line": 2, "column": 43 }],
+                "path": ["query InvalidWebhookSubscriptionSortKey", "webhookSubscriptions", "sortKey"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "sortKey"
+                }
+            }]
+        })
     );
 
     let count = proxy.process_request(json_graphql_request(
@@ -2896,6 +2916,172 @@ fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helper
     assert_eq!(
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 1, "precision": "AT_LEAST" })
+    );
+}
+
+#[test]
+fn webhook_subscriptions_connection_windows_and_date_query_filters() {
+    let mut proxy = snapshot_proxy();
+    let mut ids = Vec::new();
+
+    for (topic, uri) in [
+        ("ORDERS_CREATE", "https://window-1.example.com"),
+        ("ORDERS_PAID", "https://window-2.example.com"),
+        ("PRODUCTS_CREATE", "https://window-3.example.com"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            &format!(
+                "# RustWebhookLocalRuntime\nmutation {{ webhookSubscriptionCreate(topic: {topic}, webhookSubscription: {{ uri: \"{uri}\", format: JSON }}) {{ webhookSubscription {{ id createdAt updatedAt }} userErrors {{ message }} }} }}"
+            ),
+            json!({}),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+        ids.push(
+            create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(first: 2) {
+    nodes { id topic createdAt }
+    edges { cursor node { id } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[0], "topic": "ORDERS_CREATE", "createdAt": "2024-01-01T00:00:01.000Z" },
+                { "id": ids[1], "topic": "ORDERS_PAID", "createdAt": "2024-01-01T00:00:02.000Z" }
+            ],
+            "edges": [
+                { "cursor": ids[0], "node": { "id": ids[0] } },
+                { "cursor": ids[1], "node": { "id": ids[1] } }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": ids[0],
+                "endCursor": ids[1]
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($after: String!) {
+  webhookSubscriptions(first: 2, after: $after) {
+    nodes { id topic }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({ "after": ids[1] }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[2], "topic": "PRODUCTS_CREATE" }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": ids[2],
+                "endCursor": ids[2]
+            }
+        })
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($before: String!) {
+  webhookSubscriptions(last: 1, before: $before) {
+    nodes { id topic }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}"#,
+        json!({ "before": ids[2] }),
+    ));
+    assert_eq!(
+        before_page.body["data"]["webhookSubscriptions"],
+        json!({
+            "nodes": [
+                { "id": ids[1], "topic": "ORDERS_PAID" }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": ids[1],
+                "endCursor": ids[1]
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  webhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: { uri: "https://window-2-updated.example.com", format: JSON }
+  ) {
+    webhookSubscription { id updatedAt }
+    userErrors { message }
+  }
+}"#,
+        json!({ "id": ids[1] }),
+    ));
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({ "id": ids[1], "updatedAt": "2024-01-01T00:00:04.000Z" })
+    );
+
+    let created_at_filter = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(
+    first: 5,
+    query: "created_at:>=2024-01-01T00:00:02.000Z"
+  ) {
+    nodes { id createdAt }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        created_at_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            { "id": ids[1], "createdAt": "2024-01-01T00:00:02.000Z" },
+            { "id": ids[2], "createdAt": "2024-01-01T00:00:03.000Z" }
+        ])
+    );
+
+    let updated_at_filter = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query {
+  webhookSubscriptions(
+    first: 5,
+    query: "updated_at:>=2024-01-01T00:00:04.000Z"
+  ) {
+    nodes { id updatedAt }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        updated_at_filter.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "id": ids[1], "updatedAt": "2024-01-01T00:00:04.000Z" }])
     );
 }
 

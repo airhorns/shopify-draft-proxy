@@ -11571,6 +11571,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-list-connection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-list-connection.ts',
+    purpose:
+      'webhookSubscriptions list connection cursor windows, pageInfo, sortKey, reverse, date query filters, and invalid sortKey validation.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-list-connection.json`,
+      'config/parity-specs/webhooks/webhook-subscription-list-connection.json',
+      'config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-invalid-sort-key.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three temporary HTTP webhook subscriptions, records list reads and validation, then deletes the temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-scheme-allowlist',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-scheme-allowlist.ts',
