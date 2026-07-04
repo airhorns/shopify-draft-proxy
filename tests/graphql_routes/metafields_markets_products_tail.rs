@@ -100,6 +100,31 @@ fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     );
 }
 
+fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    restored["state"]["baseState"]["shopLocales"] = json!({
+        "it": {
+            "locale": "it",
+            "name": "Italian",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+            }]
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
 const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817001";
 const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
@@ -2757,6 +2782,156 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
 }
 
 #[test]
+fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
+    let mut proxy = snapshot_proxy();
+    restore_italian_eur_shop(&mut proxy);
+
+    let enable_english = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryEnableEnglish {
+          shopLocaleEnable(locale: "en") {
+            shopLocale { locale name primary published }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(enable_english.status, 200);
+    assert_eq!(
+        enable_english.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enable_english.body["data"]["shopLocaleEnable"]["shopLocale"],
+        json!({"locale": "en", "name": "English", "primary": false, "published": false})
+    );
+
+    let disable_primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryDisableItalian {
+          shopLocaleDisable(locale: "it") {
+            locale
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        disable_primary.body["data"]["shopLocaleDisable"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint."
+            }]
+        })
+    );
+
+    let web_presence = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryWebPresenceDefault($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary published }
+              alternateLocales { locale primary }
+              rootUrls { locale url }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true, "published": true})
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([])
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([{"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"}])
+    );
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let associate_english = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryAssociateEnglish($id: ID!) {
+          shopLocaleUpdate(locale: "en", shopLocale: { marketWebPresenceIds: [$id] }) {
+            shopLocale {
+              locale
+              primary
+              marketWebPresences { id defaultLocale { locale } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": web_presence_id.clone() }),
+    ));
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["shopLocale"]["marketWebPresences"],
+        json!([{
+            "id": web_presence_id,
+            "defaultLocale": { "locale": "it" }
+        }])
+    );
+
+    let web_presence_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NonEnglishPrimaryWebPresenceAfterEnglishAssociation {
+          webPresences(first: 5) {
+            nodes {
+              id
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+              rootUrls { locale url }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let updated_presence = web_presence_read.body["data"]["webPresences"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|presence| presence["id"] == json!(web_presence_id))
+        .unwrap();
+    assert_eq!(
+        updated_presence["defaultLocale"],
+        json!({"locale": "it", "primary": true})
+    );
+    assert_eq!(
+        updated_presence["alternateLocales"],
+        json!([{"locale": "en", "primary": false}])
+    );
+    assert_eq!(
+        updated_presence["rootUrls"],
+        json!([
+            {"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"},
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-it/"}
+        ])
+    );
+}
+
+#[test]
 fn market_create_region_nodes_include_country_identity_fields_in_payload_and_reads() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
@@ -3310,6 +3485,132 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
+}
+
+#[test]
+fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity() {
+    let mut proxy = snapshot_proxy();
+    restore_italian_eur_shop(&mut proxy);
+
+    let create_query = r#"
+        mutation NonUsdShopMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              currencySettings {
+                baseCurrency { currencyCode currencyName }
+                localCurrencies
+                roundingEnabled
+              }
+              priceInclusions {
+                inclusiveDutiesPricingStrategy
+                inclusiveTaxPricingStrategy
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation NonUsdShopMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              currencySettings {
+                baseCurrency { currencyCode currencyName }
+                localCurrencies
+                roundingEnabled
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let inclusive = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Denmark Inclusive",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
+            "currencySettings": {"localCurrencies": true, "roundingEnabled": true},
+            "priceInclusions": {
+                "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+                "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            }
+        }}),
+    ));
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"},
+            "localCurrencies": true,
+            "roundingEnabled": true
+        })
+    );
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["market"]["priceInclusions"],
+        json!({
+            "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+            "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
+        })
+    );
+
+    let resolved = proxy.process_request(json_graphql_request(
+        r#"
+        query NonUsdShopResolvedValues {
+          marketsResolvedValues(buyerSignal: { countryCode: DK }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        resolved.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("EUR")
+    );
+    assert_eq!(
+        resolved.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({"dutiesIncluded": true, "taxesIncluded": true})
+    );
+
+    let update_seed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Sweden Defaults",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "SE"}]}}
+        }}),
+    ));
+    assert_eq!(
+        update_seed.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let market_id = update_seed.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": market_id, "input": {"currencySettings": {"localCurrencies": true}}}),
+    ));
+    assert_eq!(
+        updated.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"},
+            "localCurrencies": true,
+            "roundingEnabled": false
+        })
+    );
 }
 
 #[test]

@@ -542,7 +542,8 @@ impl DraftProxy {
     ) -> Value {
         let locale =
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
-        let payload = if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        let payload = if locale == primary_locale {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
@@ -552,7 +553,7 @@ impl DraftProxy {
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid")]
             })
-        } else if self.store.staged.shop_locales.contains_key(&locale) {
+        } else if self.localization_shop_locale_added(&locale) {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken")]
@@ -575,14 +576,17 @@ impl DraftProxy {
             let name = self
                 .localization_available_locale_name(&locale)
                 .unwrap_or(locale.as_str());
-            let mut record = shop_locale_record(&locale, name, false);
+            let mut record = shop_locale_record(&locale, name, false, &primary_locale);
             let target_web_presence_ids = self.known_market_web_presence_ids(
                 resolved_string_list_arg(&field.arguments, "marketWebPresenceIds"),
             );
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
-                    .map(|id| shop_locale_market_web_presence_record(id))
+                    .map(|id| {
+                        let default_locale = self.market_web_presence_default_locale(id);
+                        shop_locale_market_web_presence_record(id, &default_locale)
+                    })
                     .collect(),
             );
             self.store
@@ -604,8 +608,9 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
         let published = resolved_bool_field(&input, "published");
         let market_web_presence_ids = list_string_field(&input, "marketWebPresenceIds");
+        let primary_locale = self.localization_primary_locale();
 
-        if locale == "en" && published.is_some() {
+        if locale == primary_locale && published.is_some() {
             return selected_json(
                 &json!({
                     "shopLocale": null,
@@ -615,7 +620,7 @@ impl DraftProxy {
             );
         }
 
-        let locale_exists = locale == "en" || self.store.staged.shop_locales.contains_key(&locale);
+        let locale_exists = self.localization_shop_locale_added(&locale);
         if !locale_exists && published.is_some() {
             return selected_json(
                 &json!({
@@ -636,7 +641,7 @@ impl DraftProxy {
                 let name = self
                     .localization_available_locale_name(&locale)
                     .unwrap_or(locale.as_str());
-                shop_locale_record(&locale, name, false)
+                shop_locale_record(&locale, name, false, &primary_locale)
             });
         if let Some(published) = published {
             record["published"] = json!(published);
@@ -647,12 +652,15 @@ impl DraftProxy {
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
-                    .map(|id| shop_locale_market_web_presence_record(id))
+                    .map(|id| {
+                        let default_locale = self.market_web_presence_default_locale(id);
+                        shop_locale_market_web_presence_record(id, &default_locale)
+                    })
                     .collect(),
             );
             self.sync_web_presence_locales(&locale, &target_web_presence_ids, true);
         }
-        if locale != "en" {
+        if locale != primary_locale {
             self.store
                 .staged
                 .shop_locales
@@ -683,13 +691,25 @@ impl DraftProxy {
             })
     }
 
+    fn market_web_presence_default_locale(&self, id: &str) -> String {
+        self.store
+            .staged
+            .web_presences
+            .get(id)
+            .and_then(|presence| presence.pointer("/defaultLocale/locale"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| self.localization_primary_locale())
+    }
+
     pub(in crate::proxy) fn shop_locale_disable_response(
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
         let locale =
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
-        let payload = if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        let payload = if locale == primary_locale {
             json!({
                 "locale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
@@ -799,14 +819,12 @@ impl DraftProxy {
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
         let mut payload = serde_json::Map::new();
+        let resolved_market = self.markets_resolved_values_market(field);
         for selection in &field.selection {
             let value = match selection.name.as_str() {
                 "currencyCode" => Some(json!(self.store.shop_currency_code())),
-                "priceInclusivity" => Some(selected_json(
-                    &json!({
-                        "dutiesIncluded": false,
-                        "taxesIncluded": false
-                    }),
+                "priceInclusivity" => Some(markets_resolved_price_inclusivity_value(
+                    resolved_market,
                     &selection.selection,
                 )),
                 "catalogs" => {
@@ -848,6 +866,17 @@ impl DraftProxy {
             }
         }
         Value::Object(payload)
+    }
+
+    fn markets_resolved_values_market(&self, field: &RootFieldSelection) -> Option<&Value> {
+        let buyer_signal = resolved_object_field(&field.arguments, "buyerSignal")?;
+        let country_code =
+            resolved_string_field(&buyer_signal, "countryCode")?.to_ascii_uppercase();
+        self.store.staged.markets.values().find(|market| {
+            market_record_country_codes(market)
+                .iter()
+                .any(|code| code.eq_ignore_ascii_case(&country_code))
+        })
     }
 
     pub(in crate::proxy) fn market_create_mutation_data(
@@ -1004,7 +1033,15 @@ impl DraftProxy {
         }
 
         let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
-        let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
+        let shop_currency_code = self.store.shop_currency_code();
+        let market = market_record_from_input(
+            &id,
+            &input,
+            &name,
+            &handle,
+            &region_codes,
+            &shop_currency_code,
+        );
         self.store.staged.markets.insert(id, market.clone());
         selected_market_payload(field, market, Vec::new())
     }
@@ -1106,7 +1143,13 @@ impl DraftProxy {
         }
 
         let mut updated_market = existing_market;
-        Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
+        let shop_currency_code = self.store.shop_currency_code();
+        Self::apply_market_update_scalar_fields(
+            &mut updated_market,
+            &input,
+            &id,
+            &shop_currency_code,
+        );
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
         selected_market_payload(field, updated_market, Vec::new())
@@ -1116,6 +1159,7 @@ impl DraftProxy {
         market: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
         market_id: &str,
+        shop_currency_code: &str,
     ) {
         let Some(object) = market.as_object_mut() else {
             return;
@@ -1155,8 +1199,11 @@ impl DraftProxy {
             input.get("currencySettings"),
             Some(ResolvedValue::Object(_))
         ) {
-            let currency_settings =
-                market_update_currency_settings_json(object.get("currencySettings"), input);
+            let currency_settings = market_update_currency_settings_json(
+                object.get("currencySettings"),
+                input,
+                shop_currency_code,
+            );
             object.insert("currencySettings".to_string(), currency_settings);
         }
         if matches!(input.get("priceInclusions"), Some(ResolvedValue::Object(_))) {
@@ -2646,7 +2693,9 @@ impl DraftProxy {
         record_log: bool,
     ) -> Value {
         let mut errors = Vec::new();
-        let mut draft = web_presence_draft_from_input(input, None, &mut errors, true);
+        let primary_locale = self.localization_primary_locale();
+        let mut draft =
+            web_presence_draft_from_input(input, None, &mut errors, true, &primary_locale);
         let linked_domain = draft
             .domain_id
             .as_deref()
@@ -2711,7 +2760,14 @@ impl DraftProxy {
             return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
         };
         let mut errors = Vec::new();
-        let draft = web_presence_draft_from_input(input, Some(&existing), &mut errors, false);
+        let primary_locale = self.localization_primary_locale();
+        let draft = web_presence_draft_from_input(
+            input,
+            Some(&existing),
+            &mut errors,
+            false,
+            &primary_locale,
+        );
         let linked_domain = draft
             .domain_id
             .as_deref()
@@ -4287,7 +4343,8 @@ impl DraftProxy {
     /// read is served from `staged.web_presences`, so the staged records are
     /// mutated in place. Modeled from captured localization mutation behavior.
     fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
-        if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        if locale == primary_locale {
             return;
         }
         let name = self
@@ -4571,14 +4628,45 @@ fn market_record_region_type(market: &Value) -> bool {
     }
 }
 
+fn markets_resolved_price_inclusivity_value(
+    market: Option<&Value>,
+    selections: &[SelectedField],
+) -> Value {
+    let price_inclusions = market.and_then(|market| market.get("priceInclusions"));
+    let duties_included = price_inclusions
+        .and_then(|price_inclusions| {
+            price_inclusions
+                .get("inclusiveDutiesPricingStrategy")
+                .or_else(|| price_inclusions.get("dutiesPricingStrategy"))
+        })
+        .and_then(Value::as_str)
+        == Some("INCLUDE_DUTIES_IN_PRICE");
+    let taxes_included = price_inclusions
+        .and_then(|price_inclusions| {
+            price_inclusions
+                .get("inclusiveTaxPricingStrategy")
+                .or_else(|| price_inclusions.get("taxPricingStrategy"))
+        })
+        .and_then(Value::as_str)
+        == Some("INCLUDES_TAXES_IN_PRICE");
+    selected_json(
+        &json!({
+            "dutiesIncluded": duties_included,
+            "taxesIncluded": taxes_included
+        }),
+        selections,
+    )
+}
+
 fn market_update_currency_settings_json(
     existing: Option<&Value>,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let currency_settings = resolved_object_field(input, "currencySettings").unwrap_or_default();
     let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
         .or_else(|| value_string_field(existing, "baseCurrency", "currencyCode"))
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let currency_name = market_currency_name(&currency_code);
     json!({
         "baseCurrency": {
