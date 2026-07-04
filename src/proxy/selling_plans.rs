@@ -1,6 +1,5 @@
 use super::*;
 
-const MAX_SELLING_PLAN_GROUPS_PER_RESOURCE: usize = 31;
 const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
 const INT32_MAX: i64 = i32::MAX as i64;
@@ -384,16 +383,6 @@ impl DraftProxy {
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
-        if self.resource_membership_count_after_add(resource_kind, &ids)
-            > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE
-        {
-            return fail(
-                self,
-                vec![too_many_groups_error(resource_kind.ids_arg())],
-                "Selling plan group membership cap validation failed; original raw mutation retained for observability.",
-            );
-        }
-
         extend_unique_strings(members, ids.clone());
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
@@ -633,22 +622,15 @@ impl DraftProxy {
                 Some("GROUP_DOES_NOT_EXIST"),
             )];
         }
-        if is_join {
-            let current = self.direct_group_ids_for_resource(resource_kind, resource_id);
-            let additions = group_ids
-                .iter()
-                .filter(|group_id| !current.contains(*group_id))
-                .count();
-            if current.len() + additions > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE {
-                return vec![too_many_groups_error("sellingPlanGroupIds")];
-            }
-        } else if group_ids.iter().any(|group_id| {
-            self.store
-                .selling_plan_group_by_id(group_id)
-                .is_some_and(|group| {
-                    !resource_members(group, resource_kind).contains(&resource_id.to_string())
-                })
-        }) {
+        if !is_join
+            && group_ids.iter().any(|group_id| {
+                self.store
+                    .selling_plan_group_by_id(group_id)
+                    .is_some_and(|group| {
+                        !resource_members(group, resource_kind).contains(&resource_id.to_string())
+                    })
+            })
+        {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group is not a member.",
@@ -656,22 +638,6 @@ impl DraftProxy {
             )];
         }
         Vec::new()
-    }
-
-    fn resource_membership_count_after_add(
-        &self,
-        resource_kind: ResourceKind,
-        resource_ids: &[String],
-    ) -> usize {
-        resource_ids
-            .iter()
-            .map(|resource_id| {
-                self.direct_group_ids_for_resource(resource_kind, resource_id)
-                    .len()
-                    + 1
-            })
-            .max()
-            .unwrap_or(0)
     }
 
     fn direct_group_ids_for_resource(
@@ -688,14 +654,6 @@ impl DraftProxy {
                     .any(|id| id == resource_id)
             })
             .map(|group| group.id)
-            .collect()
-    }
-
-    fn selling_plan_groups_for_product(&self, product_id: &str) -> Vec<SellingPlanGroupRecord> {
-        self.store
-            .selling_plan_groups()
-            .into_iter()
-            .filter(|group| group.product_ids.iter().any(|id| id == product_id))
             .collect()
     }
 
@@ -839,7 +797,7 @@ impl DraftProxy {
                     .iter()
                     .any(|id| variant_ids.contains(id))
         });
-        let count = self.selling_plan_groups_for_product(&product.id).len();
+        let count = groups.len();
         self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
@@ -2080,14 +2038,6 @@ fn group_does_not_exist_error() -> Value {
         ["id"],
         "Selling plan group does not exist.",
         Some("GROUP_DOES_NOT_EXIST"),
-    )
-}
-
-fn too_many_groups_error(field: &str) -> Value {
-    user_error(
-        [field],
-        "Exceeded maximum number of selling plan groups per resource.",
-        Some("SELLING_PLAN_GROUPS_TOO_MANY"),
     )
 }
 

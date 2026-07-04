@@ -2074,6 +2074,49 @@ fn product_and_variant_join_leave_validate_membership_inputs() {
 }
 
 #[test]
+fn product_join_selling_plan_groups_accepts_thirty_two_memberships() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy =
+        snapshot_proxy().with_base_products(vec![seeded_product(product_id, "Cap product")]);
+    let group_ids = (1..=32)
+        .map(|index| {
+            let create = create_selling_plan_group(
+                &mut proxy,
+                valid_selling_plan_group_input(&format!("Cap group {index}")),
+            );
+            create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+
+    let join = proxy.process_request(json_graphql_request(
+        r#"
+        mutation JoinProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            product {
+              id
+              sellingPlanGroupsCount { count precision }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "sellingPlanGroupIds": group_ids }),
+    ));
+
+    assert_eq!(
+        join.body["data"]["productJoinSellingPlanGroups"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        join.body["data"]["productJoinSellingPlanGroups"]["product"]["sellingPlanGroupsCount"],
+        json!({"count": 32, "precision": "EXACT"})
+    );
+}
+
+#[test]
 fn named_downstream_membership_reads_are_store_backed() {
     let product_id = "gid://shopify/Product/1";
     let mut proxy =
@@ -2126,7 +2169,7 @@ fn named_downstream_membership_reads_are_store_backed() {
     );
     assert_eq!(
         downstream.body["data"]["product"]["sellingPlanGroupsCount"],
-        json!({"count": 0, "precision": "EXACT"})
+        json!({"count": 1, "precision": "EXACT"})
     );
     assert_eq!(
         downstream.body["data"]["productVariant"]["sellingPlanGroupsCount"],

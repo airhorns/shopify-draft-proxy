@@ -46,8 +46,11 @@ value from local state.
 after the shared input validator passes. Blank or absent group `name`, zero or
 absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
 missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
-`sellingPlanGroup: null`, and do not stage a group. `sellingPlanGroupUpdate`
-does not apply the create-only lower-bound to an empty
+`sellingPlanGroup: null`, and do not stage a group. The cap source is the
+2026-04 `selling-plan-group-cap-validation` capture: Shopify accepted 31
+`sellingPlansToCreate` entries and rejected 32 with
+`SELLING_PLAN_COUNT_UPPER_BOUND`. `sellingPlanGroupUpdate` does not apply the
+create-only lower-bound to an empty
 `sellingPlansToCreate: []` list, but it rejects updates that would delete every
 existing selling plan without creating a replacement. That update-only guard
 returns `SELLING_PLAN_COUNT_LOWER_BOUND` at
@@ -87,7 +90,12 @@ Staged `sellingPlanGroupAddProducts`,
 products, variants, and selling-plan groups. Downstream
 `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`,
 `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
-read from the staged membership graph.
+read from the staged membership graph. For `Product`, both the connection and
+count include groups attached directly to the product and groups attached to one
+of the product's variants. Public Admin GraphQL 2026-04 accepted 32 selling-plan
+groups joined to one product with empty `userErrors` and count 32 in the same
+`selling-plan-group-cap-validation` capture, so the runtime does not enforce the
+old local-only 31-groups-per-resource guard.
 
 The top-level `sellingPlanGroups(...)` connection filters the staged group set
 before applying sort, reverse order, and cursor windowing. Local query support
