@@ -77,6 +77,36 @@
         "reason": "Shopify and the proxy allocate independent return IDs."
       },
       {
+        "path": "$.order.returnsFirst.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.order.returnsFirst.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic return-id cursors."
+      },
+      {
+        "path": "$.order.returnsFirst.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic return-id cursors."
+      },
+      {
+        "path": "$.order.returnsFiltered.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.order.returnsFiltered.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic return-id cursors."
+      },
+      {
+        "path": "$.order.returnsFiltered.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic return-id cursors."
+      },
+      {
         "path": "$.reverseFulfillmentOrder.id",
         "matcher": "shopify-gid:ReverseFulfillmentOrder",
         "reason": "Shopify and the proxy allocate independent reverse fulfillment order IDs."

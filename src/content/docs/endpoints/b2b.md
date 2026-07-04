@@ -14,6 +14,7 @@ company-location tax settings, and B2B address behavior.
 The implemented read roots are:
 
 - `companies`
+- `companiesCount`
 - `company`
 - `companyContact`
 - `companyLocation`
@@ -50,7 +51,7 @@ The implemented mutation roots are:
 
 Tracked but unimplemented B2B roots remain registry-only until they have their
 own local lifecycle and downstream read-after-write model. This includes
-`companiesCount`, `companyContactRole`, and `companyContactSendWelcomeEmail`.
+`companyContactRole` and `companyContactSendWelcomeEmail`.
 
 ### Local behavior
 
@@ -69,11 +70,24 @@ proxy, so the cap applies even when the optional
 The local B2B graph stores staged companies, company locations, company
 addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,
-`companyLocation(id:)`, and `companyLocations` expand that staged graph for
+`companyLocation(id:)`, `companies`, `companiesCount`, and `companyLocations` expand that staged graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
 `roleAssignments`, and `staffMemberAssignments` connections. LiveHybrid reads
 that do not target staged B2B IDs continue to use the existing upstream or
 fixture-backed read path.
+
+Local B2B list connections use the shared staged-connection path for filtering,
+sorting, `reverse`, cursor windows, and `pageInfo`. `companies` supports
+field-scoped query terms for `id`, `name`, and `external_id`; `companyLocations`
+supports `id`, `name`, `external_id`, and `company_id`. Unsupported or
+unparseable query terms are treated as unsupported local filters and return an
+empty staged connection rather than matching all staged records. `companies`,
+`companyLocations`, `Company.contacts`, `Company.locations`, location/contact
+`roleAssignments`, `Company.contactRoles`, and
+`CompanyLocation.staffMemberAssignments` honor local `sortKey` and `reverse`
+for the modeled staged fields, defaulting to ID order when a sort key has no
+modeled field in local state. `companiesCount` returns the staged company count
+selected through the Shopify `Count` object shape.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
@@ -97,7 +111,11 @@ email-backed customer reference; omitting `input.email` returns `INVALID` at
 `["input"]` without staging a contact or customer. The nested
 `companyCreate(input.companyContact)` path applies contact validation under
 `["input", "companyContact"]` before staging any company, location, role,
-contact, or assignment rows.
+contact, or assignment rows. Company contacts preserve explicit `title` input
+and otherwise store `title: null`, including nested create. Contact locale is
+explicit input when supplied; otherwise contact-create paths use the shop's
+primary locale, and `companyAssignCustomerAsContact` uses the assigned customer's
+locale before falling back to the shop primary locale.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from
@@ -121,7 +139,12 @@ The nested `companyCreate(input.companyLocation)` default location does not use
 to the company name. A present blank `companyLocationUpdate(input.name)` returns
 a `BLANK` user error without mutating the staged location. Bulk deletion returns
 per-index `RESOURCE_NOT_FOUND` errors at `["companyLocationIds", i]` while still
-deleting valid staged IDs.
+deleting valid staged IDs. Location locale is explicit input when supplied and
+otherwise uses the shop's primary locale. Location phone normalization uses the
+input shipping or billing address country, then existing location address
+country on updates, then the shop country; bare digit-shaped phone input without
+a usable country context returns the local invalid-phone branch instead of
+assuming a North American calling code.
 
 `companyLocationAssignAddress` updates the requested address slots locally,
 rejects duplicate `addressTypes` with `INVALID_INPUT`, and preserves the
@@ -161,7 +184,8 @@ treated as omitted. Supplying no tax-setting knobs is a successful no-op that
 returns the unchanged company location.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
-`checkoutToDraft`, `paymentTermsTemplate`, and `deposit`.
+`checkoutToDraft`, `paymentTermsTemplate`, and `deposit`. Deposit input is
+stored as a `DepositPercentage` object with the supplied `percentage` value.
 
 ### Boundaries
 

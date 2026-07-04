@@ -512,7 +512,7 @@ fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params(
             ownerType: PRODUCT
             namespace: "descriptors"
             key: "subtitle"
-            access: { admin: PUBLIC_READ_WRITE, storefront: PUBLIC_READ }
+            access: { admin: MERCHANT_READ_WRITE, storefront: PUBLIC_READ }
             capabilities: { adminFilterable: { enabled: true } }
           ) {
             createdDefinition {
@@ -953,7 +953,7 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         over_limit["userErrors"],
         json!([{
             "field": ["definition"],
-            "message": "You can only have 256 definitions per resource type.",
+            "message": "Stores can only have 256 definitions for each store resource.",
             "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
         }])
     );
@@ -2035,6 +2035,218 @@ fn metafield_definition_update_validates_name_description_length_without_mutatin
 }
 
 #[test]
+fn metafield_definition_create_rejects_type_unsupported_validation_options() {
+    let mut proxy = snapshot_proxy();
+    let create = |proxy: &mut DraftProxy, definition: Value| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionCreateValidationOptions($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              namespace
+              key
+              type { name category }
+              validations { name value }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+                json!({ "definition": definition }),
+            ))
+            .body["data"]["metafieldDefinitionCreate"]
+            .clone()
+    };
+
+    for (key, name, expected_message) in [
+        (
+            "not_real_option",
+            "not_a_real_option",
+            "Validations value for option not_a_real_option contains an invalid value: 'not_a_real_option' isn't supported for single_line_text_field.",
+        ),
+        (
+            "pattern_option",
+            "pattern",
+            "Validations value for option pattern contains an invalid value: 'pattern' isn't supported for single_line_text_field.",
+        ),
+    ] {
+        assert_eq!(
+            create(
+                &mut proxy,
+                json!({
+                    "namespace": "validation_options_create",
+                    "key": key,
+                    "ownerType": "PRODUCT",
+                    "name": "Unsupported validation option",
+                    "type": "single_line_text_field",
+                    "validations": [{ "name": name, "value": "x" }]
+                }),
+            ),
+            json!({
+                "createdDefinition": null,
+                "userErrors": [{
+                    "__typename": "MetafieldDefinitionCreateUserError",
+                    "field": ["definition", "validations"],
+                    "message": expected_message,
+                    "code": "INVALID_OPTION"
+                }]
+            })
+        );
+    }
+
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "validation_options_create",
+                "key": "decimal_bad_min",
+                "ownerType": "PRODUCT",
+                "name": "Invalid decimal min",
+                "type": "number_decimal",
+                "validations": [{ "name": "min", "value": "not-a-number" }]
+            }),
+        ),
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionCreateUserError",
+                "field": ["definition", "validations"],
+                "message": "Validations value for option min must be a decimal.",
+                "code": "INVALID_OPTION"
+            }]
+        })
+    );
+
+    let valid_decimal = create(
+        &mut proxy,
+        json!({
+            "namespace": "validation_options_create",
+            "key": "decimal_valid_range",
+            "ownerType": "PRODUCT",
+            "name": "Valid decimal range",
+            "type": "number_decimal",
+            "validations": [{ "name": "min", "value": "1.5" }, { "name": "max", "value": "9.9" }]
+        }),
+    );
+    assert_eq!(valid_decimal["userErrors"], json!([]));
+    assert_eq!(
+        valid_decimal["createdDefinition"]["validations"],
+        json!([{ "name": "min", "value": "1.5" }, { "name": "max", "value": "9.9" }])
+    );
+}
+
+#[test]
+fn metafield_definition_update_rejects_type_unsupported_validation_options() {
+    let mut proxy = snapshot_proxy();
+    let create = |proxy: &mut DraftProxy, definition: Value| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionCreateUpdateTarget($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+                json!({ "definition": definition }),
+            ))
+            .body["data"]["metafieldDefinitionCreate"]
+            .clone()
+    };
+    let update = |proxy: &mut DraftProxy, definition: Value| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionUpdateValidationOptions($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id namespace key validations { name value } }
+            userErrors { __typename field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+                json!({ "definition": definition }),
+            ))
+            .body["data"]["metafieldDefinitionUpdate"]
+            .clone()
+    };
+
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "validation_options_update",
+                "key": "unsupported",
+                "ownerType": "PRODUCT",
+                "name": "Unsupported update target",
+                "type": "single_line_text_field"
+            }),
+        )["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update(
+            &mut proxy,
+            json!({
+                "namespace": "validation_options_update",
+                "key": "unsupported",
+                "ownerType": "PRODUCT",
+                "validations": [{ "name": "not_a_real_option", "value": "x" }]
+            }),
+        ),
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "validations"],
+                "message": "Validations value for option not_a_real_option contains an invalid value: 'not_a_real_option' isn't supported for single_line_text_field.",
+                "code": "INVALID_OPTION"
+            }],
+            "validationJob": null
+        })
+    );
+
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "validation_options_update",
+                "key": "decimal",
+                "ownerType": "PRODUCT",
+                "name": "Decimal update target",
+                "type": "number_decimal",
+                "validations": [{ "name": "min", "value": "1.5" }, { "name": "max", "value": "9.9" }]
+            }),
+        )["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update(
+            &mut proxy,
+            json!({
+                "namespace": "validation_options_update",
+                "key": "decimal",
+                "ownerType": "PRODUCT",
+                "validations": [{ "name": "min", "value": "not-a-number" }]
+            }),
+        ),
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "validations"],
+                "message": "Validations value for option min must be a decimal.",
+                "code": "INVALID_OPTION"
+            }],
+            "validationJob": null
+        })
+    );
+}
+
+#[test]
 fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
     let mut proxy = snapshot_proxy();
 
@@ -2470,7 +2682,7 @@ fn metafields_set_uses_matching_definition_type_when_input_type_is_omitted() {
         mutation MetafieldsSetDefinitionTypeProduct($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2748,7 +2960,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         mutation ReservedNamespaceGuardProductCreate {
           productCreate(product: { title: "Reserved namespace guard product" }) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,

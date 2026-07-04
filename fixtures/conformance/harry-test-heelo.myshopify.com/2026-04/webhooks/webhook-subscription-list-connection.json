@@ -1,0 +1,818 @@
+{
+  "capturedAt": "2026-07-03T20:55:50.305Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures webhookSubscriptions cursor windows, pageInfo, CREATED_AT default sorting, ID reverse sorting, created_at/updated_at search filters, and invalid sortKey validation.",
+    "The recorder creates three temporary API webhook subscriptions and deletes them during cleanup."
+  ],
+  "setup": {
+    "createOne": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "ORDERS_CREATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-list-1783112147942-1",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": [],
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1967038398770",
+                "topic": "ORDERS_CREATE",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [],
+                "filter": "",
+                "createdAt": "2026-07-03T20:55:48Z",
+                "updatedAt": "2026-07-03T20:55:48Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createTwo": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "ORDERS_PAID",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-list-1783112147942-2",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": [],
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1967038431538",
+                "topic": "ORDERS_PAID",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [],
+                "filter": "",
+                "createdAt": "2026-07-03T20:55:48Z",
+                "updatedAt": "2026-07-03T20:55:48Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createThree": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "PRODUCTS_CREATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-list-1783112147942-3",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": [],
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1967038464306",
+                "topic": "PRODUCTS_CREATE",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [],
+                "filter": "",
+                "createdAt": "2026-07-03T20:55:49Z",
+                "updatedAt": "2026-07-03T20:55:49Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "defaultSort": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 3
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038398770",
+                  "topic": "ORDERS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038464306",
+                  "topic": "PRODUCTS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:49Z",
+                  "updatedAt": "2026-07-03T20:55:49Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038398770",
+                    "topic": "ORDERS_CREATE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038464306",
+                    "topic": "PRODUCTS_CREATE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "firstPage": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038398770",
+                  "topic": "ORDERS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038398770",
+                    "topic": "ORDERS_CREATE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondPage": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 2,
+        "after": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ=="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038464306",
+                  "topic": "PRODUCTS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:49Z",
+                  "updatedAt": "2026-07-03T20:55:49Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038464306",
+                    "topic": "PRODUCTS_CREATE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "beforePage": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "last": 1,
+        "before": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ=="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "reverseId": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 3,
+        "sortKey": "ID",
+        "reverse": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038464306",
+                  "topic": "PRODUCTS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:49Z",
+                  "updatedAt": "2026-07-03T20:55:49Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038398770",
+                  "topic": "ORDERS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMTk2NzAzODQ2NDMwNiJ9",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038464306",
+                    "topic": "PRODUCTS_CREATE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMTk2NzAzODQzMTUzOCJ9",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMTk2NzAzODM5ODc3MCJ9",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038398770",
+                    "topic": "ORDERS_CREATE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMTk2NzAzODQ2NDMwNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMTk2NzAzODM5ODc3MCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createdAtFilter": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 3,
+        "query": "created_at:>=2000-01-01"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038398770",
+                  "topic": "ORDERS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038464306",
+                  "topic": "PRODUCTS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:49Z",
+                  "updatedAt": "2026-07-03T20:55:49Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038398770",
+                    "topic": "ORDERS_CREATE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038464306",
+                    "topic": "PRODUCTS_CREATE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatedAtFilter": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-list-connection-read.graphql",
+      "variables": {
+        "first": 3,
+        "query": "updated_at:<=2100-01-01"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038398770",
+                  "topic": "ORDERS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-1"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038431538",
+                  "topic": "ORDERS_PAID",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:48Z",
+                  "updatedAt": "2026-07-03T20:55:48Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-2"
+                  }
+                },
+                {
+                  "id": "gid://shopify/WebhookSubscription/1967038464306",
+                  "topic": "PRODUCTS_CREATE",
+                  "format": "JSON",
+                  "createdAt": "2026-07-03T20:55:49Z",
+                  "updatedAt": "2026-07-03T20:55:49Z",
+                  "endpoint": {
+                    "__typename": "WebhookHttpEndpoint",
+                    "callbackUrl": "https://example.com/hermes-webhook-list-1783112147942-3"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038398770",
+                    "topic": "ORDERS_CREATE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDMxNTM4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038431538",
+                    "topic": "ORDERS_PAID"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/WebhookSubscription/1967038464306",
+                    "topic": "PRODUCTS_CREATE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTY3MDM4Mzk4NzcwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OC4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTY3MDM4NDY0MzA2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wMyAyMDo1NTo0OS4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "invalidSortKey": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-invalid-sort-key.graphql",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'sortKey' on Field 'webhookSubscriptions' has an invalid value (TOPIC). Expected type 'WebhookSubscriptionSortKeys'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["query InvalidWebhookSubscriptionSortKey", "webhookSubscriptions", "sortKey"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "sortKey"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1967038398770"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1967038398770",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1967038431538"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1967038431538",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1967038464306"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1967038464306",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

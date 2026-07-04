@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
+import { diffValues, selectPaths } from '../../scripts/parity-run.js';
 import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
 
 const repoRoot = new URL('../..', import.meta.url);
@@ -25,6 +26,44 @@ function countParitySpecs(directory: URL): number {
     return entry.isFile() && entry.name.endsWith('.json') ? count + 1 : count;
   }, 0);
 }
+
+describe('parity runner selected path projection', () => {
+  it.each([
+    {
+      label: 'first selected path',
+      proxy: { payload: { title: 'Proxy title', userErrors: [] } },
+      expectedPath: '$.payload.title',
+    },
+    {
+      label: 'last selected path',
+      proxy: { payload: { title: 'Shopify title', userErrors: [{ message: 'Proxy error' }] } },
+      expectedPath: '$.payload.userErrors[0]',
+    },
+  ])('keeps enough selected paths to catch a difference in the $label', ({ proxy, expectedPath }) => {
+    const capture = { payload: { title: 'Shopify title', userErrors: [] } };
+    const selectedPaths = ['$.payload.title', '$.payload.userErrors'];
+
+    expect(diffValues(selectPaths(capture, selectedPaths), selectPaths(proxy, selectedPaths), [])).toEqual([
+      expect.stringContaining(expectedPath),
+    ]);
+  });
+
+  it('projects wildcard array selected paths without losing sibling selections', () => {
+    const value = {
+      userErrors: [
+        { field: ['handle'], code: 'TAKEN', message: 'Handle has already been taken' },
+        { field: ['type'], code: 'INVALID', message: 'Type is invalid' },
+      ],
+    };
+
+    expect(selectPaths(value, ['$.userErrors[*].field', '$.userErrors[*].code'])).toEqual({
+      userErrors: [
+        { field: ['handle'], code: 'TAKEN' },
+        { field: ['type'], code: 'INVALID' },
+      ],
+    });
+  });
+});
 
 describe('Rust parity runner cassette matching', () => {
   it('matches recorded upstream calls only by exact query text and exact variables', () => {

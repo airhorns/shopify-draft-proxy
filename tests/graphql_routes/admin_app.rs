@@ -216,7 +216,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
         ),
         (
             "OneTime",
-            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message code } } }"#,
+            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message  } } }"#,
             json!({}),
             "appPurchaseOneTimeCreate",
         ),
@@ -685,7 +685,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           create: appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -696,7 +696,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["name"], "message": "Name can't be blank", "code": null }]
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank" }]
         })
     );
 
@@ -706,7 +706,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -717,7 +717,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5", "code": null }]
+            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5" }]
         })
     );
 
@@ -727,7 +727,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
             appPurchaseOneTime { id price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -755,7 +755,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -788,7 +788,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "HAR-646 valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1166,7 +1166,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: $key
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1179,7 +1179,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         long_key.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length.", "code": null }]
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length." }]
         })
     );
 
@@ -1192,7 +1192,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: "usage-key-missing-description"
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1202,7 +1202,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         missing_description.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["description"], "message": "Description can't be blank", "code": null }]
+            "userErrors": [{ "field": ["description"], "message": "Description can't be blank" }]
         })
     );
 
@@ -1216,7 +1216,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: "usage-key-invalid-line-item"
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1226,7 +1226,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         invalid_line_item_id.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id", "code": null }]
+            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id" }]
         })
     );
 
@@ -1499,6 +1499,129 @@ fn app_identity_hydrates_real_installation_for_nodes_scopes_and_uninstall() {
     assert_eq!(
         after_uninstall.body["data"]["currentAppInstallation"],
         Value::Null
+    );
+}
+
+#[test]
+fn observed_current_app_installation_identity_survives_local_app_mutation_without_headers() {
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let app_id = "gid://shopify/App/347082227713";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": {
+                                "id": app_id,
+                                "handle": "hermes-conformance-products",
+                                "title": "Hermes Conformance Products"
+                            },
+                            "accessScopes": [
+                                { "handle": "read_products", "description": "Read products" },
+                                { "handle": "write_products", "description": "Write products" }
+                            ]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveRealCurrentAppInstallation {
+          currentAppInstallation {
+            id
+            app { id handle title }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        observed.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(
+        observed.body["data"]["currentAppInstallation"]["app"],
+        json!({
+            "id": app_id,
+            "handle": "hermes-conformance-products",
+            "title": "Hermes Conformance Products"
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalAppSubscription($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Observed install plan"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCurrentAppInstallationAfterLocalAppMutation {
+          currentAppInstallation {
+            id
+            app { id handle title }
+            allSubscriptions(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["app"],
+        json!({
+            "id": app_id,
+            "handle": "hermes-conformance-products",
+            "title": "Hermes Conformance Products"
+        })
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "local app mutation and readback must not call upstream again"
     );
 }
 
@@ -2572,7 +2695,7 @@ fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverag
               price { amount currencyCode }
               subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
     "#;
@@ -2629,7 +2752,7 @@ fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverag
             idempotencyKey: $key
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2725,7 +2848,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2742,7 +2865,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2759,7 +2882,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2780,7 +2903,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2797,7 +2920,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3165,7 +3288,7 @@ fn create_usage_subscription_for_removed_app_tests(
               trialDays
               lineItems { id }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3214,7 +3337,7 @@ fn create_usage_and_recurring_subscription_for_removed_app_tests(
             ]
           ) {
             appSubscription { id lineItems { id } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3248,7 +3371,7 @@ fn create_one_time_purchase_for_removed_app_tests(proxy: &mut DraftProxy) -> Str
           appPurchaseOneTimeCreate(name: "Import package", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,

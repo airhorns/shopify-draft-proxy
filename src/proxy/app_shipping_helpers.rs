@@ -160,6 +160,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
+pub(in crate::proxy) const DRAFT_PROXY_REQUEST_APP_ID_FIELD: &str = "__draftProxyRequestAppId";
 
 pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
@@ -202,6 +203,13 @@ pub(in crate::proxy) fn app_installation_id(installation: &Value) -> Option<Stri
         .map(str::to_string)
 }
 
+pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -> Option<String> {
+    installation
+        .get(DRAFT_PROXY_REQUEST_APP_ID_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
     let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
@@ -240,6 +248,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     json!({
         "__typename": "AppInstallation",
         "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
+        "__draftProxyRequestAppId": app_id.clone(),
         "id": installation_id,
         "accessScopes": access_scopes,
         "app": {
@@ -263,12 +272,19 @@ fn request_required_access_scope_values(request: &Request) -> Option<Vec<Value>>
         .map(|header| access_scope_values_from_header(&header))
 }
 
-fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+fn access_scope_handles_from_header(header: &str) -> Vec<String> {
     header
         .split(',')
         .map(str::trim)
         .filter(|scope| !scope.is_empty())
-        .map(|scope| access_scope_json(scope, None))
+        .map(str::to_string)
+        .collect()
+}
+
+fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+    access_scope_handles_from_header(header)
+        .into_iter()
+        .map(|scope| access_scope_json(&scope, None))
         .collect()
 }
 
@@ -531,7 +547,7 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
-    line_item_ids: Vec<String>,
+    line_item_ids: &[String],
 ) -> Vec<Value> {
     match arguments.get("lineItems") {
         Some(ResolvedValue::List(items)) => items
@@ -539,10 +555,8 @@ pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
             .enumerate()
             .map(|(index, item)| {
                 app_subscription_line_item_from_input(
-                    index,
-                    items.len(),
                     item,
-                    line_item_ids.get(index).cloned(),
+                    line_item_ids.get(index).cloned().unwrap_or_default(),
                 )
             })
             .collect(),
@@ -567,35 +581,27 @@ pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
         .collect()
 }
 
-pub(in crate::proxy) fn app_subscription_line_item_from_input(
-    index: usize,
-    total_items: usize,
-    value: &ResolvedValue,
-    allocated_id: Option<String>,
-) -> Value {
-    let default_id = allocated_id.unwrap_or_else(|| match (total_items, index) {
-        (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
-        (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
-        _ if index == 0 => shopify_gid("AppSubscriptionLineItem", "expected"),
-        _ => shopify_gid("AppSubscriptionLineItem", format!("expected-{}", index + 1)),
-    });
-    let mut capped_amount = "100.0".to_string();
-    let mut currency_code = "USD".to_string();
-    let mut terms = "usage terms".to_string();
+fn maybe_money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> Option<String> {
+    let raw = match value? {
+        ResolvedValue::Int(value) => value.to_string(),
+        ResolvedValue::Float(value) => value.to_string(),
+        ResolvedValue::String(value) => value.clone(),
+        _ => return None,
+    };
+    Some(normalize_money_amount(&raw))
+}
+
+fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> Value {
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
-                let mut price_amount = "1.0".to_string();
-                let mut price_currency = "USD".to_string();
-                if let Some(ResolvedValue::Object(price)) = details.get("price") {
-                    price_amount = money_amount_string_from_resolved(price.get("amount"));
-                    price_currency = match price.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => price_currency,
-                    };
-                }
+                let price = resolved_object_field(details, "price").unwrap_or_default();
+                let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
+                    .unwrap_or_else(|| "0.0".to_string());
+                let price_currency =
+                    resolved_string_field(&price, "currencyCode").unwrap_or_default();
                 return json!({
-                    "id": default_id,
+                    "id": id,
                     "plan": { "pricingDetails": {
                         "__typename": "AppRecurringPricing",
                         "price": money_value(&price_amount, &price_currency)
@@ -603,27 +609,33 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
                 });
             }
             if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
-                if let Some(ResolvedValue::Object(capped)) = details.get("cappedAmount") {
-                    capped_amount = money_amount_string_from_resolved(capped.get("amount"));
-                    currency_code = match capped.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => currency_code,
-                    };
-                }
-                if let Some(ResolvedValue::String(value)) = details.get("terms") {
-                    terms = value.clone();
-                }
+                let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
+                let capped_amount = maybe_money_amount_string_from_resolved(capped.get("amount"))
+                    .unwrap_or_else(|| "0.0".to_string());
+                let currency_code =
+                    resolved_string_field(&capped, "currencyCode").unwrap_or_default();
+                let terms = resolved_string_field(details, "terms").unwrap_or_default();
+                return json!({
+                    "id": id,
+                    "plan": { "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": money_value(&capped_amount, &currency_code),
+                        "balanceUsed": money_value("0.0", &currency_code),
+                        "interval": "EVERY_30_DAYS",
+                        "terms": terms
+                    }}
+                });
             }
         }
     }
     json!({
-        "id": default_id,
+        "id": id,
         "plan": { "pricingDetails": {
             "__typename": "AppUsagePricing",
-            "cappedAmount": money_value(&capped_amount, &currency_code),
-            "balanceUsed": money_value("0.0", &currency_code),
+            "cappedAmount": money_value("0.0", ""),
+            "balanceUsed": money_value("0.0", ""),
             "interval": "EVERY_30_DAYS",
-            "terms": terms
+            "terms": ""
         }}
     })
 }

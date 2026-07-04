@@ -100,6 +100,31 @@ fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     );
 }
 
+fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    restored["state"]["baseState"]["shopLocales"] = json!({
+        "it": {
+            "locale": "it",
+            "name": "Italian",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+            }]
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
 const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817001";
 const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
@@ -196,6 +221,301 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
     ));
     assert_eq!(response.status, 200);
     response.body["data"]["priceList"].clone()
+}
+
+#[test]
+fn price_lists_read_connection_windows_staged_records() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation PriceListsConnectionSeed($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    for (name, currency) in [
+        ("Denmark", "DKK"),
+        ("United States", "USD"),
+        ("Canada", "CAD"),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({
+                "input": {
+                    "name": name,
+                    "currency": currency,
+                    "parent": { "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 } }
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["priceListCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListsConnectionFirstPage {
+          priceLists(first: 2) {
+            nodes { id name currency }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["priceLists"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/PriceList/1", "name": "Denmark", "currency": "DKK" },
+                { "id": "gid://shopify/PriceList/2", "name": "United States", "currency": "USD" }
+            ],
+            "edges": [
+                { "cursor": "gid://shopify/PriceList/1", "node": { "id": "gid://shopify/PriceList/1" } },
+                { "cursor": "gid://shopify/PriceList/2", "node": { "id": "gid://shopify/PriceList/2" } }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/PriceList/1",
+                "endCursor": "gid://shopify/PriceList/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListsConnectionSecondPage($after: String!) {
+          priceLists(first: 1, after: $after) {
+            nodes { id name currency }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": "gid://shopify/PriceList/2"}),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["priceLists"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/PriceList/3", "name": "Canada", "currency": "CAD" }
+            ],
+            "edges": [
+                { "cursor": "gid://shopify/PriceList/3", "node": { "id": "gid://shopify/PriceList/3" } }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/PriceList/3",
+                "endCursor": "gid://shopify/PriceList/3"
+            }
+        })
+    );
+}
+
+#[test]
+fn price_list_prices_read_filters_and_windows_staged_fixed_prices() {
+    let mut proxy = fixed_price_validation_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PriceListPricesConnectionSeed($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id sku } originType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let first_fixed = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesFirstFixed($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 1, originType: FIXED) {
+              edges { cursor node { originType variant { id sku } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(first_fixed.status, 200);
+    assert_eq!(
+        first_fixed.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "sku": "FIXED-COMPARE-A" }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID
+            }
+        })
+    );
+
+    let product_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesProductFilter($priceListId: ID!, $query: String!) {
+          priceList(id: $priceListId) {
+            prices(first: 1, query: $query, originType: FIXED) {
+              edges { cursor node { originType variant { id sku product { id } } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "query": "product_id:1817001"
+        }),
+    ));
+    assert_eq!(product_filtered.status, 200);
+    assert_eq!(
+        product_filtered.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": {
+                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                        "sku": "FIXED-COMPARE-A",
+                        "product": { "id": FIXED_PRICE_VALIDATION_PRODUCT_ID }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_A_ID
+            }
+        })
+    );
+
+    let variant_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesVariantFilter($priceListId: ID!, $query: String!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, query: $query, originType: FIXED) {
+              edges { cursor node { originType variant { id sku } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "query": "variant_id:1817002"
+        }),
+    ));
+    assert_eq!(variant_filtered.status, 200);
+    assert_eq!(
+        variant_filtered.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [{
+                "cursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "node": {
+                    "originType": "FIXED",
+                    "variant": { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "sku": "FIXED-COMPARE-B" }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "endCursor": FIXED_PRICE_VALIDATION_VARIANT_B_ID
+            }
+        })
+    );
+
+    let relative_only = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesRelativeFilter($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, originType: RELATIVE) {
+              edges { cursor node { originType variant { id } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(relative_only.status, 200);
+    assert_eq!(
+        relative_only.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+
+    let unsupported_filter = proxy.process_request(json_graphql_request(
+        r#"
+        query PriceListPricesUnsupportedFilter($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            prices(first: 5, query: "sku:FIXED-COMPARE-A", originType: FIXED) {
+              edges { cursor node { originType variant { id } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID}),
+    ));
+    assert_eq!(unsupported_filter.status, 200);
+    assert_eq!(
+        unsupported_filter.body["data"]["priceList"]["prices"],
+        json!({
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }
 
 #[test]
@@ -1057,7 +1377,7 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         mutation CreateMetafieldReferenceTarget($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1732,6 +2052,143 @@ fn owner_scoped_metafields_do_not_leak_between_products() {
     assert_eq!(
         read_populated_owner.body["data"]["product"]["metafields"]["nodes"],
         json!([{"key": "tier", "value": "gold", "owner": {"id": owner_with_metafields}}])
+    );
+}
+
+#[test]
+fn owner_metafields_connection_filters_keys_reverse_and_paginates_staged_state() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/1950001";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OwnerMetafieldsConnectionArgsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "alpha", "type": "single_line_text_field", "value": "A"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "bravo", "type": "single_line_text_field", "value": "B"},
+            {"ownerId": owner_id, "namespace": "details", "key": "size", "type": "single_line_text_field", "value": "M"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "charlie", "type": "single_line_text_field", "value": "C"}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsRead($id: ID!, $keys: [String!]) {
+          product(id: $id) {
+            rawKeys: metafields(first: 10, keys: ["bravo", "size"]) {
+              nodes { namespace key value }
+            }
+            qualifiedKeys: metafields(first: 10, keys: $keys) {
+              nodes { namespace key value }
+            }
+            reversePage: metafields(first: 2, namespace: "custom", reverse: true) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id, "keys": ["details.size", "custom.bravo"]}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["rawKeys"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["product"]["qualifiedKeys"]["nodes"],
+        json!([
+            {"namespace": "details", "key": "details.size", "value": "M"},
+            {"namespace": "custom", "key": "custom.bravo", "value": "B"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["nodes"],
+        json!([
+            {"key": "charlie", "value": "C"},
+            {"key": "bravo", "value": "B"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["reversePage"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+
+    let after = read.body["data"]["product"]["reversePage"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("reverse page end cursor")
+        .to_string();
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsSecondPage($id: ID!, $after: String!) {
+          product(id: $id) {
+            metafields(first: 2, namespace: "custom", reverse: true, after: $after) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id, "after": after}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["nodes"],
+        json!([{"key": "alpha", "value": "A"}])
+    );
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(
+        second_page.body["data"]["product"]["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OwnerMetafieldsConnectionArgsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_id,
+            "namespace": "custom",
+            "key": "bravo"
+        }]}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["userErrors"],
+        json!([])
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query OwnerMetafieldsConnectionArgsPostDelete($id: ID!) {
+          product(id: $id) {
+            metafields(first: 10, keys: ["custom.bravo", "custom.charlie"], reverse: true) {
+              nodes { namespace key value }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"]["metafields"]["nodes"],
+        json!([{"namespace": "custom", "key": "custom.charlie", "value": "C"}])
     );
 }
 
@@ -2757,6 +3214,156 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
 }
 
 #[test]
+fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
+    let mut proxy = snapshot_proxy();
+    restore_italian_eur_shop(&mut proxy);
+
+    let enable_english = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryEnableEnglish {
+          shopLocaleEnable(locale: "en") {
+            shopLocale { locale name primary published }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(enable_english.status, 200);
+    assert_eq!(
+        enable_english.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enable_english.body["data"]["shopLocaleEnable"]["shopLocale"],
+        json!({"locale": "en", "name": "English", "primary": false, "published": false})
+    );
+
+    let disable_primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryDisableItalian {
+          shopLocaleDisable(locale: "it") {
+            locale
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        disable_primary.body["data"]["shopLocaleDisable"],
+        json!({
+            "locale": null,
+            "userErrors": [{
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint."
+            }]
+        })
+    );
+
+    let web_presence = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryWebPresenceDefault($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              defaultLocale { locale name primary published }
+              alternateLocales { locale primary }
+              rootUrls { locale url }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"subfolderSuffix": "it"}}),
+    ));
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["defaultLocale"],
+        json!({"locale": "it", "name": "Italian", "primary": true, "published": true})
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["alternateLocales"],
+        json!([])
+    );
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([{"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"}])
+    );
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let associate_english = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryAssociateEnglish($id: ID!) {
+          shopLocaleUpdate(locale: "en", shopLocale: { marketWebPresenceIds: [$id] }) {
+            shopLocale {
+              locale
+              primary
+              marketWebPresences { id defaultLocale { locale } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": web_presence_id.clone() }),
+    ));
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["shopLocale"]["marketWebPresences"],
+        json!([{
+            "id": web_presence_id,
+            "defaultLocale": { "locale": "it" }
+        }])
+    );
+
+    let web_presence_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NonEnglishPrimaryWebPresenceAfterEnglishAssociation {
+          webPresences(first: 5) {
+            nodes {
+              id
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+              rootUrls { locale url }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let updated_presence = web_presence_read.body["data"]["webPresences"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|presence| presence["id"] == json!(web_presence_id))
+        .unwrap();
+    assert_eq!(
+        updated_presence["defaultLocale"],
+        json!({"locale": "it", "primary": true})
+    );
+    assert_eq!(
+        updated_presence["alternateLocales"],
+        json!([{"locale": "en", "primary": false}])
+    );
+    assert_eq!(
+        updated_presence["rootUrls"],
+        json!([
+            {"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"},
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-it/"}
+        ])
+    );
+}
+
+#[test]
 fn market_create_region_nodes_include_country_identity_fields_in_payload_and_reads() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
@@ -2978,6 +3585,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     );
 
     let mut currency_proxy = snapshot_proxy();
+    restore_shop_currency(&mut currency_proxy, "CAD");
     let currency_create = currency_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Currency Flags", "status": "ACTIVE", "enabled": true, "currencySettings": {"baseCurrency": "USD", "localCurrencies": true, "roundingEnabled": true}}}),
@@ -3009,6 +3617,14 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     assert_eq!(
         eur_read.body["data"]["market"]["currencySettings"],
         eur_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+    let shop_default_currency = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Shop Currency Default", "currencySettings": {"localCurrencies": true}}}),
+    ));
+    assert_eq!(
+        shop_default_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"}, "localCurrencies": true, "roundingEnabled": false})
     );
     for (code, name) in [
         ("GBP", "British Pound"),
@@ -3161,6 +3777,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
 #[test]
 fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market_fields = r#"
       id name handle status enabled type
       conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
@@ -3300,16 +3917,165 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
+    let default_currency_create = proxy.process_request(json_graphql_request(
+        &create_query,
+        json!({"input": {"name": "Default Currency Update", "status": "ACTIVE", "enabled": true}}),
+    ));
+    let default_currency_market_id = default_currency_create.body["data"]["marketCreate"]["market"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let default_currency_update = proxy.process_request(json_graphql_request(
+        &update_query,
+        json!({"id": default_currency_market_id, "input": {"currencySettings": {"roundingEnabled": true}}}),
+    ));
+    assert_eq!(
+        default_currency_update.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"},
+            "localCurrencies": false,
+            "roundingEnabled": true
+        })
+    );
+
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 4);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 6);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
-    assert!(log["entries"][3]["rawBody"]
+    assert!(log["entries"][5]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
+}
+
+#[test]
+fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity() {
+    let mut proxy = snapshot_proxy();
+    restore_italian_eur_shop(&mut proxy);
+
+    let create_query = r#"
+        mutation NonUsdShopMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              currencySettings {
+                baseCurrency { currencyCode currencyName }
+                localCurrencies
+                roundingEnabled
+              }
+              priceInclusions {
+                inclusiveDutiesPricingStrategy
+                inclusiveTaxPricingStrategy
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation NonUsdShopMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              currencySettings {
+                baseCurrency { currencyCode currencyName }
+                localCurrencies
+                roundingEnabled
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let inclusive = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Denmark Inclusive",
+            "enabled": true,
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "DK"}]}},
+            "currencySettings": {"localCurrencies": true, "roundingEnabled": true},
+            "priceInclusions": {
+                "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+                "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            }
+        }}),
+    ));
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"},
+            "localCurrencies": true,
+            "roundingEnabled": true
+        })
+    );
+    assert_eq!(
+        inclusive.body["data"]["marketCreate"]["market"]["priceInclusions"],
+        json!({
+            "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+            "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
+        })
+    );
+
+    let resolved = proxy.process_request(json_graphql_request(
+        r#"
+        query NonUsdShopResolvedValues {
+          marketsResolvedValues(buyerSignal: { countryCode: DK }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        resolved.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("EUR")
+    );
+    assert_eq!(
+        resolved.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({"dutiesIncluded": false, "taxesIncluded": true})
+    );
+
+    let update_seed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "name": "Sweden Defaults",
+            "conditions": {"regionsCondition": {"regions": [{"countryCode": "SE"}]}}
+        }}),
+    ));
+    assert_eq!(
+        update_seed.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let market_id = update_seed.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let updated = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": market_id, "input": {"currencySettings": {"localCurrencies": true}}}),
+    ));
+    assert_eq!(
+        updated.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"},
+            "localCurrencies": true,
+            "roundingEnabled": false
+        })
+    );
 }
 
 #[test]
@@ -4998,6 +5764,317 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
 }
 
 #[test]
+fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
+    let mut proxy = snapshot_proxy();
+
+    let market_create_query = r#"
+        mutation StageMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let catalog_create_query = r#"
+        mutation StageCatalog($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let web_presence_create_query = r#"
+        mutation StageWebPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id subfolderSuffix }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let market_update_query = r#"
+        mutation LinkMarketRelations($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let canada = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Canada Retail", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    let canada_id = canada.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _france = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "France Retail", "regions": [{"countryCode": "FR"}]}}),
+    ));
+    let _belgium = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Belgium Wholesale", "regions": [{"countryCode": "BE"}]}}),
+    ));
+
+    let first_catalog = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Canada Primary Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": [canada_id.clone()]}}}),
+    ));
+    assert_eq!(
+        first_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let first_catalog_id = first_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_catalog = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Canada Secondary Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": [canada_id.clone()]}}}),
+    ));
+    let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let first_presence = proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "caone"}}),
+    ));
+    assert_eq!(
+        first_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let first_presence_id = first_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_presence = proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "catwo"}}),
+    ));
+    assert_eq!(
+        second_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let second_presence_id = second_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let link_presences = proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": canada_id, "input": {"webPresencesToAdd": [first_presence_id.clone(), second_presence_id.clone()]}}),
+    ));
+    assert_eq!(
+        link_presences.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsConnectionShapeRead(
+          $marketId: ID!,
+          $firstCatalogCursor: String!,
+          $firstPresenceCursor: String!
+        ) {
+          filteredMarkets: markets(first: 2, query: "Retail", sortKey: NAME, reverse: true) {
+            edges { cursor node { id name handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unsupportedFilter: markets(first: 5, query: "unsupported_filter:Retail") {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          market(id: $marketId) {
+            id
+            catalogs(first: 1) {
+              nodes { id }
+              edges {
+                cursor
+                node {
+                  id
+                  title
+                  markets(first: 1) {
+                    edges { cursor node { id name } }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            catalogAfter: catalogs(first: 1, after: $firstCatalogCursor) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            webPresences(first: 1) {
+              nodes { id }
+              edges {
+                cursor
+                node {
+                  id
+                  subfolderSuffix
+                  markets(first: 1) {
+                    edges { cursor node { id name } }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            webPresenceAfter: webPresences(first: 1, after: $firstPresenceCursor) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          webPresences(first: 1) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "marketId": canada_id,
+            "firstCatalogCursor": first_catalog_id,
+            "firstPresenceCursor": first_presence_id
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["filteredMarkets"]["edges"][0]["node"]["name"],
+        json!("France Retail")
+    );
+    assert_eq!(
+        read.body["data"]["filteredMarkets"]["edges"][1]["node"]["name"],
+        json!("Canada Retail")
+    );
+    assert_eq!(
+        read.body["data"]["unsupportedFilter"],
+        json!({
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["catalogs"],
+        json!({
+            "nodes": [{ "id": first_catalog_id }],
+            "edges": [{
+                "cursor": first_catalog_id,
+                "node": {
+                    "id": first_catalog_id,
+                    "title": "Canada Primary Catalog",
+                    "markets": {
+                        "edges": [{
+                            "cursor": canada_id,
+                            "node": { "id": canada_id, "name": "Canada Retail" }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": canada_id,
+                            "endCursor": canada_id
+                        }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_catalog_id,
+                "endCursor": first_catalog_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["catalogAfter"],
+        json!({
+            "edges": [{
+                "cursor": second_catalog_id,
+                "node": { "id": second_catalog_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": second_catalog_id,
+                "endCursor": second_catalog_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["webPresences"],
+        json!({
+            "nodes": [{ "id": first_presence_id }],
+            "edges": [{
+                "cursor": first_presence_id,
+                "node": {
+                    "id": first_presence_id,
+                    "subfolderSuffix": "caone",
+                    "markets": {
+                        "edges": [{
+                            "cursor": canada_id,
+                            "node": { "id": canada_id, "name": "Canada Retail" }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": canada_id,
+                            "endCursor": canada_id
+                        }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_presence_id,
+                "endCursor": first_presence_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["webPresenceAfter"],
+        json!({
+            "edges": [{
+                "cursor": second_presence_id,
+                "node": { "id": second_presence_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": second_presence_id,
+                "endCursor": second_presence_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["webPresences"],
+        json!({
+            "nodes": [{ "id": first_presence_id }],
+            "edges": [{
+                "cursor": first_presence_id,
+                "node": { "id": first_presence_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_presence_id,
+                "endCursor": first_presence_id
+            }
+        })
+    );
+}
+
+#[test]
 fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
@@ -5512,6 +6589,7 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
 #[test]
 fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market = proxy.process_request(json_graphql_request(
         r#"
         mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
@@ -5521,7 +6599,15 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
           }
         }
         "#,
-        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+        json!({"input": {
+            "name": "Cold Field Market",
+            "enabled": true,
+            "regions": [{"countryCode": "CA"}],
+            "priceInclusions": {
+                "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+                "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            }
+        }}),
     ));
     assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
     let market_id = market.body["data"]["marketCreate"]["market"]["id"]
@@ -5582,11 +6668,11 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["currencyCode"],
-        json!("USD")
+        json!("CAD")
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
@@ -5595,6 +6681,224 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
         json!([])
+    );
+}
+
+#[test]
+fn markets_resolved_values_falls_back_to_observed_shop_tax_inclusivity() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "currencyCode": "GBP",
+        "taxesIncluded": true
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsResolvedValuesShopTaxFallback {
+          marketsResolvedValues(buyerSignal: { countryCode: GB }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("GBP")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
+    );
+}
+
+#[test]
+fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
+    let mut proxy = snapshot_proxy();
+    let market_create_query = r#"
+        mutation CatalogConnectionMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (name, country_code) in [("Alpha Region", "CA"), ("Beta Region", "FR")] {
+        let response = proxy.process_request(json_graphql_request(
+            market_create_query,
+            json!({"input": {"name": name, "regions": [{"countryCode": country_code}]}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let catalog_create_query = r#"
+        mutation CatalogConnectionCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status __typename }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let alpha = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Alpha Market",
+                "status": "ACTIVE",
+                "context": { "driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"] }
+            }
+        }),
+    ));
+    assert_eq!(alpha.body["data"]["catalogCreate"]["userErrors"], json!([]));
+    let alpha_id = alpha.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let beta = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Beta Market",
+                "status": "DRAFT",
+                "context": { "driverType": "MARKET", "marketIds": ["gid://shopify/Market/2"] }
+            }
+        }),
+    ));
+    assert_eq!(beta.body["data"]["catalogCreate"]["userErrors"], json!([]));
+    let beta_id = beta.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let country = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "Country Market",
+                "status": "ACTIVE",
+                "context": { "driverType": "COUNTRY", "countryCodes": ["US"] }
+            }
+        }),
+    ));
+    assert_eq!(
+        country.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first_page_query = r#"
+        query CatalogConnectionFirstPage($query: String!) {
+          catalogs(first: 1, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
+            nodes { id title status __typename }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          catalogsCount(type: MARKET, query: $query, limit: 1) {
+            count
+            precision
+          }
+        }
+    "#;
+    let first_page = proxy.process_request(json_graphql_request(
+        first_page_query,
+        json!({"query": "Market"}),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["nodes"],
+        json!([{
+            "id": beta_id,
+            "title": "Beta Market",
+            "status": "DRAFT",
+            "__typename": "MarketCatalog"
+        }])
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["edges"],
+        json!([{ "cursor": beta_id, "node": { "id": beta_id, "title": "Beta Market" } }])
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogs"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": beta_id,
+            "endCursor": beta_id
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "AT_LEAST" })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogConnectionSecondPage($query: String!, $after: String!) {
+          catalogs(first: 1, after: $after, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"query": "Market", "after": beta_id}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["catalogs"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha Market" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["catalogs"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": alpha_id,
+            "endCursor": alpha_id
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogConnectionCatalogDelete($id: ID!) {
+          catalogDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": beta_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["catalogDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        first_page_query,
+        json!({"query": "Market"}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalogs"]["nodes"],
+        json!([{
+            "id": alpha_id,
+            "title": "Alpha Market",
+            "status": "ACTIVE",
+            "__typename": "MarketCatalog"
+        }])
+    );
+    assert_eq!(
+        after_delete.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
     );
 }
 
@@ -8192,7 +9496,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         inline_missing.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
-            "locations": [{ "line": 3, "column": 26 }],
+            "locations": [{ "line": 3, "column": 24 }],
             "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -8215,7 +9519,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         inline_null.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
-            "locations": [{ "line": 3, "column": 26 }],
+            "locations": [{ "line": 3, "column": 24 }],
             "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
                 "code": "argumentLiteralsIncompatible",
@@ -8237,7 +9541,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         variable_missing.body["errors"][0],
         json!({
             "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
-            "locations": [{ "line": 2, "column": 37 }],
+            "locations": [{ "line": 2, "column": 35 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {},
@@ -8262,7 +9566,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                   deletionAlias: productDelete(input: {
                   }) {
                     deletedProductId
-                    userErrors { field message code }
+                    userErrors { field message  }
                   }
                 }
             "#
@@ -8284,7 +9588,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     id: null
                   }) {
                     deletedProductId
-                    userErrors { field message code }
+                    userErrors { field message  }
                   }
                 }
             "#
@@ -8302,7 +9606,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
             mutation AnyDeleteName($input: ProductDeleteInput!) {
               deletionAlias: productDelete(input: $input) {
                 deletedProductId
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
         "#,
@@ -8322,7 +9626,24 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
 #[test]
 fn product_create_length_validation_errors_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
-    let too_long = "a".repeat(260);
+    let too_long = "a".repeat(256);
+
+    let title = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-input-validation.graphql"
+        ),
+        json!({
+            "product": {
+                "title": too_long
+            }
+        }),
+    ));
+    assert_eq!(title.status, 200);
+    assert_eq!(title.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        title.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }])
+    );
 
     let handle = proxy.process_request(json_graphql_request(
         include_str!(
@@ -8383,6 +9704,87 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
             { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
         ])
     );
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn product_set_scalar_length_validation_errors_match_shopify_shapes() {
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productSet-input-length-validation.graphql"
+    );
+    let scenarios = [
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input", "title"], "message": "is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Handle length",
+                    "handle": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Vendor length",
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Product type length",
+                    "vendor": "Hermes",
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"]["productSet"]["product"], json!(null));
+        assert_eq!(
+            response.body["data"]["productSet"]["productSetOperation"],
+            json!(null)
+        );
+        assert_eq!(
+            response.body["data"]["productSet"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
 }
 
 #[test]
@@ -8697,7 +10099,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
     assert_eq!(
         variable.body["errors"][0]["extensions"],
         json!({
-            "code": "INVALID_VARIABLE",
+        "code": "INVALID_VARIABLE",
             "value": "ENABLED",
             "problems": [{
                 "path": [],

@@ -1,0 +1,52 @@
+query DraftOrdersSearchSortRead(
+  $first: Int!
+  $after: String
+  $query: String
+  $sortKey: DraftOrderSortKeys
+  $reverse: Boolean
+) {
+  draftOrders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      id
+      email
+      status
+      tags
+      createdAt
+      updatedAt
+      customer {
+        id
+        email
+        displayName
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          title
+          sku
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        email
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  draftOrdersCount(query: $query) {
+    count
+    precision
+  }
+}
