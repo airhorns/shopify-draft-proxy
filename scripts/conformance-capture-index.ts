@@ -6770,9 +6770,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-invalid-format.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-strict-format-residual.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
+      'config/parity-specs/privacy/data-sale-opt-out-new-customer-defaults.json',
       'config/parity-specs/privacy/data-sale-opt-out-invalid-format.json',
       'config/parity-specs/privacy/data-sale-opt-out-strict-format-residual.json',
       'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
+      'config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-read.graphql',
+      'config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-tag-search.graphql',
     ],
     cleanupBehavior:
       'Creates/deletes disposable customer records for opt-out probes; invalid-format capture requires no setup and deletes any unexpectedly created customer before failing; strict residual capture deletes the quoted-local success customer.',
