@@ -3090,6 +3090,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-name-whitespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-name-whitespace-conformance.ts',
+    purpose:
+      'savedSearchCreate and savedSearchUpdate compare raw names for uniqueness and reserved-name checks without stripping surrounding whitespace.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-name-whitespace.json`,
+      'config/parity-specs/saved-searches/saved-search-name-whitespace.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable product saved searches for exact, leading-whitespace, reserved-name, and update branches; captures connection readbacks; deletes created records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-reserved-name',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-reserved-name-conformance.ts',

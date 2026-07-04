@@ -1,0 +1,421 @@
+{
+  "capturedAt": "2026-07-04T09:58:11.610Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Live Shopify evidence that SavedSearch name uniqueness compares the raw name string, so leading/trailing whitespace makes an otherwise duplicate PRODUCT name distinct.",
+    "Live Shopify evidence that reserved-name matching is case-insensitive but does not strip surrounding whitespace, so \" All products\" is accepted while exact \"All products\" is rejected.",
+    "The scenario creates disposable PRODUCT saved searches through Admin GraphQL, reads the latest productSavedSearches connection after whitespace-distinct create/update branches, and cleans up created records.",
+    "The proxy parity runner replays setup and assertion requests through the public GraphQL surface; no upstream cassette calls are required."
+  ],
+  "savedSearchCreateWeekend": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Weekend",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080241312050",
+            "legacyResourceId": "4080241312050",
+            "name": "Weekend",
+            "query": "vendor:Acme",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Acme"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateLeadingWeekend": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": " Weekend",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080241344818",
+            "legacyResourceId": "4080241344818",
+            "name": " Weekend",
+            "query": "vendor:Acme",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Acme"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterLeadingWeekend": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-read-after-create.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4080241344818",
+              "name": " Weekend",
+              "query": "vendor:Acme",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "vendor",
+                  "value": "Acme"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDgwMjQxMzQ0ODE4LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTM0NDgxOCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDgwMjQxMzQ0ODE4LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTM0NDgxOCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateLeadingReserved": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": " All products",
+        "query": "*"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080241377586",
+            "legacyResourceId": "4080241377586",
+            "name": " All products",
+            "query": "*",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "default",
+                "value": "true"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterLeadingReserved": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-read-after-create.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4080241377586",
+              "name": " All products",
+              "query": "*",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "default",
+                  "value": "true"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDgwMjQxMzc3NTg2LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTM3NzU4NiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDgwMjQxMzc3NTg2LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTM3NzU4NiJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateExactDuplicate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Weekend",
+        "query": "vendor:Duplicate"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateExactReserved": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "All products",
+        "query": "*"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateUpdateTarget": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Update target",
+        "query": "vendor:Seed"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080241410354",
+            "legacyResourceId": "4080241410354",
+            "name": "Update target",
+            "query": "vendor:Seed",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Seed"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateTrailingWeekend": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-name-uniqueness-update-conflict.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4080241410354",
+        "name": "Weekend ",
+        "query": "vendor:Renamed"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4080241410354",
+            "name": "Weekend ",
+            "query": "vendor:Renamed",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Renamed"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-read-after-create.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4080241410354",
+              "name": "Weekend ",
+              "query": "vendor:Renamed",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "vendor",
+                  "value": "Renamed"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDgwMjQxNDEwMzU0LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTQxMDM1NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDgwMjQxNDEwMzU0LCJsYXN0X3ZhbHVlIjoiNDA4MDI0MTQxMDM1NCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
