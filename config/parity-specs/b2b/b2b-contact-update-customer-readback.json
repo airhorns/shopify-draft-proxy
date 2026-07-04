@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for successful companyContactCreate followed by companyContactUpdate changing firstName, lastName, email, and phone, then downstream companyContact.customer readback. Shopify Admin 2026-04 updates the linked Customer subobject while preserving the customer id; local parity permits only live-vs-synthetic GID differences.",
   "comparison": {
     "mode": "strict-json",

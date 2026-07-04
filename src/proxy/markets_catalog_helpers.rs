@@ -451,7 +451,7 @@ pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code
 }
 
 // ----------------------------------------------------------------------------
-// Fixed-price edge model (ported from Gleam markets/serializers.gleam). Price
+// Fixed-price edge model. Price
 // lists carry their fixed prices under `prices.edges[].node`; the helpers below
 // read, build, and rewrite that connection so the handlers are store-backed
 // rather than fabricating seeded records.
@@ -640,8 +640,7 @@ fn rebuild_price_list_prices(price_list: &mut Value, edges: Vec<Value>) {
     }
 }
 
-/// Dedupe inputs by `variantId`, keeping the last occurrence (mirrors Gleam
-/// `last_fixed_price_inputs_by_variant`).
+/// Dedupe inputs by `variantId`, keeping the last occurrence.
 fn last_fixed_price_inputs_by_variant(inputs: &[ResolvedValue]) -> Vec<ResolvedValue> {
     let mut accumulator: Vec<ResolvedValue> = Vec::new();
     for input in inputs {
@@ -702,7 +701,7 @@ pub(in crate::proxy) fn delete_fixed_price_nodes(price_list: &mut Value, variant
 }
 
 // ----------------------------------------------------------------------------
-// Fixed-price validation (variant-level), ported from Gleam.
+// Fixed-price validation (variant-level).
 // ----------------------------------------------------------------------------
 
 pub(in crate::proxy) fn price_list_fixed_price_target_errors(
@@ -793,7 +792,7 @@ pub(in crate::proxy) fn fixed_price_delete_not_fixed_errors(
     errors
 }
 
-/// `read_price_list_id` (serializers.gleam): the mutation's price list id comes
+/// the mutation's price list id comes
 /// from the `priceListId` argument, falling back to `id`, then `input.priceListId`.
 pub(in crate::proxy) fn read_price_list_id(
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -811,7 +810,7 @@ pub(in crate::proxy) fn read_price_list_id(
         .filter(|value| !value.is_empty())
 }
 
-/// `read_fixed_price_update_inputs` (mutations.gleam): the update mutation reads
+/// the update mutation reads
 /// `prices` if present, otherwise `pricesToAdd`, returning the chosen field name
 /// so error paths point at the argument the caller supplied.
 pub(in crate::proxy) fn read_fixed_price_update_inputs(
@@ -828,8 +827,7 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
     }
 }
 
-/// The by-product preflight hydrate variables (queries.gleam
-/// `product_fixed_prices_preflight_variables`): a `priceListId`/`priceQuery`
+/// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
 /// pulled verbatim from the operation variables plus the de-duplicated product
 /// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
@@ -916,9 +914,8 @@ pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
     Value::Object(output)
 }
 
-/// `product_level_fixed_price_errors` (serializers.gleam): the ordered validation
-/// suite for `priceListFixedPricesByProductUpdate`. Mirrors the Gleam
-/// `combine_error_lists` ordering exactly: no-op, missing add products, missing
+/// the ordered validation
+/// suite for `priceListFixedPricesByProductUpdate`. Preserves captured error ordering: no-op, missing add products, missing
 /// delete products, currency mismatches, duplicate add ids, duplicate delete
 /// ids, mutual-exclusion conflicts, then the fixed-price limit.
 pub(in crate::proxy) fn product_level_fixed_price_errors(
@@ -1028,7 +1025,7 @@ pub(in crate::proxy) fn product_level_fixed_price_errors(
     errors
 }
 
-/// `resulting_fixed_price_variant_ids` (serializers.gleam): the variant ids that
+/// the variant ids that
 /// would remain fixed after applying a by-product update — existing FIXED edges
 /// minus the deleted products' variants, plus the added products' variants.
 fn resulting_fixed_price_variant_ids(
@@ -1191,7 +1188,7 @@ pub(in crate::proxy) fn market_record_from_input(
     handle: &str,
     region_codes: &[String],
 ) -> Value {
-    // Defaults match Gleam market_data (serializers.gleam:226): status falls
+    // Defaults for staged market data: status falls
     // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
     // enabled falls back to status==ACTIVE; type is REGION when any region
     // input is present, else NONE.

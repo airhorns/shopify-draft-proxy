@@ -12,7 +12,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "notes": "Live Shopify Admin GraphQL 2025-01 evidence for B2B-backed price-list quantityRulesDelete when the variant has no fixed quantity rule, quantityRulesAdd missing-variant validation, and quantityRulesAdd maximum-vs-existing-quantity-price-break validation. The capture seeds and cleans up a fixed quantity rule plus quantity price break through quantityPricingByVariantUpdate, while parity replay uses cassette-backed preflight reads and keeps supported quantityRulesAdd/Delete mutations local.",
   "comparison": {
     "mode": "strict-json",

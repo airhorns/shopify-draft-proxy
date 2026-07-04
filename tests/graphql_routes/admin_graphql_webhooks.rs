@@ -2,7 +2,7 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
+fn event_empty_read_shapes_match_current_behavior() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -769,6 +769,90 @@ query($id: ID!) {
 }
 
 #[test]
+fn webhook_subscription_api_version_uses_known_version_inventory() {
+    let cases = [
+        (
+            "2026-04",
+            json!({
+                "handle": "2026-04",
+                "displayName": "2026-04 (Latest)",
+                "supported": true
+            }),
+        ),
+        (
+            "2025-10",
+            json!({
+                "handle": "2025-10",
+                "displayName": "2025-10",
+                "supported": true
+            }),
+        ),
+        (
+            "2026-07",
+            json!({
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+            }),
+        ),
+        (
+            "unstable",
+            json!({
+                "handle": "unstable",
+                "displayName": "unstable",
+                "supported": false
+            }),
+        ),
+        (
+            "2028-10",
+            json!({
+                "handle": "2028-10",
+                "displayName": "2028-10",
+                "supported": false
+            }),
+        ),
+    ];
+
+    for (handle, expected_api_version) in cases {
+        let mut proxy = snapshot_proxy();
+        let mut request = json_graphql_request(
+            r#"# RustWebhookLocalRuntime
+mutation {
+  webhookSubscriptionCreate(
+    topic: ORDERS_CREATE
+    webhookSubscription: {
+      callbackUrl: "https://hooks.example.com/orders-api-version-inventory"
+      format: JSON
+    }
+  ) {
+    webhookSubscription {
+      apiVersion { handle displayName supported }
+    }
+    userErrors { field message }
+  }
+}"#,
+            json!({}),
+        );
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-version".to_string(),
+            handle.to_string(),
+        );
+
+        let response = proxy.process_request(request);
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["apiVersion"],
+            expected_api_version,
+            "apiVersion projection for {handle}"
+        );
+    }
+}
+
+#[test]
 fn webhook_subscription_payload_fields_round_trip_through_create_update_and_reads() {
     let mut proxy = snapshot_proxy();
 
@@ -1197,7 +1281,7 @@ fn webhook_subscription_endpoint_uri_variants_validate_cloud_destinations() {
 }
 
 #[test]
-fn webhook_subscription_validation_guards_match_old_gleam_cases() {
+fn webhook_subscription_validation_guards_match_captured_cases() {
     let mut proxy = snapshot_proxy();
 
     let blank = proxy.process_request(json_graphql_request(
@@ -2078,7 +2162,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
 }
 
 #[test]
-fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
+fn webhook_subscription_uri_and_format_validation_covers_current_edges() {
     let assert_rejected = |uri: &str,
                            format_value: &str,
                            topic: &str,
@@ -2685,7 +2769,7 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
 }
 
 #[test]
-fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
+fn dedicated_pubsub_webhook_update_uses_captured_field_path_errors() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id } userErrors { field message } } }",
@@ -2714,7 +2798,7 @@ fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
 }
 
 #[test]
-fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_helpers() {
+fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helpers() {
     let mut proxy = snapshot_proxy();
 
     for (topic, uri, format) in [

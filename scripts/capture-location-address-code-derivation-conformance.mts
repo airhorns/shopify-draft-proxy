@@ -225,6 +225,20 @@ try {
   createdLocationIds.push(auLocationId);
   const auRead = await runCase('auRead', locationReadQuery, { id: auLocationId });
 
+  const aeAdd = await runCase('aeAdd', locationAddMutation, {
+    input: {
+      name: `Proxy AE ${uniqueSuffix}`,
+      fulfillsOnlineOrders: false,
+      address: {
+        countryCode: 'AE',
+        provinceCode: 'DU',
+      },
+    },
+  });
+  const aeLocationId = readAddedLocationId(aeAdd);
+  createdLocationIds.push(aeLocationId);
+  const aeRead = await runCase('aeRead', locationReadQuery, { id: aeLocationId });
+
   const caSetupAdd = await runCase('caSetupAdd', locationAddMutation, {
     input: {
       name: `Proxy CA ${uniqueSuffix}`,
@@ -262,6 +276,8 @@ try {
       gbRead,
       auAdd,
       auRead,
+      aeAdd,
+      aeRead,
       caSetupAdd,
       caProvinceOnlyEdit,
       caProvinceOnlyRead,

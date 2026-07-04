@@ -132,7 +132,7 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
     if is_create && !has_subfolder {
         errors.push(market_user_error(
             vec!["input"],
-            "Requires a domain or subfolder suffix.",
+            "One of `subfolderSuffix` or `domainId` is required.",
             json!("REQUIRES_DOMAIN_OR_SUBFOLDER"),
         ));
     }

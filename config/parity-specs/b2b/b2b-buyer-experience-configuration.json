@@ -18,7 +18,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for B2B CompanyLocation.buyerExperienceConfiguration on companyCreate, companyLocationCreate, companyLocationUpdate, downstream company location reads, empty BEC validation, and deposit-without-payment-terms validation. The live 2026-04 conformance shop accepted deposit with paymentTermsTemplateId gid://shopify/PaymentTermsTemplate/4; the disabled-shop deposit_not_enabled branch is runtime-test-backed because it depends on shop capability posture rather than public input shape.",
   "comparison": {
     "mode": "strict-json",

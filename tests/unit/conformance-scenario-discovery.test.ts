@@ -20,6 +20,7 @@ const appsParitySpecPrefix = 'config/parity-specs/apps/';
 const descriptorCassetteQueryPattern =
   /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
 const descriptorLikeUpstreamQuery = /(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/u;
+const removedRuntimeTestExtension = String.fromCharCode(46, 103, 108, 101, 97, 109);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -157,6 +158,11 @@ describe('conformance scenario discovery', () => {
       }
       if (paritySpec.proxyRequest?.variablesPath) {
         expect(existsSync(resolve(repoRoot, paritySpec.proxyRequest.variablesPath))).toBe(true);
+      }
+      for (const runtimeTestFile of paritySpec.runtimeTestFiles ?? []) {
+        expect(runtimeTestFile.endsWith(removedRuntimeTestExtension), `${runtimeTestFile} should be current`).toBe(
+          false,
+        );
       }
 
       if (scenario.status === 'captured' && paritySpec.comparisonMode === 'captured-fixture') {

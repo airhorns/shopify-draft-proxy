@@ -12,6 +12,8 @@ type JsonRecord = Record<string, unknown>;
 
 const scenarioId = 'localization-translations-unknown-resource';
 const unknownProductId = 'gid://shopify/Product/1';
+const unknownCollectionId = 'gid://shopify/Collection/999999999999999';
+const unknownMenuId = 'gid://shopify/Menu/999999999999999';
 
 const productCreateMutation = `#graphql
   mutation LocalizationTranslationsKnownResourceProductCreate($product: ProductCreateInput!) {
@@ -97,8 +99,8 @@ const setupReadQuery = `#graphql
   }
 `;
 
-const unknownResourceMutation = `#graphql
-  mutation LocalizationTranslationsUnknownResource(
+const unknownResourceValidationMutation = `#graphql
+  mutation LocalizationUnknownResourceValidation(
     $resourceId: ID!
     $translations: [TranslationInput!]!
     $keys: [String!]!
@@ -107,12 +109,6 @@ const unknownResourceMutation = `#graphql
     register: translationsRegister(resourceId: $resourceId, translations: $translations) {
       translations {
         key
-        value
-        locale
-        outdated
-        market {
-          id
-        }
       }
       userErrors {
         field
@@ -123,12 +119,6 @@ const unknownResourceMutation = `#graphql
     remove: translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
       translations {
         key
-        value
-        locale
-        outdated
-        market {
-          id
-        }
       }
       userErrors {
         field
@@ -207,6 +197,32 @@ function assertNoUserErrors(payload: JsonRecord, label: string): void {
   }
 }
 
+function assertResourceNotFound(payload: ConformanceGraphqlPayload<unknown>, resourceId: string, label: string): void {
+  const data = dataObject(payload);
+  for (const field of ['register', 'remove']) {
+    const value = data[field];
+    if (!isRecord(value)) {
+      throw new Error(`${label} missing ${field} payload: ${JSON.stringify(payload)}`);
+    }
+    if (value['translations'] !== null) {
+      throw new Error(`${label} ${field} returned translations: ${JSON.stringify(value['translations'])}`);
+    }
+    const userErrors = value['userErrors'];
+    if (!Array.isArray(userErrors) || userErrors.length !== 1 || !isRecord(userErrors[0])) {
+      throw new Error(`${label} ${field} expected one userError: ${JSON.stringify(value)}`);
+    }
+    const [error] = userErrors;
+    const expectedMessage = `Resource ${resourceId} does not exist`;
+    if (
+      JSON.stringify(error['field']) !== JSON.stringify(['resourceId']) ||
+      error['message'] !== expectedMessage ||
+      error['code'] !== 'RESOURCE_NOT_FOUND'
+    ) {
+      throw new Error(`${label} ${field} userError mismatch: ${JSON.stringify(error)}`);
+    }
+  }
+}
+
 function shopLocaleIsEnabled(payload: ConformanceGraphqlPayload<unknown>, locale: string): boolean {
   const locales = dataObject(payload)['shopLocales'];
   return Array.isArray(locales) && locales.some((entry) => isRecord(entry) && entry['locale'] === locale);
@@ -254,19 +270,24 @@ async function main(): Promise<void> {
 
   let createdProductId: string | null = null;
   let shouldDisableFrenchLocale = false;
+  let shouldRestoreFrenchLocale = false;
+  let localePreDisableCapture: ConformanceGraphqlPayload<unknown> | null = null;
   let localeSetupCapture: ConformanceGraphqlPayload<unknown> | null = null;
   let cleanup: JsonRecord = {};
 
   try {
     const initialShopLocales = await runGraphql(shopLocalesQuery);
-    shouldDisableFrenchLocale = !shopLocaleIsEnabled(initialShopLocales, 'fr');
-    const localeSetup = shouldDisableFrenchLocale
-      ? await runGraphql(shopLocaleEnableMutation, { locale: 'fr' })
-      : initialShopLocales;
-    localeSetupCapture = shouldDisableFrenchLocale ? localeSetup : null;
-    if (shouldDisableFrenchLocale) {
-      assertNoUserErrors(payloadField(localeSetup, 'shopLocaleEnable'), 'shopLocaleEnable');
+    const frenchInitiallyEnabled = shopLocaleIsEnabled(initialShopLocales, 'fr');
+    shouldDisableFrenchLocale = !frenchInitiallyEnabled;
+    if (frenchInitiallyEnabled) {
+      shouldRestoreFrenchLocale = true;
+      localePreDisableCapture = await runGraphql(shopLocaleDisableMutation, { locale: 'fr' });
+      assertNoUserErrors(payloadField(localePreDisableCapture, 'shopLocaleDisable'), 'shopLocaleDisable setup reset');
     }
+    const localeSetup = await runGraphql(shopLocaleEnableMutation, { locale: 'fr' });
+    localeSetupCapture = localeSetup;
+    shouldRestoreFrenchLocale = false;
+    assertNoUserErrors(payloadField(localeSetup, 'shopLocaleEnable'), 'shopLocaleEnable');
 
     const productCreate = await runGraphql(productCreateMutation, { product: productInput });
     const productCreatePayload = payloadField(productCreate, 'productCreate');
@@ -280,19 +301,19 @@ async function main(): Promise<void> {
     const setupReadVariables = { resourceId: createdProductId };
     const setupRead = await runGraphql(setupReadQuery, setupReadVariables);
     const digest = titleDigest(setupRead);
-    const unknownVariables = {
-      resourceId: unknownProductId,
+    const unknownVariables = (resourceId: string, label: string): JsonRecord => ({
+      resourceId,
       translations: [
         {
           locale: 'fr',
           key: 'title',
-          value: `Titre missing ${captureToken}`,
+          value: `Titre missing ${label} ${captureToken}`,
           translatableContentDigest: digest,
         },
       ],
       keys: ['title'],
       locales: ['fr'],
-    };
+    });
     const knownRegisterVariables = {
       resourceId: createdProductId,
       translations: [
@@ -310,7 +331,15 @@ async function main(): Promise<void> {
       locales: ['fr'],
     };
 
-    const unknownResource = await runGraphql(unknownResourceMutation, unknownVariables);
+    const unknownResourceVariables = unknownVariables(unknownProductId, 'product');
+    const unknownCollectionVariables = unknownVariables(unknownCollectionId, 'collection');
+    const unknownMenuVariables = unknownVariables(unknownMenuId, 'menu');
+    const unknownResource = await runGraphql(unknownResourceValidationMutation, unknownResourceVariables);
+    assertResourceNotFound(unknownResource, unknownProductId, 'unknown Product');
+    const unknownCollectionResource = await runGraphql(unknownResourceValidationMutation, unknownCollectionVariables);
+    assertResourceNotFound(unknownCollectionResource, unknownCollectionId, 'unknown Collection');
+    const unknownMenuResource = await runGraphql(unknownResourceValidationMutation, unknownMenuVariables);
+    assertResourceNotFound(unknownMenuResource, unknownMenuId, 'unknown Menu');
     const knownRegister = await runGraphql(registerMutation, knownRegisterVariables);
     const knownRemove = await runGraphql(removeMutation, knownRemoveVariables);
 
@@ -318,9 +347,11 @@ async function main(): Promise<void> {
       runGraphql,
       createdProductId,
       shouldDisableFrenchLocale,
+      shouldRestoreFrenchLocale,
     });
     createdProductId = null;
     shouldDisableFrenchLocale = false;
+    shouldRestoreFrenchLocale = false;
 
     await mkdir(outputDir, { recursive: true });
     await writeFile(
@@ -333,6 +364,7 @@ async function main(): Promise<void> {
           capturedAt: new Date().toISOString(),
           setup: {
             productCreate: { variables: { product: productInput }, response: productCreate },
+            localePreDisable: localePreDisableCapture,
             localeSetup: localeSetupCapture,
           },
           setupRead: {
@@ -340,8 +372,16 @@ async function main(): Promise<void> {
             response: setupRead,
           },
           unknownResource: {
-            variables: unknownVariables,
+            variables: unknownResourceVariables,
             response: unknownResource,
+          },
+          unknownCollectionResource: {
+            variables: unknownCollectionVariables,
+            response: unknownCollectionResource,
+          },
+          unknownMenuResource: {
+            variables: unknownMenuVariables,
+            response: unknownMenuResource,
           },
           knownRegister: {
             variables: knownRegisterVariables,
@@ -376,6 +416,7 @@ async function main(): Promise<void> {
         runGraphql,
         createdProductId,
         shouldDisableFrenchLocale,
+        shouldRestoreFrenchLocale,
       });
       console.log(`Cleanup after failure: ${JSON.stringify(cleanup)}`);
     }
@@ -386,6 +427,7 @@ async function bestEffortCleanup(options: {
   runGraphql: (query: string, variables?: JsonRecord) => Promise<ConformanceGraphqlPayload<unknown>>;
   createdProductId: string | null;
   shouldDisableFrenchLocale: boolean;
+  shouldRestoreFrenchLocale: boolean;
 }): Promise<JsonRecord> {
   const cleanup: JsonRecord = {};
   if (options.createdProductId !== null) {
@@ -397,7 +439,15 @@ async function bestEffortCleanup(options: {
       cleanup['productDeleteError'] = String(error);
     }
   }
-  if (options.shouldDisableFrenchLocale) {
+  if (options.shouldRestoreFrenchLocale) {
+    try {
+      cleanup['shopLocaleEnable'] = await options.runGraphql(shopLocaleEnableMutation, {
+        locale: 'fr',
+      });
+    } catch (error: unknown) {
+      cleanup['shopLocaleEnableError'] = String(error);
+    }
+  } else if (options.shouldDisableFrenchLocale) {
     try {
       cleanup['shopLocaleDisable'] = await options.runGraphql(shopLocaleDisableMutation, {
         locale: 'fr',

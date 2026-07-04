@@ -12,8 +12,8 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "Executable parity coverage for HAR-614 B2B contact phone/locale input behavior. The live fixture creates a disposable company with a primary contact phone in local formatting, then records duplicate-phone validation using the normalized E.164 equivalent, duplicate-email validation, invalid phone validation, invalid locale validation, a second contact create, duplicate email update validation, duplicate phone update validation, and cleanup. Shopify Admin 2026-04 introspection for the active conformance app exposes `phone` and `locale` inputs but does not expose `note`/`notes` on `CompanyContactInput` or `CompanyContact`, so note-to-notes and HTML guardrails remain covered by local Gleam runtime tests.",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for HAR-614 B2B contact phone/locale input behavior. The live fixture creates a disposable company with a primary contact phone in local formatting, then records duplicate-phone validation using the normalized E.164 equivalent, duplicate-email validation, invalid phone validation, invalid locale validation, a second contact create, duplicate email update validation, duplicate phone update validation, and cleanup. Shopify Admin 2026-04 introspection for the active conformance app exposes `phone` and `locale` inputs but does not expose `note`/`notes` on `CompanyContactInput` or `CompanyContact`, so note-to-notes and HTML guardrails remain covered by local runtime tests.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

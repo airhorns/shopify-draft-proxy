@@ -1,0 +1,33 @@
+query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {
+  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    edges {
+      cursor
+      node {
+        handle
+        type
+        displayName
+        fields {
+          key
+          value
+          jsonValue
+        }
+      }
+    }
+    nodes {
+      handle
+      type
+      displayName
+      fields {
+        key
+        value
+        jsonValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
