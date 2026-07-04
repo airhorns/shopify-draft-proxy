@@ -128,10 +128,14 @@ validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the
 catalog error is returned first. `priceListUpdate` returns `priceList: null` for
 those catalog validation failures while leaving the staged price list unchanged.
-`quantityRulesDelete` validates variant IDs against observed base/staged
-ProductVariant and fixed-price variant state when the proxy has variant state
-available; unknown IDs return `PRODUCT_VARIANT_DOES_NOT_EXIST` instead of being
-treated as deleted.
+`quantityPricingByVariantUpdate`, `quantityRulesAdd`, and `quantityRulesDelete`
+validate price-list IDs against staged or hydrated price-list records instead of
+accepting arbitrary IDs. Quantity-pricing add-side currency validation compares
+the submitted money currency to the referenced price list's actual currency, and
+quantity-pricing / quantity-rules variant validation uses observed base/staged
+ProductVariant and fixed-price variant state when variant state is available;
+unknown IDs return the Shopify-like variant user error instead of being treated
+as successfully updated or deleted.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,

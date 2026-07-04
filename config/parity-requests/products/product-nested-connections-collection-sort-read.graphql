@@ -1,0 +1,18 @@
+#graphql
+query ProductNestedConnectionsCollectionSortRead($productId: ID!) {
+  product(id: $productId) {
+    byId: collections(first: 10, sortKey: ID) {
+      nodes { title handle }
+    }
+    byTitleReverseWindow: collections(first: 2, sortKey: TITLE, reverse: true) {
+      edges {
+        cursor
+        node { title handle }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    byDefaultReverse: collections(first: 3, reverse: true) {
+      nodes { title handle }
+    }
+  }
+}

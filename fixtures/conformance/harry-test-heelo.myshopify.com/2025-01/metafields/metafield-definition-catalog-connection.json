@@ -1,0 +1,361 @@
+{
+  "scenarioId": "metafield-definition-catalog-connection",
+  "capturedAt": "2026-07-04T04:24:49.541Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespace": "catalog_connection_mr5uz345",
+  "captures": {
+    "createDefinitions": {
+      "label": "createDefinitions",
+      "request": {
+        "query": "mutation MetafieldDefinitionCatalogConnectionCreate(\n  $firstDefinition: MetafieldDefinitionInput!\n  $secondDefinition: MetafieldDefinitionInput!\n  $thirdDefinition: MetafieldDefinitionInput!\n) {\n  first: metafieldDefinitionCreate(definition: $firstDefinition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      name\n      ownerType\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  second: metafieldDefinitionCreate(definition: $secondDefinition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      name\n      ownerType\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  third: metafieldDefinitionCreate(definition: $thirdDefinition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      name\n      ownerType\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "firstDefinition": {
+            "ownerType": "PRODUCT",
+            "namespace": "catalog_connection_mr5uz345",
+            "key": "beta",
+            "name": "Zulu",
+            "type": "single_line_text_field"
+          },
+          "secondDefinition": {
+            "ownerType": "PRODUCT",
+            "namespace": "catalog_connection_mr5uz345",
+            "key": "alpha",
+            "name": "Alpha",
+            "type": "single_line_text_field"
+          },
+          "thirdDefinition": {
+            "ownerType": "PRODUCT",
+            "namespace": "catalog_connection_mr5uz345",
+            "key": "gamma",
+            "name": "Mike",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "first": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/223142478130",
+              "namespace": "catalog_connection_mr5uz345",
+              "key": "beta",
+              "name": "Zulu",
+              "ownerType": "PRODUCT",
+              "pinnedPosition": null
+            },
+            "userErrors": []
+          },
+          "second": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/223142510898",
+              "namespace": "catalog_connection_mr5uz345",
+              "key": "alpha",
+              "name": "Alpha",
+              "ownerType": "PRODUCT",
+              "pinnedPosition": null
+            },
+            "userErrors": []
+          },
+          "third": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/223142543666",
+              "namespace": "catalog_connection_mr5uz345",
+              "key": "gamma",
+              "name": "Mike",
+              "ownerType": "PRODUCT",
+              "pinnedPosition": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstPage": {
+      "label": "firstPage",
+      "request": {
+        "query": "query MetafieldDefinitionCatalogConnectionFirstPage($namespace: String!) {\n  firstPage: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 1) {\n    nodes {\n      id\n      key\n      name\n    }\n    edges {\n      cursor\n      node {\n        id\n        key\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "namespace": "catalog_connection_mr5uz345"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "firstPage": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MetafieldDefinition/223142478130",
+                "key": "beta",
+                "name": "Zulu"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMjMxNDI0NzgxMzAsImxhc3RfdmFsdWUiOiIyMjMxNDI0NzgxMzAifQ==",
+                "node": {
+                  "id": "gid://shopify/MetafieldDefinition/223142478130",
+                  "key": "beta",
+                  "name": "Zulu"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMjMxNDI0NzgxMzAsImxhc3RfdmFsdWUiOiIyMjMxNDI0NzgxMzAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjMxNDI0NzgxMzAsImxhc3RfdmFsdWUiOiIyMjMxNDI0NzgxMzAifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "secondPage": {
+      "label": "secondPage",
+      "request": {
+        "query": "query MetafieldDefinitionCatalogConnectionAfter($namespace: String!, $after: String!) {\n  secondPage: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 1, after: $after) {\n    nodes {\n      id\n      key\n      name\n    }\n    edges {\n      cursor\n      node {\n        id\n        key\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "namespace": "catalog_connection_mr5uz345",
+          "after": "eyJsYXN0X2lkIjoyMjMxNDI0NzgxMzAsImxhc3RfdmFsdWUiOiIyMjMxNDI0NzgxMzAifQ=="
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "secondPage": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MetafieldDefinition/223142510898",
+                "key": "alpha",
+                "name": "Alpha"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMjMxNDI1MTA4OTgsImxhc3RfdmFsdWUiOiIyMjMxNDI1MTA4OTgifQ==",
+                "node": {
+                  "id": "gid://shopify/MetafieldDefinition/223142510898",
+                  "key": "alpha",
+                  "name": "Alpha"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": true,
+              "startCursor": "eyJsYXN0X2lkIjoyMjMxNDI1MTA4OTgsImxhc3RfdmFsdWUiOiIyMjMxNDI1MTA4OTgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjMxNDI1MTA4OTgsImxhc3RfdmFsdWUiOiIyMjMxNDI1MTA4OTgifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "sortAndQuery": {
+      "label": "sortAndQuery",
+      "request": {
+        "query": "query MetafieldDefinitionCatalogConnectionSortQuery($namespace: String!) {\n  matching: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    first: 10\n    query: \"key:alpha\"\n    sortKey: NAME\n  ) {\n    nodes {\n      key\n      name\n    }\n  }\n  unknownFilter: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    first: 10\n    query: \"unknown:value\"\n  ) {\n    nodes {\n      key\n      name\n    }\n  }\n  nameDescending: metafieldDefinitions(\n    ownerType: PRODUCT\n    namespace: $namespace\n    first: 10\n    sortKey: NAME\n    reverse: true\n  ) {\n    nodes {\n      key\n      name\n    }\n  }\n}\n",
+        "variables": {
+          "namespace": "catalog_connection_mr5uz345"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "matching": {
+            "nodes": [
+              {
+                "key": "alpha",
+                "name": "Alpha"
+              }
+            ]
+          },
+          "unknownFilter": {
+            "nodes": [
+              {
+                "key": "beta",
+                "name": "Zulu"
+              },
+              {
+                "key": "alpha",
+                "name": "Alpha"
+              },
+              {
+                "key": "gamma",
+                "name": "Mike"
+              }
+            ]
+          },
+          "nameDescending": {
+            "nodes": [
+              {
+                "key": "beta",
+                "name": "Zulu"
+              },
+              {
+                "key": "gamma",
+                "name": "Mike"
+              },
+              {
+                "key": "alpha",
+                "name": "Alpha"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["unknownFilter"],
+              "query": "unknown:value",
+              "parsed": {
+                "field": "unknown",
+                "match_all": "value"
+              },
+              "warnings": [
+                {
+                  "field": "unknown",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDefinition",
+      "request": {
+        "query": "#graphql\n  mutation DeleteCatalogConnectionDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/223142543666"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/223142543666",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDefinition",
+      "request": {
+        "query": "#graphql\n  mutation DeleteCatalogConnectionDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/223142510898"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/223142510898",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDefinition",
+      "request": {
+        "query": "#graphql\n  mutation DeleteCatalogConnectionDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/223142478130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/223142478130",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Live Shopify capture for metafieldDefinitions default ID ordering, first/after cursor windows, query filtering, sortKey NAME, reverse, and the local unrecognized-filter policy target."
+}
