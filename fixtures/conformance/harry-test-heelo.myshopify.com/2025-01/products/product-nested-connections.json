@@ -1,0 +1,1086 @@
+{
+  "scenarioId": "product-nested-connections-live-parity",
+  "capturedAt": "2026-07-03T21:07:20.213Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Creates one disposable product, variants, collections, and product media through public Admin GraphQL mutations.",
+    "Reads product.variants, product.collections, product.media, and productVariant.media nested connections with sort/reverse/window arguments."
+  ],
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Nested connection conformance mr5fca8v",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10230925197618",
+                "title": "Nested connection conformance mr5fca8v",
+                "handle": "nested-connection-conformance-mr5fca8v",
+                "status": "DRAFT",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51421684597042",
+                      "title": "Default Title",
+                      "sku": null,
+                      "position": 1,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productVariantsBulkCreate": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618",
+        "strategy": "REMOVE_STANDALONE_VARIANT",
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Zulu"
+              }
+            ],
+            "price": "10.00",
+            "inventoryPolicy": "CONTINUE",
+            "inventoryItem": {
+              "sku": "NESTED-mr5fca8v-C",
+              "tracked": true
+            }
+          },
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Alpha"
+              }
+            ],
+            "price": "11.00",
+            "inventoryPolicy": "DENY",
+            "inventoryItem": {
+              "sku": "NESTED-mr5fca8v-A",
+              "tracked": false
+            }
+          },
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Middle"
+              }
+            ],
+            "price": "12.00",
+            "inventoryPolicy": "CONTINUE",
+            "inventoryItem": {
+              "sku": "NESTED-mr5fca8v-B",
+              "tracked": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51421684629810",
+                  "title": "Zulu",
+                  "sku": "NESTED-mr5fca8v-C",
+                  "position": 1,
+                  "inventoryPolicy": "CONTINUE",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53526745612594",
+                    "tracked": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51421684662578",
+                  "title": "Alpha",
+                  "sku": "NESTED-mr5fca8v-A",
+                  "position": 2,
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53526745645362",
+                    "tracked": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51421684695346",
+                  "title": "Middle",
+                  "sku": "NESTED-mr5fca8v-B",
+                  "position": 3,
+                  "inventoryPolicy": "CONTINUE",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53526745678130",
+                    "tracked": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "collectionCreate": {
+      "zulu": {
+        "variables": {
+          "input": {
+            "title": "Zulu nested collection mr5fca8v"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionCreate": {
+                "collection": {
+                  "id": "gid://shopify/Collection/514078834994",
+                  "title": "Zulu nested collection mr5fca8v",
+                  "handle": "zulu-nested-collection-mr5fca8v"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "alpha": {
+        "variables": {
+          "input": {
+            "title": "Alpha nested collection mr5fca8v"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionCreate": {
+                "collection": {
+                  "id": "gid://shopify/Collection/514078867762",
+                  "title": "Alpha nested collection mr5fca8v",
+                  "handle": "alpha-nested-collection-mr5fca8v"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "middle": {
+        "variables": {
+          "input": {
+            "title": "Middle nested collection mr5fca8v"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionCreate": {
+                "collection": {
+                  "id": "gid://shopify/Collection/514078900530",
+                  "title": "Middle nested collection mr5fca8v",
+                  "handle": "middle-nested-collection-mr5fca8v"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "collectionAddProductsV2": {
+      "zulu": {
+        "variables": {
+          "id": "gid://shopify/Collection/514078834994",
+          "productIds": ["gid://shopify/Product/10230925197618"]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionAddProductsV2": {
+                "job": {
+                  "id": "gid://shopify/Job/df178841-119e-43e3-8dd2-d86c4f059bae",
+                  "done": false
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "alpha": {
+        "variables": {
+          "id": "gid://shopify/Collection/514078867762",
+          "productIds": ["gid://shopify/Product/10230925197618"]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionAddProductsV2": {
+                "job": {
+                  "id": "gid://shopify/Job/a4c1ff87-9e2d-4790-adfe-09662b09de96",
+                  "done": false
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "middle": {
+        "variables": {
+          "id": "gid://shopify/Collection/514078900530",
+          "productIds": ["gid://shopify/Product/10230925197618"]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "collectionAddProductsV2": {
+                "job": {
+                  "id": "gid://shopify/Job/77c94dac-85e0-4c8b-aa09-0c675aa048dd",
+                  "done": false
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=nested-front-mr5fca8v",
+            "alt": "Nested front mr5fca8v"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=nested-side-mr5fca8v",
+            "alt": "Nested side mr5fca8v"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=nested-back-mr5fca8v",
+            "alt": "Nested back mr5fca8v"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreateMedia": {
+              "media": [
+                {
+                  "id": "gid://shopify/MediaImage/43991818338610",
+                  "alt": "Nested front mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "UPLOADED"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43991818371378",
+                  "alt": "Nested side mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "UPLOADED"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43991818404146",
+                  "alt": "Nested back mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "UPLOADED"
+                }
+              ],
+              "mediaUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productUpdateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618",
+        "media": [
+          {
+            "id": "gid://shopify/MediaImage/43991818338610"
+          },
+          {
+            "id": "gid://shopify/MediaImage/43991818371378"
+          },
+          {
+            "id": "gid://shopify/MediaImage/43991818404146"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdateMedia": {
+              "media": [
+                {
+                  "id": "gid://shopify/MediaImage/43991818338610",
+                  "alt": "Nested front mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43991818371378",
+                  "alt": "Nested side mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43991818404146",
+                  "alt": "Nested back mr5fca8v",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ],
+              "mediaUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productVariantAppendMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51421684662578",
+            "mediaIds": ["gid://shopify/MediaImage/43991818371378"]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantAppendMedia": {
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51421684662578",
+                  "media": {
+                    "nodes": [
+                      {
+                        "alt": "Nested side mr5fca8v",
+                        "mediaContentType": "IMAGE",
+                        "status": "READY"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "variantSorts": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "byFullTitle": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "title": "Zulu"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "title": "Alpha"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "title": "Middle"
+                  }
+                ]
+              },
+              "byId": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "title": "Zulu"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "title": "Alpha"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "title": "Middle"
+                  }
+                ]
+              },
+              "byInventoryLevelsAvailable": {
+                "nodes": []
+              },
+              "byInventoryManagement": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "inventoryItem": {
+                      "tracked": false
+                    }
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "inventoryItem": {
+                      "tracked": true
+                    }
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "inventoryItem": {
+                      "tracked": true
+                    }
+                  }
+                ]
+              },
+              "byInventoryPolicyReverse": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "inventoryPolicy": "DENY"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "inventoryPolicy": "CONTINUE"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "inventoryPolicy": "CONTINUE"
+                  }
+                ]
+              },
+              "byInventoryQuantityReverse": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "inventoryQuantity": 0
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "inventoryQuantity": 0
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "inventoryQuantity": 0
+                  }
+                ]
+              },
+              "byNameReverseWindow": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "title": "Zulu"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "title": "Middle"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NDYyOTgxMCwibGFzdF92YWx1ZSI6Im5lc3RlZCBjb25uZWN0aW9uIGNvbmZvcm1hbmNlIG1yNWZjYTh2IC0genVsdSJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NDY5NTM0NiwibGFzdF92YWx1ZSI6Im5lc3RlZCBjb25uZWN0aW9uIGNvbmZvcm1hbmNlIG1yNWZjYTh2IC0gbWlkZGxlIn0="
+                }
+              },
+              "byPopular": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "position": 1
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "position": 2
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "position": 3
+                  }
+                ]
+              },
+              "byPositionReverse": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "position": 3
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "position": 2
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "position": 1
+                  }
+                ]
+              },
+              "byRelevanceReverse": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "position": 3
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "position": 2
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "position": 1
+                  }
+                ]
+              },
+              "bySku": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "title": "Alpha"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "title": "Middle"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "title": "Zulu"
+                  }
+                ]
+              },
+              "byTitle": {
+                "nodes": [
+                  {
+                    "sku": "NESTED-mr5fca8v-A",
+                    "title": "Alpha"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-B",
+                    "title": "Middle"
+                  },
+                  {
+                    "sku": "NESTED-mr5fca8v-C",
+                    "title": "Zulu"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 74,
+              "actualQueryCost": 51,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1949,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "collectionSorts": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "byId": {
+                "nodes": [
+                  {
+                    "title": "Zulu nested collection mr5fca8v",
+                    "handle": "zulu-nested-collection-mr5fca8v"
+                  },
+                  {
+                    "title": "Alpha nested collection mr5fca8v",
+                    "handle": "alpha-nested-collection-mr5fca8v"
+                  },
+                  {
+                    "title": "Middle nested collection mr5fca8v",
+                    "handle": "middle-nested-collection-mr5fca8v"
+                  }
+                ]
+              },
+              "byTitleReverseWindow": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MTQwNzg4MzQ5OTQsImxhc3RfdmFsdWUiOiJadWx1IG5lc3RlZCBjb2xsZWN0aW9uIG1yNWZjYTh2In0=",
+                    "node": {
+                      "title": "Zulu nested collection mr5fca8v",
+                      "handle": "zulu-nested-collection-mr5fca8v"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MTQwNzg5MDA1MzAsImxhc3RfdmFsdWUiOiJNaWRkbGUgbmVzdGVkIGNvbGxlY3Rpb24gbXI1ZmNhOHYifQ==",
+                    "node": {
+                      "title": "Middle nested collection mr5fca8v",
+                      "handle": "middle-nested-collection-mr5fca8v"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQwNzg4MzQ5OTQsImxhc3RfdmFsdWUiOiJadWx1IG5lc3RlZCBjb2xsZWN0aW9uIG1yNWZjYTh2In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQwNzg5MDA1MzAsImxhc3RfdmFsdWUiOiJNaWRkbGUgbmVzdGVkIGNvbGxlY3Rpb24gbXI1ZmNhOHYifQ=="
+                }
+              },
+              "byDefaultReverse": {
+                "nodes": [
+                  {
+                    "title": "Middle nested collection mr5fca8v",
+                    "handle": "middle-nested-collection-mr5fca8v"
+                  },
+                  {
+                    "title": "Alpha nested collection mr5fca8v",
+                    "handle": "alpha-nested-collection-mr5fca8v"
+                  },
+                  {
+                    "title": "Zulu nested collection mr5fca8v",
+                    "handle": "zulu-nested-collection-mr5fca8v"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productMediaFirst": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "media": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODMzODYxMCwibGFzdF92YWx1ZSI6IjEifQ==",
+                    "node": {
+                      "alt": "Nested front mr5fca8v",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6IjIifQ==",
+                    "node": {
+                      "alt": "Nested side mr5fca8v",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODMzODYxMCwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6IjIifQ=="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productMediaAfter": {
+      "variables": {
+        "productId": "gid://shopify/Product/10230925197618",
+        "after": "eyJsYXN0X2lkIjo0Mzk5MTgxODMzODYxMCwibGFzdF92YWx1ZSI6IjEifQ=="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "media": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6IjIifQ==",
+                    "node": {
+                      "alt": "Nested side mr5fca8v",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": true,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6IjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6IjIifQ=="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "variantMedia": {
+      "variables": {
+        "variantId": "gid://shopify/ProductVariant/51421684662578"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariant": {
+              "media": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6NDM5OTE4MTgzNzEzNzh9",
+                    "node": {
+                      "alt": "Nested side mr5fca8v",
+                      "mediaContentType": "IMAGE",
+                      "status": "READY"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6NDM5OTE4MTgzNzEzNzh9",
+                  "endCursor": "eyJsYXN0X2lkIjo0Mzk5MTgxODM3MTM3OCwibGFzdF92YWx1ZSI6NDM5OTE4MTgzNzEzNzh9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "collection:gid://shopify/Collection/514078900530": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514078900530"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionDelete": {
+              "deletedCollectionId": "gid://shopify/Collection/514078900530",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "collection:gid://shopify/Collection/514078867762": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514078867762"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionDelete": {
+              "deletedCollectionId": "gid://shopify/Collection/514078867762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "collection:gid://shopify/Collection/514078834994": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514078834994"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionDelete": {
+              "deletedCollectionId": "gid://shopify/Collection/514078834994",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "product:gid://shopify/Product/10230925197618": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10230925197618"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10230925197618",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

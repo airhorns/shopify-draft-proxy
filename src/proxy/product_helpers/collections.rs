@@ -167,6 +167,17 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
         .collect()
 }
 
+fn merge_observed_collection_into_local(local: &Value, observed: &Value) -> Value {
+    let (Some(local), Some(observed)) = (local.as_object(), observed.as_object()) else {
+        return local.clone();
+    };
+    let mut merged = observed.clone();
+    for (key, value) in local {
+        merged.insert(key.clone(), value.clone());
+    }
+    Value::Object(merged)
+}
+
 impl DraftProxy {
     /// In live-hybrid mode a `collection(id:)` read for a collection that was
     /// never staged locally must read through to upstream (the recorded
@@ -202,6 +213,8 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
+                "collections" => self.collections_connection_field(field),
+                "collectionsCount" => self.collections_count_field(field),
                 "product" => self.product_by_id_field(field),
                 "job" => self.collection_job_read(field),
                 _ => return None,
@@ -209,35 +222,114 @@ impl DraftProxy {
         })
     }
 
-    // Serve a top-level `collections(query:, sortKey:)` read entirely from the
-    // seeded `collection_catalog` snapshots. Every selection in this operation is
-    // a `collections` field distinguished only by its alias (response key) — the
-    // unaliased catalog root plus per-filter aliases (title wildcard, custom/smart
-    // type, updated sort, product membership, empty) — so the resolver keys each
-    // field by its response key, looks up the matching recorded connection, and
-    // projects the requested selection over it (truncating to `first`). This
-    // reproduces the recorded opaque cursors/pageInfo verbatim; an alias with no
-    // seeded snapshot degrades to an empty connection rather than fabricating one.
-    pub(in crate::proxy) fn collections_catalog_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            if field.name != "collections" {
-                return None;
-            }
-            let value = match self
-                .store
-                .staged
-                .collection_catalog
-                .get(&field.response_key)
+    pub(in crate::proxy) fn hydrate_collections_for_read(&mut self, request: &Request) {
+        let response = (self.upstream_transport)(request.clone());
+        if response.status < 400 {
+            self.observe_collections_read_response(&response);
+        }
+    }
+
+    fn observe_collections_read_response(&mut self, response: &Response) {
+        self.observe_collection_value(&response.body["data"]);
+    }
+
+    fn observe_collection_value(&mut self, value: &Value) {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+            if id.starts_with("gid://shopify/Collection/")
+                && !self.store.collection_is_deleted(id)
+                && self.store.collection_by_id(id).is_none()
             {
-                Some(connection) => {
-                    project_seeded_connection(connection, &field.arguments, &field.selection)
+                self.stage_collection_from_observed_json(value);
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.observe_collection_value(value);
                 }
-                None => selected_empty_connection_json(&field.selection),
-            };
-            Some(value)
+            }
+            Value::Object(object) => {
+                for value in object.values() {
+                    self.observe_collection_value(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(in crate::proxy) fn matching_collections_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .collections
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            |collection, query| self.collection_search_decision(collection, query),
+            collection_staged_sort_key,
+            value_id_cursor,
+        )
+    }
+
+    pub(in crate::proxy) fn collections_connection_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let result = self.matching_collections_query(&field.arguments);
+        selected_typed_connection_with_page_info(
+            &result.records,
+            &field.selection,
+            collection_json,
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    pub(in crate::proxy) fn collections_count_field(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &staged_count_with_limit_precision(
+                self.matching_collections_query(&field.arguments)
+                    .total_count,
+                &field.arguments,
+            ),
+            &field.selection,
+        )
+    }
+
+    fn collection_search_decision(
+        &self,
+        collection: &Value,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        StagedSearchDecision::from_bool(self.collection_matches_search_query(collection, query))
+    }
+
+    fn collection_matches_search_query(&self, collection: &Value, query: &str) -> bool {
+        let terms = collection_search_terms(query);
+        if terms.is_empty() {
+            return true;
+        }
+        terms.into_iter().all(|term| {
+            if term.eq_ignore_ascii_case("AND") {
+                return true;
+            }
+            let (negated, term) = term
+                .strip_prefix('-')
+                .map(|stripped| (true, stripped))
+                .unwrap_or((false, term.as_str()));
+            let matched = collection_matches_search_term(self, collection, term);
+            if negated {
+                !matched
+            } else {
+                matched
+            }
         })
     }
 
@@ -787,6 +879,14 @@ impl DraftProxy {
     }
 
     fn stage_collection_from_observed_json(&mut self, collection: &Value) {
+        if collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| self.store.collection_is_deleted(id))
+        {
+            return;
+        }
+        let collection = self.observed_collection_for_staging(collection);
         let products = collection
             .get("products")
             .and_then(|connection| connection.get("nodes"))
@@ -795,8 +895,33 @@ impl DraftProxy {
             .flatten()
             .filter_map(product_state_from_json)
             .collect::<Vec<_>>();
-        self.store
-            .stage_collection_membership(collection.clone(), products);
+        self.store.stage_collection_membership(collection, products);
+    }
+
+    fn observed_collection_for_staging(&self, collection: &Value) -> Value {
+        let Some(observed_id) = collection.get("id").and_then(Value::as_str) else {
+            return collection.clone();
+        };
+        if is_synthetic_gid(observed_id) {
+            return collection.clone();
+        }
+        let Some(observed_handle) = collection
+            .get("handle")
+            .and_then(Value::as_str)
+            .filter(|handle| !handle.is_empty())
+        else {
+            return collection.clone();
+        };
+        let Some((_, local_collection)) =
+            self.store.staged.collections.iter().find(|(id, staged)| {
+                id.as_str() != observed_id
+                    && is_synthetic_gid(id)
+                    && staged.get("handle").and_then(Value::as_str) == Some(observed_handle)
+            })
+        else {
+            return collection.clone();
+        };
+        merge_observed_collection_into_local(local_collection, collection)
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
@@ -953,7 +1078,9 @@ impl DraftProxy {
             &title,
             None,
         );
+        let timestamp = self.next_product_timestamp();
         let mut collection = collection_from_input(&input, &id, &title, &handle, None);
+        apply_collection_timestamps(&mut collection, &timestamp, &timestamp);
         let products = initial_product_ids
             .into_iter()
             .filter_map(|id| self.store.product_by_id(&id).cloned())
@@ -1040,6 +1167,17 @@ impl DraftProxy {
             }
         }
 
+        let current_updated_at = existing
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .unwrap_or_else(|| {
+                existing
+                    .get("createdAt")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+            })
+            .to_string();
+        let next_updated_at = self.next_product_updated_at(&current_updated_at);
         let mut updated = existing;
         if let Some(object) = updated.as_object_mut() {
             if let Some(title) = resolved_string_field(&input, "title") {
@@ -1075,6 +1213,10 @@ impl DraftProxy {
             if let Some(template_suffix) = resolved_string_field(&input, "templateSuffix") {
                 object.insert("templateSuffix".to_string(), json!(template_suffix));
             }
+            object
+                .entry("createdAt".to_string())
+                .or_insert_with(|| json!(default_product_timestamp()));
+            object.insert("updatedAt".to_string(), json!(next_updated_at));
         }
         self.store.stage_collection(updated.clone());
         self.refresh_collection_summary_on_products(&id);
@@ -1660,6 +1802,158 @@ fn collection_input(
     }
 }
 
+fn collection_string_field(collection: &Value, field: &str) -> String {
+    collection
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn collection_handle_matches(actual: &str, query_value: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual.starts_with(prefix);
+    }
+    actual == query_value
+}
+
+fn collection_normalized_sort_string(value: &str) -> StagedSortValue {
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn collection_gid_tail_sort_string(id: &str) -> StagedSortValue {
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn collection_staged_sort_key(collection: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = collection_string_field(collection, "id");
+    let primary = match sort_key.unwrap_or("ID") {
+        "TITLE" => collection_normalized_sort_string(&collection_string_field(collection, "title")),
+        "UPDATED_AT" => StagedSortValue::String(collection_string_field(collection, "updatedAt")),
+        "ID" | "RELEVANCE" => collection_gid_tail_sort_string(&id),
+        _ => collection_gid_tail_sort_string(&id),
+    };
+    vec![primary, collection_gid_tail_sort_string(&id)]
+}
+
+fn collection_search_terms(query: &str) -> Vec<String> {
+    let mut terms = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    for ch in query.chars() {
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | ')' | ' ' | '\t' | '\n' | '\r' if !current.is_empty() => {
+                terms.push(std::mem::take(&mut current));
+            }
+            '(' | ')' | ' ' | '\t' | '\n' | '\r' => {}
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        terms.push(current);
+    }
+    terms
+}
+
+fn collection_matches_search_term(proxy: &DraftProxy, collection: &Value, term: &str) -> bool {
+    let term = term.trim();
+    if term.is_empty() {
+        return true;
+    }
+    if let Some((field, value)) = term.split_once(':') {
+        let field = field.to_ascii_lowercase();
+        let value = value.trim_matches('"').trim_matches('\'');
+        if field.is_empty() || value.is_empty() {
+            return false;
+        }
+        return match field.as_str() {
+            "id" => collection_id_matches(collection, value),
+            "title" => {
+                product_search_string_matches(&collection_string_field(collection, "title"), value)
+            }
+            "handle" => {
+                collection_handle_matches(&collection_string_field(collection, "handle"), value)
+            }
+            "created_at" => {
+                product_matches_date_query(&collection_string_field(collection, "createdAt"), value)
+            }
+            "updated_at" => {
+                product_matches_date_query(&collection_string_field(collection, "updatedAt"), value)
+            }
+            "collection_type" => collection_matches_type(collection, value),
+            "published_status" => collection_matches_published_status(proxy, collection, value),
+            "product_id" => collection_matches_product_id(collection, value),
+            _ => false,
+        };
+    }
+    product_search_string_matches(&collection_string_field(collection, "title"), term)
+        || product_search_string_matches(&collection_string_field(collection, "handle"), term)
+}
+
+fn collection_id_matches(collection: &Value, value: &str) -> bool {
+    let id = collection_string_field(collection, "id");
+    id == value || resource_id_tail(&id) == value
+}
+
+fn collection_matches_type(collection: &Value, value: &str) -> bool {
+    match value.to_ascii_lowercase().as_str() {
+        "custom" => !collection_is_smart(collection),
+        "smart" => collection_is_smart(collection),
+        _ => false,
+    }
+}
+
+fn collection_matches_published_status(
+    proxy: &DraftProxy,
+    collection: &Value,
+    value: &str,
+) -> bool {
+    let id = collection_string_field(collection, "id");
+    let published = !proxy.resource_publication_set(&id).is_empty();
+    match value.to_ascii_lowercase().as_str() {
+        "published" => published,
+        "unpublished" => !published,
+        "any" => true,
+        _ => false,
+    }
+}
+
+fn collection_matches_product_id(collection: &Value, value: &str) -> bool {
+    collection
+        .get("products")
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|product| {
+            let id = product
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            id == value || resource_id_tail(id) == value
+        })
+}
+
 fn collection_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     id: &str,
@@ -1672,6 +1966,8 @@ fn collection_from_input(
             "id": id,
             "title": title,
             "handle": handle,
+            "createdAt": default_product_timestamp(),
+            "updatedAt": default_product_timestamp(),
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "products": connection_json(Vec::<Value>::new()),
@@ -1701,6 +1997,13 @@ fn collection_from_input(
         }
     }
     collection
+}
+
+fn apply_collection_timestamps(collection: &mut Value, created_at: &str, updated_at: &str) {
+    if let Some(object) = collection.as_object_mut() {
+        object.insert("createdAt".to_string(), json!(created_at));
+        object.insert("updatedAt".to_string(), json!(updated_at));
+    }
 }
 
 fn collection_initial_product_user_errors(store: &Store, product_ids: &[String]) -> Vec<Value> {

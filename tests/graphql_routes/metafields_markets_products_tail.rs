@@ -7090,6 +7090,223 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
 }
 
 #[test]
+fn polymorphic_tags_not_found_returns_payload_user_errors_and_logs_raw_mutations() {
+    let mut product_proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/999999999999999";
+    let add = product_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductTagsAdd($id: ID!, $tags: [String!]!) {
+          missingAdd: tagsAdd(id: $id, tags: $tags) {
+            selectedNode: node { ... on Product { selectedId: id } }
+            problems: userErrors { path: field text: message }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["missingAdd"],
+        json!({
+            "selectedNode": null,
+            "problems": [{
+                "path": ["id"],
+                "text": "Product does not exist"
+            }]
+        })
+    );
+    let product_log = log_snapshot(&product_proxy);
+    assert_eq!(product_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        product_log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("tagsAdd")
+    );
+    assert_eq!(
+        product_log["entries"][0]["stagedResourceIds"],
+        json!([product_id])
+    );
+    assert!(product_log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw_body| raw_body.contains("MissingProductTagsAdd")));
+
+    let mut customer_proxy = snapshot_proxy();
+    let customer_id = "gid://shopify/Customer/999999999999999";
+    let remove = customer_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerTagsRemove($id: ID!, $tags: [String!]!) {
+          missingRemove: tagsRemove(id: $id, tags: $tags) {
+            selectedNode: node { ... on Customer { selectedId: id } }
+            problems: userErrors { path: field text: message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["missingRemove"],
+        json!({
+            "selectedNode": null,
+            "problems": [{
+                "path": ["id"],
+                "text": "Customer does not exist"
+            }]
+        })
+    );
+    let customer_log = log_snapshot(&customer_proxy);
+    assert_eq!(customer_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        customer_log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("tagsRemove")
+    );
+    assert_eq!(
+        customer_log["entries"][0]["stagedResourceIds"],
+        json!([customer_id])
+    );
+    assert!(customer_log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw_body| raw_body.contains("MissingCustomerTagsRemove")));
+}
+
+#[test]
+fn polymorphic_tags_not_found_messages_cover_supported_taggable_types() {
+    for resource_type in ["Product", "Order", "DraftOrder", "Customer", "Article"] {
+        for root in ["tagsAdd", "tagsRemove"] {
+            let mut proxy = snapshot_proxy();
+            let id = format!("gid://shopify/{resource_type}/999999999999999");
+            let query = format!(
+                r#"
+                mutation SupportedTaggableNotFound($id: ID!, $tags: [String!]!) {{
+                  {root}(id: $id, tags: $tags) {{
+                    node {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            );
+            let response = proxy.process_request(json_graphql_request(
+                &query,
+                json!({ "id": id, "tags": ["vip"] }),
+            ));
+
+            assert_eq!(response.status, 200, "{root} {resource_type}");
+            assert_eq!(
+                response.body["data"][root],
+                json!({
+                    "node": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": format!("{resource_type} does not exist")
+                    }]
+                }),
+                "{root} {resource_type}"
+            );
+            assert_eq!(
+                log_snapshot(&proxy)["entries"][0]["stagedResourceIds"],
+                json!([format!("gid://shopify/{resource_type}/999999999999999")]),
+                "{root} {resource_type}"
+            );
+        }
+    }
+}
+
+#[test]
+fn polymorphic_tags_live_hybrid_null_hydration_returns_payload_not_found() {
+    let product_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_product_hydrates = Arc::clone(&product_hydrates);
+    let mut product_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_product_hydrates.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ProductsHydrateNodes")));
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [Value::Null] } }),
+            }
+        });
+    let product_id = "gid://shopify/Product/999999999999999";
+    let add = product_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductTagsAddLive($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["tagsAdd"],
+        json!({
+            "node": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist"
+            }]
+        })
+    );
+    let product_hydrate_bodies = product_hydrates.lock().unwrap();
+    assert_eq!(product_hydrate_bodies.len(), 1);
+    assert_eq!(
+        log_snapshot(&product_proxy)["entries"][0]["stagedResourceIds"],
+        json!([product_id])
+    );
+
+    let customer_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_customer_hydrates = Arc::clone(&customer_hydrates);
+    let mut customer_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_customer_hydrates
+                .lock()
+                .unwrap()
+                .push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("CustomerHydrate")));
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customer": Value::Null } }),
+            }
+        });
+    let customer_id = "gid://shopify/Customer/999999999999999";
+    let remove = customer_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerTagsRemoveLive($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Customer { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["tagsRemove"],
+        json!({
+            "node": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Customer does not exist"
+            }]
+        })
+    );
+    let customer_hydrate_bodies = customer_hydrates.lock().unwrap();
+    assert_eq!(customer_hydrate_bodies.len(), 1);
+    assert_eq!(
+        log_snapshot(&customer_proxy)["entries"][0]["stagedResourceIds"],
+        json!([customer_id])
+    );
+}
+
+#[test]
 fn product_change_status_stages_archived_status_and_effective_downstream_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
         "gid://shopify/Product/10173064872242",

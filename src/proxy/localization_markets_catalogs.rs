@@ -3141,7 +3141,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -3174,6 +3174,15 @@ impl DraftProxy {
             let field_index = index.to_string();
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
+            let market_id = resolved_object_string(translation_input, "marketId");
+            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "marketId"]),
+                    "The market corresponding to the `marketId` argument doesn't exist",
+                    Some("MARKET_DOES_NOT_EXIST"),
+                ));
+                continue;
+            }
             if locale == primary_locale {
                 user_errors.push(user_error(
                     json!(["translations", field_index, "locale"]),
@@ -3187,15 +3196,6 @@ impl DraftProxy {
                     json!(["translations", field_index, "locale"]),
                     "Locale is not a valid locale for the shop",
                     Some("INVALID_LOCALE_FOR_SHOP"),
-                ));
-                continue;
-            }
-            let market_id = resolved_object_string(translation_input, "marketId");
-            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
-                user_errors.push(user_error(
-                    json!(["translations", field_index, "marketId"]),
-                    "The market corresponding to the `marketId` argument doesn't exist",
-                    Some("MARKET_DOES_NOT_EXIST"),
                 ));
                 continue;
             }
@@ -3300,7 +3300,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -4033,10 +4033,26 @@ impl DraftProxy {
         if resource_id.is_empty() {
             return false;
         }
-        if resource_id.starts_with("gid://shopify/Product/") {
-            return self.store.has_localization_product(resource_id);
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some(_) => true,
+            _ => false,
         }
-        true
+    }
+
+    /// Mutations must reject resource IDs the proxy cannot resolve locally, while
+    /// read roots still keep Shopify-like empty placeholders for unmodeled types.
+    fn localization_translation_mutation_resource_exists(&self, resource_id: &str) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some("PackingSlipTemplate") => true,
+            _ => false,
+        }
     }
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
