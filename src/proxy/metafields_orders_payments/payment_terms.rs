@@ -148,6 +148,32 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
+pub(in crate::proxy) fn payment_terms_record_with_effective_due(
+    payment_terms: &Value,
+    now_epoch: i64,
+) -> Value {
+    let mut record = payment_terms.clone();
+    let mut terms_due = false;
+    if let Some(nodes) = record
+        .get_mut("paymentSchedules")
+        .and_then(|connection| connection.get_mut("nodes"))
+        .and_then(Value::as_array_mut)
+    {
+        for node in nodes {
+            let due = payment_schedule_due_state(
+                node.get("dueAt").and_then(Value::as_str),
+                node.get("completedAt").and_then(Value::as_str),
+                now_epoch,
+            );
+            node["due"] = json!(due);
+            terms_due |= due;
+        }
+    }
+    record["due"] = json!(terms_due);
+    record["overdue"] = json!(terms_due);
+    record
+}
+
 /// Projects the Shopify payment-terms template id onto its (name, type, dueInDays)
 /// tuple. The template catalog is fixed (see the live payment-terms-templates-read
 /// capture): Net N templates carry their day count, Fixed/Due-on-receipt/Due-on-
@@ -272,7 +298,11 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
     }
 }
 
-fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) -> bool {
+fn payment_schedule_due_state(
+    due_at: Option<&str>,
+    completed_at: Option<&str>,
+    now_epoch: i64,
+) -> bool {
     if completed_at.is_some() {
         return false;
     }
@@ -280,11 +310,6 @@ fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) 
         return false;
     };
     let Some(due_at_epoch) = super::app_shipping_helpers::parse_rfc3339_epoch_seconds(due_at)
-    else {
-        return false;
-    };
-    let Some(now_epoch) =
-        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2026-07-02T00:00:00Z")
     else {
         return false;
     };
@@ -301,6 +326,7 @@ fn payment_schedule_node(
     due_in_days: Option<i64>,
     amount: &str,
     currency: &str,
+    now_epoch: i64,
 ) -> Value {
     let issued_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "issuedAt"));
     let input_due_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -311,7 +337,7 @@ fn payment_schedule_node(
             _ => None,
         },
     };
-    let due = payment_schedule_due_state(due_at.as_deref(), None);
+    let due = payment_schedule_due_state(due_at.as_deref(), None, now_epoch);
     let money = money_value(&normalize_money_amount(amount), currency);
     json!({
         "id": schedule_id,
@@ -453,6 +479,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
     amount: &str,
     currency: &str,
+    now_epoch: i64,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
     let (name, terms_type, due_in_days) = payment_terms_template_projection(&template_id);
@@ -470,6 +497,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
             due_in_days,
             amount,
             currency,
+            now_epoch,
         );
         json!([node])
     };
@@ -720,7 +748,11 @@ impl DraftProxy {
                                 let (amount, currency) = payment_terms_extract_owner_money(&owner)
                                     .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string()));
                                 let record = payment_terms_record_from_attrs(
-                                    &terms_id, &attrs, &amount, &currency,
+                                    &terms_id,
+                                    &attrs,
+                                    &amount,
+                                    &currency,
+                                    self.current_epoch_seconds(),
                                 );
                                 self.store
                                     .staged
@@ -733,7 +765,14 @@ impl DraftProxy {
                                 self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(record, Vec::new(), &field.selection)
+                                payment_terms_payload_value(
+                                    payment_terms_record_with_effective_due(
+                                        &record,
+                                        self.current_epoch_seconds(),
+                                    ),
+                                    Vec::new(),
+                                    &field.selection,
+                                )
                             }
                         },
                         Err(payload) => payload,
@@ -801,7 +840,11 @@ impl DraftProxy {
                                         .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
                                 };
                                 let record = payment_terms_record_from_attrs(
-                                    &terms_id, &attrs, &amount, &currency,
+                                    &terms_id,
+                                    &attrs,
+                                    &amount,
+                                    &currency,
+                                    self.current_epoch_seconds(),
                                 );
                                 self.store
                                     .staged
@@ -815,7 +858,14 @@ impl DraftProxy {
                                 }
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(record, Vec::new(), &field.selection)
+                                payment_terms_payload_value(
+                                    payment_terms_record_with_effective_due(
+                                        &record,
+                                        self.current_epoch_seconds(),
+                                    ),
+                                    Vec::new(),
+                                    &field.selection,
+                                )
                             }
                         }
                         Err(payload) => payload,
@@ -1018,6 +1068,12 @@ impl DraftProxy {
     }
 
     fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
+        let terms = terms
+            .as_ref()
+            .map(|terms| {
+                payment_terms_record_with_effective_due(terms, self.current_epoch_seconds())
+            })
+            .unwrap_or(Value::Null);
         let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
             self.store
                 .staged
@@ -1041,7 +1097,25 @@ impl DraftProxy {
                     })
                 })
         };
-        entry["paymentTerms"] = terms.unwrap_or(Value::Null);
+        entry["paymentTerms"] = terms;
+    }
+
+    pub(in crate::proxy) fn payment_terms_owner_record_with_effective_due(
+        &self,
+        owner: &Value,
+    ) -> Value {
+        let mut owner = owner.clone();
+        if let Some(payment_terms) = owner
+            .get("paymentTerms")
+            .filter(|payment_terms| !payment_terms.is_null())
+            .cloned()
+        {
+            owner["paymentTerms"] = payment_terms_record_with_effective_due(
+                &payment_terms,
+                self.current_epoch_seconds(),
+            );
+        }
+        owner
     }
 
     fn selected_payment_terms_owner(
@@ -1056,16 +1130,22 @@ impl DraftProxy {
             self.store.staged.orders.get(owner_id)
         };
         record
-            .map(|record| selected_json(record, selection))
+            .map(|record| {
+                selected_json(
+                    &self.payment_terms_owner_record_with_effective_due(record),
+                    selection,
+                )
+            })
             .unwrap_or(Value::Null)
     }
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let (id, order_input, _) = self.staged_order_input_and_first_line(field);
         let price_set = payment_terms_order_total_price_set(&order_input);
+        let order_name = self.next_order_name();
         let order = json!({
             "id": id,
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "currentTotalPriceSet": price_set.clone(),
             "totalPriceSet": price_set.clone(),
             "totalOutstandingSet": price_set,

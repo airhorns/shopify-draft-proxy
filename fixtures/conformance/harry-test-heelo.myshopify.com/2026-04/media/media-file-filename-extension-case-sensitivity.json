@@ -1,0 +1,230 @@
+{
+  "capturedAt": "2026-07-04T00:27:17.561Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-filename-extension-case-sensitivity",
+  "cases": {
+    "fileCreateCaseMismatch": {
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400.PNG?text=media-extension-case-create-1783124832900",
+            "filename": "media-extension-case-create-1783124832900.png",
+            "contentType": "IMAGE"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "filename"],
+                  "message": "Provided filename extension must match original source.",
+                  "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fileUpdateCaseMismatch": {
+      "operationName": "fileUpdate",
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/GenericFile/43992777228594",
+            "filename": "media-extension-case-update-1783124832900.jpg"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileUpdate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files"],
+                  "message": "The filename extension provided must match the original filename.",
+                  "code": "INVALID_FILENAME_EXTENSION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "fileCreate": {
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400.JPG?text=media-extension-case-update-1783124832900",
+            "filename": "media-extension-case-update-1783124832900.JPG",
+            "contentType": "FILE",
+            "alt": "Media extension case update 1783124832900"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [
+                {
+                  "id": "gid://shopify/GenericFile/43992777228594",
+                  "alt": "Media extension case update 1783124832900",
+                  "createdAt": "2026-07-04T00:27:13Z",
+                  "fileStatus": "UPLOADED"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/GenericFile/43992777228594"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GenericFile/43992777228594",
+                "__typename": "GenericFile",
+                "alt": "Media extension case update 1783124832900",
+                "createdAt": "2026-07-04T00:27:13Z",
+                "fileStatus": "READY",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/media-extension-case-update-1783124832900.JPG?v=1783124835"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/GenericFile/43992777228594"]
+      },
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GenericFile/43992777228594",
+                "__typename": "GenericFile",
+                "alt": "Media extension case update 1783124832900",
+                "createdAt": "2026-07-04T00:27:13Z",
+                "fileStatus": "READY",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/media-extension-case-update-1783124832900.JPG?v=1783124835"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "operationName": "fileDelete",
+    "variables": {
+      "fileIds": ["gid://shopify/GenericFile/43992777228594"]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fileDelete": {
+            "deletedFileIds": ["gid://shopify/GenericFile/43992777228594"],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

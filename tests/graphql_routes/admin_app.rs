@@ -1540,6 +1540,129 @@ fn app_identity_hydrates_real_installation_for_nodes_scopes_and_uninstall() {
 }
 
 #[test]
+fn observed_current_app_installation_identity_survives_local_app_mutation_without_headers() {
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let app_id = "gid://shopify/App/347082227713";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": {
+                                "id": app_id,
+                                "handle": "hermes-conformance-products",
+                                "title": "Hermes Conformance Products"
+                            },
+                            "accessScopes": [
+                                { "handle": "read_products", "description": "Read products" },
+                                { "handle": "write_products", "description": "Write products" }
+                            ]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveRealCurrentAppInstallation {
+          currentAppInstallation {
+            id
+            app { id handle title }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        observed.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(
+        observed.body["data"]["currentAppInstallation"]["app"],
+        json!({
+            "id": app_id,
+            "handle": "hermes-conformance-products",
+            "title": "Hermes Conformance Products"
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalAppSubscription($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Observed install plan"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCurrentAppInstallationAfterLocalAppMutation {
+          currentAppInstallation {
+            id
+            app { id handle title }
+            allSubscriptions(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["app"],
+        json!({
+            "id": app_id,
+            "handle": "hermes-conformance-products",
+            "title": "Hermes Conformance Products"
+        })
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "local app mutation and readback must not call upstream again"
+    );
+}
+
+#[test]
 fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     let mut proxy = snapshot_proxy();
 

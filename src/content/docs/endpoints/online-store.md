@@ -14,10 +14,6 @@ Content roots:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
-URL redirect read roots from the metaobject redirect-new-handle slice:
-
-- Reads: `urlRedirect`, `urlRedirects`
-
 Presentation and integration roots:
 
 - Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
@@ -31,7 +27,7 @@ Supported lifecycle mutations are staged locally and logged with the original ra
 
 Effective `Article`, `Blog`, `Comment`, and `Page` records are exposed through generic `node(id:)` / `nodes(ids:)` dispatch. Those reads use the same local content serializers as the dedicated content roots, so staged page/article/blog create and update flows are visible through the Admin `Node` interface without runtime Shopify writes.
 
-URL redirect reads are local overlays for redirect rows staged by supported domain behavior, currently `metaobjectUpdate(..., metaobject: { handle, redirectNewHandle: true })` on online-store-renderable metaobjects. Snapshot mode returns local state only. Live-hybrid mode forwards cold `urlRedirect`/`urlRedirects` reads upstream when no local redirect state or requested local ID is present; once local redirect state exists, `urlRedirects` filters with the shared Admin search-query parser and supports `id:`, `path:`, `target:`, and default text terms. URL redirect create/update/delete/import/bulk-delete mutations remain unsupported and must not be treated as locally modeled lifecycle roots.
+URL redirect mutation/import/bulk-delete roots are registry-tracked but unimplemented in the local runtime. Cold LiveHybrid reads for `urlRedirect`, `urlRedirects`, and `urlRedirectsCount` forward upstream, and cold snapshot reads fail closed instead of emitting local placeholder data. The local runtime does expose staged URL redirects created by supported metaobject online-store handle changes: those staged reads support `urlRedirect(id:)`, `urlRedirects(query:)`, `urlRedirectsCount(query:)`, `path:` and `target:` filters, `ID`/`PATH`/`TARGET` sort keys, `reverse`, and cursor windows for the staged redirect slice. This staged readback does not make URL redirect create/update/delete/import roots supported; those mutations still passthrough or reject according to unsupported-mutation mode.
 
 ### Content read behavior
 
@@ -44,7 +40,7 @@ Snapshot/local empty behavior follows the 2025-01 capture in `fixtures/conforman
 
 Local connection support uses the shared GraphQL connection helpers for selected `nodes`, `edges`, and `pageInfo` fields. The local model supports common sort keys, reverse ordering, and cursor windows. Captured opaque Shopify cursors are not decoded; newly staged local rows use stable synthetic cursor values.
 
-Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Top-level `articles` defaults to published records when no status is requested, while explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control whether published, unpublished, or both states are returned before remaining text terms are applied. Nested blog article reads expose the effective local graph.
+Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Unfiltered top-level `articles` returns published and unpublished effective records; explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control status slices when supplied. Unknown fielded filters are treated as explicit local no-matches instead of silently returning the full local content graph. Nested blog article reads expose the effective local graph.
 
 Nested content behavior:
 
@@ -54,7 +50,7 @@ Nested content behavior:
 - `Comment.article` resolves through the local article graph
 - `Article.author`, `articleAuthors`, and `articleTags` are derived from local article data
 
-Top-level `articles` preserves Shopify's published-by-default boundary, but explicit `published_status` query filters can include unpublished records. Nested blog/article helper reads continue to expose the effective local graph so staged unpublished content remains visible through its parent blog and detail relationships.
+Top-level `articles` no longer applies a published-only default when `query` is omitted, so staged unpublished content remains visible in unfiltered local catalog reads as well as through parent blog and detail relationships. Explicit `published_status` query filters still narrow the status slice.
 
 Article subresource fidelity covers the Admin GraphQL fields that are actually present in the captured schema:
 

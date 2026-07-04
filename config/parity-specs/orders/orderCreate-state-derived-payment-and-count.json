@@ -1,0 +1,80 @@
+{
+  "scenarioId": "orderCreate-state-derived-payment-and-count",
+  "operationNames": ["orderCreate", "ordersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "payment-transaction-parity", "search-filtering", "count-limit"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderCreate-state-derived-payment-and-count.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-state-derived-payment-and-count-create.graphql",
+    "variablesCapturePath": "$.operations.firstCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 Shopify capture for two disposable orderCreate mutations with external authorization transactions and a unique tag, followed by ordersCount exact/limit reads. The replay stages both orderCreate calls locally through public GraphQL, then proves the count is derived from staged state and the payment projection uses the submitted gateway/amount instead of fixed manual/$25 values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-create-external-authorization-payment-state",
+        "capturePath": "$.operations.firstCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.displayFinancialStatus",
+          "$.order.capturable",
+          "$.order.totalCapturableSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.netPaymentSet",
+          "$.order.paymentGatewayNames",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet",
+          "$.order.transactions[0].parentTransaction",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "second-create-external-authorization-payment-state",
+        "capturePath": "$.operations.secondCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.displayFinancialStatus",
+          "$.order.capturable",
+          "$.order.totalCapturableSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.netPaymentSet",
+          "$.order.paymentGatewayNames",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet",
+          "$.order.transactions[0].parentTransaction",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-state-derived-payment-and-count-create.graphql",
+          "variablesCapturePath": "$.operations.secondCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "staged-tagged-orders-count",
+        "capturePath": "$.operations.countRead.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.exactCount", "$.limitedCount"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-state-derived-payment-and-count-count.graphql",
+          "variablesCapturePath": "$.operations.countRead.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,567 @@
+{
+  "scenarioId": "b2b-connection-arguments",
+  "capturedAt": "2026-07-04T07:31:44.709Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "companyCreate": {
+    "request": {
+      "query": "mutation B2BConnectionArgsCompanyCreate($acmeInput: CompanyCreateInput!, $zetaInput: CompanyCreateInput!) {\n  acme: companyCreate(input: $acmeInput) {\n    company {\n      id\n      name\n      mainContact {\n        id\n        title\n        roleAssignments(first: 5) {\n          nodes {\n            id\n            role { id name }\n            companyLocation { id name }\n          }\n        }\n      }\n      contactRoles(first: 5) {\n        nodes { id name }\n      }\n      locations(first: 5) {\n        nodes { id name }\n      }\n    }\n    userErrors { field message code }\n  }\n  zeta: companyCreate(input: $zetaInput) {\n    company {\n      id\n      name\n      locations(first: 5) {\n        nodes { id name }\n      }\n    }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "acmeInput": {
+          "company": {
+            "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme",
+            "note": "Connection argument parity fixture",
+            "externalId": "connection-args-acme-1783150297602"
+          },
+          "companyContact": {
+            "title": "Primary buyer",
+            "email": "connection-args-primary-1783150297602@example.com"
+          }
+        },
+        "zetaInput": {
+          "company": {
+            "name": "Zzzzx har1975b2bcompany1783150297602 Zeta",
+            "note": "Connection argument parity fixture",
+            "externalId": "connection-args-zeta-1783150297602"
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "acme": {
+          "company": {
+            "id": "gid://shopify/Company/5730664754",
+            "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10415866162",
+              "title": "Primary buyer",
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44923027762",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/11249189170",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8601207090",
+                      "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+                    }
+                  }
+                ]
+              }
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/11249156402",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/11249189170",
+                  "name": "Ordering only"
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8601207090",
+                  "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "zeta": {
+          "company": {
+            "id": "gid://shopify/Company/5730697522",
+            "name": "Zzzzx har1975b2bcompany1783150297602 Zeta",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8601239858",
+                  "name": "Zzzzx har1975b2bcompany1783150297602 Zeta"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 47,
+          "actualQueryCost": 36,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1964,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactCreate": {
+    "request": {
+      "query": "mutation B2BConnectionArgsContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n  companyContactCreate(companyId: $companyId, input: $input) {\n    companyContact { id title }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5730664754",
+        "input": {
+          "title": "Secondary buyer",
+          "email": "connection-args-secondary-1783150297602@example.com"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10415898930",
+            "title": "Secondary buyer"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreate": {
+    "request": {
+      "query": "mutation B2BConnectionArgsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation { id name }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5730664754",
+        "input": {
+          "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8601272626",
+            "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondaryRoleAssign": {
+    "request": {
+      "query": "mutation B2BConnectionArgsAssignRole(\n  $companyContactId: ID!\n  $companyContactRoleId: ID!\n  $companyLocationId: ID!\n) {\n  companyContactAssignRole(\n    companyContactId: $companyContactId\n    companyContactRoleId: $companyContactRoleId\n    companyLocationId: $companyLocationId\n  ) {\n    companyContactRoleAssignment {\n      id\n      companyContact { id title }\n      companyLocation { id name }\n      role { id name }\n    }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10415898930",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11249156402",
+        "companyLocationId": "gid://shopify/CompanyLocation/8601272626"
+      }
+    },
+    "response": {
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": {
+            "id": "gid://shopify/CompanyContactRoleAssignment/44923060530",
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/10415898930",
+              "title": "Secondary buyer"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8601272626",
+              "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+            },
+            "role": {
+              "id": "gid://shopify/CompanyContactRole/11249156402",
+              "name": "Location admin"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mainRoleAssign": {
+    "request": {
+      "query": "mutation B2BConnectionArgsAssignRole(\n  $companyContactId: ID!\n  $companyContactRoleId: ID!\n  $companyLocationId: ID!\n) {\n  companyContactAssignRole(\n    companyContactId: $companyContactId\n    companyContactRoleId: $companyContactRoleId\n    companyLocationId: $companyLocationId\n  ) {\n    companyContactRoleAssignment {\n      id\n      companyContact { id title }\n      companyLocation { id name }\n      role { id name }\n    }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10415866162",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11249156402",
+        "companyLocationId": "gid://shopify/CompanyLocation/8601272626"
+      }
+    },
+    "response": {
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": {
+            "id": "gid://shopify/CompanyContactRoleAssignment/44923093298",
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/10415866162",
+              "title": "Primary buyer"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8601272626",
+              "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+            },
+            "role": {
+              "id": "gid://shopify/CompanyContactRole/11249156402",
+              "name": "Location admin"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readPageOne": {
+    "request": {
+      "query": "query B2BConnectionArgsRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companyId: ID!\n  $contactId: ID!\n  $locationId: ID!\n  $afterCompany: String\n  $afterLocation: String\n  $afterCompanyLocation: String\n  $afterContact: String\n  $afterContactAssignment: String\n  $afterLocationAssignment: String\n) {\n  companies(first: 1, after: $afterCompany, query: $companyQuery, sortKey: NAME, reverse: true) {\n    nodes { name }\n    pageInfo { hasNextPage hasPreviousPage endCursor }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: 1, after: $afterLocation, query: $locationQuery, sortKey: NAME, reverse: true) {\n    nodes {\n      name\n      company { name }\n    }\n    pageInfo { hasNextPage hasPreviousPage endCursor }\n  }\n  company(id: $companyId) {\n    contacts(first: 1, after: $afterContact, sortKey: ID, reverse: true) {\n      nodes { title }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n    locations(first: 1, after: $afterCompanyLocation, sortKey: ID, reverse: true) {\n      nodes { name }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n  companyContact(id: $contactId) {\n    roleAssignments(first: 1, after: $afterContactAssignment, sortKey: ID, reverse: true) {\n      nodes {\n        companyLocation { name }\n        role { name }\n      }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n  companyLocation(id: $locationId) {\n    roleAssignments(first: 1, after: $afterLocationAssignment, sortKey: ID, reverse: true) {\n      nodes {\n        companyContact { title }\n        role { name }\n      }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n}\n",
+      "variables": {
+        "companyQuery": "name:har1975b2bcompany1783150297602",
+        "locationQuery": "name:har1975b2blocation1783150297602",
+        "companyId": "gid://shopify/Company/5730664754",
+        "contactId": "gid://shopify/CompanyContact/10415866162",
+        "locationId": "gid://shopify/CompanyLocation/8601272626"
+      }
+    },
+    "response": {
+      "data": {
+        "companies": {
+          "nodes": [
+            {
+              "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6NTczMDY2NDc1NCwibGFzdF92YWx1ZSI6WyJ6enp6eSBoYXIxOTc1YjJiY29tcGFueTE3ODMxNTAyOTc2MDIgaGFyMTk3NWIyYmxvY2F0aW9uMTc4MzE1MDI5NzYwMiBhY21lIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+          }
+        },
+        "companiesCount": {
+          "count": 1,
+          "precision": "AT_LEAST"
+        },
+        "companyLocations": {
+          "nodes": [
+            {
+              "name": "Zzzzz har1975b2blocation1783150297602 Remote",
+              "company": {
+                "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6ODYwMTI3MjYyNiwibGFzdF92YWx1ZSI6WyJ6enp6eiBoYXIxOTc1YjJibG9jYXRpb24xNzgzMTUwMjk3NjAyIHJlbW90ZSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+          }
+        },
+        "company": {
+          "contacts": {
+            "nodes": [
+              {
+                "title": "Secondary buyer"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjEwNDE1ODk4OTMwLCJsYXN0X3ZhbHVlIjpbIjEwNDE1ODk4OTMwIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+            }
+          },
+          "locations": {
+            "nodes": [
+              {
+                "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjg2MDEyNzI2MjYsImxhc3RfdmFsdWUiOlsiODYwMTI3MjYyNiJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        },
+        "companyContact": {
+          "roleAssignments": {
+            "nodes": [
+              {
+                "companyLocation": {
+                  "name": "Zzzzz har1975b2blocation1783150297602 Remote"
+                },
+                "role": {
+                  "name": "Location admin"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDkzMjk4LCJsYXN0X3ZhbHVlIjoiNDQ5MjMwOTMyOTgiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        },
+        "companyLocation": {
+          "roleAssignments": {
+            "nodes": [
+              {
+                "companyContact": {
+                  "title": "Primary buyer"
+                },
+                "role": {
+                  "name": "Location admin"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDkzMjk4LCJsYXN0X3ZhbHVlIjoiNDQ5MjMwOTMyOTgiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 36,
+          "actualQueryCost": 36,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1964,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readPageTwo": {
+    "request": {
+      "query": "query B2BConnectionArgsRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companyId: ID!\n  $contactId: ID!\n  $locationId: ID!\n  $afterCompany: String\n  $afterLocation: String\n  $afterCompanyLocation: String\n  $afterContact: String\n  $afterContactAssignment: String\n  $afterLocationAssignment: String\n) {\n  companies(first: 1, after: $afterCompany, query: $companyQuery, sortKey: NAME, reverse: true) {\n    nodes { name }\n    pageInfo { hasNextPage hasPreviousPage endCursor }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: 1, after: $afterLocation, query: $locationQuery, sortKey: NAME, reverse: true) {\n    nodes {\n      name\n      company { name }\n    }\n    pageInfo { hasNextPage hasPreviousPage endCursor }\n  }\n  company(id: $companyId) {\n    contacts(first: 1, after: $afterContact, sortKey: ID, reverse: true) {\n      nodes { title }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n    locations(first: 1, after: $afterCompanyLocation, sortKey: ID, reverse: true) {\n      nodes { name }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n  companyContact(id: $contactId) {\n    roleAssignments(first: 1, after: $afterContactAssignment, sortKey: ID, reverse: true) {\n      nodes {\n        companyLocation { name }\n        role { name }\n      }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n  companyLocation(id: $locationId) {\n    roleAssignments(first: 1, after: $afterLocationAssignment, sortKey: ID, reverse: true) {\n      nodes {\n        companyContact { title }\n        role { name }\n      }\n      pageInfo { hasNextPage hasPreviousPage endCursor }\n    }\n  }\n}\n",
+      "variables": {
+        "companyQuery": "name:har1975b2bcompany1783150297602",
+        "locationQuery": "name:har1975b2blocation1783150297602",
+        "companyId": "gid://shopify/Company/5730664754",
+        "contactId": "gid://shopify/CompanyContact/10415866162",
+        "locationId": "gid://shopify/CompanyLocation/8601272626",
+        "afterCompany": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6NTczMDY2NDc1NCwibGFzdF92YWx1ZSI6WyJ6enp6eSBoYXIxOTc1YjJiY29tcGFueTE3ODMxNTAyOTc2MDIgaGFyMTk3NWIyYmxvY2F0aW9uMTc4MzE1MDI5NzYwMiBhY21lIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+        "afterLocation": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6ODYwMTI3MjYyNiwibGFzdF92YWx1ZSI6WyJ6enp6eiBoYXIxOTc1YjJibG9jYXRpb24xNzgzMTUwMjk3NjAyIHJlbW90ZSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+        "afterCompanyLocation": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjg2MDEyNzI2MjYsImxhc3RfdmFsdWUiOlsiODYwMTI3MjYyNiJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+        "afterContact": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjEwNDE1ODk4OTMwLCJsYXN0X3ZhbHVlIjpbIjEwNDE1ODk4OTMwIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+        "afterContactAssignment": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDkzMjk4LCJsYXN0X3ZhbHVlIjoiNDQ5MjMwOTMyOTgiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+        "afterLocationAssignment": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDkzMjk4LCJsYXN0X3ZhbHVlIjoiNDQ5MjMwOTMyOTgiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+      }
+    },
+    "response": {
+      "data": {
+        "companies": {
+          "nodes": [
+            {
+              "name": "Zzzzx har1975b2bcompany1783150297602 Zeta"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6NTczMDY5NzUyMiwibGFzdF92YWx1ZSI6WyJ6enp6eCBoYXIxOTc1YjJiY29tcGFueTE3ODMxNTAyOTc2MDIgemV0YSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+          }
+        },
+        "companiesCount": {
+          "count": 1,
+          "precision": "AT_LEAST"
+        },
+        "companyLocations": {
+          "nodes": [
+            {
+              "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme",
+              "company": {
+                "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJuYW1lIiwic29ydF9kaXIiOiJkZXNjIiwibGFzdF9pZCI6ODYwMTIwNzA5MCwibGFzdF92YWx1ZSI6WyJ6enp6eSBoYXIxOTc1YjJiY29tcGFueTE3ODMxNTAyOTc2MDIgaGFyMTk3NWIyYmxvY2F0aW9uMTc4MzE1MDI5NzYwMiBhY21lIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+          }
+        },
+        "company": {
+          "contacts": {
+            "nodes": [
+              {
+                "title": "Primary buyer"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjEwNDE1ODY2MTYyLCJsYXN0X3ZhbHVlIjpbIjEwNDE1ODY2MTYyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+            }
+          },
+          "locations": {
+            "nodes": [
+              {
+                "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsImxhc3RfaWQiOjg2MDEyMDcwOTAsImxhc3RfdmFsdWUiOlsiODYwMTIwNzA5MCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        },
+        "companyContact": {
+          "roleAssignments": {
+            "nodes": [
+              {
+                "companyLocation": {
+                  "name": "Zzzzy har1975b2bcompany1783150297602 har1975b2blocation1783150297602 Acme"
+                },
+                "role": {
+                  "name": "Ordering only"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDI3NzYyLCJsYXN0X3ZhbHVlIjoiNDQ5MjMwMjc3NjIiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        },
+        "companyLocation": {
+          "roleAssignments": {
+            "nodes": [
+              {
+                "companyContact": {
+                  "title": "Secondary buyer"
+                },
+                "role": {
+                  "name": "Location admin"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiZGVzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTIzMDYwNTMwLCJsYXN0X3ZhbHVlIjoiNDQ5MjMwNjA1MzAiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 36,
+          "actualQueryCost": 36,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1943,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "acme": {
+      "request": {
+        "query": "#graphql\n    mutation B2BConnectionArgsCleanup($id: ID!) {\n      companyDelete(id: $id) {\n        deletedCompanyId\n        userErrors { field message code }\n      }\n    }\n  ",
+        "variables": {
+          "id": "gid://shopify/Company/5730664754"
+        }
+      },
+      "response": {
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5730664754",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1948,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "zeta": {
+      "request": {
+        "query": "#graphql\n    mutation B2BConnectionArgsCleanup($id: ID!) {\n      companyDelete(id: $id) {\n        deletedCompanyId\n        userErrors { field message code }\n      }\n    }\n  ",
+        "variables": {
+          "id": "gid://shopify/Company/5730697522"
+        }
+      },
+      "response": {
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5730697522",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1962,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

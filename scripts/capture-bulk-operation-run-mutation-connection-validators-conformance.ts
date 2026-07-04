@@ -35,6 +35,7 @@ const query = readFileSync(
 );
 
 const tooManyConnectionsMessage = 'Bulk mutations cannot contain more than 1 connection.';
+const nestingTooDeepMessage = 'Bulk mutations cannot contain connections with a nesting depth greater than 1.';
 
 function payloadFrom(name: string, response: unknown): BulkOperationRunMutationPayload {
   const payload = response as {
@@ -51,7 +52,7 @@ function payloadFrom(name: string, response: unknown): BulkOperationRunMutationP
   return result;
 }
 
-function assertValidationError(name: string, response: unknown, expectedMessage: string): void {
+function assertConnectionValidationError(name: string, response: unknown): string {
   const payload = payloadFrom(name, response);
   const [error] = payload.userErrors;
   if (
@@ -60,11 +61,12 @@ function assertValidationError(name: string, response: unknown, expectedMessage:
     !Array.isArray(error?.field) ||
     error.field.length !== 1 ||
     error.field[0] !== 'mutation' ||
-    error.message !== expectedMessage ||
+    (error.message !== tooManyConnectionsMessage && error.message !== nestingTooDeepMessage) ||
     error.code !== null
   ) {
     throw new Error(`${name} returned unexpected payload: ${JSON.stringify(payload)}`);
   }
+  return error.message;
 }
 
 async function main(): Promise<void> {
@@ -78,22 +80,36 @@ async function main(): Promise<void> {
   });
   const headers = buildAdminAuthHeaders(accessToken);
 
-  const cases: Record<string, { mutation: string; path: string; expectedMessage: string }> = {
+  const cases: Record<string, { mutation: string; path: string }> = {
     tooManyConnections: {
       mutation:
         'mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } media(first: 1) { edges { node { id } } } } } }',
       path: 'valid',
-      expectedMessage: tooManyConnectionsMessage,
     },
     nestingTooDeep: {
       mutation:
         'mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id media(first: 1) { edges { node { id } } } } } } } } }',
       path: 'valid',
-      expectedMessage: tooManyConnectionsMessage,
+    },
+    productShopProductsVariantsNested: {
+      mutation:
+        'mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { shop { products(first: 1) { edges { node { id variants(first: 1) { edges { node { id } } } } } } } } }',
+      path: 'valid',
+    },
+    productCollectionsProductsNested: {
+      mutation:
+        'mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { collections(first: 1) { edges { node { id products(first: 1) { edges { node { id } } } } } } } } }',
+      path: 'valid',
+    },
+    customerOrdersLineItemsNested: {
+      mutation:
+        'mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { orders(first: 1) { edges { node { id lineItems(first: 1) { edges { node { id } } } } } } } } }',
+      path: 'valid',
     },
   };
 
   const validations: Record<string, ValidationCapture> = {};
+  const observedMessages: Record<string, string> = {};
   for (const [key, captureCase] of Object.entries(cases)) {
     const variables = {
       mutation: captureCase.mutation,
@@ -111,7 +127,7 @@ async function main(): Promise<void> {
     if (result.status !== 200) {
       throw new Error(`${key} returned HTTP ${result.status}: ${JSON.stringify(result.payload)}`);
     }
-    assertValidationError(key, result.payload, captureCase.expectedMessage);
+    observedMessages[key] = assertConnectionValidationError(key, result.payload);
     validations[key] = {
       operationName,
       query,
@@ -132,6 +148,15 @@ async function main(): Promise<void> {
         storeDomain: config.storeDomain,
         apiVersion: config.apiVersion,
         request: { operationName, query },
+        observations: {
+          messages: observedMessages,
+          connectionNestedTooDeepCases: Object.entries(observedMessages)
+            .filter(([, message]) => message === nestingTooDeepMessage)
+            .map(([key]) => key),
+          countPrecedenceCases: Object.entries(observedMessages)
+            .filter(([, message]) => message === tooManyConnectionsMessage)
+            .map(([key]) => key),
+        },
         validations,
         upstreamCalls: [],
       },

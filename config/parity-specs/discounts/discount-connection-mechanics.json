@@ -1,0 +1,206 @@
+{
+  "scenarioId": "discount-connection-mechanics",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicCreate",
+    "discountRedeemCodeBulkAdd",
+    "discountNodes",
+    "codeDiscountNodes",
+    "automaticDiscountNodes",
+    "discountNodesCount",
+    "codeDiscountNode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "search-sort-contract", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-connection-mechanics.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-connection-mechanics-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.discountNodes.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that cursors are present."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.discountNodes.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.codeDiscountNodesReverse.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.codeDiscountNodesReverse.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.automaticDiscountNodesReverse.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.automaticDiscountNodesReverse.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.nestedCode.codeDiscount.codes.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque nested redeem-code cursors; parity asserts that cursors are present."
+      },
+      {
+        "path": "$.nestedCode.codeDiscount.codes.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque nested redeem-code cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.nestedCode.codeDiscount.codes.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque nested redeem-code cursors; parity asserts that endCursor is present."
+      }
+    ],
+    "targets": [
+      {
+        "name": "connection-setup-bulk-add-codes",
+        "capturePath": "$.addCodes.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountRedeemCodeBulkAdd.bulkCreation.done",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.importedCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.failedCount",
+          "$.discountRedeemCodeBulkAdd.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-connection-mechanics-bulk-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.zuluCode.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.requests.addCodes.variables.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-list-roots-window-sort-count",
+        "capturePath": "$.readFirst.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountNodes.nodes[0].discount.__typename",
+          "$.discountNodes.nodes[0].discount.title",
+          "$.discountNodes.nodes[1].discount.__typename",
+          "$.discountNodes.nodes[1].discount.title",
+          "$.discountNodes.edges[0].cursor",
+          "$.discountNodes.edges[0].node.discount.__typename",
+          "$.discountNodes.edges[0].node.discount.title",
+          "$.discountNodes.edges[1].cursor",
+          "$.discountNodes.edges[1].node.discount.__typename",
+          "$.discountNodes.edges[1].node.discount.title",
+          "$.discountNodes.pageInfo.hasNextPage",
+          "$.discountNodes.pageInfo.hasPreviousPage",
+          "$.discountNodes.pageInfo.startCursor",
+          "$.discountNodes.pageInfo.endCursor",
+          "$.codeDiscountNodesReverse.nodes[0].codeDiscount.title",
+          "$.codeDiscountNodesReverse.nodes[1].codeDiscount.title",
+          "$.codeDiscountNodesReverse.pageInfo.hasNextPage",
+          "$.codeDiscountNodesReverse.pageInfo.hasPreviousPage",
+          "$.codeDiscountNodesReverse.pageInfo.startCursor",
+          "$.codeDiscountNodesReverse.pageInfo.endCursor",
+          "$.automaticDiscountNodesReverse.nodes[0].automaticDiscount.title",
+          "$.automaticDiscountNodesReverse.nodes[1].automaticDiscount.title",
+          "$.automaticDiscountNodesReverse.pageInfo.hasNextPage",
+          "$.automaticDiscountNodesReverse.pageInfo.hasPreviousPage",
+          "$.automaticDiscountNodesReverse.pageInfo.startCursor",
+          "$.automaticDiscountNodesReverse.pageInfo.endCursor",
+          "$.limitedCount.count",
+          "$.limitedCount.precision",
+          "$.nestedCode.codeDiscount.__typename",
+          "$.nestedCode.codeDiscount.title",
+          "$.nestedCode.codeDiscount.codes.nodes[0].code",
+          "$.nestedCode.codeDiscount.codes.nodes[1].code",
+          "$.nestedCode.codeDiscount.codes.edges[0].cursor",
+          "$.nestedCode.codeDiscount.codes.edges[0].node.code",
+          "$.nestedCode.codeDiscount.codes.edges[1].cursor",
+          "$.nestedCode.codeDiscount.codes.edges[1].node.code",
+          "$.nestedCode.codeDiscount.codes.pageInfo.hasNextPage",
+          "$.nestedCode.codeDiscount.codes.pageInfo.hasPreviousPage",
+          "$.nestedCode.codeDiscount.codes.pageInfo.startCursor",
+          "$.nestedCode.codeDiscount.codes.pageInfo.endCursor",
+          "$.nestedCode.codeDiscount.codesCount.count",
+          "$.nestedCode.codeDiscount.codesCount.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-connection-mechanics-read-first.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.requests.readFirst.variables.query"
+            },
+            "first": {
+              "fromCapturePath": "$.requests.readFirst.variables.first"
+            },
+            "nestedId": {
+              "fromPrimaryProxyPath": "$.data.zuluCode.codeDiscountNode.id"
+            },
+            "countLimit": {
+              "fromCapturePath": "$.requests.readFirst.variables.countLimit"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-nodes-after-window",
+        "capturePath": "$.readAfter.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountNodes.nodes[0].discount.__typename",
+          "$.discountNodes.nodes[0].discount.title",
+          "$.discountNodes.nodes[1].discount.__typename",
+          "$.discountNodes.nodes[1].discount.title",
+          "$.discountNodes.edges[0].cursor",
+          "$.discountNodes.edges[0].node.discount.__typename",
+          "$.discountNodes.edges[0].node.discount.title",
+          "$.discountNodes.edges[1].cursor",
+          "$.discountNodes.edges[1].node.discount.__typename",
+          "$.discountNodes.edges[1].node.discount.title",
+          "$.discountNodes.pageInfo.hasNextPage",
+          "$.discountNodes.pageInfo.hasPreviousPage",
+          "$.discountNodes.pageInfo.startCursor",
+          "$.discountNodes.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-connection-mechanics-read-after.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.requests.readAfter.variables.query"
+            },
+            "first": {
+              "fromCapturePath": "$.requests.readAfter.variables.first"
+            },
+            "after": {
+              "fromProxyResponse": "discount-list-roots-window-sort-count",
+              "path": "$.data.discountNodes.pageInfo.endCursor"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for discount connection mechanics after public local-write setup. The recorder creates two scheduled DiscountCodeBasic records and two scheduled DiscountAutomaticBasic records with title order intentionally opposite creation/GID order, bulk-adds three redeem codes to one code discount, waits until the scheduled catalog windows match the disposable titles, captures reverse first/after discountNodes pages, TITLE ordering for discountNodes/codeDiscountNodes, CREATED_AT reverse ordering for automaticDiscountNodes (Shopify's automatic root exposes only CREATED_AT and ID sort keys), discountNodesCount(limit:) AT_LEAST precision, and nested DiscountRedeemCodeConnection nodes/edges/pageInfo. Proxy replay uses the same public create and bulk-add mutations, then reads only through GraphQL roots; IDs and opaque cursors are treated as volatile while ordering, pageInfo booleans, count precision, and redeem-code windows are strict."
+}

@@ -1,0 +1,13 @@
+mutation InventoryConnectionItemUpdate($id: ID!, $input: InventoryItemInput!) {
+  inventoryItemUpdate(id: $id, input: $input) {
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

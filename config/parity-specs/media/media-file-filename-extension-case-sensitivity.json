@@ -1,0 +1,38 @@
+{
+  "scenarioId": "media-file-filename-extension-case-sensitivity",
+  "operationNames": ["fileCreate", "fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-filename-extension-case-sensitivity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+    "variablesCapturePath": "$.cases.fileCreateCaseMismatch.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin GraphQL 2026-04 case-sensitive filename extension rejection for fileCreate originalSource-vs-filename comparison and fileUpdate existing GenericFile filepath-vs-filename comparison. The fileUpdate target replays the proxy handler normal MediaFileUpdateHydrate upstream read from an exact GraphQL cassette entry.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create-extension-case-mismatch",
+        "capturePath": "$.cases.fileCreateCaseMismatch.response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "file-update-extension-case-mismatch",
+        "capturePath": "$.cases.fileUpdateCaseMismatch.response.payload.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_filename_extension/file-update.graphql",
+          "variablesCapturePath": "$.cases.fileUpdateCaseMismatch.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
