@@ -53,6 +53,18 @@ Historical context: the first product overlay implementation only supported a na
 
 That early subset is not the current product coverage contract. Use `src/content/docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
 
+## Current: Segment Change validation short-circuits CDP query grammar
+
+Admin segment mutations have two validation layers. `segmentCreate` and
+`segmentUpdate` first run Change-level presence and length checks for `name` and
+`query`. CDP query grammar validation only runs after that Change layer passes.
+
+Practical rule: blank or over-long `name` suppresses grammar userErrors for a
+present but malformed query, while blank or over-long `query` remains a
+Change-level error that can be emitted alongside a name error. The checked-in
+anchor is
+`config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
@@ -1543,6 +1555,8 @@ HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` 
 
 Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
 
+A catalog connection capture with three disposable product definitions showed two non-obvious read quirks: newly created definitions may need a short search-indexing poll before recognized query terms and `sortKey: NAME` reflect them, and an invalid fielded query such as `unknown:value` returns the namespace-filtered rows with an `extensions.search` invalid-field warning instead of failing closed.
+
 ## 19b. Definition pinning uses owner-type positions and compacts on unpin
 
 HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against the 2025-01 conformance store with two temporary product-owned definitions. Useful behavior:
@@ -2573,6 +2587,15 @@ can read the B2B company roots on that store. The capture showed:
   `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
   a contact-local customer reference without inventing broader customer catalog
   rows.
+- HAR-1999's fresh 2026-04 string-validation captures showed public Admin
+  preserves HTML in `companyUpdate(input.note)` and
+  `companyContactCreate(input.title)`: the update note branch ignores HTML and
+  applies only the 5000-character note limit, while contact titles have no
+  observed HTML or 255-character title validation. Standalone
+  `companyContactCreate` still rejects HTML in `firstName` / `lastName` with a
+  generic `INVALID_INPUT` / `Invalid input.` error at `["input"]`; nested
+  `companyCreate(input.companyContact)` reports the analogous parent path under
+  `["input", "companyContact"]`.
 - `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
   captured 2026-04 readback shape is nested under
   `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;
@@ -3393,6 +3416,7 @@ Captured facts:
 - `fulfillmentOrderClose` API-service success is captured after submit/accept: Shopify returns `userErrors: []`, changes the fulfillment order to `status: INCOMPLETE` with `requestStatus: CLOSED`, and preserves supported actions in the selected payload instead of returning `status: CLOSED` with an empty action list. The proxy mirrors that captured state for local close staging.
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
+- `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
 
 Practical rule:
 

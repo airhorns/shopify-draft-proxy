@@ -1,0 +1,27 @@
+#graphql
+mutation ProductNestedConnectionsCreateProduct($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+          position
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

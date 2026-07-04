@@ -1,0 +1,85 @@
+query CollectionMembershipProductsSortKeys($id: ID!) {
+  collection(id: $id) {
+    id
+    collectionDefault: products(first: 5, sortKey: COLLECTION_DEFAULT) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    manual: products(first: 5, sortKey: MANUAL) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    bestSelling: products(first: 5, sortKey: BEST_SELLING) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    created: products(first: 5, sortKey: CREATED) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    idSort: products(first: 5, sortKey: ID) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    price: products(first: 5, sortKey: PRICE) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    relevance: products(first: 5, sortKey: RELEVANCE) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    titleReverse: products(first: 5, sortKey: TITLE, reverse: true) {
+      nodes {
+        id
+        title
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}
