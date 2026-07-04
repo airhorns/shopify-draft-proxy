@@ -1,0 +1,66 @@
+query InventoryConnectionItemsQuery(
+  $skuQuery: String!
+  $trackedFalseQuery: String!
+  $idRangeQuery: String!
+  $updatedBeforeQuery: String!
+) {
+  skuMatch: inventoryItems(first: 5, query: $skuQuery) {
+    nodes {
+      id
+      tracked
+      variant {
+        id
+        sku
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  trackedFalse: inventoryItems(first: 5, query: $trackedFalseQuery) {
+    nodes {
+      id
+      tracked
+      variant {
+        id
+        sku
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  idRange: inventoryItems(first: 5, query: $idRangeQuery) {
+    nodes {
+      id
+      tracked
+      variant {
+        id
+        sku
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  updatedBefore: inventoryItems(first: 5, query: $updatedBeforeQuery) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

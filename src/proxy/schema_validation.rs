@@ -407,7 +407,6 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         query,
         &document,
         &[
-            "refundCreate",
             "fulfillmentCreate",
             "fulfillmentCreateV2",
             "fulfillmentCancel",
