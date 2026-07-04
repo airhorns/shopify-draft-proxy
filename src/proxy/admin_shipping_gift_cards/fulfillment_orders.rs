@@ -184,22 +184,11 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&fulfillment_order, &field.selection)
                 }
-                "fulfillmentOrders" => {
-                    // The staged fulfillment-order engine keeps closed/cancelled
-                    // records on the order (split/merge/cancel leave a zeroed
-                    // CLOSED sibling), and these root connections read the same
-                    // staged set as the nested `order { fulfillmentOrders }`
-                    // projection. `includeClosed` is therefore a no-op superset
-                    // here: every staged record is returned so the two read paths
-                    // agree.
-                    let nodes = self.shipping_fulfillment_orders();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
+                "fulfillmentOrders" => fulfillment_order_connection_json(
+                    self.shipping_fulfillment_orders(),
+                    &field.arguments,
+                    &field.selection,
+                ),
                 "assignedFulfillmentOrders" => {
                     // `assignedFulfillmentOrders` is scoped to the *open* (assigned)
                     // records and honours the `assignmentStatus` + `locationIds`
@@ -1538,7 +1527,7 @@ impl DraftProxy {
                         .get(&id)
                         .cloned()
                         .unwrap_or(Value::Null);
-                    selected_json(&order, &field.selection)
+                    selected_order_with_fulfillment_order_connections(&order, &field.selection)
                 }
                 "fulfillmentOrder" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -1547,10 +1536,12 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&fulfillment_order, &field.selection)
                 }
-                "fulfillmentOrders" | "assignedFulfillmentOrders" => {
-                    // Same staged set + no-op `includeClosed` as the dedicated
-                    // root read above; keep both paths returning every staged
-                    // record so closed siblings remain visible.
+                "fulfillmentOrders" => fulfillment_order_connection_json(
+                    self.shipping_fulfillment_orders(),
+                    &field.arguments,
+                    &field.selection,
+                ),
+                "assignedFulfillmentOrders" => {
                     let nodes = self.shipping_fulfillment_orders();
                     selected_connection_json_with_args(
                         nodes,
@@ -1612,6 +1603,106 @@ fn fulfillment_order_nodes(order: &Value) -> Option<&Vec<Value>> {
 
 fn fulfillment_order_nodes_mut(order: &mut Value) -> Option<&mut Vec<Value>> {
     order["fulfillmentOrders"]["nodes"].as_array_mut()
+}
+
+fn selected_order_with_fulfillment_order_connections(
+    order: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    if order.is_null() {
+        return Value::Null;
+    }
+
+    let mut projected = serde_json::Map::new();
+    for selection in selections {
+        let value = if selection.name == "fulfillmentOrders" {
+            Some(order_fulfillment_order_connection_json(
+                fulfillment_order_nodes(order).cloned().unwrap_or_default(),
+                &selection.arguments,
+                &selection.selection,
+            ))
+        } else {
+            selected_json(order, std::slice::from_ref(selection))
+                .get(&selection.response_key)
+                .cloned()
+        };
+        if let Some(value) = value {
+            projected.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(projected)
+}
+
+fn fulfillment_order_connection_json(
+    nodes: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let include_closed = resolved_bool_field(arguments, "includeClosed").unwrap_or(false);
+    selected_staged_connection_with_args(
+        nodes,
+        arguments,
+        selection,
+        move |order, _query| {
+            StagedSearchDecision::from_bool(
+                include_closed || !fulfillment_order_is_closed_for_connection(order),
+            )
+        },
+        fulfillment_order_staged_sort_key,
+        selected_json,
+        value_id_cursor,
+    )
+}
+
+fn order_fulfillment_order_connection_json(
+    nodes: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let displayable = resolved_bool_field(arguments, "displayable").unwrap_or(false);
+    let mut nodes = nodes
+        .into_iter()
+        .filter(|order| !displayable || !fulfillment_order_is_closed_for_connection(order))
+        .collect::<Vec<_>>();
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        nodes.reverse();
+    }
+    selected_connection_json_with_args(nodes, arguments, selection, value_id_cursor)
+}
+
+fn fulfillment_order_is_closed_for_connection(order: &Value) -> bool {
+    matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
+        || order["requestStatus"].as_str() == Some("CLOSED")
+}
+
+fn fulfillment_order_staged_sort_key(order: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = fulfillment_order_id_sort_value(order);
+    match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => vec![fulfillment_order_string_sort_value(order, "createdAt"), id],
+        "UPDATED_AT" => vec![fulfillment_order_string_sort_value(order, "updatedAt"), id],
+        "FULFILL_AT" => vec![fulfillment_order_string_sort_value(order, "fulfillAt"), id],
+        "FULFILL_BY" => vec![fulfillment_order_string_sort_value(order, "fulfillBy"), id],
+        _ => vec![id],
+    }
+}
+
+fn fulfillment_order_id_sort_value(order: &Value) -> StagedSortValue {
+    let tail = order["id"]
+        .as_str()
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn fulfillment_order_string_sort_value(order: &Value, field: &str) -> StagedSortValue {
+    order
+        .get(field)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(|value| StagedSortValue::String(value.to_string()))
+        .unwrap_or(StagedSortValue::Null)
 }
 
 fn fulfillment_order_holds(order: &Value) -> Vec<Value> {
