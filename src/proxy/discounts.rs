@@ -29,7 +29,6 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 /// activate/deactivate transition can be applied against its real dates and
 /// status. Must match the recorded cassette `DiscountHydrate` upstream call
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
-
 const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
   query DiscountHydrate($id: ID!) {
     codeNode: codeDiscountNode(id: $id) {

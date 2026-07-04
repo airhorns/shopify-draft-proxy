@@ -182,7 +182,7 @@ IDs return `null`.
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value
 `currencyCode` uses the observed shop currency. For `priceInclusivity`, taxes
-come from the matching active market's tax price-inclusion setting when the
+come from the matching staged market's tax price-inclusion setting when the
 buyer country resolves to that market, then from observed shop tax-inclusion
 flags when no market-specific setting applies. Duties stay false unless an
 observed base shop state explicitly provides a duty-inclusion flag; public

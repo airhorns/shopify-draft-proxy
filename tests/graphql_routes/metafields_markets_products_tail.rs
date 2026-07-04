@@ -4040,7 +4040,7 @@ fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity()
     );
     assert_eq!(
         resolved.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({"dutiesIncluded": true, "taxesIncluded": true})
+        json!({"dutiesIncluded": false, "taxesIncluded": true})
     );
 
     let update_seed = proxy.process_request(json_graphql_request(

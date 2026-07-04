@@ -1329,10 +1329,9 @@ impl DraftProxy {
             .map(|country_code| country_code.to_ascii_uppercase());
         match buyer_country {
             Some(country_code) => self.store.staged.markets.values().find(|market| {
-                market_record_enabled(market)
-                    && market_record_country_codes(market)
-                        .iter()
-                        .any(|code| code.eq_ignore_ascii_case(&country_code))
+                market_record_country_codes(market)
+                    .iter()
+                    .any(|code| code.eq_ignore_ascii_case(&country_code))
             }),
             None => self
                 .store
