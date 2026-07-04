@@ -196,8 +196,8 @@ fn metaobject_definition_record(
         "displayNameKey": display_name_key,
         "access": metaobject_definition_access(input, meta_type),
         "capabilities": metaobject_definition_capabilities(input),
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": 0,
         "standardTemplate": Value::Null,
         "createdAt": "2024-01-01T00:00:00.000Z",
@@ -249,8 +249,8 @@ fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
             "renderable": {"enabled": false},
             "translatable": {"enabled": false}
         },
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": Value::Null,
         "standardTemplate": Value::Null,
         "createdAt": Value::Null,
@@ -273,6 +273,12 @@ fn metaobject_definition_access(input: &BTreeMap<String, ResolvedValue>, meta_ty
         "storefront": resolved_string_field(&access, "storefront").unwrap_or_else(|| "NONE".to_string()),
         "customerAccount": resolved_string_field(&access, "customerAccount").unwrap_or_else(|| "NONE".to_string())
     })
+}
+
+fn metaobject_definition_has_thumbnail_field(field_definitions: &[Value]) -> bool {
+    field_definitions
+        .iter()
+        .any(|field| field["type"]["name"].as_str() == Some("file_reference"))
 }
 
 fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -1039,6 +1045,7 @@ fn apply_metaobject_definition_field_operations(
                 .unwrap_or(usize::MAX)
         });
     }
+    definition["hasThumbnailField"] = json!(metaobject_definition_has_thumbnail_field(&fields));
     definition["fieldDefinitions"] = json!(fields);
 }
 

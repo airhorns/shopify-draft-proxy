@@ -2224,7 +2224,7 @@ fn metafield_definition_validation_errors(
             ));
             return errors;
         }
-        if name == "totally_unknown_option" {
+        if !metafield_definition_validation_name_allowed(&metafield_type, &name) {
             errors.push(metafield_definition_user_error(
                 typename,
                 json!(["definition", "validations"]),
@@ -2339,6 +2339,39 @@ fn metafield_definition_validation_errors(
         }
     }
     errors
+}
+
+fn metafield_definition_validation_name_allowed(metafield_type: &str, name: &str) -> bool {
+    let element_type = metafield_type
+        .strip_prefix("list.")
+        .unwrap_or(metafield_type);
+    match name {
+        "min" | "max" => matches!(
+            element_type,
+            "single_line_text_field"
+                | "multi_line_text_field"
+                | "integer"
+                | "number_integer"
+                | "float"
+                | "number_decimal"
+                | "date"
+                | "date_time"
+                | "json"
+        ),
+        "regex" => matches!(
+            element_type,
+            "single_line_text_field" | "multi_line_text_field"
+        ),
+        "choices" => matches!(element_type, "single_line_text_field"),
+        "schema" => element_type == "json",
+        "scale_min" | "scale_max" => element_type == "rating",
+        "metaobject_definition_id" => element_type == "metaobject_reference",
+        "metaobject_definition_ids" => element_type == "mixed_reference",
+        "file_type_options" | "file_type" => element_type == "file_reference",
+        "allowed_domains" => element_type == "link",
+        "product_taxonomy_attribute_handle" => element_type == "product_taxonomy_value_reference",
+        _ => false,
+    }
 }
 
 pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {

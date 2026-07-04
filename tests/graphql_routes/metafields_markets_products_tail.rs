@@ -1158,6 +1158,97 @@ fn metafields_set_live_hybrid_hydrates_list_reference_values_before_validation()
 }
 
 #[test]
+fn metafields_set_does_not_infer_variant_reference_exists_when_hydration_fails() {
+    let owner_id = "gid://shopify/Product/987654450";
+    let variant_id = "gid://shopify/ProductVariant/987654451";
+    let seen_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let transport_seen_hydrates = Arc::clone(&seen_hydrates);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ProductsHydrateNodes") {
+                transport_seen_hydrates
+                    .lock()
+                    .unwrap()
+                    .push(body["variables"]["ids"].clone());
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "reference hydrate unavailable" }] }),
+                };
+            }
+            if query.contains("OwnerMetafieldsHydrateNodes") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": owner_id,
+                                "title": "Owner",
+                                "handle": "owner",
+                                "status": "ACTIVE",
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-03T00:00:00Z",
+                                "updatedAt": "2026-07-03T00:00:00Z",
+                                "metafields": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": Value::Null,
+                                        "endCursor": Value::Null
+                                    }
+                                },
+                                "variants": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                };
+            }
+            panic!("unexpected upstream query: {query}");
+        });
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DanglingVariantReferenceUnderHydrationFailure($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_id,
+            "namespace": "custom",
+            "key": "dangling_variant",
+            "type": "variant_reference",
+            "value": variant_id
+        }]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(
+        set.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0", "value"],
+                "message": format!("Value references non-existent resource {variant_id}."),
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(*seen_hydrates.lock().unwrap(), vec![json!([variant_id])]);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
 

@@ -103,6 +103,91 @@ fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
 }
 
 #[test]
+fn metaobject_definition_has_thumbnail_field_tracks_file_reference_on_create_and_update() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateThumbnailDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id hasThumbnailField fieldDefinitions { key type { name } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let created_with_thumbnail = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "thumbnail_create_definition",
+            "name": "Thumbnail create definition",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": false},
+                {"key": "hero_image", "name": "Hero image", "type": "file_reference", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        created_with_thumbnail.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_with_thumbnail.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["hasThumbnailField"],
+        json!(true)
+    );
+
+    let created_without_thumbnail = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "thumbnail_update_definition",
+            "name": "Thumbnail update definition",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]
+            ["metaobjectDefinition"]["hasThumbnailField"],
+        json!(false)
+    );
+    let definition_id = created_without_thumbnail.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap();
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateThumbnailDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { hasThumbnailField fieldDefinitions { key type { name } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "definition": {
+            "fieldDefinitions": [{
+                "create": {"key": "thumbnail", "name": "Thumbnail", "type": "file_reference", "required": false}
+            }]
+        }}),
+    ));
+    assert_eq!(
+        updated.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["hasThumbnailField"],
+        json!(true)
+    );
+}
+
+#[test]
 fn metaobject_definition_create_accepts_current_custom_data_field_types() {
     let mut proxy = snapshot_proxy();
     let create_definition = r#"
