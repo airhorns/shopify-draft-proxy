@@ -205,6 +205,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-connection-arguments',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-b2b-connection-arguments-conformance.mts',
+    purpose:
+      'B2B companies, companyLocations, Company.contacts, Company.locations, and roleAssignments query/sort/reverse/cursor-window readback.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-connection-arguments.json`,
+      'config/parity-specs/b2b/b2b-connection-arguments.json',
+      'config/parity-requests/b2b/b2b-connection-args-company-create.graphql',
+      'config/parity-requests/b2b/b2b-connection-args-contact-create.graphql',
+      'config/parity-requests/b2b/b2b-connection-args-location-create.graphql',
+      'config/parity-requests/b2b/b2b-connection-args-assign-role.graphql',
+      'config/parity-requests/b2b/b2b-connection-args-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable B2B companies plus one disposable contact/location/role-assignment set, records connection readback, then deletes both companies.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-update-unknown-id-resource-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',
