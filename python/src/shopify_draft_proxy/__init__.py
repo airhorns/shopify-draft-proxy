@@ -3,11 +3,12 @@
 import urllib.error
 import urllib.request
 
-from ._native import DRAFT_PROXY_STATE_DUMP_SCHEMA, DraftProxy, create_draft_proxy
+from ._native import DRAFT_PROXY_STATE_DUMP_SCHEMA, DraftProxy, DraftProxyCommitError, create_draft_proxy
 
 __all__ = [
     "DRAFT_PROXY_STATE_DUMP_SCHEMA",
     "DraftProxy",
+    "DraftProxyCommitError",
     "create_draft_proxy",
     "default_http_transport",
 ]
