@@ -3656,28 +3656,13 @@ impl DraftProxy {
             if self.store.staged.inventory_levels.contains_key(&key) {
                 continue;
             }
-            // Seed a destination level only for product-backed movement shipments that
-            // have no recorded level yet. available/on_hand mirror the hydrated variant's
-            // current inventory quantity (committed defaults to 0, so on_hand ==
-            // available) — the relationship Shopify reports for a freshly stocked
-            // single-location item before the shipment's incoming delta is applied.
-            let on_hand = if record.transfer_id.is_none() {
-                self.store
-                    .product_variant_by_inventory_item_id(&line_item.inventory_item_id)
-                    .map(|variant| variant.inventory_quantity)
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-            self.store.staged.inventory_levels.insert(
-                key,
-                BTreeMap::from([
-                    ("available".to_string(), on_hand),
-                    ("reserved".to_string(), 0),
-                    ("on_hand".to_string(), on_hand),
-                    ("incoming".to_string(), 0),
-                ]),
-            );
+            // A missing destination level means this item has no observed stock at
+            // the destination yet. Start from Shopify-like zeroes and let the
+            // shipment's incoming/receive deltas materialize the local state.
+            self.store
+                .staged
+                .inventory_levels
+                .insert(key, empty_inventory_quantities());
         }
     }
 
@@ -4310,9 +4295,9 @@ impl DraftProxy {
                     line_item.inventory_item_id.clone(),
                     record.origin_location_id.clone(),
                 ))
-                .or_insert_with(default_transfer_inventory_quantities);
+                .or_insert_with(empty_inventory_quantities);
             if origin.is_empty() {
-                *origin = default_transfer_inventory_quantities();
+                *origin = empty_inventory_quantities();
             }
             self.store
                 .staged
@@ -4621,7 +4606,7 @@ impl DraftProxy {
             .staged
             .inventory_levels
             .entry((inventory_item_id.to_string(), location_id.to_string()))
-            .or_insert_with(default_transfer_inventory_quantities);
+            .or_insert_with(empty_inventory_quantities);
         *level.entry("available".to_string()).or_insert(0) -= reserved_delta;
         *level.entry("reserved".to_string()).or_insert(0) += reserved_delta;
         let available = level.get("available").copied().unwrap_or(0);
@@ -4699,14 +4684,6 @@ fn empty_inventory_quantities() -> BTreeMap<String, i64> {
         ("reserved".to_string(), 0),
         ("on_hand".to_string(), 0),
         ("incoming".to_string(), 0),
-    ])
-}
-
-fn default_transfer_inventory_quantities() -> BTreeMap<String, i64> {
-    BTreeMap::from([
-        ("available".to_string(), 5),
-        ("reserved".to_string(), 0),
-        ("on_hand".to_string(), 5),
     ])
 }
 

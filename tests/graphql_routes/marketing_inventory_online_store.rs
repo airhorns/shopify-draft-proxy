@@ -4761,6 +4761,38 @@ fn transfer_level_quantities(
         .unwrap_or(Value::Null)
 }
 
+fn inventory_level_node_for_location(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+) -> Value {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryLevelNodeForLocation($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id name }
+                quantities(names: ["available", "reserved", "on_hand", "incoming"]) {
+                  name
+                  quantity
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|node| node["location"]["id"] == json!(location_id))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 /// Collects the logged root operation names that belong to the inventory-transfer
 /// family, filtering out the location/inventory setup mutations a scenario stages
 /// before exercising the transfer itself. A wrongly-logged `inventoryTransfer*`
@@ -4777,6 +4809,162 @@ fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
                 .unwrap_or(false)
         })
         .collect()
+}
+
+#[test]
+fn inventory_transfer_missing_hydrated_quantities_start_at_zero() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let upstream_forwarded = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            upstream_forwarded.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [
+                    {
+                        "__typename": "Location",
+                        "id": "gid://shopify/Location/observed-origin",
+                        "name": "Observed Origin",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "Location",
+                        "id": "gid://shopify/Location/observed-destination",
+                        "name": "Observed Destination",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "InventoryItem",
+                        "id": "gid://shopify/InventoryItem/observed-transfer-item",
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "variant": {
+                            "id": "gid://shopify/ProductVariant/observed-transfer-variant",
+                            "title": "Observed Transfer Variant",
+                            "inventoryQuantity": 0,
+                            "product": {
+                                "id": "gid://shopify/Product/observed-transfer-product",
+                                "title": "Observed Transfer Product",
+                                "handle": "observed-transfer-product",
+                                "status": "ACTIVE",
+                                "totalInventory": 0,
+                                "tracksInventory": true
+                            }
+                        },
+                        "inventoryLevels": {"nodes": [{
+                            "id": "gid://shopify/InventoryLevel/observed-transfer-item-origin",
+                            "location": {
+                                "id": "gid://shopify/Location/observed-origin",
+                                "name": "Observed Origin"
+                            }
+                        }]}
+                    }
+                ]}}),
+            }
+        });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/observed-origin",
+            "destinationLocationId": "gid://shopify/Location/observed-destination",
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/observed-transfer-item",
+                "quantity": 2
+            }]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+
+    let origin_level = inventory_level_node_for_location(
+        &mut proxy,
+        "gid://shopify/InventoryItem/observed-transfer-item",
+        "gid://shopify/Location/observed-origin",
+    );
+    assert_eq!(
+        origin_level["location"],
+        json!({"id": "gid://shopify/Location/observed-origin", "name": "Observed Origin"})
+    );
+    assert_eq!(
+        origin_level["quantities"],
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "reserved", "quantity": 0},
+            {"name": "on_hand", "quantity": 0},
+            {"name": "incoming", "quantity": 0}
+        ])
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn inventory_shipment_in_transit_uses_default_location_without_variant_total_seed() {
+    let mut proxy = inventory_seed_proxy();
+    let destination_id = add_inventory_test_location(&mut proxy, "Movement Destination");
+    let remote_stock_id = add_inventory_test_location(&mut proxy, "Remote Stock");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "SHIPMENT-ZERO-DEST");
+
+    let seed_remote = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedRemoteStock($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "ignoreCompareQuantity": true,
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": remote_stock_id,
+                "quantity": 7
+            }]
+        }}),
+    ));
+    assert_eq!(
+        seed_remote.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let shipment = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-in-transit.graphql"
+        ),
+        json!({"input": {
+            "movementId": "gid://shopify/InventoryMovement/movement-zero-destination",
+            "lineItems": [{
+                "inventoryItemId": inventory_item_id,
+                "quantity": 3
+            }]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+
+    let destination_level =
+        inventory_level_node_for_location(&mut proxy, &inventory_item_id, &destination_id);
+    assert_eq!(
+        destination_level["location"],
+        json!({"id": destination_id, "name": "Movement Destination"})
+    );
+    assert_eq!(
+        destination_level["quantities"],
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "reserved", "quantity": 0},
+            {"name": "on_hand", "quantity": 0},
+            {"name": "incoming", "quantity": 3}
+        ])
+    );
 }
 
 #[test]
