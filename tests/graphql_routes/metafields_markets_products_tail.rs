@@ -4698,6 +4698,317 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
 }
 
 #[test]
+fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
+    let mut proxy = snapshot_proxy();
+
+    let market_create_query = r#"
+        mutation StageMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let catalog_create_query = r#"
+        mutation StageCatalog($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let web_presence_create_query = r#"
+        mutation StageWebPresence($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id subfolderSuffix }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let market_update_query = r#"
+        mutation LinkMarketRelations($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let canada = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Canada Retail", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    let canada_id = canada.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let _france = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "France Retail", "regions": [{"countryCode": "FR"}]}}),
+    ));
+    let _belgium = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Belgium Wholesale", "regions": [{"countryCode": "BE"}]}}),
+    ));
+
+    let first_catalog = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Canada Primary Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": [canada_id.clone()]}}}),
+    ));
+    assert_eq!(
+        first_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let first_catalog_id = first_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_catalog = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Canada Secondary Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": [canada_id.clone()]}}}),
+    ));
+    let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let first_presence = proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "caone"}}),
+    ));
+    assert_eq!(
+        first_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let first_presence_id = first_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_presence = proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "catwo"}}),
+    ));
+    assert_eq!(
+        second_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let second_presence_id = second_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let link_presences = proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": canada_id, "input": {"webPresencesToAdd": [first_presence_id.clone(), second_presence_id.clone()]}}),
+    ));
+    assert_eq!(
+        link_presences.body["data"]["marketUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsConnectionShapeRead(
+          $marketId: ID!,
+          $firstCatalogCursor: String!,
+          $firstPresenceCursor: String!
+        ) {
+          filteredMarkets: markets(first: 2, query: "Retail", sortKey: NAME, reverse: true) {
+            edges { cursor node { id name handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unsupportedFilter: markets(first: 5, query: "unsupported_filter:Retail") {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          market(id: $marketId) {
+            id
+            catalogs(first: 1) {
+              nodes { id }
+              edges {
+                cursor
+                node {
+                  id
+                  title
+                  markets(first: 1) {
+                    edges { cursor node { id name } }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            catalogAfter: catalogs(first: 1, after: $firstCatalogCursor) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            webPresences(first: 1) {
+              nodes { id }
+              edges {
+                cursor
+                node {
+                  id
+                  subfolderSuffix
+                  markets(first: 1) {
+                    edges { cursor node { id name } }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            webPresenceAfter: webPresences(first: 1, after: $firstPresenceCursor) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          webPresences(first: 1) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "marketId": canada_id,
+            "firstCatalogCursor": first_catalog_id,
+            "firstPresenceCursor": first_presence_id
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["filteredMarkets"]["edges"][0]["node"]["name"],
+        json!("France Retail")
+    );
+    assert_eq!(
+        read.body["data"]["filteredMarkets"]["edges"][1]["node"]["name"],
+        json!("Canada Retail")
+    );
+    assert_eq!(
+        read.body["data"]["unsupportedFilter"],
+        json!({
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["catalogs"],
+        json!({
+            "nodes": [{ "id": first_catalog_id }],
+            "edges": [{
+                "cursor": first_catalog_id,
+                "node": {
+                    "id": first_catalog_id,
+                    "title": "Canada Primary Catalog",
+                    "markets": {
+                        "edges": [{
+                            "cursor": canada_id,
+                            "node": { "id": canada_id, "name": "Canada Retail" }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": canada_id,
+                            "endCursor": canada_id
+                        }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_catalog_id,
+                "endCursor": first_catalog_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["catalogAfter"],
+        json!({
+            "edges": [{
+                "cursor": second_catalog_id,
+                "node": { "id": second_catalog_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": second_catalog_id,
+                "endCursor": second_catalog_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["webPresences"],
+        json!({
+            "nodes": [{ "id": first_presence_id }],
+            "edges": [{
+                "cursor": first_presence_id,
+                "node": {
+                    "id": first_presence_id,
+                    "subfolderSuffix": "caone",
+                    "markets": {
+                        "edges": [{
+                            "cursor": canada_id,
+                            "node": { "id": canada_id, "name": "Canada Retail" }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": canada_id,
+                            "endCursor": canada_id
+                        }
+                    }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_presence_id,
+                "endCursor": first_presence_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["market"]["webPresenceAfter"],
+        json!({
+            "edges": [{
+                "cursor": second_presence_id,
+                "node": { "id": second_presence_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": second_presence_id,
+                "endCursor": second_presence_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["webPresences"],
+        json!({
+            "nodes": [{ "id": first_presence_id }],
+            "edges": [{
+                "cursor": first_presence_id,
+                "node": { "id": first_presence_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_presence_id,
+                "endCursor": first_presence_id
+            }
+        })
+    );
+}
+
+#[test]
 fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,

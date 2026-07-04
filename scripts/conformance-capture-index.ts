@@ -4565,6 +4565,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translatable-resources-reverse',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translatable-resources-reverse-conformance.mts',
+    purpose:
+      'translatableResources(resourceType: PRODUCT, reverse: true) connection shape and reverse ordering against disposable Product setup.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translatable-resources-reverse.json`,
+      'config/parity-specs/localization/localization-translatable-resources-reverse.json',
+      'config/parity-requests/localization/localization-translatable-resources-reverse-product-create.graphql',
+      'config/parity-requests/localization/localization-translatable-resources-reverse-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable draft Products, captures the reverse first translatableResources window, then deletes both Products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-shop-locale-market-web-presence-filter',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-shop-locale-market-web-presence-filter-conformance.mts',
@@ -4645,6 +4663,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Read/validation oriented; do not run market lifecycle writes without disposable setup and cleanup.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'markets',
+    captureId: 'markets-connection-arguments',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-markets-connection-arguments-conformance.mts',
+    purpose:
+      'markets(query:, sortKey: NAME, reverse: true) connection shape and reverse name ordering against disposable Market setup.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}markets-connection-arguments.json`,
+      'config/parity-specs/markets/markets-connection-arguments.json',
+      'config/parity-requests/markets/markets-connection-arguments-create.graphql',
+      'config/parity-requests/markets/markets-connection-arguments-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable enabled Markets with a unique query token, captures the reverse name-sorted filtered first window, then deletes all three Markets.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'markets',

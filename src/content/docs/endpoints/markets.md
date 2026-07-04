@@ -75,6 +75,18 @@ Staged country-region nodes are stored as `MarketRegionCountry` records with a
 stable synthesized `id`, deterministic ISO country `name`, `code`, and
 `__typename`, so mutation payloads and downstream `market` / `markets` overlay
 reads expose the same region-node shape.
+Local `markets`, `webPresences`, `market.catalogs`,
+`market.webPresences`, `Catalog.markets`, and `MarketWebPresence.markets`
+projections use the shared connection helpers for selected `nodes`, `edges`,
+stable ID cursors, selected `pageInfo`, and `first` / `last` / `after` /
+`before` cursor windows. Local `markets(query:, sortKey:, reverse:)` applies
+supported query filtering before sort, reverse, and cursor windowing. The local
+query slice supports free-text matching plus `id:`, `name:`, `handle:`,
+`status:`, `type:`, and `enabled:` terms; unrecognized keyed filters are
+treated as unsupported terms and return an empty staged connection rather than
+broadly matching every staged market. Supported deterministic sort keys are
+`ID`, `NAME`, `HANDLE`, `STATUS`, and `TYPE`, with unknown sort keys falling
+back to ID order.
 Unsupported country-region validation is driven by a generated Shopify-derived
 Markets set captured from live `CountryCode` enum probes; the 2026-04 evidence
 rejects `AN`, `BV`, `CU`, `HM`, `IR`, `KP`, and `SY` before staging.

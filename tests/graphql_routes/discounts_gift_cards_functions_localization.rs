@@ -5298,6 +5298,108 @@ fn localization_translatable_resources_do_not_fabricate_empty_connections() {
 }
 
 #[test]
+fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
+    let mut proxy = snapshot_proxy();
+
+    let first_product_id = create_fallback_localization_product(&mut proxy);
+    let second_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSecondLocalizationProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Second Localization Product",
+                "handle": "second-localization-product",
+                "descriptionHtml": "<p>Second localization body</p>",
+                "productType": "snowboard"
+            }
+        }),
+    ));
+    assert_eq!(
+        second_product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let second_product_id = json_string(
+        &second_product.body["data"]["productCreate"]["product"]["id"],
+        "second localization product id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query TranslatableResourcesReverseWindow($after: String!) {
+          forward: translatableResources(first: 1, resourceType: PRODUCT) {
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: translatableResources(first: 1, resourceType: PRODUCT, reverse: true) {
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversedAfter: translatableResources(first: 1, resourceType: PRODUCT, reverse: true, after: $after) {
+            nodes { resourceId }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": second_product_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["forward"],
+        json!({
+            "edges": [{
+                "cursor": first_product_id,
+                "node": { "resourceId": first_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversed"],
+        json!({
+            "edges": [{
+                "cursor": second_product_id,
+                "node": { "resourceId": second_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": second_product_id,
+                "endCursor": second_product_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversedAfter"],
+        json!({
+            "nodes": [{ "resourceId": first_product_id }],
+            "edges": [{
+                "cursor": first_product_id,
+                "node": { "resourceId": first_product_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
+}
+
+#[test]
 fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_market() {
     let upstream_requests = Arc::new(Mutex::new(Vec::new()));
     let captured_requests = Arc::clone(&upstream_requests);

@@ -115,7 +115,9 @@ Collection resources use the same source-backed projection for title, handle,
 body HTML, and SEO fields that exist in local state.
 Unknown or omitted singular `translatableResource` IDs return `null`, and
 empty `translatableResources` connections remain empty instead of fabricating a
-default resource ID.
+default resource ID. `translatableResources(first:/last:/after:/before:,
+reverse:)` applies `reverse` to the local resource-ID order before computing
+the requested cursor window and selected `pageInfo`.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has

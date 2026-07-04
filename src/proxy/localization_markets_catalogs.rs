@@ -42,7 +42,7 @@ fn market_relation_connection<'a>(
         .filter(|record| market_ids(record).iter().any(|id| id == market_id))
         .cloned()
         .collect::<Vec<_>>();
-    json!({"nodes": nodes})
+    connection_json(nodes)
 }
 
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
@@ -222,6 +222,101 @@ fn staged_nodes_connection(
     selected_json(&connection, selection)
 }
 
+fn selected_record_field(record: &Value, selection: &SelectedField) -> Option<Value> {
+    let projected = selected_json(record, std::slice::from_ref(selection));
+    projected.get(&selection.response_key).cloned()
+}
+
+fn value_string<'a>(value: &'a Value, field: &str) -> &'a str {
+    value.get(field).and_then(Value::as_str).unwrap_or_default()
+}
+
+fn normalized_sort_string(value: &str) -> StagedSortValue {
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn value_gid_tail_sort_value(value: &Value) -> StagedSortValue {
+    let tail = resource_id_tail(value_string(value, "id"));
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn market_sort_key(market: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id_sort = value_gid_tail_sort_value(market);
+    let primary = match sort_key.unwrap_or("ID") {
+        "NAME" => normalized_sort_string(value_string(market, "name")),
+        "HANDLE" => normalized_sort_string(value_string(market, "handle")),
+        "STATUS" => normalized_sort_string(value_string(market, "status")),
+        "TYPE" => normalized_sort_string(value_string(market, "type")),
+        "ID" | "RELEVANCE" => id_sort.clone(),
+        _ => id_sort.clone(),
+    };
+    vec![primary, id_sort]
+}
+
+fn market_search_decision(market: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in query.split_whitespace() {
+        match market_search_term_decision(market, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    if let Some((key, value)) = term.split_once(':') {
+        let value = value.trim().trim_matches('\'').trim_matches('"');
+        let matches = match key {
+            "id" => {
+                let id = value_string(market, "id");
+                id == value || resource_id_tail(id) == value
+            }
+            "name" => value_contains_ci(value_string(market, "name"), value),
+            "handle" => value_contains_ci(value_string(market, "handle"), value),
+            "status" => value_string(market, "status").eq_ignore_ascii_case(value),
+            "type" => value_string(market, "type").eq_ignore_ascii_case(value),
+            "enabled" => market
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .is_some_and(|enabled| enabled.to_string().eq_ignore_ascii_case(value)),
+            _ => return StagedSearchDecision::Unsupported,
+        };
+        return StagedSearchDecision::from_bool(matches);
+    }
+
+    let needle = term.trim_end_matches('*').to_ascii_lowercase();
+    let haystack = format!(
+        "{} {} {} {} {}",
+        value_string(market, "id"),
+        value_string(market, "name"),
+        value_string(market, "handle"),
+        value_string(market, "status"),
+        value_string(market, "type")
+    )
+    .to_ascii_lowercase();
+    StagedSearchDecision::from_bool(haystack.contains(&needle))
+}
+
+fn value_contains_ci(value: &str, needle: &str) -> bool {
+    value
+        .to_ascii_lowercase()
+        .contains(&needle.trim_end_matches('*').to_ascii_lowercase())
+}
+
 fn selected_catalog_error(
     field: &RootFieldSelection,
     path: Vec<&str>,
@@ -230,17 +325,6 @@ fn selected_catalog_error(
 ) -> Value {
     selected_json(
         &catalog_payload_error(path, message, code),
-        &field.selection,
-    )
-}
-
-fn selected_catalog_payload(
-    field: &RootFieldSelection,
-    catalog: Value,
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_json(
-        &json!({"catalog": catalog, "userErrors": user_errors}),
         &field.selection,
     )
 }
@@ -683,7 +767,7 @@ impl DraftProxy {
                         .staged
                         .markets
                         .get(&id)
-                        .map(|market| selected_json(market, &field.selection))
+                        .map(|market| self.selected_market_json(market, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "catalog" => {
@@ -692,11 +776,24 @@ impl DraftProxy {
                         .staged
                         .catalogs
                         .get(&id)
-                        .map(|catalog| selected_json(catalog, &field.selection))
+                        .map(|catalog| self.selected_catalog_json(catalog, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "catalogs" => {
-                    staged_nodes_connection(&self.store.staged.catalogs, &field.selection, false)
+                    let records = self
+                        .store
+                        .staged
+                        .catalogs
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_typed_connection_with_args(
+                        &records,
+                        &field.arguments,
+                        &field.selection,
+                        |catalog, selection| self.selected_catalog_json(catalog, selection),
+                        value_id_cursor,
+                    )
                 }
                 "catalogsCount" => self.catalogs_count_value(field),
                 "priceList" => {
@@ -711,11 +808,24 @@ impl DraftProxy {
                 "priceLists" => {
                     staged_nodes_connection(&self.store.staged.price_lists, &field.selection, false)
                 }
-                "webPresences" => staged_nodes_connection(
-                    &self.store.staged.web_presences,
-                    &field.selection,
-                    true,
-                ),
+                "webPresences" => {
+                    let records = self
+                        .store
+                        .staged
+                        .web_presences
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_typed_connection_with_args(
+                        &records,
+                        &field.arguments,
+                        &field.selection,
+                        |web_presence, selection| {
+                            self.selected_web_presence_json(web_presence, selection)
+                        },
+                        value_id_cursor,
+                    )
+                }
                 "marketsResolvedValues" => self.markets_resolved_values_value(field),
                 "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
                     &connection_json_with_empty_edges(Vec::new()),
@@ -734,11 +844,13 @@ impl DraftProxy {
                         .values()
                         .cloned()
                         .collect::<Vec<_>>();
-                    selected_typed_connection_with_args(
-                        &records,
+                    selected_staged_connection_with_args(
+                        records,
                         &field.arguments,
                         &field.selection,
-                        selected_json,
+                        market_search_decision,
+                        market_sort_key,
+                        |market, selection| self.selected_market_json(market, selection),
                         value_id_cursor,
                     )
                 }
@@ -749,6 +861,171 @@ impl DraftProxy {
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
         selected_count_json(self.store.staged.catalogs.len(), &field.selection)
+    }
+
+    fn selected_market_json(&self, market: &Value, selections: &[SelectedField]) -> Value {
+        if market.is_null() {
+            return Value::Null;
+        }
+        let market_id = value_string(market, "id");
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "catalogs" => Some(self.selected_market_catalogs_connection(
+                market_id,
+                &selection.arguments,
+                &selection.selection,
+            )),
+            "webPresences" => Some(self.selected_market_web_presences_connection(
+                market_id,
+                &selection.arguments,
+                &selection.selection,
+            )),
+            _ => selected_record_field(market, selection),
+        })
+    }
+
+    fn selected_market_payload(
+        &self,
+        field: &RootFieldSelection,
+        market: Value,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "market" => Some(self.selected_market_json(&market, &selection.selection)),
+                "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+                _ => None,
+            }
+        })
+    }
+
+    fn selected_catalog_json(&self, catalog: &Value, selections: &[SelectedField]) -> Value {
+        if catalog.is_null() {
+            return Value::Null;
+        }
+        let market_ids = catalog_market_ids(catalog);
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "markets" => {
+                let ids = market_ids.iter().rev().cloned().collect::<Vec<_>>();
+                Some(self.selected_markets_by_ids_connection(
+                    ids,
+                    &selection.arguments,
+                    &selection.selection,
+                ))
+            }
+            _ => selected_record_field(catalog, selection),
+        })
+    }
+
+    fn selected_catalog_payload(
+        &self,
+        field: &RootFieldSelection,
+        catalog: Value,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "catalog" => Some(self.selected_catalog_json(&catalog, &selection.selection)),
+                "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+                _ => None,
+            }
+        })
+    }
+
+    fn selected_web_presence_json(
+        &self,
+        web_presence: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        if web_presence.is_null() {
+            return Value::Null;
+        }
+        let market_ids = web_presence_market_ids(web_presence);
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "markets" => Some(self.selected_markets_by_ids_connection(
+                market_ids.clone(),
+                &selection.arguments,
+                &selection.selection,
+            )),
+            _ => selected_record_field(web_presence, selection),
+        })
+    }
+
+    fn selected_markets_by_ids_connection(
+        &self,
+        market_ids: Vec<String>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let records = market_ids
+            .into_iter()
+            .map(|id| {
+                self.store
+                    .staged
+                    .markets
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "id": id }))
+            })
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            arguments,
+            selection,
+            |market, node_selection| self.selected_market_json(market, node_selection),
+            value_id_cursor,
+        )
+    }
+
+    fn selected_market_catalogs_connection(
+        &self,
+        market_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let records = self
+            .store
+            .staged
+            .catalogs
+            .values()
+            .filter(|catalog| catalog_market_ids(catalog).iter().any(|id| id == market_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            arguments,
+            selection,
+            |catalog, node_selection| self.selected_catalog_json(catalog, node_selection),
+            value_id_cursor,
+        )
+    }
+
+    fn selected_market_web_presences_connection(
+        &self,
+        market_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let records = self
+            .store
+            .staged
+            .web_presences
+            .values()
+            .filter(|web_presence| {
+                web_presence_market_ids(web_presence)
+                    .iter()
+                    .any(|id| id == market_id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            arguments,
+            selection,
+            |web_presence, node_selection| {
+                self.selected_web_presence_json(web_presence, node_selection)
+            },
+            value_id_cursor,
+        )
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
@@ -960,7 +1237,7 @@ impl DraftProxy {
         let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
         let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
         self.store.staged.markets.insert(id, market.clone());
-        selected_market_payload(field, market, Vec::new())
+        self.selected_market_payload(field, market, Vec::new())
     }
 
     pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -1063,7 +1340,7 @@ impl DraftProxy {
         Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
-        selected_market_payload(field, updated_market, Vec::new())
+        self.selected_market_payload(field, updated_market, Vec::new())
     }
 
     fn apply_market_update_scalar_fields(
@@ -1495,7 +1772,7 @@ impl DraftProxy {
         if let Some(price_list_id) = price_list_id.as_deref() {
             self.attach_price_list_to_catalog(&id, price_list_id);
         }
-        selected_catalog_payload(field, catalog, Vec::new())
+        self.selected_catalog_payload(field, catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn catalog_update_response(
@@ -1570,7 +1847,7 @@ impl DraftProxy {
             .staged
             .catalogs
             .insert(id, updated_catalog.clone());
-        selected_catalog_payload(field, updated_catalog, Vec::new())
+        self.selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn catalog_delete_response(
@@ -1660,7 +1937,7 @@ impl DraftProxy {
             }
         }
         if !errors.is_empty() {
-            return selected_catalog_payload(field, Value::Null, errors);
+            return self.selected_catalog_payload(field, Value::Null, errors);
         }
 
         let mut updated_catalog = existing_catalog;
@@ -1727,7 +2004,7 @@ impl DraftProxy {
             .staged
             .catalogs
             .insert(catalog_id.clone(), updated_catalog.clone());
-        selected_catalog_payload(field, updated_catalog, Vec::new())
+        self.selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn next_catalog_id(&self, driver_type: CatalogContextDriver) -> String {
@@ -2429,12 +2706,23 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             if field.name == "webPresences" {
+                let records = self
+                    .store
+                    .staged
+                    .web_presences
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 data.insert(
                     field.response_key,
-                    staged_nodes_connection(
-                        &self.store.staged.web_presences,
+                    selected_typed_connection_with_args(
+                        &records,
+                        &field.arguments,
                         &field.selection,
-                        true,
+                        |web_presence, selection| {
+                            self.selected_web_presence_json(web_presence, selection)
+                        },
+                        value_id_cursor,
                     ),
                 );
             }
@@ -3392,11 +3680,14 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let records = self
+        let mut records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
         selected_typed_connection_with_args(
             &records,
             &field.arguments,
@@ -3438,11 +3729,13 @@ impl DraftProxy {
         if records.is_empty() {
             records = self.hydrate_localization_markets(field, request);
         }
-        selected_typed_connection_with_args(
-            &records,
+        selected_staged_connection_with_args(
+            records,
             &field.arguments,
             &field.selection,
-            selected_json,
+            market_search_decision,
+            market_sort_key,
+            |market, selection| self.selected_market_json(market, selection),
             value_id_cursor,
         )
     }
