@@ -1,0 +1,18 @@
+query B2BColdCompaniesRead($query: String!) {
+  companies(first: 3, query: $query) {
+    nodes {
+      id
+      name
+      locations(first: 2) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

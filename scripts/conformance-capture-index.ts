@@ -296,6 +296,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-cold-company-location-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-cold-company-location-hydration-conformance.mts',
+    purpose:
+      'Cold B2B companies passthrough plus real non-synthetic CompanyLocation hydration for companyLocationUpdate and companyLocationTaxSettingsUpdate.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-cold-company-location-hydration.json`,
+      'config/parity-specs/b2b/b2b-cold-company-location-hydration.json',
+      'config/parity-requests/b2b/b2b-cold-companies-read.graphql',
+      'config/parity-requests/b2b/b2b-cold-company-location-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company/location, captures a cold companies read and hydrate-backed mutations, then deletes the company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-buyer-experience-configuration',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-buyer-experience-configuration-conformance.mts',
