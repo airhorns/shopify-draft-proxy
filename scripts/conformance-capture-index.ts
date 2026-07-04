@@ -11389,6 +11389,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-no-such-file-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-no-such-file-precedence-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation missing staged upload returns NO_SUCH_FILE before same-type mutation in-progress throttle handling.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+    ],
+    cleanupBehavior:
+      'Uploads and starts five disposable product bulk mutations, records a missing stagedUploadPath validation response, cancels the non-terminal operations, and best-effort deletes any disposable products that completed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

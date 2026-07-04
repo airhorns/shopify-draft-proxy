@@ -1832,6 +1832,61 @@ fn bulk_operation_run_mutation_empty_file_error_precedes_in_progress_throttle() 
 }
 
 #[test]
+fn bulk_operation_run_mutation_no_such_file_error_precedes_in_progress_throttle() {
+    let hydrated_operations = (0..5)
+        .map(|index| {
+            let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+            (id.clone(), mutation_bulk_operation_fixture(&id))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
+
+    for index in 0..5 {
+        let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
+        assert_eq!(operation["type"], json!("MUTATION"));
+        assert_eq!(operation["status"], json!("CANCELING"));
+    }
+    let log_before = log_snapshot(&proxy);
+
+    let mut run_request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "tmp/92891250994/bulk/missing/missing-import.jsonl"
+        }),
+    );
+    run_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+            "code": "NO_SUCH_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "missing-file validation must not append a bulk mutation log entry"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     let id = "gid://shopify/BulkOperation/7749099127090";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
