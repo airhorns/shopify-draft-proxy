@@ -1,0 +1,37 @@
+mutation InventoryConnectionProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+      status
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          sku
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    productSetOperation {
+      id
+      status
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -399,6 +399,7 @@ struct StagedState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
+    media_ready_on_read: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     online_store_blogs: BTreeMap<String, Value>,
     online_store_blog_order: Vec<String>,
@@ -490,9 +491,13 @@ struct StagedState {
 struct InventoryTransferRecord {
     id: String,
     name: String,
+    #[serde(default)]
+    created_at: String,
     status: String,
     origin_location_id: String,
     destination_location_id: String,
+    #[serde(default)]
+    tags: Vec<String>,
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 
@@ -819,6 +824,7 @@ impl Default for StagedState {
             metafield_definitions: BTreeMap::new(),
             metafield_reference_ids: BTreeSet::new(),
             media_files: StagedRecords::default(),
+            media_ready_on_read: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             online_store_blogs: BTreeMap::new(),
             online_store_blog_order: Vec::new(),
@@ -1982,6 +1988,7 @@ mod metaobjects;
 mod money;
 mod online_store_content;
 mod online_store_orders_payments;
+mod phone;
 mod privacy;
 mod product_helpers;
 mod product_operations;
@@ -2011,6 +2018,7 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
+pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
 pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;
