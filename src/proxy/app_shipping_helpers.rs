@@ -160,6 +160,7 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
+pub(in crate::proxy) const DRAFT_PROXY_REQUEST_APP_ID_FIELD: &str = "__draftProxyRequestAppId";
 
 pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
@@ -202,6 +203,13 @@ pub(in crate::proxy) fn app_installation_id(installation: &Value) -> Option<Stri
         .map(str::to_string)
 }
 
+pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -> Option<String> {
+    installation
+        .get(DRAFT_PROXY_REQUEST_APP_ID_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
     let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
@@ -240,6 +248,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     json!({
         "__typename": "AppInstallation",
         "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
+        "__draftProxyRequestAppId": app_id.clone(),
         "id": installation_id,
         "accessScopes": access_scopes,
         "app": {
@@ -1465,36 +1474,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "success" => Some(Value::Bool(success)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
-    let count = if published { 1 } else { 0 };
-    json!({
-        "id": id,
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
-        "publishedOnCurrentPublication": false,
-        "publishedOnPublication": published,
-        "availablePublicationsCount": count_object(count),
-        "resourcePublicationsCount": count_object(count)
-    })
-}
-
-pub(in crate::proxy) fn publishable_payload_json(
-    publishable: Value,
-    shop: Value,
-    payload_selection: &[SelectedField],
-    publishable_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&shop, &selection.selection)),
             "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }

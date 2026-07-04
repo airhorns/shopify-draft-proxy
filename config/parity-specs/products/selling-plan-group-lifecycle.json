@@ -479,8 +479,261 @@
             }
           }
         }
+      },
+      {
+        "name": "connection-setup-alpha-group",
+        "capturePath": "$.captures[18].response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.captures[18].request.variables.input"
+            },
+            "resources": {
+              "productIds": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.nodes[*].id",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.nodes[*].id",
+          "$.sellingPlanGroup.productVariants.nodes[*].product.id",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
+        ]
+      },
+      {
+        "name": "connection-setup-beta-group",
+        "capturePath": "$.captures[19].response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.captures[19].request.variables.input"
+            },
+            "resources": {
+              "productIds": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.nodes[*].id",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.nodes[*].id",
+          "$.sellingPlanGroup.productVariants.nodes[*].product.id",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
+        ]
+      },
+      {
+        "name": "connection-setup-gamma-group",
+        "capturePath": "$.captures[20].response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.captures[20].request.variables.input"
+            },
+            "resources": {
+              "productIds": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.nodes[*].id",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.nodes[*].id",
+          "$.sellingPlanGroup.productVariants.nodes[*].product.id",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
+        ]
+      },
+      {
+        "name": "connection-update-beta-group",
+        "capturePath": "$.captures[21].response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "connection-setup-beta-group",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.captures[21].request.variables.input"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.nodes[*].id",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.nodes[*].id",
+          "$.sellingPlanGroup.productVariants.nodes[*].product.id",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
+        ]
+      },
+      {
+        "name": "connection-query-sort-filter-window-read",
+        "capturePath": "$.captures[22].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-connection-args.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "matchQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.matchQuery"
+            },
+            "betaQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.betaQuery"
+            },
+            "percentageQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.percentageQuery"
+            },
+            "frequencyQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.frequencyQuery"
+            },
+            "categoryQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.categoryQuery"
+            },
+            "unknownQuery": {
+              "fromCapturePath": "$.captures[22].request.variables.unknownQuery"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.defaultId.nodes[*].id",
+          "$.nameReverse.nodes[*].id",
+          "$.nameReverse.pageInfo.startCursor",
+          "$.nameReverse.pageInfo.endCursor",
+          "$.updatedReverse.nodes[*].id",
+          "$.betaOnly.nodes[*].id",
+          "$.percentageOnly.nodes[*].id",
+          "$.frequencyMatch.nodes[*].id",
+          "$.categoryMatch.nodes[*].id",
+          "$.unknownFilter.nodes[*].id",
+          "$.unknownFilter.pageInfo.startCursor",
+          "$.unknownFilter.pageInfo.endCursor",
+          "$.product.id",
+          "$.product.sellingPlanGroups.nodes[*].id",
+          "$.product.sellingPlanGroups.pageInfo.startCursor",
+          "$.product.sellingPlanGroups.pageInfo.endCursor",
+          "$.productVariant.id",
+          "$.productVariant.sellingPlanGroups.nodes[*].id",
+          "$.productVariant.sellingPlanGroups.pageInfo.startCursor",
+          "$.productVariant.sellingPlanGroups.pageInfo.endCursor"
+        ]
+      },
+      {
+        "name": "connection-after-window-read",
+        "capturePath": "$.captures[23].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-connection-after.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "topAfter": {
+              "fromProxyResponse": "connection-query-sort-filter-window-read",
+              "path": "$.data.nameReverse.pageInfo.endCursor"
+            },
+            "productAfter": {
+              "fromProxyResponse": "connection-query-sort-filter-window-read",
+              "path": "$.data.product.sellingPlanGroups.pageInfo.endCursor"
+            },
+            "variantAfter": {
+              "fromProxyResponse": "connection-query-sort-filter-window-read",
+              "path": "$.data.productVariant.sellingPlanGroups.pageInfo.endCursor"
+            },
+            "matchQuery": {
+              "fromCapturePath": "$.captures[23].request.variables.matchQuery"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.afterWindow.nodes[*].id",
+          "$.afterWindow.pageInfo.startCursor",
+          "$.afterWindow.pageInfo.endCursor",
+          "$.product.id",
+          "$.product.sellingPlanGroups.nodes[*].id",
+          "$.product.sellingPlanGroups.pageInfo.startCursor",
+          "$.product.sellingPlanGroups.pageInfo.endCursor",
+          "$.productVariant.id",
+          "$.productVariant.sellingPlanGroups.nodes[*].id",
+          "$.productVariant.sellingPlanGroups.pageInfo.startCursor",
+          "$.productVariant.sellingPlanGroups.pageInfo.endCursor"
+        ]
       }
     ]
   },
-  "notes": "Captures Admin GraphQL 2026-04 selling-plan group lifecycle, group-centric membership, unknown-id userErrors, downstream product/ProductVariant read-after-write behavior, and mixed fixed-plus-recurring selling-plan pricing-policy read-back. The create-group-mixed-fixed-recurring-pricing-policies target proves recurring pricing policies are retained with their union typename and afterCycle while fixed entries stay fixed. Product-centric and variant-centric association roots are covered by selling-plan-product-variant-associations. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding generated IDs, timestamps, policy createdAt values, and opaque connection cursors."
+  "notes": "Captures Admin GraphQL 2026-04 selling-plan group lifecycle, group-centric membership, unknown-id userErrors, downstream product/ProductVariant read-after-write behavior, mixed fixed-plus-recurring selling-plan pricing-policy read-back, top-level sellingPlanGroups query/sortKey/reverse/windowing behavior, and nested Product/ProductVariant sellingPlanGroups reverse/window/count behavior. The create-group-mixed-fixed-recurring-pricing-policies target proves recurring pricing policies are retained with their union typename and afterCycle while fixed entries stay fixed. Product-centric and variant-centric association roots are covered by selling-plan-product-variant-associations. The connection-query-sort-filter-window-read target proves top-level default ID order, NAME and UPDATED_AT sort keys, reverse order, documented query filters, explicit unmatched unknown-filter behavior, and schema-valid nested reverse behavior, including Shopify's gamma-before-beta UPDATED_AT result after a delayed beta description update. connection-after-window-read proves top-level and nested after-window pageInfo using opaque cursors captured from the first page. Shopify 2026-04 rejects query/sortKey on nested Product/ProductVariant sellingPlanGroups, so those arguments are intentionally not replayed there. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding generated IDs, timestamps, policy createdAt values, and opaque connection cursors."
 }

@@ -194,6 +194,8 @@ struct SellingPlanGroupRecord {
     options: Vec<String>,
     position: i64,
     created_at: String,
+    #[serde(default)]
+    updated_at: String,
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
@@ -339,6 +341,12 @@ struct StagedState {
     // Empty for every scenario that does not seed publications, leaving the
     // existing passthrough behavior for those roots untouched.
     publications: BTreeMap<String, Value>,
+    // Current app publication resolved from `currentAppInstallation.publication`
+    // by current-channel publishable mutations in live-hybrid mode. The separate
+    // resolved flag distinguishes "not looked up yet" from "looked up and Shopify
+    // returned no current publication".
+    current_channel_publication_id: Option<String>,
+    current_channel_publication_resolved: bool,
     // Resource gid (Product/Collection) -> set of publication gids the resource
     // is published on. Seeded from `seedProducts`/`seedCollections`
     // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
@@ -426,6 +434,7 @@ struct StagedState {
     next_refund_id: u64,
     next_refund_line_item_id: u64,
     next_order_id: u64,
+    next_order_number: u64,
     next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
@@ -460,6 +469,7 @@ struct StagedState {
     function_cart_transform_order: Vec<String>,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    tax_app_configuration: Option<Value>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -776,6 +786,8 @@ impl Default for StagedState {
             publication_ids: BTreeSet::new(),
             created_publication_ids: BTreeSet::new(),
             publications: BTreeMap::new(),
+            current_channel_publication_id: None,
+            current_channel_publication_resolved: false,
             resource_publications: BTreeMap::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
@@ -846,6 +858,7 @@ impl Default for StagedState {
             next_refund_id: 1,
             next_refund_line_item_id: 1,
             next_order_id: 1,
+            next_order_number: 1,
             next_draft_order_id: 1,
             draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
@@ -873,6 +886,7 @@ impl Default for StagedState {
             function_cart_transform_order: Vec::new(),
             function_fulfillment_constraint_rules: BTreeMap::new(),
             function_fulfillment_constraint_rule_order: Vec::new(),
+            tax_app_configuration: None,
             functions_dirty: false,
             backup_region: Value::Null,
             flow_signatures: Vec::new(),
@@ -1111,10 +1125,30 @@ impl Store {
             || !self.staged.publications.is_empty()
     }
 
+    fn has_known_publication_ids(&self) -> bool {
+        !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
+    }
+
     fn has_publication_id(&self, id: &str) -> bool {
         self.base.publication_ids.contains(id)
             || self.staged.publication_ids.contains(id)
             || self.staged.publications.contains_key(id)
+    }
+
+    fn current_publication_id(&self) -> Option<&'static str> {
+        let id = "gid://shopify/Publication/1";
+        self.has_publication_id(id).then_some(id)
+    }
+
+    fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
+        self.current_publication_id().is_some_and(|publication_id| {
+            self.staged
+                .resource_publications
+                .get(resource_id)
+                .is_some_and(|publications| publications.contains(publication_id))
+        })
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
@@ -1412,10 +1446,6 @@ impl Store {
             &self.staged.product_variants,
             id,
         )
-    }
-
-    fn product_variants(&self) -> Vec<ProductVariantRecord> {
-        effective_records(&self.base.product_variants, &self.staged.product_variants)
     }
 
     fn has_product_variant_reference(&self, variant_id: &str) -> bool {

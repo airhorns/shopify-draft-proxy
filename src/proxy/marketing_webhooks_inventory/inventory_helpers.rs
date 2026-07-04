@@ -4,7 +4,22 @@ pub(in crate::proxy) struct InventoryLevelViewState<'a> {
     pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
     pub inactive_levels: &'a BTreeSet<(String, String)>,
     pub quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
-    pub locations: Option<&'a BTreeMap<String, Value>>,
+    pub staged_locations: &'a BTreeMap<String, Value>,
+    pub observed_shipping_locations: &'a BTreeMap<String, Value>,
+    pub fulfillment_service_locations: &'a BTreeMap<String, Value>,
+}
+
+fn inventory_level_location_for_view(
+    location_id: &str,
+    view_state: &InventoryLevelViewState<'_>,
+) -> Value {
+    view_state
+        .staged_locations
+        .get(location_id)
+        .or_else(|| view_state.observed_shipping_locations.get(location_id))
+        .or_else(|| view_state.fulfillment_service_locations.get(location_id))
+        .cloned()
+        .unwrap_or_else(|| json!({ "id": location_id }))
 }
 
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
@@ -84,21 +99,10 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
-            "location" => Some(
-                view_state
-                    .locations
-                    .and_then(|locations| locations.get(location_id))
-                    .map(|location| selected_json(location, &selection.selection))
-                    .unwrap_or_else(|| {
-                        selected_json(
-                            &json!({
-                                "id": location_id,
-                                "name": inventory_location_name(location_id)
-                            }),
-                            &selection.selection,
-                        )
-                    }),
-            ),
+            "location" => Some(selected_json(
+                &inventory_level_location_for_view(location_id, view_state),
+                &selection.selection,
+            )),
             "quantities" => Some(Value::Array(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
@@ -249,10 +253,6 @@ fn inventory_set_on_hand_change_json(
     })
 }
 
-pub(in crate::proxy) fn inventory_location_name(_location_id: &str) -> &'static str {
-    "Location"
-}
-
 const INVENTORY_VALID_REASONS: &[&str] = &[
     "correction",
     "cycle_count_available",
@@ -288,8 +288,6 @@ const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
 const INVENTORY_SET_QUANTITY_MIN: i64 = -1_000_000_000;
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
 const INVENTORY_ITEM_WEIGHT_UNITS: &[&str] = &["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"];
-const COMMON_MISSING_INVENTORY_ID_TAILS: &[&str] = &["999999999999", "missing", "unknown"];
-const INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS: &[&str] = &["999999999998", "999999999999999"];
 const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "AC", "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AR", "AT", "AU", "AW", "AX", "AZ",
     "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
@@ -358,7 +356,9 @@ impl DraftProxy {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
             quantity_updated_at: &self.store.staged.inventory_quantity_updated_at,
-            locations: Some(&self.store.staged.locations.records),
+            staged_locations: &self.store.staged.locations.records,
+            observed_shipping_locations: &self.store.staged.observed_shipping_locations,
+            fulfillment_service_locations: &self.store.staged.fulfillment_service_locations.records,
         }
     }
     pub(in crate::proxy) fn inventory_query_data(
@@ -1153,16 +1153,7 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or_else(|| inventory_level_id(inventory_item_id, location_id));
             let is_active = !view.inactive_levels.contains(&key);
-            let location = view
-                .locations
-                .and_then(|locations| locations.get(location_id))
-                .cloned()
-                .unwrap_or_else(|| {
-                    json!({
-                        "id": location_id,
-                        "name": inventory_location_name(location_id)
-                    })
-                });
+            let location = inventory_level_location_for_view(location_id, &view);
             let quantities_value: Vec<Value> = CANONICAL
                 .iter()
                 .map(|name| {
@@ -2474,9 +2465,6 @@ impl DraftProxy {
         {
             return false;
         }
-        if self.inventory_item_id_is_missing(inventory_item_id) {
-            return false;
-        }
         self.store
             .product_variant_by_inventory_item_id(inventory_item_id)
             .is_some()
@@ -2502,9 +2490,6 @@ impl DraftProxy {
 
     fn inventory_location_exists(&self, location_id: &str) -> bool {
         if location_id.is_empty() || !location_id.starts_with("gid://shopify/Location/") {
-            return false;
-        }
-        if self.inventory_location_id_is_missing(location_id) {
             return false;
         }
         self.inventory_location_has_local_state(location_id)
@@ -2544,19 +2529,7 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .map(str::to_string)
             })
-            .unwrap_or_else(|| inventory_location_name(location_id).to_string())
-    }
-
-    fn inventory_item_id_is_missing(&self, inventory_item_id: &str) -> bool {
-        let tail = resource_id_tail(inventory_item_id);
-        inventory_id_tail_is_missing(tail)
-            || INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS
-                .iter()
-                .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
-    }
-
-    fn inventory_location_id_is_missing(&self, location_id: &str) -> bool {
-        inventory_id_tail_is_missing(resource_id_tail(location_id))
+            .unwrap_or_else(|| location_id.to_string())
     }
 
     fn inventory_level_parts_from_id_or_fallback(&self, id: &str) -> Option<(String, String)> {
@@ -2670,7 +2643,6 @@ impl DraftProxy {
         }
         let location_id = if self.inventory_location_exists(requested_location_id)
             && requested_location_id.starts_with("gid://shopify/Location/")
-            && requested_location_id != "gid://shopify/Location/999999999999"
         {
             requested_location_id.to_string()
         } else {
@@ -4553,9 +4525,9 @@ impl DraftProxy {
                     line_item.inventory_item_id.clone(),
                     record.origin_location_id.clone(),
                 ))
-                .or_insert_with(default_transfer_inventory_quantities);
+                .or_insert_with(empty_inventory_quantities);
             if origin.is_empty() {
-                *origin = default_transfer_inventory_quantities();
+                *origin = empty_inventory_quantities();
             }
             self.store
                 .staged
@@ -4864,7 +4836,7 @@ impl DraftProxy {
             .staged
             .inventory_levels
             .entry((inventory_item_id.to_string(), location_id.to_string()))
-            .or_insert_with(default_transfer_inventory_quantities);
+            .or_insert_with(empty_inventory_quantities);
         *level.entry("available".to_string()).or_insert(0) -= reserved_delta;
         *level.entry("reserved".to_string()).or_insert(0) += reserved_delta;
         let available = level.get("available").copied().unwrap_or(0);
@@ -4942,14 +4914,6 @@ fn empty_inventory_quantities() -> BTreeMap<String, i64> {
         ("reserved".to_string(), 0),
         ("on_hand".to_string(), 0),
         ("incoming".to_string(), 0),
-    ])
-}
-
-fn default_transfer_inventory_quantities() -> BTreeMap<String, i64> {
-    BTreeMap::from([
-        ("available".to_string(), 5),
-        ("reserved".to_string(), 0),
-        ("on_hand".to_string(), 5),
     ])
 }
 
@@ -5593,11 +5557,4 @@ fn inventory_unknown_location_error(field: Vec<String>) -> Value {
         "The specified location could not be found.",
         Some("INVALID_LOCATION"),
     )
-}
-
-fn inventory_id_tail_is_missing(tail: &str) -> bool {
-    tail.is_empty()
-        || COMMON_MISSING_INVENTORY_ID_TAILS
-            .iter()
-            .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
 }
