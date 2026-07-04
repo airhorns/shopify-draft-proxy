@@ -53,9 +53,7 @@ impl DraftProxy {
             if field.name != root_field {
                 continue;
             }
-            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
-                continue;
-            };
+            let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
                 return response;
             }
@@ -78,12 +76,6 @@ impl DraftProxy {
                 .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
             {
                 self.hydrate_publishable_payload_shop(&resource_id, request);
-                if self.publishable_payload_resource_needs_hydration(
-                    &resource_id,
-                    &publishable_selection,
-                ) {
-                    self.hydrate_publishable_resource(&resource_id, request);
-                }
             }
 
             let mut user_errors = Vec::new();
@@ -113,6 +105,12 @@ impl DraftProxy {
             }
 
             if user_errors.is_empty() {
+                if self.publishable_payload_resource_needs_hydration(
+                    &resource_id,
+                    &publishable_selection,
+                ) {
+                    self.hydrate_publishable_resource(&resource_id, request);
+                }
                 let publication_ids = if to_current {
                     current_channel_id.into_iter().collect::<Vec<_>>()
                 } else {
