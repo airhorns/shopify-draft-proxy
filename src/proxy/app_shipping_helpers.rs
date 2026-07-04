@@ -267,19 +267,6 @@ fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {
         .filter(|scopes| !scopes.is_empty())
 }
 
-pub(in crate::proxy) fn app_granted_access_scopes(request: &Request) -> BTreeSet<String> {
-    request_access_scope_values(request)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|scope| {
-            scope
-                .get("handle")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .collect()
-}
-
 fn request_required_access_scope_values(request: &Request) -> Option<Vec<Value>> {
     request_header(request, "x-shopify-draft-proxy-required-access-scopes")
         .map(|header| access_scope_values_from_header(&header))
