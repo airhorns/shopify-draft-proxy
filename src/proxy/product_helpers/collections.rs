@@ -547,9 +547,24 @@ impl DraftProxy {
                     let publication_id = resolved_string_field(&sel.arguments, "publicationId");
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
-                "publishedOnCurrentPublication" => json!(false),
+                "publishedOnCurrentPublication" => {
+                    json!(self
+                        .store
+                        .resource_is_published_on_current_publication(resource_id))
+                }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
+                }
+                "title" | "handle" if resource_type == "Collection" => {
+                    let Some(value) = self
+                        .store
+                        .collection_by_id(resource_id)
+                        .and_then(|collection| collection.get(&sel.name))
+                        .cloned()
+                    else {
+                        continue;
+                    };
+                    value
                 }
                 _ => continue,
             };
@@ -618,8 +633,16 @@ impl DraftProxy {
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
             let user_errors =
-                publishable_publication_input_errors(field.arguments.get("input"), to_current);
+                self.publishable_publication_input_errors(field.arguments.get("input"), to_current);
             if user_errors.is_empty() {
+                let publishable_selection =
+                    selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+                if self.publishable_payload_resource_needs_hydration(
+                    &resource_id,
+                    &publishable_selection,
+                ) {
+                    self.hydrate_publishable_payload_shop(&resource_id, request);
+                }
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before
                 // applying this publish, so counts reflect the real baseline.
@@ -772,8 +795,51 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
             .collection_by_id(&id)
-            .map(|collection| collection_json(collection, &field.selection))
+            .map(|collection| {
+                self.collection_json_with_publication_fields(collection, &field.selection)
+            })
             .unwrap_or(Value::Null)
+    }
+
+    fn collection_json_with_publication_fields(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        let mut value = collection_json(collection, selections);
+        let Some(fields) = value.as_object_mut() else {
+            return value;
+        };
+        let collection_id = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let publications = self.resource_publication_set(collection_id);
+        for selection in selections {
+            let computed = match selection.name.as_str() {
+                "publishedOnPublication" => {
+                    let publication_id =
+                        resolved_string_field(&selection.arguments, "publicationId");
+                    Some(json!(publication_id
+                        .map(|id| publications.contains(&id))
+                        .unwrap_or(false)))
+                }
+                "publishedOnCurrentPublication" => Some(json!(self
+                    .store
+                    .resource_is_published_on_current_publication(collection_id))),
+                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
+                    Some(selected_count_json(
+                        self.publishable_live_publication_count(collection_id, &publications),
+                        &selection.selection,
+                    ))
+                }
+                _ => None,
+            };
+            if let Some(computed) = computed {
+                fields.insert(selection.response_key.clone(), computed);
+            }
+        }
+        value
     }
 
     fn collection_job_read(&self, field: &RootFieldSelection) -> Value {
@@ -1443,7 +1509,7 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
+                    "collection" => Some(collection.map(|collection| self.collection_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
                     "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
