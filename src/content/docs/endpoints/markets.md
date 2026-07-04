@@ -112,6 +112,14 @@ non-snapshot modes; hardcoded relation IDs are not treated as owned records.
 After a local catalog write, the Markets overlay serves `catalogsCount(type:
 MARKET)` from staged catalog state with `EXACT` precision instead of returning
 null or falling back to cold-only upstream data.
+`catalogs` and `catalogsCount` share the same staged catalog working set for
+market, company-location, and country catalogs. Catalog connection reads honor
+`type`, captured-safe `query` terms for bare text plus `id:`, `title:`,
+`status:`, and `type:`, default `sortKey: ID`, `sortKey: TITLE`, `reverse`,
+cursor windows through `first`, `last`, `after`, and `before`, and return
+selected `nodes`, `edges { cursor node }`, and computed `pageInfo`.
+`catalogsCount(limit:)` applies Shopify-style `EXACT` / `AT_LEAST` precision to
+the same filtered list.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
@@ -158,6 +166,8 @@ derivations are not synthesized beyond the checked-in evidence.
 - Catalog membership and price-list semantics outside the modeled
   market-catalog, company-location catalog, country catalog, and
   fixed-price/quantity-pricing slices remain unsupported.
+- Catalog search predicates outside bare text, `id:`, `title:`, `status:`, and
+  `type:` remain unsupported and are treated as no-match filters locally.
 - Captured Admin API 2026-04 parity for non-market `catalogContextUpdate`
   covers `companyLocationIds`; country-code and legacy `locationIds` context
   updates are runtime-test-backed local behavior because those input fields are

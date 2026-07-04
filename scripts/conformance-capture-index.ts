@@ -4648,6 +4648,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalogs-connection-read',
+    scriptPath: 'scripts/capture-catalogs-connection-read-conformance.mts',
+    purpose: 'Catalogs connection query/type/sort/reverse/window/count parity using disposable market catalogs.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      'config/parity-specs/markets/catalogs-connection-read.json',
+      'config/parity-requests/markets/catalogs-connection-read.graphql',
+      'config/parity-requests/markets/catalogs-connection-next-page.graphql',
+      `${CAPTURE_ROOT}catalogs-connection-read.json`,
+    ],
+    cleanupBehavior: 'Creates two disposable markets/catalogs and deletes all created records in reverse order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'markets-legacy-parity-fixtures',
     scriptPath: 'scripts/capture-market-orphan-fixture-replacements-conformance.mts',
     purpose:
