@@ -365,6 +365,18 @@ impl DraftProxy {
                 .customer_payment_method_customer_index
                 .clone());
         }
+        if !self
+            .store
+            .staged
+            .customer_payment_method_session_states
+            .is_empty()
+        {
+            snapshot["stagedState"]["customerPaymentMethodSessionStates"] = json!(self
+                .store
+                .staged
+                .customer_payment_method_session_states
+                .clone());
+        }
         if self.store.staged.next_customer_payment_method_id != 1 {
             snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
                 json!(self.store.staged.next_customer_payment_method_id);
@@ -1162,6 +1174,8 @@ impl DraftProxy {
                     &self.store.staged.customer_payment_methods,
                 )
             });
+        self.store.staged.customer_payment_method_session_states =
+            string_map_from_json(state["stagedState"].get("customerPaymentMethodSessionStates"));
         self.store.staged.next_customer_payment_method_id = state["stagedState"]
             .get("nextCustomerPaymentMethodId")
             .and_then(Value::as_u64)
