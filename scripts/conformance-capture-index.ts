@@ -11560,7 +11560,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
+      'config/parity-specs/gift-cards/gift-card-connection-mechanics.json',
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+      'config/parity-requests/gift-cards/gift-card-connection-first-page.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-setup.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-windows.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',
