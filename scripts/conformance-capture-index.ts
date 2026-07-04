@@ -6850,6 +6850,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: [
       'active Admin API token with Admin GraphQL schema access',
       'read_products',
+      'write_orders',
       'write_products',
       'write_webhooks',
     ],
@@ -6862,6 +6863,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-order-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql',
     ],
