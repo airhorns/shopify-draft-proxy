@@ -1328,9 +1328,6 @@ fn sorted_product_collection_nodes_for_connection(
             ))
             .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
     });
-    if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
-        indexed.reverse();
-    }
     indexed
         .into_iter()
         .map(|(_, collection)| collection)
