@@ -4660,6 +4660,46 @@ fn location_deactivate_state_machine_errors_match_captured_codes_fields_and_loca
 }
 
 #[test]
+fn location_deactivate_rejects_unknown_non_fixture_location_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_location_id = "gid://shopify/Location/424242424244";
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationDeactivate($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "unknown-location") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["locationDeactivate"],
+        json!({
+            "location": null,
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location not found.",
+                "code": "LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownLocationRead($locationId: ID!) {
+          location(id: $locationId) { id name isActive }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+    assert_eq!(read.body["data"]["location"], Value::Null);
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

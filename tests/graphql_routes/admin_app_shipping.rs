@@ -7140,8 +7140,208 @@ fn delivery_profile_location_group_uses_staged_location_record_name() {
 }
 
 #[test]
+fn delivery_profile_create_hydrates_unknown_location_before_validation() {
+    let location_id = "gid://shopify/Location/424242424245";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["variables"], json!({}));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("first: 250")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Hydrated non-fixture origin",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileHydratedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Hydrated location profile",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": location_id, "name": "Hydrated non-fixture origin" }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileCreate")
+    );
+}
+
+#[test]
+fn delivery_profile_create_hydrates_requested_location_with_partial_local_state() {
+    let hydrated_location_id = "gid://shopify/Location/424242424246";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("StorePropertiesLocationLimitStatus") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": { "resourceLimits": { "locationLimit": 250 } },
+                            "locations": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("locationsAvailableForDeliveryProfilesConnection(first: 250)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": hydrated_location_id,
+                                "name": "Hydrated with staged sibling",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+    let unrelated_location_id =
+        seed_delivery_profile_location(&mut proxy, "Unrelated local profile location");
+    assert_ne!(unrelated_location_id, hydrated_location_id);
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfilePartialLocalState($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with hydrated sibling",
+                "locationGroupsToCreate": [{
+                    "locations": [hydrated_location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": hydrated_location_id, "name": "Hydrated with staged sibling" }])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["query"].as_str().is_some_and(|query| query
+                .contains("locationsAvailableForDeliveryProfilesConnection(first: 250)")))
+            .count(),
+        1
+    );
+}
+
+fn seed_delivery_profile_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileLocationSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": name,
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    assert_eq!(location.status, 200);
+    assert_eq!(
+        location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+#[test]
 fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     let mut proxy = snapshot_proxy();
+    let source_location_id = seed_delivery_profile_location(&mut proxy, "Profile source");
+    let destination_location_id = seed_delivery_profile_location(&mut proxy, "Profile destination");
     let create_query = r#"
         mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7242,7 +7442,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
             "profile": {
                 "name": "Local heavy goods",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [source_location_id],
                     "zonesToCreate": [{
                         "name": "Domestic",
                         "countries": [{ "code": "US", "includeAllProvinces": true }],
@@ -7331,7 +7531,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
                 "conditionsToDelete": [condition_id],
                 "locationGroupsToUpdate": [{
                     "id": group_id,
-                    "locationsToAdd": ["gid://shopify/Location/106318463282"],
+                    "locationsToAdd": [destination_location_id],
                     "zonesToUpdate": [{
                         "id": zone_id,
                         "name": "Domestic updated",
@@ -7401,19 +7601,19 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
 
     let log = log_snapshot(&proxy);
     assert_eq!(
-        log["entries"][0]["interpreted"]["primaryRootField"],
+        log["entries"][2]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
     );
-    assert_eq!(log["entries"][0]["rawBody"].is_string(), true);
+    assert_eq!(log["entries"][2]["rawBody"].is_string(), true);
     assert_eq!(
-        log["entries"][1]["interpreted"]["primaryRootField"],
+        log["entries"][3]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
     );
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        log["entries"][4]["interpreted"]["primaryRootField"],
         json!("deliveryProfileRemove")
     );
-    assert_eq!(log["entries"][2]["status"], json!("staged"));
+    assert_eq!(log["entries"][4]["status"], json!("staged"));
 }
 
 #[test]
@@ -7513,6 +7713,7 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
 #[test]
 fn delivery_profile_validations_match_captured_write_subset() {
     let mut proxy = snapshot_proxy();
+    let known_location_id = seed_delivery_profile_location(&mut proxy, "Validation origin");
     let create_query = r#"
         mutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7591,7 +7792,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "profile": {
                 "name": "Unknown location",
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/424242424242"] }]
             }
         }),
     ));
@@ -7606,7 +7807,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Empty countries",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [known_location_id],
                     "zonesToCreate": [{ "name": "Empty", "countries": [] }]
                 }]
             }
@@ -7623,7 +7824,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Validation base",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [known_location_id],
                     "zonesToCreate": [{ "name": "Domestic", "countries": [{ "code": "US", "includeAllProvinces": true }] }]
                 }]
             }
@@ -7681,7 +7882,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "id": id,
             "profile": {
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/424242424243"] }]
             }
         }),
     ));
