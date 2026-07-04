@@ -892,13 +892,11 @@ impl DraftProxy {
     }
 
     /// Hydrates a baseline location from upstream for lifecycle mutations
-    /// (activate/deactivate) when it is neither already staged nor covered by a
-    /// fixture-backed deactivation state-machine record. Issues the recorded
+    /// (activate/deactivate) when it is not already staged. Issues the recorded
     /// `StorePropertiesLocationHydrate` query so the cassette replays the real
     /// captured location, letting the proxy preserve the baseline
     /// name/scope/state across the mutation instead of fabricating one. A miss
-    /// (no recorded call) returns non-2xx and falls back to the default staged
-    /// record for non-hydrate scenarios.
+    /// (no recorded call or null location) leaves the id unknown.
     pub(in crate::proxy) fn ensure_location_hydrated(
         &mut self,
         location_id: &str,
@@ -1118,9 +1116,9 @@ impl DraftProxy {
     }
 
     /// A location is eligible for local-pickup mutations only when it resolves
-    /// to an active, non-fulfillment-service location (staged, observed, or
-    /// fixture-backed). Unknown ids and inactive/fulfillment-service locations
-    /// are filtered out so the caller can raise `ACTIVE_LOCATION_NOT_FOUND`.
+    /// to an active, non-fulfillment-service location from staged or observed
+    /// state. Unknown ids and inactive/fulfillment-service locations are
+    /// filtered out so the caller can raise `ACTIVE_LOCATION_NOT_FOUND`.
     fn active_local_pickup_location(&self, location_id: &str) -> Option<Value> {
         self.location_for_read(location_id).filter(|location| {
             location
@@ -1335,7 +1333,22 @@ impl DraftProxy {
             let destination_location_id =
                 resolved_string_field(&field.arguments, "destinationLocationId");
             self.ensure_location_hydrated(&location_id, request);
-            let source_location = self.location_deactivate_source_location(&location_id);
+            let Some(source_location) = self.location_deactivate_source_location(&location_id)
+            else {
+                data.insert(
+                    field.response_key,
+                    location_deactivate_payload_json(
+                        Value::Null,
+                        &field.selection,
+                        vec![user_error(
+                            ["locationId"],
+                            "Location not found.",
+                            Some("LOCATION_NOT_FOUND"),
+                        )],
+                    ),
+                );
+                continue;
+            };
             let errors = self
                 .location_deactivate_errors(&source_location, destination_location_id.as_deref());
             let location = if errors.is_empty() {
@@ -1414,8 +1427,8 @@ impl DraftProxy {
         }
     }
 
-    fn location_deactivate_source_location(&self, location_id: &str) -> Value {
-        let mut location = self.location_source_record(location_id);
+    fn location_deactivate_source_location(&self, location_id: &str) -> Option<Value> {
+        let mut location = self.location_for_read(location_id)?;
         let has_active_inventory = if self.store.staged.locations.contains_key(location_id) {
             self.location_has_inventory(location_id)
         } else {
@@ -1426,7 +1439,7 @@ impl DraftProxy {
                 || self.location_has_inventory(location_id)
         };
         location["hasActiveInventory"] = json!(has_active_inventory);
-        location
+        Some(location)
     }
 
     fn staged_location_record(&self, location_id: &str) -> Value {

@@ -27,6 +27,13 @@
     ],
     "targets": [
       {
+        "name": "fixed-setup-order-total-from-line-prices",
+        "capturePath": "$.cases.fixed.setup.orderCreate.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": ["$.order.currentTotalPriceSet"],
+        "expectedDifferences": []
+      },
+      {
         "name": "fixed-template-create-reprojects",
         "capturePath": "$.cases.fixed.paymentTermsCreate.response.data.paymentTermsCreate",
         "proxyPath": "$.data.paymentTermsCreate",
@@ -106,5 +113,5 @@
       }
     ]
   },
-  "notes": "Executable 2026-04 parity for successful paymentTermsCreate template reprojection. The capture proves FIXED, Net 7, and FULFILLMENT return template-specific paymentTermsName, paymentTermsType, dueInDays, translatedName, and expected schedule-node cardinality. Current Shopify requires issuedAt rather than dueAt-only input for Net terms."
+  "notes": "Executable 2026-04 parity for successful paymentTermsCreate template reprojection. The capture proves FIXED, Net 7, and FULFILLMENT return template-specific paymentTermsName, paymentTermsType, dueInDays, translatedName, and expected schedule-node cardinality. Setup targets assert Order.currentTotalPriceSet is derived from multi-line priceSet amounts times quantities for Order-owned terms. Current Shopify requires issuedAt rather than dueAt-only input for Net terms."
 }

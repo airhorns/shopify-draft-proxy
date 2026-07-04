@@ -1,0 +1,38 @@
+query CollectionTopLevelStagedReadInitialPage1(
+  $firstHandleQuery: String!
+  $sharedQuery: String!
+  $first: Int!
+  $limit: Int!
+) {
+  firstByHandle: collections(first: 10, query: $firstHandleQuery, sortKey: ID) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  sharedFirstPage: collections(first: $first, query: $sharedQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  sharedCount: collectionsCount(query: $sharedQuery, limit: $limit) {
+    count
+    precision
+  }
+}

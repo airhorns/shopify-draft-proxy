@@ -99,6 +99,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("collectionByIdentifier", Query, Products, false, []),
         entry!("collectionByHandle", Query, Products, false, []),
         entry!("collections", Query, Products, true, []),
+        entry!("collectionsCount", Query, Products, true, []),
         entry!("locations", Query, StoreProperties, true, ["tests/graphql_routes/platform.rs"]),
         entry!("locationsCount", Query, StoreProperties, true, ["tests/graphql_routes/platform.rs"]),
         entry!("shop", Query, StoreProperties, true, ["tests/graphql_routes.rs"]),
