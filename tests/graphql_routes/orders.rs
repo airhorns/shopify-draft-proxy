@@ -5054,6 +5054,321 @@ fn draft_orders_count_applies_query_filter_like_connection() {
     );
 }
 
+fn stage_searchable_draft_order(proxy: &mut DraftProxy, input: Value) -> Value {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSearchableDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              email
+              status
+              tags
+              createdAt
+              updatedAt
+              customer { id email displayName }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) { nodes { title sku } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["draftOrderCreate"]["draftOrder"].clone()
+}
+
+fn draft_order_node_emails(value: &Value, field: &str) -> Vec<String> {
+    value["data"][field]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|node| node["email"].as_str().map(str::to_string))
+        .collect()
+}
+
+#[test]
+fn draft_orders_connection_honors_sort_key_reverse_and_pagination() {
+    let mut proxy = snapshot_proxy();
+    let alpha = stage_searchable_draft_order(
+        &mut proxy,
+        json!({
+            "email": "alpha-sort@example.test",
+            "tags": ["sort-alpha"],
+            "lineItems": [{
+                "title": "Alpha sort line",
+                "quantity": 1,
+                "originalUnitPrice": "12.50"
+            }]
+        }),
+    );
+    let beta = stage_searchable_draft_order(
+        &mut proxy,
+        json!({
+            "email": "beta-sort@example.test",
+            "tags": ["sort-beta"],
+            "lineItems": [{
+                "title": "Beta sort line",
+                "quantity": 1,
+                "originalUnitPrice": "5.00"
+            }]
+        }),
+    );
+
+    let update_alpha = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TouchAlphaDraft($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { id updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": alpha["id"],
+            "input": { "note": "touch alpha for updated sort" }
+        }),
+    ));
+    assert_eq!(
+        update_alpha.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DraftOrderSorts($after: String!) {
+          defaultOrder: draftOrders(first: 10) {
+            nodes { id email updatedAt totalPriceSet { shopMoney { amount } } }
+          }
+          idOrder: draftOrders(first: 10, sortKey: ID) {
+            nodes { id email }
+          }
+          idReverse: draftOrders(first: 10, sortKey: ID, reverse: true) {
+            nodes { id email }
+          }
+          updatedAsc: draftOrders(first: 10, sortKey: UPDATED_AT) {
+            nodes { id email updatedAt }
+          }
+          totalAsc: draftOrders(first: 10, sortKey: TOTAL_PRICE) {
+            nodes { id email totalPriceSet { shopMoney { amount } } }
+          }
+          firstPage: draftOrders(first: 1, sortKey: ID) {
+            nodes { id email }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: draftOrders(first: 1, sortKey: ID, after: $after) {
+            nodes { id email }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          countAll: draftOrdersCount { count precision }
+        }
+        "#,
+        json!({ "after": alpha["id"] }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        draft_order_node_emails(&read.body, "defaultOrder"),
+        vec!["alpha-sort@example.test", "beta-sort@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "idOrder"),
+        vec!["alpha-sort@example.test", "beta-sort@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "idReverse"),
+        vec!["beta-sort@example.test", "alpha-sort@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "updatedAsc"),
+        vec!["beta-sort@example.test", "alpha-sort@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "totalAsc"),
+        vec!["beta-sort@example.test", "alpha-sort@example.test"]
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["nodes"][0]["id"],
+        alpha["id"]
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["edges"][0]["cursor"],
+        alpha["id"]
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha["id"],
+            "endCursor": alpha["id"]
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"][0]["id"],
+        beta["id"]
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": beta["id"],
+            "endCursor": beta["id"]
+        })
+    );
+    assert_eq!(
+        read.body["data"]["countAll"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn draft_orders_query_supports_search_fields_and_ignores_unknown_fields() {
+    let mut proxy = snapshot_proxy();
+    stage_searchable_draft_order(
+        &mut proxy,
+        json!({
+            "email": "alpha-query@example.test",
+            "customerId": "gid://shopify/Customer/111",
+            "tags": ["alpha-token", "shared-token"],
+            "lineItems": [{
+                "title": "Needle Alpha line",
+                "quantity": 1,
+                "originalUnitPrice": "12.50"
+            }]
+        }),
+    );
+    stage_searchable_draft_order(
+        &mut proxy,
+        json!({
+            "email": "beta-query@example.test",
+            "customerId": "gid://shopify/Customer/222",
+            "tags": ["beta-token"],
+            "lineItems": [{
+                "title": "Beta line",
+                "quantity": 1,
+                "originalUnitPrice": "5.00"
+            }]
+        }),
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DraftOrderSearches(
+          $statusTag: String!
+          $customer: String!
+          $tag: String!
+          $created: String!
+          $updated: String!
+          $total: String!
+          $freeText: String!
+          $unknown: String!
+          $unknownAndKnown: String!
+        ) {
+          statusTag: draftOrders(first: 10, query: $statusTag) {
+            nodes { email status tags }
+          }
+          customer: draftOrders(first: 10, query: $customer) {
+            nodes { email customer { id } }
+          }
+          tag: draftOrders(first: 10, query: $tag) {
+            nodes { email tags }
+          }
+          created: draftOrders(first: 10, query: $created) {
+            nodes { email createdAt }
+          }
+          updated: draftOrders(first: 10, query: $updated) {
+            nodes { email updatedAt }
+          }
+          total: draftOrders(first: 10, query: $total) {
+            nodes { email totalPriceSet { shopMoney { amount } } }
+          }
+          freeText: draftOrders(first: 10, query: $freeText) {
+            nodes { email lineItems(first: 5) { nodes { title } } }
+          }
+          unknown: draftOrders(first: 10, query: $unknown) {
+            nodes { email }
+          }
+          unknownCount: draftOrdersCount(query: $unknown) {
+            count
+            precision
+          }
+          unknownAndKnown: draftOrders(first: 10, query: $unknownAndKnown) {
+            nodes { email tags }
+          }
+          totalCount: draftOrdersCount(query: $total) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({
+            "statusTag": "status:open tag:alpha-token",
+            "customer": "customer_id:111",
+            "tag": "tag:alpha-token",
+            "created": "created_at:>=2024-01-01",
+            "updated": "updated_at:>2024-01-01T00:00:01.000Z",
+            "total": "total_price:>10",
+            "freeText": "Needle",
+            "unknown": "notadraftfield:ignored",
+            "unknownAndKnown": "notadraftfield:ignored tag:alpha-token"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        draft_order_node_emails(&read.body, "statusTag"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "customer"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "tag"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "created"),
+        vec!["alpha-query@example.test", "beta-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "updated"),
+        vec!["beta-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "total"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "freeText"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "unknown"),
+        vec!["alpha-query@example.test", "beta-query@example.test"]
+    );
+    assert_eq!(
+        read.body["data"]["unknownCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        draft_order_node_emails(&read.body, "unknownAndKnown"),
+        vec!["alpha-query@example.test"]
+    );
+    assert_eq!(
+        read.body["data"]["totalCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
 #[test]
 fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));

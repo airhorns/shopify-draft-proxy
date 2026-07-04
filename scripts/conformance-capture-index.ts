@@ -7080,6 +7080,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'draft-orders-search-sort-staged',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-orders-search-sort-conformance.ts',
+    purpose:
+      'Live staged draftOrders search/sort evidence for default ID sort, reverse, UPDATED_AT, pagination windows, accepted search filters, unknown-field ignore behavior, and draftOrdersCount alignment.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-orders-search-sort-staged.json`,
+      'config/parity-specs/orders/draftOrders-search-sort-staged.json',
+      'config/parity-requests/orders/draftOrders-search-sort-create.graphql',
+      'config/parity-requests/orders/draftOrders-search-sort-update.graphql',
+      'config/parity-requests/orders/draftOrders-search-sort-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable draft orders, updates one, deletes both drafts, and deletes the auto-created customers for the disposable emails.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The 2026-04 live shop returned invalid-field warnings for total_price during manual probing, so total_price comparator behavior is covered by runtime tests and documented rather than asserted as strict parity here.',
+  },
+  {
+    domain: 'orders',
     captureId: 'order-catalog-count-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-catalog-count-read-conformance.mts',
