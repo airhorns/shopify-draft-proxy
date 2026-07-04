@@ -72,6 +72,58 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+#[test]
+fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["query"].as_str(), Some("query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "JPY",
+                            "taxesIncluded": true,
+                            "taxShipping": true
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMoneyRangeCurrency {
+          product(id: "gid://shopify/Product/1") {
+            id
+            priceRangeV2 {
+              minVariantPrice { amount currencyCode }
+              maxVariantPrice { amount currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"]["priceRangeV2"]["minVariantPrice"]["currencyCode"],
+        json!("JPY")
+    );
+    assert_eq!(
+        response.body["data"]["product"]["priceRangeV2"]["maxVariantPrice"]["currencyCode"],
+        json!("JPY")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
 fn create_product_for_relationship_test(
     proxy: &mut DraftProxy,
     title: &str,
