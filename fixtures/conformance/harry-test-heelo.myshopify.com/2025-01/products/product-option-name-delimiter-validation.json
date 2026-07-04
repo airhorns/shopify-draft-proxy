@@ -1,21 +1,22 @@
 {
+  "capturedAt": "2026-07-04T15:38:08.332Z",
   "notes": [
     "Product option name delimiter validation parity capture.",
     "Shopify forbids the literal \" / \" sequence in product option names because variant titles are derived by joining option values with that delimiter.",
     "The read-after-failure captures prove rejected productOptionsCreate/productOptionUpdate inputs do not mutate the product option graph."
   ],
   "run": {
-    "runId": "1783096756485",
+    "runId": "1783179488332",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2025-01",
-    "setupProductId": "gid://shopify/Product/10230832202034",
-    "setupOptionId": "gid://shopify/ProductOption/12789353251122"
+    "setupProductId": "gid://shopify/Product/10231579181362",
+    "setupOptionId": "gid://shopify/ProductOption/12790192406834"
   },
   "setupProduct": {
     "query": "#graphql\n  mutation ProductOptionNameDelimiterSetup($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        title\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
     "variables": {
       "product": {
-        "title": "Hermes Product Option Delimiter Setup 1783096756485",
+        "title": "Hermes Product Option Delimiter Setup 1783179488332",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -33,17 +34,17 @@
       "data": {
         "productCreate": {
           "product": {
-            "title": "Hermes Product Option Delimiter Setup 1783096756485",
-            "id": "gid://shopify/Product/10230832202034",
+            "title": "Hermes Product Option Delimiter Setup 1783179488332",
+            "id": "gid://shopify/Product/10231579181362",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12789353251122",
+                "id": "gid://shopify/ProductOption/12790192406834",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8259062661426",
+                    "id": "gid://shopify/ProductOptionValue/8261947294002",
                     "name": "Red",
                     "hasVariants": true
                   }
@@ -53,7 +54,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51421412131122",
+                  "id": "gid://shopify/ProductVariant/51423820874034",
                   "title": "Red",
                   "selectedOptions": [
                     {
@@ -84,7 +85,7 @@
   "createDelimiter": {
     "query": "#graphql\n  mutation ProductOptionsCreateNameDelimiter(\n    $productId: ID!\n    $options: [OptionCreateInput!]!\n  ) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
     "variables": {
-      "productId": "gid://shopify/Product/10230832202034",
+      "productId": "gid://shopify/Product/10231579181362",
       "options": [
         {
           "name": "Size / Fit",
@@ -100,16 +101,16 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10230832202034",
+            "id": "gid://shopify/Product/10231579181362",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12789353251122",
+                "id": "gid://shopify/ProductOption/12790192406834",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8259062661426",
+                    "id": "gid://shopify/ProductOptionValue/8261947294002",
                     "name": "Red",
                     "hasVariants": true
                   }
@@ -119,7 +120,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51421412131122",
+                  "id": "gid://shopify/ProductVariant/51423820874034",
                   "title": "Red",
                   "selectedOptions": [
                     {
@@ -156,21 +157,21 @@
   "readAfterCreateDelimiter": {
     "query": "#graphql\n  query ProductOptionNameDelimiterDownstreamRead($id: ID!) {\n    product(id: $id) {\n      \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/Product/10230832202034"
+      "id": "gid://shopify/Product/10231579181362"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10230832202034",
+          "id": "gid://shopify/Product/10231579181362",
           "options": [
             {
-              "id": "gid://shopify/ProductOption/12789353251122",
+              "id": "gid://shopify/ProductOption/12790192406834",
               "name": "Color",
               "position": 1,
               "values": ["Red"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/8259062661426",
+                  "id": "gid://shopify/ProductOptionValue/8261947294002",
                   "name": "Red",
                   "hasVariants": true
                 }
@@ -180,7 +181,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51421412131122",
+                "id": "gid://shopify/ProductVariant/51423820874034",
                 "title": "Red",
                 "selectedOptions": [
                   {
@@ -199,7 +200,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -209,9 +210,9 @@
   "updateDelimiter": {
     "query": "#graphql\n  mutation ProductOptionUpdateNameDelimiter(\n    $productId: ID!\n    $option: OptionUpdateInput!\n  ) {\n    productOptionUpdate(productId: $productId, option: $option) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
     "variables": {
-      "productId": "gid://shopify/Product/10230832202034",
+      "productId": "gid://shopify/Product/10231579181362",
       "option": {
-        "id": "gid://shopify/ProductOption/12789353251122",
+        "id": "gid://shopify/ProductOption/12790192406834",
         "name": "A / B"
       }
     },
@@ -219,16 +220,16 @@
       "data": {
         "productOptionUpdate": {
           "product": {
-            "id": "gid://shopify/Product/10230832202034",
+            "id": "gid://shopify/Product/10231579181362",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12789353251122",
+                "id": "gid://shopify/ProductOption/12790192406834",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8259062661426",
+                    "id": "gid://shopify/ProductOptionValue/8261947294002",
                     "name": "Red",
                     "hasVariants": true
                   }
@@ -238,7 +239,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51421412131122",
+                  "id": "gid://shopify/ProductVariant/51423820874034",
                   "title": "Red",
                   "selectedOptions": [
                     {
@@ -265,7 +266,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -275,21 +276,21 @@
   "readAfterUpdateDelimiter": {
     "query": "#graphql\n  query ProductOptionNameDelimiterDownstreamRead($id: ID!) {\n    product(id: $id) {\n      \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/Product/10230832202034"
+      "id": "gid://shopify/Product/10231579181362"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10230832202034",
+          "id": "gid://shopify/Product/10231579181362",
           "options": [
             {
-              "id": "gid://shopify/ProductOption/12789353251122",
+              "id": "gid://shopify/ProductOption/12790192406834",
               "name": "Color",
               "position": 1,
               "values": ["Red"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/8259062661426",
+                  "id": "gid://shopify/ProductOptionValue/8261947294002",
                   "name": "Red",
                   "hasVariants": true
                 }
@@ -299,7 +300,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51421412131122",
+                "id": "gid://shopify/ProductVariant/51423820874034",
                 "title": "Red",
                 "selectedOptions": [
                   {
@@ -318,7 +319,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -329,7 +330,7 @@
     "query": "#graphql\n  mutation ProductCreateOptionNameDelimiter($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
     "variables": {
       "product": {
-        "title": "Hermes Product Create Delimiter 1783096756485",
+        "title": "Hermes Product Create Delimiter 1783179488332",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -361,7 +362,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -373,7 +374,7 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "Hermes ProductSet Delimiter 1783096756485",
+        "title": "Hermes ProductSet Delimiter 1783179488332",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -418,7 +419,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }

@@ -254,6 +254,7 @@ function productSetDelimiterVariables(runId: string): JsonRecord {
 
 await mkdir(outputDir, { recursive: true });
 
+const capturedAt = new Date().toISOString();
 const runId = Date.now().toString();
 const createdProductIds: string[] = [];
 
@@ -311,6 +312,7 @@ try {
   }
 
   const capture = {
+    capturedAt,
     notes: [
       'Product option name delimiter validation parity capture.',
       'Shopify forbids the literal " / " sequence in product option names because variant titles are derived by joining option values with that delimiter.',
