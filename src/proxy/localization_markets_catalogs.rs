@@ -496,7 +496,8 @@ impl DraftProxy {
     ) -> Value {
         let locale =
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
-        let payload = if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        let payload = if locale == primary_locale {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
@@ -506,7 +507,7 @@ impl DraftProxy {
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid")]
             })
-        } else if self.store.staged.shop_locales.contains_key(&locale) {
+        } else if self.localization_shop_locale_added(&locale) {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken")]
@@ -529,14 +530,14 @@ impl DraftProxy {
             let name = self
                 .localization_available_locale_name(&locale)
                 .unwrap_or(locale.as_str());
-            let mut record = shop_locale_record(&locale, name, false);
+            let mut record = shop_locale_record(&locale, name, locale == primary_locale, false);
             let target_web_presence_ids = self.known_market_web_presence_ids(
                 resolved_string_list_arg(&field.arguments, "marketWebPresenceIds"),
             );
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
-                    .map(|id| shop_locale_market_web_presence_record(id))
+                    .map(|id| self.shop_locale_market_web_presence_reference(id))
                     .collect(),
             );
             self.store
@@ -558,8 +559,9 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
         let published = resolved_bool_field(&input, "published");
         let market_web_presence_ids = list_string_field(&input, "marketWebPresenceIds");
+        let primary_locale = self.localization_primary_locale();
 
-        if locale == "en" && published.is_some() {
+        if locale == primary_locale && published.is_some() {
             return selected_json(
                 &json!({
                     "shopLocale": null,
@@ -569,7 +571,8 @@ impl DraftProxy {
             );
         }
 
-        let locale_exists = locale == "en" || self.store.staged.shop_locales.contains_key(&locale);
+        let locale_exists =
+            locale == primary_locale || self.localization_shop_locale_added(&locale);
         if !locale_exists && published.is_some() {
             return selected_json(
                 &json!({
@@ -585,12 +588,13 @@ impl DraftProxy {
             .staged
             .shop_locales
             .get(&locale)
+            .or_else(|| self.store.base.shop_locales.get(&locale))
             .cloned()
             .unwrap_or_else(|| {
                 let name = self
                     .localization_available_locale_name(&locale)
                     .unwrap_or(locale.as_str());
-                shop_locale_record(&locale, name, false)
+                shop_locale_record(&locale, name, locale == primary_locale, false)
             });
         if let Some(published) = published {
             record["published"] = json!(published);
@@ -601,12 +605,12 @@ impl DraftProxy {
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
-                    .map(|id| shop_locale_market_web_presence_record(id))
+                    .map(|id| self.shop_locale_market_web_presence_reference(id))
                     .collect(),
             );
             self.sync_web_presence_locales(&locale, &target_web_presence_ids, true);
         }
-        if locale != "en" {
+        if locale != primary_locale {
             self.store
                 .staged
                 .shop_locales
@@ -637,13 +641,39 @@ impl DraftProxy {
             })
     }
 
+    fn shop_locale_market_web_presence_reference(&self, id: &str) -> Value {
+        let web_presence = self
+            .store
+            .staged
+            .web_presences
+            .get(id)
+            .cloned()
+            .or_else(|| {
+                self.localization_shop_locales(None)
+                    .into_iter()
+                    .filter_map(|locale| {
+                        locale["marketWebPresences"]
+                            .as_array()
+                            .and_then(|presences| {
+                                presences
+                                    .iter()
+                                    .find(|presence| presence["id"].as_str() == Some(id))
+                                    .cloned()
+                            })
+                    })
+                    .next()
+            });
+        shop_locale_market_web_presence_record(id, web_presence.as_ref())
+    }
+
     pub(in crate::proxy) fn shop_locale_disable_response(
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
         let locale =
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
-        let payload = if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        let payload = if locale == primary_locale {
             json!({
                 "locale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
@@ -2538,7 +2568,7 @@ impl DraftProxy {
                 "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]
             });
         };
-        if record.get("domain").is_some_and(|domain| !domain.is_null()) {
+        if self.web_presence_uses_primary_domain(record) {
             return json!({
                 "deletedId": null,
                 "userErrors": [market_user_error(vec!["id"], "The shop must have a web presence that uses the primary domain.", json!("SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"))]
@@ -2546,6 +2576,40 @@ impl DraftProxy {
         }
         self.store.staged.web_presences.remove(id);
         json!({"deletedId": id, "userErrors": []})
+    }
+
+    fn web_presence_uses_primary_domain(&self, record: &Value) -> bool {
+        let Some(domain) = record.get("domain").filter(|domain| !domain.is_null()) else {
+            return false;
+        };
+        if let Some(primary_domain) = self
+            .store
+            .base
+            .shop
+            .get("primaryDomain")
+            .filter(|domain| domain.is_object())
+        {
+            if domain_values_match(domain, primary_domain, "id")
+                || domain_values_match(domain, primary_domain, "host")
+                || domain_values_match(domain, primary_domain, "url")
+            {
+                return true;
+            }
+        }
+        let Some(primary_host) = self
+            .store
+            .base
+            .shop
+            .get("myshopifyDomain")
+            .and_then(Value::as_str)
+            .filter(|host| !host.is_empty())
+            .filter(|host| *host != "shopify-draft-proxy.local")
+            .map(str::to_string)
+            .or_else(|| observed_myshopify_web_presence_domain(&self.store))
+        else {
+            return false;
+        };
+        domain_host_value(domain).as_deref() == Some(primary_host.as_str())
     }
 
     pub(in crate::proxy) fn web_presence_helper_create_payload(
@@ -3625,9 +3689,8 @@ impl DraftProxy {
         }
         // Shop record (primaryDomain etc.) for web-presence reads.
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
-            if shop.get("id").and_then(Value::as_str).is_some() {
-                shallow_merge_object(&mut self.store.base.shop, shop.clone());
-            }
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
         }
         let hydrate_nodes = data
             .get("nodes")
@@ -4192,7 +4255,8 @@ impl DraftProxy {
     /// read is served from `staged.web_presences`, so the staged records are
     /// mutated in place. Modeled from captured localization mutation behavior.
     fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
-        if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        if locale == primary_locale {
             return;
         }
         let name = self
@@ -4436,6 +4500,52 @@ fn record_gid(record: &Value, resource_type: &str) -> Option<String> {
             }
         })
         .map(str::to_string)
+}
+
+fn domain_values_match(left: &Value, right: &Value, key: &str) -> bool {
+    left.get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .is_some_and(|left_value| right.get(key).and_then(Value::as_str) == Some(left_value))
+}
+
+fn domain_host_value(domain: &Value) -> Option<String> {
+    domain
+        .get("host")
+        .and_then(Value::as_str)
+        .filter(|host| !host.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            domain
+                .get("url")
+                .and_then(Value::as_str)
+                .and_then(web_presence_host)
+        })
+}
+
+fn observed_myshopify_web_presence_domain(store: &Store) -> Option<String> {
+    for record in store.staged.web_presences.values() {
+        if let Some(host) = record
+            .get("domain")
+            .and_then(domain_host_value)
+            .filter(|host| host.ends_with(".myshopify.com"))
+        {
+            return Some(host);
+        }
+        if let Some(root_urls) = record.get("rootUrls").and_then(Value::as_array) {
+            for root_url in root_urls {
+                if let Some(host) = root_url
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .and_then(web_presence_host)
+                    .filter(|host| host.ends_with(".myshopify.com"))
+                {
+                    return Some(host);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Next synthetic `MarketWebPresence` numeric id: one greater than the highest

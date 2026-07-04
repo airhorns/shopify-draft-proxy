@@ -324,18 +324,18 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
         "subfolderSuffix": draft.subfolder_suffix,
         "domain": domain,
         "rootUrls": root_urls,
-        "defaultLocale": locale_record(&draft.default_locale, true),
-        "alternateLocales": draft.alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
+        "defaultLocale": locale_record(&draft.default_locale, true, true),
+        "alternateLocales": draft.alternate_locales.iter().map(|locale| locale_record(locale, false, false)).collect::<Vec<_>>(),
         "markets": {"nodes": []}
     })
 }
 
-pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
+pub(in crate::proxy) fn locale_record(locale: &str, primary: bool, published: bool) -> Value {
     json!({
         "locale": locale,
         "name": shopify_locale_name(locale),
         "primary": primary,
-        "published": true
+        "published": published
     })
 }
 
