@@ -1,0 +1,37 @@
+query DiscountConnectionMechanicsReadAfter($query: String!, $first: Int!, $after: String!) {
+  discountNodes(first: $first, after: $after, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+        }
+        ... on DiscountAutomaticBasic {
+          title
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        discount {
+          __typename
+          ... on DiscountCodeBasic {
+            title
+          }
+          ... on DiscountAutomaticBasic {
+            title
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

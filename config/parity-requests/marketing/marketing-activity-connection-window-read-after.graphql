@@ -1,0 +1,14 @@
+query MarketingActivityConnectionWindowReadAfter($activityCursor: String!) {
+  afterLatest: marketingActivities(first: 1, after: $activityCursor, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

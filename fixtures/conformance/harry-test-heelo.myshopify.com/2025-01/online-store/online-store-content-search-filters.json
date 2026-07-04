@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-04-28T02:02:03.315Z",
+  "capturedAt": "2026-07-03T22:39:18.650Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "notes": "HAR-393 live Shopify capture for online-store content fielded search filters. Setup content was created in the dev store, searched after indexing was visible, then deleted in cleanup interactions.",
+  "notes": "Live Shopify capture for online-store content fielded search filters, unfiltered article visibility, and connection sort/reverse behavior. Setup content was created in the dev store, searched after indexing was visible, then deleted in cleanup interactions.",
   "interactions": [
     {
       "name": "blogCreate setup",
@@ -10,7 +10,7 @@
         "query": "#graphql\n  mutation BlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog {\n        id\n        title\n        handle\n        createdAt\n        updatedAt\n        commentPolicy\n        templateSuffix\n        tags\n        articlesCount { count precision }\n      }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "blog": {
-            "title": "HAR 393 Search Blog 20260428020158",
+            "title": "Online Store Search Blog 20260703223908",
             "commentPolicy": "MODERATED"
           }
         }
@@ -20,11 +20,11 @@
         "data": {
           "blogCreate": {
             "blog": {
-              "id": "gid://shopify/Blog/120870142258",
-              "title": "HAR 393 Search Blog 20260428020158",
-              "handle": "har-393-search-blog-20260428020158",
-              "createdAt": "2026-04-28T02:01:58Z",
-              "updatedAt": "2026-04-28T02:01:58Z",
+              "id": "gid://shopify/Blog/121706938674",
+              "title": "Online Store Search Blog 20260703223908",
+              "handle": "online-store-search-blog-20260703223908",
+              "createdAt": "2026-07-03T22:39:08Z",
+              "updatedAt": "2026-07-03T22:39:08Z",
               "commentPolicy": "MODERATED",
               "templateSuffix": null,
               "tags": [],
@@ -55,8 +55,8 @@
         "query": "#graphql\n  mutation PageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page {\n        id\n        title\n        handle\n        createdAt\n        updatedAt\n        body\n        bodySummary\n        isPublished\n        publishedAt\n        templateSuffix\n      }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "page": {
-            "title": "HAR 393 Search Page 20260428020158",
-            "body": "<p>HAR 393 page body for search conformance</p>",
+            "title": "Online Store Search Page 20260703223908",
+            "body": "<p>Online-store page body for search conformance</p>",
             "isPublished": true
           }
         }
@@ -66,15 +66,15 @@
         "data": {
           "pageCreate": {
             "page": {
-              "id": "gid://shopify/Page/159399838002",
-              "title": "HAR 393 Search Page 20260428020158",
-              "handle": "har-393-search-page-20260428020158",
-              "createdAt": "2026-04-28T02:01:58Z",
-              "updatedAt": "2026-04-28T02:01:58Z",
-              "body": "<p>HAR 393 page body for search conformance</p>",
-              "bodySummary": "HAR 393 page body for search conformance",
+              "id": "gid://shopify/Page/161145291058",
+              "title": "Online Store Search Page 20260703223908",
+              "handle": "online-store-search-page-20260703223908",
+              "createdAt": "2026-07-03T22:39:08Z",
+              "updatedAt": "2026-07-03T22:39:08Z",
+              "body": "<p>Online-store page body for search conformance</p>",
+              "bodySummary": "Online-store page body for search conformance",
               "isPublished": true,
-              "publishedAt": "2026-04-28T02:01:58Z",
+              "publishedAt": "2026-07-03T22:39:08Z",
               "templateSuffix": null
             },
             "userErrors": []
@@ -86,7 +86,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1984,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -99,14 +99,14 @@
         "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article {\n        id\n        title\n        handle\n        body\n        summary\n        tags\n        isPublished\n        publishedAt\n        createdAt\n        updatedAt\n        templateSuffix\n        author { name }\n        blog { id title handle }\n        commentsCount { count precision }\n      }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "article": {
-            "blogId": "gid://shopify/Blog/120870142258",
-            "title": "HAR 393 Search Article 20260428020158",
-            "body": "<p>HAR 393 article body for search conformance</p>",
-            "summary": "<p>HAR 393 article summary</p>",
+            "blogId": "gid://shopify/Blog/121706938674",
+            "title": "Online Store Search Article 20260703223908",
+            "body": "<p>Online-store article body for search conformance</p>",
+            "summary": "<p>Online-store article summary</p>",
             "isPublished": true,
-            "tags": ["har-393-search-20260428020158", "online-store"],
+            "tags": ["online-store-search-20260703223908", "online-store"],
             "author": {
-              "name": "HAR 393 Search Author 20260428020158"
+              "name": "Online Store Search Author 20260703223908"
             }
           }
         }
@@ -116,24 +116,24 @@
         "data": {
           "articleCreate": {
             "article": {
-              "id": "gid://shopify/Article/683107746098",
-              "title": "HAR 393 Search Article 20260428020158",
-              "handle": "har-393-search-article-20260428020158",
-              "body": "<p>HAR 393 article body for search conformance</p>",
-              "summary": "<p>HAR 393 article summary</p>",
-              "tags": ["har-393-search-20260428020158", "online-store"],
+              "id": "gid://shopify/Article/684569526578",
+              "title": "Online Store Search Article 20260703223908",
+              "handle": "online-store-search-article-20260703223908",
+              "body": "<p>Online-store article body for search conformance</p>",
+              "summary": "<p>Online-store article summary</p>",
+              "tags": ["online-store", "online-store-search-20260703223908"],
               "isPublished": true,
-              "publishedAt": "2026-04-28T02:01:59Z",
-              "createdAt": "2026-04-28T02:01:59Z",
-              "updatedAt": "2026-04-28T02:01:59Z",
+              "publishedAt": "2026-07-03T22:39:09Z",
+              "createdAt": "2026-07-03T22:39:09Z",
+              "updatedAt": "2026-07-03T22:39:09Z",
               "templateSuffix": null,
               "author": {
-                "name": "HAR 393 Search Author 20260428020158"
+                "name": "Online Store Search Author 20260703223908"
               },
               "blog": {
-                "id": "gid://shopify/Blog/120870142258",
-                "title": "HAR 393 Search Blog 20260428020158",
-                "handle": "har-393-search-blog-20260428020158"
+                "id": "gid://shopify/Blog/121706938674",
+                "title": "Online Store Search Blog 20260703223908",
+                "handle": "online-store-search-blog-20260703223908"
               },
               "commentsCount": {
                 "count": 0,
@@ -149,7 +149,138 @@
             "actualQueryCost": 22,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "draft articleCreate setup",
+      "request": {
+        "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article {\n        id\n        title\n        handle\n        body\n        summary\n        tags\n        isPublished\n        publishedAt\n        createdAt\n        updatedAt\n        templateSuffix\n        author { name }\n        blog { id title handle }\n        commentsCount { count precision }\n      }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121706938674",
+            "title": "Online Store Search Draft Article 20260703223908",
+            "body": "<p>Online-store draft article body for search conformance</p>",
+            "summary": "<p>Online-store draft article summary</p>",
+            "isPublished": false,
+            "tags": ["online-store-search-20260703223908", "online-store", "draft"],
+            "author": {
+              "name": "Online Store Search Author 20260703223908"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/684569559346",
+              "title": "Online Store Search Draft Article 20260703223908",
+              "handle": "online-store-search-draft-article-20260703223908",
+              "body": "<p>Online-store draft article body for search conformance</p>",
+              "summary": "<p>Online-store draft article summary</p>",
+              "tags": ["draft", "online-store", "online-store-search-20260703223908"],
+              "isPublished": false,
+              "publishedAt": null,
+              "createdAt": "2026-07-03T22:39:09Z",
+              "updatedAt": "2026-07-03T22:39:09Z",
+              "templateSuffix": null,
+              "author": {
+                "name": "Online Store Search Author 20260703223908"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121706938674",
+                "title": "Online Store Search Blog 20260703223908",
+                "handle": "online-store-search-blog-20260703223908"
+              },
+              "commentsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "commentApprove setup alpha",
+      "request": {
+        "query": "#graphql\n  mutation CommentApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Comment/135022641458"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "commentApprove": {
+            "comment": {
+              "id": "gid://shopify/Comment/135022641458",
+              "status": "PUBLISHED",
+              "isPublished": true,
+              "publishedAt": "2026-07-03T22:39:11Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "commentApprove setup zulu",
+      "request": {
+        "query": "#graphql\n  mutation CommentApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Comment/135022674226"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "commentApprove": {
+            "comment": {
+              "id": "gid://shopify/Comment/135022674226",
+              "status": "PUBLISHED",
+              "isPublished": true,
+              "publishedAt": "2026-07-03T22:39:11Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -161,9 +292,9 @@
       "request": {
         "query": "#graphql\n  query OnlineStoreContentSearchSeed($articleSeedQuery: String!, $blogSeedQuery: String!, $pageSeedQuery: String!) {\n    articles(first: 5, query: $articleSeedQuery) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          body\n          summary\n          tags\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          templateSuffix\n          blog { id title handle }\n          author { name }\n          commentsCount { count precision }\n          comments(first: 5) {\n            nodes { id body status }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogs(first: 5, query: $blogSeedQuery) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          commentPolicy\n          tags\n          templateSuffix\n          createdAt\n          updatedAt\n          articlesCount { count precision }\n          articles(first: 5) {\n            nodes { id title handle }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pages(first: 5, query: $pageSeedQuery) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          body\n          bodySummary\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          templateSuffix\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
         "variables": {
-          "articleSeedQuery": "tag:har-393-search-20260428020158",
-          "blogSeedQuery": "title:'HAR 393 Search Blog 20260428020158'",
-          "pageSeedQuery": "title:'HAR 393 Search Page 20260428020158'"
+          "articleSeedQuery": "tag:online-store-search-20260703223908",
+          "blogSeedQuery": "title:'Online Store Search Blog 20260703223908'",
+          "pageSeedQuery": "title:'Online Store Search Page 20260703223908'"
         }
       },
       "status": 200,
@@ -172,26 +303,74 @@
           "articles": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0=",
+                "cursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOjY4NDU2OTUyNjU3OH0=",
                 "node": {
-                  "id": "gid://shopify/Article/683107746098",
-                  "title": "HAR 393 Search Article 20260428020158",
-                  "handle": "har-393-search-article-20260428020158",
-                  "body": "<p>HAR 393 article body for search conformance</p>",
-                  "summary": "<p>HAR 393 article summary</p>",
-                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908",
+                  "handle": "online-store-search-article-20260703223908",
+                  "body": "<p>Online-store article body for search conformance</p>",
+                  "summary": "<p>Online-store article summary</p>",
+                  "tags": ["online-store", "online-store-search-20260703223908"],
                   "isPublished": true,
-                  "publishedAt": "2026-04-28T02:01:59Z",
-                  "createdAt": "2026-04-28T02:01:59Z",
-                  "updatedAt": "2026-04-28T02:01:59Z",
+                  "publishedAt": "2026-07-03T22:39:09Z",
+                  "createdAt": "2026-07-03T22:39:09Z",
+                  "updatedAt": "2026-07-03T22:39:09Z",
                   "templateSuffix": null,
                   "blog": {
-                    "id": "gid://shopify/Blog/120870142258",
-                    "title": "HAR 393 Search Blog 20260428020158",
-                    "handle": "har-393-search-blog-20260428020158"
+                    "id": "gid://shopify/Blog/121706938674",
+                    "title": "Online Store Search Blog 20260703223908",
+                    "handle": "online-store-search-blog-20260703223908"
                   },
                   "author": {
-                    "name": "HAR 393 Search Author 20260428020158"
+                    "name": "Online Store Search Author 20260703223908"
+                  },
+                  "commentsCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                  },
+                  "comments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Comment/135022641458",
+                        "body": "Online Store Search Comment Alpha 20260703223908",
+                        "status": "PUBLISHED"
+                      },
+                      {
+                        "id": "gid://shopify/Comment/135022674226",
+                        "body": "Online Store Search Comment Zulu 20260703223908",
+                        "status": "PUBLISHED"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NDE0NTgsImxhc3RfdmFsdWUiOiIxMzUwMjI2NDE0NTgifQ==",
+                      "endCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NzQyMjYsImxhc3RfdmFsdWUiOiIxMzUwMjI2NzQyMjYifQ=="
+                    }
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2ODQ1Njk1NTkzNDYsImxhc3RfdmFsdWUiOjY4NDU2OTU1OTM0Nn0=",
+                "node": {
+                  "id": "gid://shopify/Article/684569559346",
+                  "title": "Online Store Search Draft Article 20260703223908",
+                  "handle": "online-store-search-draft-article-20260703223908",
+                  "body": "<p>Online-store draft article body for search conformance</p>",
+                  "summary": "<p>Online-store draft article summary</p>",
+                  "tags": ["draft", "online-store", "online-store-search-20260703223908"],
+                  "isPublished": false,
+                  "publishedAt": null,
+                  "createdAt": "2026-07-03T22:39:09Z",
+                  "updatedAt": "2026-07-03T22:39:09Z",
+                  "templateSuffix": null,
+                  "blog": {
+                    "id": "gid://shopify/Blog/121706938674",
+                    "title": "Online Store Search Blog 20260703223908",
+                    "handle": "online-store-search-blog-20260703223908"
+                  },
+                  "author": {
+                    "name": "Online Store Search Author 20260703223908"
                   },
                   "commentsCount": {
                     "count": 0,
@@ -211,48 +390,58 @@
             ],
             "nodes": [
               {
-                "id": "gid://shopify/Article/683107746098",
-                "title": "HAR 393 Search Article 20260428020158",
-                "handle": "har-393-search-article-20260428020158"
+                "id": "gid://shopify/Article/684569526578",
+                "title": "Online Store Search Article 20260703223908",
+                "handle": "online-store-search-article-20260703223908"
+              },
+              {
+                "id": "gid://shopify/Article/684569559346",
+                "title": "Online Store Search Draft Article 20260703223908",
+                "handle": "online-store-search-draft-article-20260703223908"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0=",
-              "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0="
+              "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOjY4NDU2OTUyNjU3OH0=",
+              "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1NTkzNDYsImxhc3RfdmFsdWUiOjY4NDU2OTU1OTM0Nn0="
             }
           },
           "blogs": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ==",
+                "cursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiIxMjE3MDY5Mzg2NzQifQ==",
                 "node": {
-                  "id": "gid://shopify/Blog/120870142258",
-                  "title": "HAR 393 Search Blog 20260428020158",
-                  "handle": "har-393-search-blog-20260428020158",
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908",
                   "commentPolicy": "MODERATED",
-                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "tags": ["draft", "online-store", "online-store-search-20260703223908"],
                   "templateSuffix": null,
-                  "createdAt": "2026-04-28T02:01:58Z",
-                  "updatedAt": "2026-04-28T02:01:59Z",
+                  "createdAt": "2026-07-03T22:39:08Z",
+                  "updatedAt": "2026-07-03T22:39:09Z",
                   "articlesCount": {
-                    "count": 1,
+                    "count": 2,
                     "precision": "EXACT"
                   },
                   "articles": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/Article/683107746098",
-                        "title": "HAR 393 Search Article 20260428020158",
-                        "handle": "har-393-search-article-20260428020158"
+                        "id": "gid://shopify/Article/684569526578",
+                        "title": "Online Store Search Article 20260703223908",
+                        "handle": "online-store-search-article-20260703223908"
+                      },
+                      {
+                        "id": "gid://shopify/Article/684569559346",
+                        "title": "Online Store Search Draft Article 20260703223908",
+                        "handle": "online-store-search-draft-article-20260703223908"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ==",
-                      "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ=="
+                      "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiI2ODQ1Njk1MjY1NzgifQ==",
+                      "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1NTkzNDYsImxhc3RfdmFsdWUiOiI2ODQ1Njk1NTkzNDYifQ=="
                     }
                   }
                 }
@@ -260,58 +449,58 @@
             ],
             "nodes": [
               {
-                "id": "gid://shopify/Blog/120870142258",
-                "title": "HAR 393 Search Blog 20260428020158",
-                "handle": "har-393-search-blog-20260428020158"
+                "id": "gid://shopify/Blog/121706938674",
+                "title": "Online Store Search Blog 20260703223908",
+                "handle": "online-store-search-blog-20260703223908"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiIxMjE3MDY5Mzg2NzQifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiIxMjE3MDY5Mzg2NzQifQ=="
             }
           },
           "pages": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ==",
+                "cursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ==",
                 "node": {
-                  "id": "gid://shopify/Page/159399838002",
-                  "title": "HAR 393 Search Page 20260428020158",
-                  "handle": "har-393-search-page-20260428020158",
-                  "body": "<p>HAR 393 page body for search conformance</p>",
-                  "bodySummary": "HAR 393 page body for search conformance",
+                  "id": "gid://shopify/Page/161145291058",
+                  "title": "Online Store Search Page 20260703223908",
+                  "handle": "online-store-search-page-20260703223908",
+                  "body": "<p>Online-store page body for search conformance</p>",
+                  "bodySummary": "Online-store page body for search conformance",
                   "isPublished": true,
-                  "publishedAt": "2026-04-28T02:01:58Z",
-                  "createdAt": "2026-04-28T02:01:58Z",
-                  "updatedAt": "2026-04-28T02:01:58Z",
+                  "publishedAt": "2026-07-03T22:39:08Z",
+                  "createdAt": "2026-07-03T22:39:08Z",
+                  "updatedAt": "2026-07-03T22:39:08Z",
                   "templateSuffix": null
                 }
               }
             ],
             "nodes": [
               {
-                "id": "gid://shopify/Page/159399838002",
-                "title": "HAR 393 Search Page 20260428020158",
-                "handle": "har-393-search-page-20260428020158"
+                "id": "gid://shopify/Page/161145291058",
+                "title": "Online Store Search Page 20260703223908",
+                "handle": "online-store-search-page-20260703223908"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ=="
             }
           }
         },
         "extensions": {
           "cost": {
             "requestedQueryCost": 120,
-            "actualQueryCost": 41,
+            "actualQueryCost": 51,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1945,
+              "currentlyAvailable": 1903,
               "restoreRate": 100
             }
           }
@@ -321,76 +510,124 @@
     {
       "name": "search-filters",
       "request": {
-        "query": "#graphql\n  query OnlineStoreContentSearchFilters(\n    $articleTagQuery: String!\n    $articleAuthorQuery: String!\n    $blogTitleQuery: String!\n    $pagePublishedQuery: String!\n  ) {\n    articlesByTag: articles(first: 5, query: $articleTagQuery) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByAuthor: articles(first: 5, query: $articleAuthorQuery) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsByTitle: blogs(first: 5, query: $blogTitleQuery) {\n      nodes {\n        id\n        title\n        handle\n        commentPolicy\n        articlesCount { count precision }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {\n      nodes {\n        id\n        title\n        handle\n        isPublished\n        publishedAt\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
+        "query": "#graphql\n  query OnlineStoreContentSearchFilters(\n    $articleTagQuery: String!\n    $articleAuthorQuery: String!\n    $articleBlogTitleQuery: String!\n    $blogTitleQuery: String!\n    $pageTitleQuery: String!\n    $pagePublishedQuery: String!\n    $commentBodyQuery: String!\n  ) {\n    articlesUnfilteredIdDesc: articles(first: 2, sortKey: ID, reverse: true) {\n      nodes {\n        id\n        title\n        isPublished\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByTag: articles(first: 5, query: $articleTagQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByAuthor: articles(first: 5, query: $articleAuthorQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByBlogTitle: articles(first: 5, query: $articleBlogTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsByTitle: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        commentPolicy\n        articlesCount { count precision }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsByTitleReverse: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        commentPolicy\n        articlesCount { count precision }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesByTitleReverse: pages(first: 5, query: $pageTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        isPublished\n        publishedAt\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {\n      nodes {\n        id\n        title\n        handle\n        isPublished\n        publishedAt\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    commentsByBodyCreatedDesc: comments(first: 5, query: $commentBodyQuery, sortKey: CREATED_AT, reverse: true) {\n      nodes {\n        id\n        body\n        status\n        isPublished\n        createdAt\n        article { id title }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
         "variables": {
-          "articleTagQuery": "tag:har-393-search-20260428020158",
-          "articleAuthorQuery": "author:'HAR 393 Search Author 20260428020158'",
-          "blogTitleQuery": "title:'HAR 393 Search Blog 20260428020158'",
-          "pagePublishedQuery": "published_status:published title:'HAR 393 Search Page 20260428020158'"
+          "articleTagQuery": "published_status:published tag:online-store-search-20260703223908",
+          "articleAuthorQuery": "published_status:published author:'Online Store Search Author 20260703223908'",
+          "articleBlogTitleQuery": "published_status:published blog_title:'Online Store Search Blog 20260703223908'",
+          "blogTitleQuery": "title:'Online Store Search Blog 20260703223908'",
+          "pageTitleQuery": "title:'Online Store Search Page 20260703223908'",
+          "pagePublishedQuery": "published_status:published title:'Online Store Search Page 20260703223908'",
+          "commentBodyQuery": "\"Online Store Search Comment\" AND \"20260703223908\""
         }
       },
       "status": 200,
       "response": {
         "data": {
+          "articlesUnfilteredIdDesc": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Article/684569559346",
+                "title": "Online Store Search Draft Article 20260703223908",
+                "isPublished": false
+              },
+              {
+                "id": "gid://shopify/Article/684569526578",
+                "title": "Online Store Search Article 20260703223908",
+                "isPublished": true
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1NTkzNDYsImxhc3RfdmFsdWUiOiI2ODQ1Njk1NTkzNDYifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiI2ODQ1Njk1MjY1NzgifQ=="
+            }
+          },
           "articlesByTag": {
             "nodes": [
               {
-                "id": "gid://shopify/Article/683107746098",
-                "title": "HAR 393 Search Article 20260428020158",
-                "handle": "har-393-search-article-20260428020158",
-                "tags": ["har-393-search-20260428020158", "online-store"],
+                "id": "gid://shopify/Article/684569526578",
+                "title": "Online Store Search Article 20260703223908",
+                "handle": "online-store-search-article-20260703223908",
+                "tags": ["online-store", "online-store-search-20260703223908"],
                 "isPublished": true,
                 "author": {
-                  "name": "HAR 393 Search Author 20260428020158"
+                  "name": "Online Store Search Author 20260703223908"
                 },
                 "blog": {
-                  "id": "gid://shopify/Blog/120870142258",
-                  "title": "HAR 393 Search Blog 20260428020158",
-                  "handle": "har-393-search-blog-20260428020158"
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0=",
-              "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0="
+              "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
             }
           },
           "articlesByAuthor": {
             "nodes": [
               {
-                "id": "gid://shopify/Article/683107746098",
-                "title": "HAR 393 Search Article 20260428020158",
-                "handle": "har-393-search-article-20260428020158",
-                "tags": ["har-393-search-20260428020158", "online-store"],
+                "id": "gid://shopify/Article/684569526578",
+                "title": "Online Store Search Article 20260703223908",
+                "handle": "online-store-search-article-20260703223908",
+                "tags": ["online-store", "online-store-search-20260703223908"],
                 "isPublished": true,
                 "author": {
-                  "name": "HAR 393 Search Author 20260428020158"
+                  "name": "Online Store Search Author 20260703223908"
                 },
                 "blog": {
-                  "id": "gid://shopify/Blog/120870142258",
-                  "title": "HAR 393 Search Blog 20260428020158",
-                  "handle": "har-393-search-blog-20260428020158"
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ==",
-              "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ=="
+              "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
+            }
+          },
+          "articlesByBlogTitle": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Article/684569526578",
+                "title": "Online Store Search Article 20260703223908",
+                "handle": "online-store-search-article-20260703223908",
+                "tags": ["online-store", "online-store-search-20260703223908"],
+                "isPublished": true,
+                "author": {
+                  "name": "Online Store Search Author 20260703223908"
+                },
+                "blog": {
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
             }
           },
           "blogsByTitle": {
             "nodes": [
               {
-                "id": "gid://shopify/Blog/120870142258",
-                "title": "HAR 393 Search Blog 20260428020158",
-                "handle": "har-393-search-blog-20260428020158",
+                "id": "gid://shopify/Blog/121706938674",
+                "title": "Online Store Search Blog 20260703223908",
+                "handle": "online-store-search-blog-20260703223908",
                 "commentPolicy": "MODERATED",
                 "articlesCount": {
-                  "count": 1,
+                  "count": 2,
                   "precision": "EXACT"
                 }
               }
@@ -398,35 +635,133 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ=="
             }
           },
-          "pagesByPublishedTitle": {
+          "blogsByTitleReverse": {
             "nodes": [
               {
-                "id": "gid://shopify/Page/159399838002",
-                "title": "HAR 393 Search Page 20260428020158",
-                "handle": "har-393-search-page-20260428020158",
-                "isPublished": true,
-                "publishedAt": "2026-04-28T02:01:58Z"
+                "id": "gid://shopify/Blog/121706938674",
+                "title": "Online Store Search Blog 20260703223908",
+                "handle": "online-store-search-blog-20260703223908",
+                "commentPolicy": "MODERATED",
+                "articlesCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ=="
+            }
+          },
+          "pagesByTitleReverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Page/161145291058",
+                "title": "Online Store Search Page 20260703223908",
+                "handle": "online-store-search-page-20260703223908",
+                "isPublished": true,
+                "publishedAt": "2026-07-03T22:39:08Z"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIFBhZ2UgMjAyNjA3MDMyMjM5MDgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIFBhZ2UgMjAyNjA3MDMyMjM5MDgifQ=="
+            }
+          },
+          "pagesByPublishedTitle": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Page/161145291058",
+                "title": "Online Store Search Page 20260703223908",
+                "handle": "online-store-search-page-20260703223908",
+                "isPublished": true,
+                "publishedAt": "2026-07-03T22:39:08Z"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ=="
+            }
+          },
+          "commentsByBodyCreatedDesc": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Comment/135022674226",
+                "body": "Online Store Search Comment Zulu 20260703223908",
+                "status": "PUBLISHED",
+                "isPublished": true,
+                "createdAt": "2026-07-03T22:39:10Z",
+                "article": {
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908"
+                }
+              },
+              {
+                "id": "gid://shopify/Comment/135022641458",
+                "body": "Online Store Search Comment Alpha 20260703223908",
+                "status": "PUBLISHED",
+                "isPublished": true,
+                "createdAt": "2026-07-03T22:39:10Z",
+                "article": {
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NzQyMjYsImxhc3RfdmFsdWUiOjE3ODMxMTgzNTAwMDB9",
+              "endCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NDE0NTgsImxhc3RfdmFsdWUiOjE3ODMxMTgzNTAwMDB9"
             }
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 62,
-            "actualQueryCost": 29,
+            "requestedQueryCost": 124,
+            "actualQueryCost": 61,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1937,
+              "currentlyAvailable": 1854,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "draft articleDelete cleanup",
+      "request": {
+        "query": "#graphql\n  mutation ArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/684569559346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/684569559346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1860,
               "restoreRate": 100
             }
           }
@@ -438,14 +773,14 @@
       "request": {
         "query": "#graphql\n  mutation ArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Article/683107746098"
+          "id": "gid://shopify/Article/684569526578"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "articleDelete": {
-            "deletedArticleId": "gid://shopify/Article/683107746098",
+            "deletedArticleId": "gid://shopify/Article/684569526578",
             "userErrors": []
           }
         },
@@ -455,7 +790,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1924,
+              "currentlyAvailable": 1864,
               "restoreRate": 100
             }
           }
@@ -467,14 +802,14 @@
       "request": {
         "query": "#graphql\n  mutation PageDelete($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Page/159399838002"
+          "id": "gid://shopify/Page/161145291058"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "pageDelete": {
-            "deletedPageId": "gid://shopify/Page/159399838002",
+            "deletedPageId": "gid://shopify/Page/161145291058",
             "userErrors": []
           }
         },
@@ -484,7 +819,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1932,
+              "currentlyAvailable": 1869,
               "restoreRate": 100
             }
           }
@@ -496,14 +831,14 @@
       "request": {
         "query": "#graphql\n  mutation BlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Blog/120870142258"
+          "id": "gid://shopify/Blog/121706938674"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "blogDelete": {
-            "deletedBlogId": "gid://shopify/Blog/120870142258",
+            "deletedBlogId": "gid://shopify/Blog/121706938674",
             "userErrors": []
           }
         },
@@ -513,7 +848,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1935,
+              "currentlyAvailable": 1870,
               "restoreRate": 100
             }
           }
@@ -525,75 +860,123 @@
     {
       "operationName": "OnlineStoreContentSearchFilters",
       "variables": {
-        "articleTagQuery": "tag:har-393-search-20260428020158",
-        "articleAuthorQuery": "author:'HAR 393 Search Author 20260428020158'",
-        "blogTitleQuery": "title:'HAR 393 Search Blog 20260428020158'",
-        "pagePublishedQuery": "published_status:published title:'HAR 393 Search Page 20260428020158'"
+        "articleTagQuery": "published_status:published tag:online-store-search-20260703223908",
+        "articleAuthorQuery": "published_status:published author:'Online Store Search Author 20260703223908'",
+        "articleBlogTitleQuery": "published_status:published blog_title:'Online Store Search Blog 20260703223908'",
+        "blogTitleQuery": "title:'Online Store Search Blog 20260703223908'",
+        "pageTitleQuery": "title:'Online Store Search Page 20260703223908'",
+        "pagePublishedQuery": "published_status:published title:'Online Store Search Page 20260703223908'",
+        "commentBodyQuery": "\"Online Store Search Comment\" AND \"20260703223908\""
       },
-      "query": "query OnlineStoreContentSearchFilters(\n  $articleTagQuery: String!\n  $articleAuthorQuery: String!\n  $blogTitleQuery: String!\n  $pagePublishedQuery: String!\n) {\n  articlesByTag: articles(first: 5, query: $articleTagQuery) {\n    nodes {\n      id\n      title\n      handle\n      tags\n      isPublished\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  articlesByAuthor: articles(first: 5, query: $articleAuthorQuery) {\n    nodes {\n      id\n      title\n      handle\n      tags\n      isPublished\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  blogsByTitle: blogs(first: 5, query: $blogTitleQuery) {\n    nodes {\n      id\n      title\n      handle\n      commentPolicy\n      articlesCount {\n        count\n        precision\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {\n    nodes {\n      id\n      title\n      handle\n      isPublished\n      publishedAt\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "query": "#graphql\n  query OnlineStoreContentSearchFilters(\n    $articleTagQuery: String!\n    $articleAuthorQuery: String!\n    $articleBlogTitleQuery: String!\n    $blogTitleQuery: String!\n    $pageTitleQuery: String!\n    $pagePublishedQuery: String!\n    $commentBodyQuery: String!\n  ) {\n    articlesUnfilteredIdDesc: articles(first: 2, sortKey: ID, reverse: true) {\n      nodes {\n        id\n        title\n        isPublished\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByTag: articles(first: 5, query: $articleTagQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByAuthor: articles(first: 5, query: $articleAuthorQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articlesByBlogTitle: articles(first: 5, query: $articleBlogTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        tags\n        isPublished\n        author { name }\n        blog { id title handle }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsByTitle: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE) {\n      nodes {\n        id\n        title\n        handle\n        commentPolicy\n        articlesCount { count precision }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsByTitleReverse: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        commentPolicy\n        articlesCount { count precision }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesByTitleReverse: pages(first: 5, query: $pageTitleQuery, sortKey: TITLE, reverse: true) {\n      nodes {\n        id\n        title\n        handle\n        isPublished\n        publishedAt\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {\n      nodes {\n        id\n        title\n        handle\n        isPublished\n        publishedAt\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    commentsByBodyCreatedDesc: comments(first: 5, query: $commentBodyQuery, sortKey: CREATED_AT, reverse: true) {\n      nodes {\n        id\n        body\n        status\n        isPublished\n        createdAt\n        article { id title }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
+            "articlesUnfilteredIdDesc": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Article/684569559346",
+                  "title": "Online Store Search Draft Article 20260703223908",
+                  "isPublished": false
+                },
+                {
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908",
+                  "isPublished": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1NTkzNDYsImxhc3RfdmFsdWUiOiI2ODQ1Njk1NTkzNDYifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiI2ODQ1Njk1MjY1NzgifQ=="
+              }
+            },
             "articlesByTag": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Article/683107746098",
-                  "title": "HAR 393 Search Article 20260428020158",
-                  "handle": "har-393-search-article-20260428020158",
-                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908",
+                  "handle": "online-store-search-article-20260703223908",
+                  "tags": ["online-store", "online-store-search-20260703223908"],
                   "isPublished": true,
                   "author": {
-                    "name": "HAR 393 Search Author 20260428020158"
+                    "name": "Online Store Search Author 20260703223908"
                   },
                   "blog": {
-                    "id": "gid://shopify/Blog/120870142258",
-                    "title": "HAR 393 Search Blog 20260428020158",
-                    "handle": "har-393-search-blog-20260428020158"
+                    "id": "gid://shopify/Blog/121706938674",
+                    "title": "Online Store Search Blog 20260703223908",
+                    "handle": "online-store-search-blog-20260703223908"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0=",
-                "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOjY4MzEwNzc0NjA5OH0="
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
               }
             },
             "articlesByAuthor": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Article/683107746098",
-                  "title": "HAR 393 Search Article 20260428020158",
-                  "handle": "har-393-search-article-20260428020158",
-                  "tags": ["har-393-search-20260428020158", "online-store"],
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908",
+                  "handle": "online-store-search-article-20260703223908",
+                  "tags": ["online-store", "online-store-search-20260703223908"],
                   "isPublished": true,
                   "author": {
-                    "name": "HAR 393 Search Author 20260428020158"
+                    "name": "Online Store Search Author 20260703223908"
                   },
                   "blog": {
-                    "id": "gid://shopify/Blog/120870142258",
-                    "title": "HAR 393 Search Blog 20260428020158",
-                    "handle": "har-393-search-blog-20260428020158"
+                    "id": "gid://shopify/Blog/121706938674",
+                    "title": "Online Store Search Blog 20260703223908",
+                    "handle": "online-store-search-blog-20260703223908"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODMxMDc3NDYwOTgsImxhc3RfdmFsdWUiOiI2ODMxMDc3NDYwOTgifQ=="
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
+              }
+            },
+            "articlesByBlogTitle": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Article/684569526578",
+                  "title": "Online Store Search Article 20260703223908",
+                  "handle": "online-store-search-article-20260703223908",
+                  "tags": ["online-store", "online-store-search-20260703223908"],
+                  "isPublished": true,
+                  "author": {
+                    "name": "Online Store Search Author 20260703223908"
+                  },
+                  "blog": {
+                    "id": "gid://shopify/Blog/121706938674",
+                    "title": "Online Store Search Blog 20260703223908",
+                    "handle": "online-store-search-blog-20260703223908"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ1Njk1MjY1NzgsImxhc3RfdmFsdWUiOiJvbmxpbmUgc3RvcmUgc2VhcmNoIGFydGljbGUgMjAyNjA3MDMyMjM5MDgifQ=="
               }
             },
             "blogsByTitle": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Blog/120870142258",
-                  "title": "HAR 393 Search Blog 20260428020158",
-                  "handle": "har-393-search-blog-20260428020158",
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908",
                   "commentPolicy": "MODERATED",
                   "articlesCount": {
-                    "count": 1,
+                    "count": 2,
                     "precision": "EXACT"
                   }
                 }
@@ -601,35 +984,104 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoxMjA4NzAxNDIyNTgsImxhc3RfdmFsdWUiOiIxMjA4NzAxNDIyNTgifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ=="
               }
             },
-            "pagesByPublishedTitle": {
+            "blogsByTitleReverse": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Page/159399838002",
-                  "title": "HAR 393 Search Page 20260428020158",
-                  "handle": "har-393-search-page-20260428020158",
-                  "isPublished": true,
-                  "publishedAt": "2026-04-28T02:01:58Z"
+                  "id": "gid://shopify/Blog/121706938674",
+                  "title": "Online Store Search Blog 20260703223908",
+                  "handle": "online-store-search-blog-20260703223908",
+                  "commentPolicy": "MODERATED",
+                  "articlesCount": {
+                    "count": 2,
+                    "precision": "EXACT"
+                  }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoxNTkzOTk4MzgwMDIsImxhc3RfdmFsdWUiOiIxNTkzOTk4MzgwMDIifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjE3MDY5Mzg2NzQsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIEJsb2cgMjAyNjA3MDMyMjM5MDgifQ=="
+              }
+            },
+            "pagesByTitleReverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Page/161145291058",
+                  "title": "Online Store Search Page 20260703223908",
+                  "handle": "online-store-search-page-20260703223908",
+                  "isPublished": true,
+                  "publishedAt": "2026-07-03T22:39:08Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIFBhZ2UgMjAyNjA3MDMyMjM5MDgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgU2VhcmNoIFBhZ2UgMjAyNjA3MDMyMjM5MDgifQ=="
+              }
+            },
+            "pagesByPublishedTitle": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Page/161145291058",
+                  "title": "Online Store Search Page 20260703223908",
+                  "handle": "online-store-search-page-20260703223908",
+                  "isPublished": true,
+                  "publishedAt": "2026-07-03T22:39:08Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjExNDUyOTEwNTgsImxhc3RfdmFsdWUiOiIxNjExNDUyOTEwNTgifQ=="
+              }
+            },
+            "commentsByBodyCreatedDesc": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Comment/135022674226",
+                  "body": "Online Store Search Comment Zulu 20260703223908",
+                  "status": "PUBLISHED",
+                  "isPublished": true,
+                  "createdAt": "2026-07-03T22:39:10Z",
+                  "article": {
+                    "id": "gid://shopify/Article/684569526578",
+                    "title": "Online Store Search Article 20260703223908"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Comment/135022641458",
+                  "body": "Online Store Search Comment Alpha 20260703223908",
+                  "status": "PUBLISHED",
+                  "isPublished": true,
+                  "createdAt": "2026-07-03T22:39:10Z",
+                  "article": {
+                    "id": "gid://shopify/Article/684569526578",
+                    "title": "Online Store Search Article 20260703223908"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NzQyMjYsImxhc3RfdmFsdWUiOjE3ODMxMTgzNTAwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjI2NDE0NTgsImxhc3RfdmFsdWUiOjE3ODMxMTgzNTAwMDB9"
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 62,
-              "actualQueryCost": 29,
+              "requestedQueryCost": 124,
+              "actualQueryCost": 61,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1937,
+                "currentlyAvailable": 1854,
                 "restoreRate": 100
               }
             }

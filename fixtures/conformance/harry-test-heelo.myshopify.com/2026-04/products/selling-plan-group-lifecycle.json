@@ -1,22 +1,22 @@
 {
-  "capturedAt": "2026-06-29T05:15:08.130Z",
+  "capturedAt": "2026-07-03T21:13:32.552Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
     "Captures selling-plan group read/mutation payloads and downstream product/variant membership reads.",
     "The script creates a disposable product and selling-plan group, then deletes both during cleanup."
   ],
-  "productId": "gid://shopify/Product/10224187113778",
-  "variantId": "gid://shopify/ProductVariant/51385005637938",
-  "groupId": "gid://shopify/SellingPlanGroup/3112567090",
+  "productId": "gid://shopify/Product/10230925820210",
+  "variantId": "gid://shopify/ProductVariant/51421685874994",
+  "groupId": "gid://shopify/SellingPlanGroup/3123216690",
   "seedProducts": [
     {
-      "id": "gid://shopify/Product/10224187113778",
-      "title": "Selling plan conformance mqyrkg9r",
+      "id": "gid://shopify/Product/10230925820210",
+      "title": "Selling plan conformance mr5fk7o0",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51385005637938",
+            "id": "gid://shopify/ProductVariant/51421685874994",
             "title": "Default Title"
           }
         ]
@@ -372,7 +372,7 @@
         "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title variants(first: 1) { nodes { id title } } }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Selling plan conformance mqyrkg9r"
+            "title": "Selling plan conformance mr5fk7o0"
           }
         }
       },
@@ -381,12 +381,12 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10224187113778",
-              "title": "Selling plan conformance mqyrkg9r",
+              "id": "gid://shopify/Product/10230925820210",
+              "title": "Selling plan conformance mr5fk7o0",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51385005637938",
+                    "id": "gid://shopify/ProductVariant/51421685874994",
                     "title": "Default Title"
                   }
                 ]
@@ -414,8 +414,8 @@
         "query": "#graphql\n  mutation CreateSellingPlanGroup(\n    $input: SellingPlanGroupInput!\n    $resources: SellingPlanGroupResourceInput\n    $productId: ID!\n    $variantId: ID!\n  ) {\n    sellingPlanGroupCreate(input: $input, resources: $resources) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "input": {
-            "name": "Subscription mqyrkg9r",
-            "merchantCode": "selling-plan-mqyrkg9r",
+            "name": "Subscription mr5fk7o0",
+            "merchantCode": "selling-plan-mr5fk7o0",
             "description": "Temporary selling plan group for conformance capture",
             "options": ["Delivery frequency"],
             "position": 1,
@@ -511,10 +511,10 @@
             ]
           },
           "resources": {
-            "productIds": ["gid://shopify/Product/10224187113778"]
+            "productIds": ["gid://shopify/Product/10230925820210"]
           },
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -522,15 +522,15 @@
         "data": {
           "sellingPlanGroupCreate": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3112567090",
+              "id": "gid://shopify/SellingPlanGroup/3123216690",
               "appId": null,
-              "name": "Subscription mqyrkg9r",
-              "merchantCode": "selling-plan-mqyrkg9r",
+              "name": "Subscription mr5fk7o0",
+              "merchantCode": "selling-plan-mr5fk7o0",
               "description": "Temporary selling plan group for conformance capture",
               "options": ["Delivery frequency"],
               "position": 1,
               "summary": "2 delivery frequencies, 5-10% discount",
-              "createdAt": "2026-06-29T05:15:05Z",
+              "createdAt": "2026-07-03T21:13:22Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -545,15 +545,15 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10224187113778",
-                    "title": "Selling plan conformance mqyrkg9r"
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
                 }
               },
               "productVariants": {
@@ -568,13 +568,13 @@
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7270662450",
+                    "id": "gid://shopify/SellingPlan/7281770802",
                     "name": "Intro and recurring discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Intro and recurring discount"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -605,7 +605,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 1,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -615,13 +615,13 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/SellingPlan/7270695218",
+                    "id": "gid://shopify/SellingPlan/7281803570",
                     "name": "Mixed discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Mixed discount"],
                     "position": 2,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -652,7 +652,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 2,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -665,8 +665,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
                 }
               }
             },
@@ -691,24 +691,24 @@
       "request": {
         "query": "#graphql\n  query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroup(id: $id) { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroup": {
-            "id": "gid://shopify/SellingPlanGroup/3112567090",
+            "id": "gid://shopify/SellingPlanGroup/3123216690",
             "appId": null,
-            "name": "Subscription mqyrkg9r",
-            "merchantCode": "selling-plan-mqyrkg9r",
+            "name": "Subscription mr5fk7o0",
+            "merchantCode": "selling-plan-mr5fk7o0",
             "description": "Temporary selling plan group for conformance capture",
             "options": ["Delivery frequency"],
             "position": 1,
             "summary": "2 delivery frequencies, 5-10% discount",
-            "createdAt": "2026-06-29T05:15:05Z",
+            "createdAt": "2026-07-03T21:13:22Z",
             "productsCount": {
               "count": 1,
               "precision": "EXACT"
@@ -723,15 +723,15 @@
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10224187113778",
-                  "title": "Selling plan conformance mqyrkg9r"
+                  "id": "gid://shopify/Product/10230925820210",
+                  "title": "Selling plan conformance mr5fk7o0"
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
               }
             },
             "productVariants": {
@@ -746,13 +746,13 @@
             "sellingPlans": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlan/7270662450",
+                  "id": "gid://shopify/SellingPlan/7281770802",
                   "name": "Intro and recurring discount delivery",
                   "description": "Ships every month with fixed and recurring discounts",
                   "options": ["Intro and recurring discount"],
                   "position": 1,
                   "category": "SUBSCRIPTION",
-                  "createdAt": "2026-06-29T05:15:05Z",
+                  "createdAt": "2026-07-03T21:13:22Z",
                   "billingPolicy": {
                     "__typename": "SellingPlanRecurringBillingPolicy",
                     "interval": "MONTH",
@@ -783,7 +783,7 @@
                     {
                       "__typename": "SellingPlanRecurringPricingPolicy",
                       "afterCycle": 1,
-                      "createdAt": "2026-06-29T05:15:05Z",
+                      "createdAt": "2026-07-03T21:13:22Z",
                       "adjustmentType": "PERCENTAGE",
                       "adjustmentValue": {
                         "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -793,13 +793,13 @@
                   ]
                 },
                 {
-                  "id": "gid://shopify/SellingPlan/7270695218",
+                  "id": "gid://shopify/SellingPlan/7281803570",
                   "name": "Mixed discount delivery",
                   "description": "Ships every month with fixed and recurring discounts",
                   "options": ["Mixed discount"],
                   "position": 2,
                   "category": "SUBSCRIPTION",
-                  "createdAt": "2026-06-29T05:15:05Z",
+                  "createdAt": "2026-07-03T21:13:22Z",
                   "billingPolicy": {
                     "__typename": "SellingPlanRecurringBillingPolicy",
                     "interval": "MONTH",
@@ -830,7 +830,7 @@
                     {
                       "__typename": "SellingPlanRecurringPricingPolicy",
                       "afterCycle": 2,
-                      "createdAt": "2026-06-29T05:15:05Z",
+                      "createdAt": "2026-07-03T21:13:22Z",
                       "adjustmentType": "PERCENTAGE",
                       "adjustmentValue": {
                         "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -843,8 +843,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
               }
             }
           }
@@ -855,7 +855,7 @@
             "actualQueryCost": 27,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1970,
               "restoreRate": 100
             }
           }
@@ -867,16 +867,16 @@
       "request": {
         "query": "#graphql\n  query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {\n    product(id: $productId) {\n      id\n      title\n      requiresSellingPlan\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n    productVariant(id: $variantId) {\n      id\n      title\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10224187113778",
-            "title": "Selling plan conformance mqyrkg9r",
+            "id": "gid://shopify/Product/10230925820210",
+            "title": "Selling plan conformance mr5fk7o0",
             "requiresSellingPlan": false,
             "sellingPlanGroupsCount": {
               "count": 1,
@@ -885,15 +885,15 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3112567090",
-                  "name": "Subscription mqyrkg9r",
-                  "merchantCode": "selling-plan-mqyrkg9r"
+                  "id": "gid://shopify/SellingPlanGroup/3123216690",
+                  "name": "Subscription mr5fk7o0",
+                  "merchantCode": "selling-plan-mr5fk7o0"
                 }
               ]
             }
           },
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51385005637938",
+            "id": "gid://shopify/ProductVariant/51421685874994",
             "title": "Default Title",
             "sellingPlanGroupsCount": {
               "count": 0,
@@ -902,9 +902,9 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3112567090",
-                  "name": "Subscription mqyrkg9r",
-                  "merchantCode": "selling-plan-mqyrkg9r"
+                  "id": "gid://shopify/SellingPlanGroup/3123216690",
+                  "name": "Subscription mr5fk7o0",
+                  "merchantCode": "selling-plan-mr5fk7o0"
                 }
               ]
             }
@@ -928,15 +928,15 @@
       "request": {
         "query": "#graphql\n  mutation RemoveProducts($id: ID!, $productIds: [ID!]!) {\n    sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {\n      removedProductIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productIds": ["gid://shopify/Product/10224187113778"]
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productIds": ["gid://shopify/Product/10230925820210"]
         }
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupRemoveProducts": {
-            "removedProductIds": ["gid://shopify/Product/10224187113778"],
+            "removedProductIds": ["gid://shopify/Product/10230925820210"],
             "userErrors": []
           }
         },
@@ -946,7 +946,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1975,
               "restoreRate": 100
             }
           }
@@ -958,16 +958,16 @@
       "request": {
         "query": "#graphql\n  query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {\n    product(id: $productId) {\n      id\n      title\n      requiresSellingPlan\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n    productVariant(id: $variantId) {\n      id\n      title\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10224187113778",
-            "title": "Selling plan conformance mqyrkg9r",
+            "id": "gid://shopify/Product/10230925820210",
+            "title": "Selling plan conformance mr5fk7o0",
             "requiresSellingPlan": false,
             "sellingPlanGroupsCount": {
               "count": 0,
@@ -978,7 +978,7 @@
             }
           },
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51385005637938",
+            "id": "gid://shopify/ProductVariant/51421685874994",
             "title": "Default Title",
             "sellingPlanGroupsCount": {
               "count": 0,
@@ -995,7 +995,7 @@
             "actualQueryCost": 14,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1973,
               "restoreRate": 100
             }
           }
@@ -1007,10 +1007,10 @@
       "request": {
         "query": "#graphql\n  mutation AddProducts($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productIds": ["gid://shopify/Product/10224187113778"],
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productIds": ["gid://shopify/Product/10230925820210"],
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1018,15 +1018,15 @@
         "data": {
           "sellingPlanGroupAddProducts": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3112567090",
+              "id": "gid://shopify/SellingPlanGroup/3123216690",
               "appId": null,
-              "name": "Subscription mqyrkg9r",
-              "merchantCode": "selling-plan-mqyrkg9r",
+              "name": "Subscription mr5fk7o0",
+              "merchantCode": "selling-plan-mr5fk7o0",
               "description": "Temporary selling plan group for conformance capture",
               "options": ["Delivery frequency"],
               "position": 1,
               "summary": "2 delivery frequencies, 5-10% discount",
-              "createdAt": "2026-06-29T05:15:05Z",
+              "createdAt": "2026-07-03T21:13:22Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -1041,15 +1041,15 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10224187113778",
-                    "title": "Selling plan conformance mqyrkg9r"
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
                 }
               },
               "productVariants": {
@@ -1064,13 +1064,13 @@
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7270662450",
+                    "id": "gid://shopify/SellingPlan/7281770802",
                     "name": "Intro and recurring discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Intro and recurring discount"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1101,7 +1101,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 1,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1111,13 +1111,13 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/SellingPlan/7270695218",
+                    "id": "gid://shopify/SellingPlan/7281803570",
                     "name": "Mixed discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Mixed discount"],
                     "position": 2,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1148,7 +1148,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 2,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1161,8 +1161,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
                 }
               }
             },
@@ -1187,8 +1187,8 @@
       "request": {
         "query": "#graphql\n  mutation RemoveVariants($id: ID!, $productVariantIds: [ID!]!) {\n    sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      removedProductVariantIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productVariantIds": ["gid://shopify/ProductVariant/51385005637938"]
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productVariantIds": ["gid://shopify/ProductVariant/51421685874994"]
         }
       },
       "status": 200,
@@ -1205,7 +1205,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1955,
+              "currentlyAvailable": 1956,
               "restoreRate": 100
             }
           }
@@ -1217,10 +1217,10 @@
       "request": {
         "query": "#graphql\n  mutation AddVariants($id: ID!, $productVariantIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productVariantIds": ["gid://shopify/ProductVariant/51385005637938"],
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productVariantIds": ["gid://shopify/ProductVariant/51421685874994"],
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1228,15 +1228,15 @@
         "data": {
           "sellingPlanGroupAddProductVariants": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3112567090",
+              "id": "gid://shopify/SellingPlanGroup/3123216690",
               "appId": null,
-              "name": "Subscription mqyrkg9r",
-              "merchantCode": "selling-plan-mqyrkg9r",
+              "name": "Subscription mr5fk7o0",
+              "merchantCode": "selling-plan-mr5fk7o0",
               "description": "Temporary selling plan group for conformance capture",
               "options": ["Delivery frequency"],
               "position": 1,
               "summary": "2 delivery frequencies, 5-10% discount",
-              "createdAt": "2026-06-29T05:15:05Z",
+              "createdAt": "2026-07-03T21:13:22Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -1251,44 +1251,44 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10224187113778",
-                    "title": "Selling plan conformance mqyrkg9r"
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
                 }
               },
               "productVariants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51385005637938",
+                    "id": "gid://shopify/ProductVariant/51421685874994",
                     "title": "Default Title",
                     "product": {
-                      "id": "gid://shopify/Product/10224187113778"
+                      "id": "gid://shopify/Product/10230925820210"
                     }
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0="
                 }
               },
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7270662450",
+                    "id": "gid://shopify/SellingPlan/7281770802",
                     "name": "Intro and recurring discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Intro and recurring discount"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1319,7 +1319,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 1,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1329,13 +1329,13 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/SellingPlan/7270695218",
+                    "id": "gid://shopify/SellingPlan/7281803570",
                     "name": "Mixed discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Mixed discount"],
                     "position": 2,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1366,7 +1366,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 2,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1379,8 +1379,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
                 }
               }
             },
@@ -1393,7 +1393,7 @@
             "actualQueryCost": 35,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1931,
+              "currentlyAvailable": 1929,
               "restoreRate": 100
             }
           }
@@ -1405,16 +1405,16 @@
       "request": {
         "query": "#graphql\n  query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {\n    product(id: $productId) {\n      id\n      title\n      requiresSellingPlan\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n    productVariant(id: $variantId) {\n      id\n      title\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 5) { nodes { id name merchantCode } }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10224187113778",
-            "title": "Selling plan conformance mqyrkg9r",
+            "id": "gid://shopify/Product/10230925820210",
+            "title": "Selling plan conformance mr5fk7o0",
             "requiresSellingPlan": false,
             "sellingPlanGroupsCount": {
               "count": 1,
@@ -1423,15 +1423,15 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3112567090",
-                  "name": "Subscription mqyrkg9r",
-                  "merchantCode": "selling-plan-mqyrkg9r"
+                  "id": "gid://shopify/SellingPlanGroup/3123216690",
+                  "name": "Subscription mr5fk7o0",
+                  "merchantCode": "selling-plan-mr5fk7o0"
                 }
               ]
             }
           },
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51385005637938",
+            "id": "gid://shopify/ProductVariant/51421685874994",
             "title": "Default Title",
             "sellingPlanGroupsCount": {
               "count": 1,
@@ -1440,9 +1440,9 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3112567090",
-                  "name": "Subscription mqyrkg9r",
-                  "merchantCode": "selling-plan-mqyrkg9r"
+                  "id": "gid://shopify/SellingPlanGroup/3123216690",
+                  "name": "Subscription mr5fk7o0",
+                  "merchantCode": "selling-plan-mr5fk7o0"
                 }
               ]
             }
@@ -1454,7 +1454,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1938,
+              "currentlyAvailable": 1935,
               "restoreRate": 100
             }
           }
@@ -1466,7 +1466,7 @@
       "request": {
         "query": "#graphql\n  mutation UpdateSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
           "input": {
             "name": "Subscription updated",
             "merchantCode": "selling-plan-updated",
@@ -1475,15 +1475,15 @@
             "position": 2,
             "sellingPlansToUpdate": [
               {
-                "id": "gid://shopify/SellingPlan/7270662450",
+                "id": "gid://shopify/SellingPlan/7281770802",
                 "name": "Recurring discount updated",
                 "options": ["Every month"],
                 "position": 1
               }
             ]
           },
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1492,7 +1492,7 @@
           "sellingPlanGroupUpdate": {
             "deletedSellingPlanIds": [],
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3112567090",
+              "id": "gid://shopify/SellingPlanGroup/3123216690",
               "appId": null,
               "name": "Subscription updated",
               "merchantCode": "selling-plan-updated",
@@ -1500,7 +1500,7 @@
               "options": ["Delivery cadence"],
               "position": 2,
               "summary": "2 delivery frequencies, 5-10% discount",
-              "createdAt": "2026-06-29T05:15:05Z",
+              "createdAt": "2026-07-03T21:13:22Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -1515,44 +1515,44 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10224187113778",
-                    "title": "Selling plan conformance mqyrkg9r"
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
                 }
               },
               "productVariants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51385005637938",
+                    "id": "gid://shopify/ProductVariant/51421685874994",
                     "title": "Default Title",
                     "product": {
-                      "id": "gid://shopify/Product/10224187113778"
+                      "id": "gid://shopify/Product/10230925820210"
                     }
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0="
                 }
               },
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7270662450",
+                    "id": "gid://shopify/SellingPlan/7281770802",
                     "name": "Recurring discount updated",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Every month"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1574,13 +1574,13 @@
                     "pricingPolicies": []
                   },
                   {
-                    "id": "gid://shopify/SellingPlan/7270695218",
+                    "id": "gid://shopify/SellingPlan/7281803570",
                     "name": "Mixed discount delivery",
                     "description": "Ships every month with fixed and recurring discounts",
                     "options": ["Mixed discount"],
                     "position": 2,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-06-29T05:15:05Z",
+                    "createdAt": "2026-07-03T21:13:22Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -1611,7 +1611,7 @@
                       {
                         "__typename": "SellingPlanRecurringPricingPolicy",
                         "afterCycle": 2,
-                        "createdAt": "2026-06-29T05:15:05Z",
+                        "createdAt": "2026-07-03T21:13:22Z",
                         "adjustmentType": "PERCENTAGE",
                         "adjustmentValue": {
                           "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1624,8 +1624,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
                 }
               }
             },
@@ -1638,7 +1638,7 @@
             "actualQueryCost": 33,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1917,
+              "currentlyAvailable": 1915,
               "restoreRate": 100
             }
           }
@@ -1650,8 +1650,8 @@
       "request": {
         "query": "#graphql\n  query ReadSellingPlanGroups($productId: ID!, $variantId: ID!) {\n    sellingPlanGroups(first: 5) {\n      nodes { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1660,7 +1660,7 @@
           "sellingPlanGroups": {
             "nodes": [
               {
-                "id": "gid://shopify/SellingPlanGroup/3112567090",
+                "id": "gid://shopify/SellingPlanGroup/3123216690",
                 "appId": null,
                 "name": "Subscription updated",
                 "merchantCode": "selling-plan-updated",
@@ -1668,7 +1668,7 @@
                 "options": ["Delivery cadence"],
                 "position": 2,
                 "summary": "2 delivery frequencies, 5-10% discount",
-                "createdAt": "2026-06-29T05:15:05Z",
+                "createdAt": "2026-07-03T21:13:22Z",
                 "productsCount": {
                   "count": 1,
                   "precision": "EXACT"
@@ -1683,44 +1683,44 @@
                 "products": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Product/10224187113778",
-                      "title": "Selling plan conformance mqyrkg9r"
+                      "id": "gid://shopify/Product/10230925820210",
+                      "title": "Selling plan conformance mr5fk7o0"
                     }
                   ],
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0=",
-                    "endCursor": "eyJsYXN0X2lkIjoxMDIyNDE4NzExMzc3OCwibGFzdF92YWx1ZSI6IjEwMjI0MTg3MTEzNzc4In0="
+                    "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
                   }
                 },
                 "productVariants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51385005637938",
+                      "id": "gid://shopify/ProductVariant/51421685874994",
                       "title": "Default Title",
                       "product": {
-                        "id": "gid://shopify/Product/10224187113778"
+                        "id": "gid://shopify/Product/10230925820210"
                       }
                     }
                   ],
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0=",
-                    "endCursor": "eyJsYXN0X2lkIjo1MTM4NTAwNTYzNzkzOCwibGFzdF92YWx1ZSI6IjUxMzg1MDA1NjM3OTM4In0="
+                    "startCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0=",
+                    "endCursor": "eyJsYXN0X2lkIjo1MTQyMTY4NTg3NDk5NCwibGFzdF92YWx1ZSI6IjUxNDIxNjg1ODc0OTk0In0="
                   }
                 },
                 "sellingPlans": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/SellingPlan/7270662450",
+                      "id": "gid://shopify/SellingPlan/7281770802",
                       "name": "Recurring discount updated",
                       "description": "Ships every month with fixed and recurring discounts",
                       "options": ["Every month"],
                       "position": 1,
                       "category": "SUBSCRIPTION",
-                      "createdAt": "2026-06-29T05:15:05Z",
+                      "createdAt": "2026-07-03T21:13:22Z",
                       "billingPolicy": {
                         "__typename": "SellingPlanRecurringBillingPolicy",
                         "interval": "MONTH",
@@ -1742,13 +1742,13 @@
                       "pricingPolicies": []
                     },
                     {
-                      "id": "gid://shopify/SellingPlan/7270695218",
+                      "id": "gid://shopify/SellingPlan/7281803570",
                       "name": "Mixed discount delivery",
                       "description": "Ships every month with fixed and recurring discounts",
                       "options": ["Mixed discount"],
                       "position": 2,
                       "category": "SUBSCRIPTION",
-                      "createdAt": "2026-06-29T05:15:05Z",
+                      "createdAt": "2026-07-03T21:13:22Z",
                       "billingPolicy": {
                         "__typename": "SellingPlanRecurringBillingPolicy",
                         "interval": "MONTH",
@@ -1779,7 +1779,7 @@
                         {
                           "__typename": "SellingPlanRecurringPricingPolicy",
                           "afterCycle": 2,
-                          "createdAt": "2026-06-29T05:15:05Z",
+                          "createdAt": "2026-07-03T21:13:22Z",
                           "adjustmentType": "PERCENTAGE",
                           "adjustmentValue": {
                             "__typename": "SellingPlanPricingPolicyPercentageValue",
@@ -1792,8 +1792,8 @@
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjo3MjcwNjYyNDUwLCJsYXN0X3ZhbHVlIjoiNzI3MDY2MjQ1MCJ9",
-                    "endCursor": "eyJsYXN0X2lkIjo3MjcwNjk1MjE4LCJsYXN0X3ZhbHVlIjoiNzI3MDY5NTIxOCJ9"
+                    "startCursor": "eyJsYXN0X2lkIjo3MjgxNzcwODAyLCJsYXN0X3ZhbHVlIjoiNzI4MTc3MDgwMiJ9",
+                    "endCursor": "eyJsYXN0X2lkIjo3MjgxODAzNTcwLCJsYXN0X3ZhbHVlIjoiNzI4MTgwMzU3MCJ9"
                   }
                 }
               }
@@ -1801,8 +1801,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjozMTEyNTY3MDkwLCJsYXN0X3ZhbHVlIjoiMzExMjU2NzA5MCJ9",
-              "endCursor": "eyJsYXN0X2lkIjozMTEyNTY3MDkwLCJsYXN0X3ZhbHVlIjoiMzExMjU2NzA5MCJ9"
+              "startCursor": "eyJsYXN0X2lkIjozMTIzMjE2NjkwLCJsYXN0X3ZhbHVlIjoiMzEyMzIxNjY5MCJ9",
+              "endCursor": "eyJsYXN0X2lkIjozMTIzMjE2NjkwLCJsYXN0X3ZhbHVlIjoiMzEyMzIxNjY5MCJ9"
             }
           }
         },
@@ -1812,7 +1812,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1927,
+              "currentlyAvailable": 1928,
               "restoreRate": 100
             }
           }
@@ -1828,8 +1828,8 @@
           "input": {
             "name": "Nope"
           },
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1853,7 +1853,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1930,
+              "currentlyAvailable": 1932,
               "restoreRate": 100
             }
           }
@@ -1866,7 +1866,7 @@
         "query": "#graphql\n  mutation RemoveProducts($id: ID!, $productIds: [ID!]!) {\n    sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {\n      removedProductIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "id": "gid://shopify/SellingPlanGroup/999999999999",
-          "productIds": ["gid://shopify/Product/10224187113778"]
+          "productIds": ["gid://shopify/Product/10230925820210"]
         }
       },
       "status": 200,
@@ -1889,7 +1889,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1930,
+              "currentlyAvailable": 1931,
               "restoreRate": 100
             }
           }
@@ -1902,7 +1902,7 @@
         "query": "#graphql\n  mutation RemoveVariants($id: ID!, $productVariantIds: [ID!]!) {\n    sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      removedProductVariantIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "id": "gid://shopify/SellingPlanGroup/999999999999",
-          "productVariantIds": ["gid://shopify/ProductVariant/51385005637938"]
+          "productVariantIds": ["gid://shopify/ProductVariant/51421685874994"]
         }
       },
       "status": 200,
@@ -1925,7 +1925,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1929,
+              "currentlyAvailable": 1930,
               "restoreRate": 100
             }
           }
@@ -1937,14 +1937,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteSellingPlanGroup($id: ID!) {\n    sellingPlanGroupDelete(id: $id) {\n      deletedSellingPlanGroupId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090"
+          "id": "gid://shopify/SellingPlanGroup/3123216690"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3112567090",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3123216690",
             "userErrors": []
           }
         },
@@ -1954,7 +1954,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1930,
+              "currentlyAvailable": 1928,
               "restoreRate": 100
             }
           }
@@ -1966,9 +1966,9 @@
       "request": {
         "query": "#graphql\n  query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroup(id: $id) { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3112567090",
-          "productId": "gid://shopify/Product/10224187113778",
-          "variantId": "gid://shopify/ProductVariant/51385005637938"
+          "id": "gid://shopify/SellingPlanGroup/3123216690",
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
         }
       },
       "status": 200,
@@ -1982,7 +1982,900 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
+              "currentlyAvailable": 1953,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connection setup alpha group",
+      "request": {
+        "query": "#graphql\n  mutation CreateSellingPlanGroup(\n    $input: SellingPlanGroupInput!\n    $resources: SellingPlanGroupResourceInput\n    $productId: ID!\n    $variantId: ID!\n  ) {\n    sellingPlanGroupCreate(input: $input, resources: $resources) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "connectionmr5fk7o0alpha",
+            "merchantCode": "connectionmr5fk7o0-alpha",
+            "description": "Temporary connection-argument group connectionmr5fk7o0alpha",
+            "position": 1,
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "connectionmr5fk7o0alpha monthly",
+                "description": "Temporary connection-argument plan connectionmr5fk7o0alpha",
+                "options": ["Monthly"],
+                "position": 1,
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1,
+                    "cutoff": 0
+                  }
+                },
+                "inventoryPolicy": {
+                  "reserve": "ON_FULFILLMENT"
+                },
+                "pricingPolicies": []
+              }
+            ]
+          },
+          "resources": {
+            "productIds": ["gid://shopify/Product/10230925820210"]
+          },
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3123249458",
+              "appId": null,
+              "name": "connectionmr5fk7o0alpha",
+              "merchantCode": "connectionmr5fk7o0-alpha",
+              "description": "Temporary connection-argument group connectionmr5fk7o0alpha",
+              "options": ["Delivery frequency"],
+              "position": 1,
+              "summary": "1 delivery frequency,  discount",
+              "createdAt": "2026-07-03T21:13:24Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "appliesToProduct": true,
+              "appliesToProductVariant": false,
+              "appliesToProductVariants": false,
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
+                }
+              },
+              "productVariants": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7281836338",
+                    "name": "connectionmr5fk7o0alpha monthly",
+                    "description": "Temporary connection-argument plan connectionmr5fk7o0alpha",
+                    "options": ["Monthly"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "createdAt": "2026-07-03T21:13:24Z",
+                    "billingPolicy": {
+                      "__typename": "SellingPlanRecurringBillingPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "minCycles": null,
+                      "maxCycles": null
+                    },
+                    "deliveryPolicy": {
+                      "__typename": "SellingPlanRecurringDeliveryPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "cutoff": 0,
+                      "intent": "FULFILLMENT_BEGIN",
+                      "preAnchorBehavior": "ASAP"
+                    },
+                    "inventoryPolicy": {
+                      "reserve": "ON_FULFILLMENT"
+                    },
+                    "pricingPolicies": []
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxODM2MzM4LCJsYXN0X3ZhbHVlIjoiNzI4MTgzNjMzOCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODM2MzM4LCJsYXN0X3ZhbHVlIjoiNzI4MTgzNjMzOCJ9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 45,
+            "actualQueryCost": 29,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1934,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connection setup beta group",
+      "request": {
+        "query": "#graphql\n  mutation CreateSellingPlanGroup(\n    $input: SellingPlanGroupInput!\n    $resources: SellingPlanGroupResourceInput\n    $productId: ID!\n    $variantId: ID!\n  ) {\n    sellingPlanGroupCreate(input: $input, resources: $resources) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "connectionmr5fk7o0beta",
+            "merchantCode": "connectionmr5fk7o0-beta",
+            "description": "Temporary connection-argument group connectionmr5fk7o0beta",
+            "position": 1,
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "connectionmr5fk7o0beta monthly",
+                "description": "Temporary connection-argument plan connectionmr5fk7o0beta",
+                "options": ["Monthly"],
+                "position": 1,
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1,
+                    "cutoff": 0
+                  }
+                },
+                "inventoryPolicy": {
+                  "reserve": "ON_FULFILLMENT"
+                },
+                "pricingPolicies": [
+                  {
+                    "fixed": {
+                      "adjustmentType": "PERCENTAGE",
+                      "adjustmentValue": {
+                        "percentage": 15
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "resources": {
+            "productIds": ["gid://shopify/Product/10230925820210"]
+          },
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3123282226",
+              "appId": null,
+              "name": "connectionmr5fk7o0beta",
+              "merchantCode": "connectionmr5fk7o0-beta",
+              "description": "Temporary connection-argument group connectionmr5fk7o0beta",
+              "options": ["Delivery frequency"],
+              "position": 1,
+              "summary": "1 delivery frequency, 15% discount",
+              "createdAt": "2026-07-03T21:13:24Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "appliesToProduct": true,
+              "appliesToProductVariant": false,
+              "appliesToProductVariants": false,
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
+                }
+              },
+              "productVariants": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7281869106",
+                    "name": "connectionmr5fk7o0beta monthly",
+                    "description": "Temporary connection-argument plan connectionmr5fk7o0beta",
+                    "options": ["Monthly"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "createdAt": "2026-07-03T21:13:24Z",
+                    "billingPolicy": {
+                      "__typename": "SellingPlanRecurringBillingPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "minCycles": null,
+                      "maxCycles": null
+                    },
+                    "deliveryPolicy": {
+                      "__typename": "SellingPlanRecurringDeliveryPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "cutoff": 0,
+                      "intent": "FULFILLMENT_BEGIN",
+                      "preAnchorBehavior": "ASAP"
+                    },
+                    "inventoryPolicy": {
+                      "reserve": "ON_FULFILLMENT"
+                    },
+                    "pricingPolicies": [
+                      {
+                        "__typename": "SellingPlanFixedPricingPolicy",
+                        "adjustmentType": "PERCENTAGE",
+                        "adjustmentValue": {
+                          "__typename": "SellingPlanPricingPolicyPercentageValue",
+                          "percentage": 15
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxODY5MTA2LCJsYXN0X3ZhbHVlIjoiNzI4MTg2OTEwNiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODY5MTA2LCJsYXN0X3ZhbHVlIjoiNzI4MTg2OTEwNiJ9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 45,
+            "actualQueryCost": 31,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1926,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connection setup gamma group",
+      "request": {
+        "query": "#graphql\n  mutation CreateSellingPlanGroup(\n    $input: SellingPlanGroupInput!\n    $resources: SellingPlanGroupResourceInput\n    $productId: ID!\n    $variantId: ID!\n  ) {\n    sellingPlanGroupCreate(input: $input, resources: $resources) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "connectionmr5fk7o0gamma",
+            "merchantCode": "connectionmr5fk7o0-gamma",
+            "description": "Temporary connection-argument group connectionmr5fk7o0gamma",
+            "position": 1,
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "connectionmr5fk7o0gamma monthly",
+                "description": "Temporary connection-argument plan connectionmr5fk7o0gamma",
+                "options": ["Monthly"],
+                "position": 1,
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1,
+                    "cutoff": 0
+                  }
+                },
+                "inventoryPolicy": {
+                  "reserve": "ON_FULFILLMENT"
+                },
+                "pricingPolicies": []
+              }
+            ]
+          },
+          "resources": {
+            "productIds": ["gid://shopify/Product/10230925820210"]
+          },
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3123314994",
+              "appId": null,
+              "name": "connectionmr5fk7o0gamma",
+              "merchantCode": "connectionmr5fk7o0-gamma",
+              "description": "Temporary connection-argument group connectionmr5fk7o0gamma",
+              "options": ["Delivery frequency"],
+              "position": 1,
+              "summary": "1 delivery frequency,  discount",
+              "createdAt": "2026-07-03T21:13:24Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "appliesToProduct": true,
+              "appliesToProductVariant": false,
+              "appliesToProductVariants": false,
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
+                }
+              },
+              "productVariants": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7281901874",
+                    "name": "connectionmr5fk7o0gamma monthly",
+                    "description": "Temporary connection-argument plan connectionmr5fk7o0gamma",
+                    "options": ["Monthly"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "createdAt": "2026-07-03T21:13:24Z",
+                    "billingPolicy": {
+                      "__typename": "SellingPlanRecurringBillingPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "minCycles": null,
+                      "maxCycles": null
+                    },
+                    "deliveryPolicy": {
+                      "__typename": "SellingPlanRecurringDeliveryPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "cutoff": 0,
+                      "intent": "FULFILLMENT_BEGIN",
+                      "preAnchorBehavior": "ASAP"
+                    },
+                    "inventoryPolicy": {
+                      "reserve": "ON_FULFILLMENT"
+                    },
+                    "pricingPolicies": []
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxOTAxODc0LCJsYXN0X3ZhbHVlIjoiNzI4MTkwMTg3NCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxOTAxODc0LCJsYXN0X3ZhbHVlIjoiNzI4MTkwMTg3NCJ9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 45,
+            "actualQueryCost": 29,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1921,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connection beta update for updatedAt sort",
+      "request": {
+        "query": "#graphql\n  mutation UpdateSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n        ... on SellingPlanRecurringPricingPolicy {\n          afterCycle\n          createdAt\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n            ... on MoneyV2 { amount currencyCode }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/SellingPlanGroup/3123282226",
+          "input": {
+            "description": "Updated connectionmr5fk7o0beta for UPDATED_AT sort"
+          },
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": [],
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3123282226",
+              "appId": null,
+              "name": "connectionmr5fk7o0beta",
+              "merchantCode": "connectionmr5fk7o0-beta",
+              "description": "Updated connectionmr5fk7o0beta for UPDATED_AT sort",
+              "options": ["Delivery frequency"],
+              "position": 1,
+              "summary": "1 delivery frequency, 15% discount",
+              "createdAt": "2026-07-03T21:13:24Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "appliesToProduct": true,
+              "appliesToProductVariant": false,
+              "appliesToProductVariants": false,
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10230925820210",
+                    "title": "Selling plan conformance mr5fk7o0"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzMDkyNTgyMDIxMCwibGFzdF92YWx1ZSI6IjEwMjMwOTI1ODIwMjEwIn0="
+                }
+              },
+              "productVariants": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7281869106",
+                    "name": "connectionmr5fk7o0beta monthly",
+                    "description": "Temporary connection-argument plan connectionmr5fk7o0beta",
+                    "options": ["Monthly"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "createdAt": "2026-07-03T21:13:24Z",
+                    "billingPolicy": {
+                      "__typename": "SellingPlanRecurringBillingPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "minCycles": null,
+                      "maxCycles": null
+                    },
+                    "deliveryPolicy": {
+                      "__typename": "SellingPlanRecurringDeliveryPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "cutoff": 0,
+                      "intent": "FULFILLMENT_BEGIN",
+                      "preAnchorBehavior": "ASAP"
+                    },
+                    "inventoryPolicy": {
+                      "reserve": "ON_FULFILLMENT"
+                    },
+                    "pricingPolicies": [
+                      {
+                        "__typename": "SellingPlanFixedPricingPolicy",
+                        "adjustmentType": "PERCENTAGE",
+                        "adjustmentValue": {
+                          "__typename": "SellingPlanPricingPolicyPercentageValue",
+                          "percentage": 15
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo3MjgxODY5MTA2LCJsYXN0X3ZhbHVlIjoiNzI4MTg2OTEwNiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjgxODY5MTA2LCJsYXN0X3ZhbHVlIjoiNzI4MTg2OTEwNiJ9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 45,
+            "actualQueryCost": 31,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connection args read",
+      "request": {
+        "query": "#graphql\n  query SellingPlanGroupConnectionArgs(\n    $productId: ID!\n    $variantId: ID!\n    $matchQuery: String!\n    $betaQuery: String!\n    $percentageQuery: String!\n    $frequencyQuery: String!\n    $categoryQuery: String!\n    $unknownQuery: String!\n  ) {\n    defaultId: sellingPlanGroups(first: 3, query: $matchQuery) {\n      nodes { id name merchantCode }\n    }\n    nameReverse: sellingPlanGroups(first: 2, query: $matchQuery, sortKey: NAME, reverse: true) {\n      nodes { id name merchantCode }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    updatedReverse: sellingPlanGroups(first: 1, query: $matchQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes { id name merchantCode }\n    }\n    betaOnly: sellingPlanGroups(first: 5, query: $betaQuery, sortKey: ID) {\n      nodes { id name merchantCode }\n    }\n    percentageOnly: sellingPlanGroups(first: 5, query: $percentageQuery, sortKey: ID) {\n      nodes { id name merchantCode }\n    }\n    frequencyMatch: sellingPlanGroups(first: 5, query: $frequencyQuery, sortKey: ID) {\n      nodes { id name merchantCode }\n    }\n    categoryMatch: sellingPlanGroups(first: 5, query: $categoryQuery, sortKey: ID) {\n      nodes { id name merchantCode }\n    }\n    unknownFilter: sellingPlanGroups(first: 5, query: $unknownQuery) {\n      nodes { id name merchantCode }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    product(id: $productId) {\n      id\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 2, reverse: true) {\n        nodes { id name merchantCode }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n    productVariant(id: $variantId) {\n      id\n      sellingPlanGroupsCount { count precision }\n      sellingPlanGroups(first: 2, reverse: true) {\n        nodes { id name merchantCode }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994",
+          "matchQuery": "connectionmr5fk7o0",
+          "betaQuery": "name:connectionmr5fk7o0beta",
+          "percentageQuery": "name:connectionmr5fk7o0beta AND percentage_off:15",
+          "frequencyQuery": "connectionmr5fk7o0 AND delivery_frequency:MONTH",
+          "categoryQuery": "connectionmr5fk7o0 AND category:SUBSCRIPTION",
+          "unknownQuery": "name:connectionmr5fk7o0 AND unknown_filter:beta"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "defaultId": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123249458",
+                "name": "connectionmr5fk7o0alpha",
+                "merchantCode": "connectionmr5fk7o0-alpha"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123314994",
+                "name": "connectionmr5fk7o0gamma",
+                "merchantCode": "connectionmr5fk7o0-gamma"
+              }
+            ]
+          },
+          "nameReverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123314994",
+                "name": "connectionmr5fk7o0gamma",
+                "merchantCode": "connectionmr5fk7o0-gamma"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjozMTIzMzE0OTk0LCJsYXN0X3ZhbHVlIjoiY29ubmVjdGlvbm1yNWZrN28wZ2FtbWEifQ==",
+              "endCursor": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjoiY29ubmVjdGlvbm1yNWZrN28wYmV0YSJ9"
+            }
+          },
+          "updatedReverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123314994",
+                "name": "connectionmr5fk7o0gamma",
+                "merchantCode": "connectionmr5fk7o0-gamma"
+              }
+            ]
+          },
+          "betaOnly": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              }
+            ]
+          },
+          "percentageOnly": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              }
+            ]
+          },
+          "frequencyMatch": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123249458",
+                "name": "connectionmr5fk7o0alpha",
+                "merchantCode": "connectionmr5fk7o0-alpha"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123314994",
+                "name": "connectionmr5fk7o0gamma",
+                "merchantCode": "connectionmr5fk7o0-gamma"
+              }
+            ]
+          },
+          "categoryMatch": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123249458",
+                "name": "connectionmr5fk7o0alpha",
+                "merchantCode": "connectionmr5fk7o0-alpha"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123282226",
+                "name": "connectionmr5fk7o0beta",
+                "merchantCode": "connectionmr5fk7o0-beta"
+              },
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123314994",
+                "name": "connectionmr5fk7o0gamma",
+                "merchantCode": "connectionmr5fk7o0-gamma"
+              }
+            ]
+          },
+          "unknownFilter": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "product": {
+            "id": "gid://shopify/Product/10230925820210",
+            "sellingPlanGroupsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "sellingPlanGroups": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123314994",
+                  "name": "connectionmr5fk7o0gamma",
+                  "merchantCode": "connectionmr5fk7o0-gamma"
+                },
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123282226",
+                  "name": "connectionmr5fk7o0beta",
+                  "merchantCode": "connectionmr5fk7o0-beta"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozMTIzMzE0OTk0LCJsYXN0X3ZhbHVlIjozMTIzMzE0OTk0fQ==",
+                "endCursor": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjozMTIzMjgyMjI2fQ=="
+              }
+            }
+          },
+          "productVariant": {
+            "id": "gid://shopify/ProductVariant/51421685874994",
+            "sellingPlanGroupsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "sellingPlanGroups": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123314994",
+                  "name": "connectionmr5fk7o0gamma",
+                  "merchantCode": "connectionmr5fk7o0-gamma"
+                },
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123282226",
+                  "name": "connectionmr5fk7o0beta",
+                  "merchantCode": "connectionmr5fk7o0-beta"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjozMTIzMzE0OTk0LCJsYXN0X3ZhbHVlIjoiMzEyMzMxNDk5NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjoiMzEyMzI4MjIyNiJ9"
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 45,
+            "actualQueryCost": 39,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
               "currentlyAvailable": 1961,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["unknownFilter"],
+              "query": "name:connectionmr5fk7o0 AND unknown_filter:beta",
+              "parsed": {
+                "and": [
+                  {
+                    "field": "name",
+                    "match_all": "connectionmr5fk7o0"
+                  },
+                  {
+                    "field": "unknown_filter",
+                    "match_all": "beta"
+                  }
+                ]
+              },
+              "warnings": [
+                {
+                  "field": "unknown_filter",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "connection after-window read",
+      "request": {
+        "query": "#graphql\n  query SellingPlanGroupConnectionAfterArgs(\n    $productId: ID!\n    $variantId: ID!\n    $topAfter: String!\n    $productAfter: String!\n    $variantAfter: String!\n    $matchQuery: String!\n  ) {\n    afterWindow: sellingPlanGroups(first: 1, after: $topAfter, query: $matchQuery, sortKey: NAME, reverse: true) {\n      nodes { id name merchantCode }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    product(id: $productId) {\n      id\n      sellingPlanGroups(first: 1, after: $productAfter, reverse: true) {\n        nodes { id name merchantCode }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n    productVariant(id: $variantId) {\n      id\n      sellingPlanGroups(first: 1, after: $variantAfter, reverse: true) {\n        nodes { id name merchantCode }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10230925820210",
+          "variantId": "gid://shopify/ProductVariant/51421685874994",
+          "topAfter": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjoiY29ubmVjdGlvbm1yNWZrN28wYmV0YSJ9",
+          "productAfter": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjozMTIzMjgyMjI2fQ==",
+          "variantAfter": "eyJsYXN0X2lkIjozMTIzMjgyMjI2LCJsYXN0X3ZhbHVlIjoiMzEyMzI4MjIyNiJ9",
+          "matchQuery": "connectionmr5fk7o0"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "afterWindow": {
+            "nodes": [
+              {
+                "id": "gid://shopify/SellingPlanGroup/3123249458",
+                "name": "connectionmr5fk7o0alpha",
+                "merchantCode": "connectionmr5fk7o0-alpha"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "startCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjoiY29ubmVjdGlvbm1yNWZrN28wYWxwaGEifQ==",
+              "endCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjoiY29ubmVjdGlvbm1yNWZrN28wYWxwaGEifQ=="
+            }
+          },
+          "product": {
+            "id": "gid://shopify/Product/10230925820210",
+            "sellingPlanGroups": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123249458",
+                  "name": "connectionmr5fk7o0alpha",
+                  "merchantCode": "connectionmr5fk7o0-alpha"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjozMTIzMjQ5NDU4fQ==",
+                "endCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjozMTIzMjQ5NDU4fQ=="
+              }
+            }
+          },
+          "productVariant": {
+            "id": "gid://shopify/ProductVariant/51421685874994",
+            "sellingPlanGroups": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlanGroup/3123249458",
+                  "name": "connectionmr5fk7o0alpha",
+                  "merchantCode": "connectionmr5fk7o0-alpha"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjoiMzEyMzI0OTQ1OCJ9",
+                "endCursor": "eyJsYXN0X2lkIjozMTIzMjQ5NDU4LCJsYXN0X3ZhbHVlIjoiMzEyMzI0OTQ1OCJ9"
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
               "restoreRate": 100
             }
           }
@@ -1991,6 +2884,75 @@
     }
   ],
   "cleanup": [
+    {
+      "label": "cleanup extra sellingPlanGroupDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3123249458",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup extra sellingPlanGroupDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3123282226",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup extra sellingPlanGroupDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3123314994",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     {
       "label": "cleanup sellingPlanGroupDelete",
       "status": 200,
@@ -2013,7 +2975,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1962,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -2026,7 +2988,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10224187113778",
+            "deletedProductId": "gid://shopify/Product/10230925820210",
             "userErrors": []
           }
         },
@@ -2036,7 +2998,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1961,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }

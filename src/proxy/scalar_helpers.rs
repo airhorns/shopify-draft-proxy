@@ -22,6 +22,6 @@ pub(in crate::proxy) fn file_extension(value: &str) -> String {
         .unwrap_or("");
     filename
         .rsplit_once('.')
-        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .map(|(_, extension)| extension.to_string())
         .unwrap_or_default()
 }

@@ -1,0 +1,19 @@
+mutation MarketingActivityConnectionWindowCreate($input: MarketingActivityCreateExternalInput!) {
+  created: marketingActivityCreateExternal(input: $input) {
+    marketingActivity {
+      id
+      title
+      createdAt
+      marketingEvent {
+        id
+        type
+        scheduledToEndAt
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

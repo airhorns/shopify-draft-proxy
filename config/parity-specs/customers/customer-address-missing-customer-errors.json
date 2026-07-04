@@ -1,0 +1,162 @@
+{
+  "scenarioId": "customer-address-missing-customer-errors",
+  "operationNames": [
+    "customerCreate",
+    "customerAddressCreate",
+    "customerAddressUpdate",
+    "customerAddressDelete",
+    "customerUpdateDefaultAddress"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-address-missing-customer.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-customer.graphql",
+    "variablesCapturePath": "$.setup.foreignCustomer.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for customerAddressUpdate, customerAddressDelete, and customerUpdateDefaultAddress missing-customer classification. When the address id resolves to another customer's address, Shopify returns a payload userError at field [\"customerId\"] with message \"Customer does not exist\" before address ownership classification. When the address id exists nowhere, Shopify returns a top-level RESOURCE_NOT_FOUND for the address id before the customer branch.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-foreign-address",
+        "capturePath": "$.setup.foreignAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.setup.foreignAddress.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.setup.foreignAddress.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-update-unknown-address",
+        "capturePath": "$.missingCustomerUnknownAddress.update.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].extensions.code", "$.errors[0].path", "$.data.customerAddressUpdate"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.update.variables.customerId"
+            },
+            "addressId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.update.variables.addressId"
+            },
+            "address": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.update.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.update.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-delete-unknown-address",
+        "capturePath": "$.missingCustomerUnknownAddress.delete.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].extensions.code", "$.errors[0].path", "$.data.customerAddressDelete"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.delete.variables.customerId"
+            },
+            "addressId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.delete.variables.addressId"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-default-unknown-address",
+        "capturePath": "$.missingCustomerUnknownAddress.defaultAddress.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].extensions.code", "$.errors[0].path", "$.data.customerUpdateDefaultAddress"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-default-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.defaultAddress.variables.customerId"
+            },
+            "addressId": {
+              "fromCapturePath": "$.missingCustomerUnknownAddress.defaultAddress.variables.addressId"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-update-foreign-address",
+        "capturePath": "$.missingCustomerForeignAddress.update.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerForeignAddress.update.variables.customerId"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-foreign-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "fromCapturePath": "$.missingCustomerForeignAddress.update.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.missingCustomerForeignAddress.update.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-delete-foreign-address",
+        "capturePath": "$.missingCustomerForeignAddress.delete.response.data.customerAddressDelete",
+        "proxyPath": "$.data.customerAddressDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerForeignAddress.delete.variables.customerId"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-foreign-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-customer-default-foreign-address",
+        "capturePath": "$.missingCustomerForeignAddress.defaultAddress.response.data.customerUpdateDefaultAddress",
+        "proxyPath": "$.data.customerUpdateDefaultAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-default-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.missingCustomerForeignAddress.defaultAddress.variables.customerId"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-foreign-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
