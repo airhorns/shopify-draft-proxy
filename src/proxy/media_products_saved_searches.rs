@@ -574,6 +574,22 @@ impl DraftProxy {
                 );
             }
         }
+        if resolved_object_list_field(&input, "productOptions")
+            .iter()
+            .filter_map(|option| resolved_string_field(option, "name"))
+            .any(|name| product_option_name_has_title_delimiter(&name))
+        {
+            return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
+                request,
+                query,
+                variables,
+                vec![user_error_omit_code(
+                    ["options"],
+                    PRODUCT_CREATE_OPTION_NAME_DELIMITER_MESSAGE,
+                    None,
+                )],
+            ));
+        }
 
         let id = self.next_proxy_synthetic_gid("Product");
         let handle =

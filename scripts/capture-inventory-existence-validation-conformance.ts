@@ -16,7 +16,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-existence-validation.json');
 const unknownInventoryItemId = 'gid://shopify/InventoryItem/42';
-const unknownLocationId = 'gid://shopify/Location/999999999999';
+const unknownLocationId = 'gid://shopify/Location/515151515151';
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -83,7 +83,7 @@ const capturePayload = {
   storeDomain,
   apiVersion,
   summary:
-    'Inventory existence validation for a non-sentinel well-formed but unbacked InventoryItem GID in inventoryAdjustQuantities.',
+    'Inventory existence validation for non-sentinel well-formed but unbacked InventoryItem and Location GIDs in inventoryAdjustQuantities.',
   unknownInventoryItemId,
   unknownLocationId,
   adjustUnknownInventoryItem: {
