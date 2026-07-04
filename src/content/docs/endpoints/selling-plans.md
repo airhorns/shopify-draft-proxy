@@ -89,6 +89,25 @@ products, variants, and selling-plan groups. Downstream
 `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
 read from the staged membership graph.
 
+The top-level `sellingPlanGroups(...)` connection filters the staged group set
+before applying sort, reverse order, and cursor windowing. Local query support
+covers bare text plus `app_id`, `category`, `created_at`,
+`delivery_frequency`, `id`, `name`, and `percentage_off`; an unrecognized keyed
+filter returns no staged matches. Supported sort keys are `ID` by default,
+`NAME`, `CREATED_AT`, and `UPDATED_AT`, with `UPDATED_AT` using the group's
+effective stored timestamp. Captured 2026-04 behavior showed a delayed
+description-only `sellingPlanGroupUpdate` did not move that group ahead of a
+later-created group in `sortKey: UPDATED_AT, reverse: true` ordering, so local
+staged group updates preserve the original effective timestamp for this sort.
+
+Nested `Product.sellingPlanGroups(...)` and
+`ProductVariant.sellingPlanGroups(...)` apply reverse order and cursor
+windowing over the staged membership overlay, and the corresponding
+`sellingPlanGroupsCount` fields return exact staged counts. Shopify Admin
+GraphQL 2026-04 rejects `query` and `sortKey` arguments on those nested
+connections, so the local overlay only models the schema-valid nested
+connection arguments.
+
 Snapshot reads over an empty local selling-plan store return Shopify-like no-data
 shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
 empty connection. In LiveHybrid, mutation roots that target live-store groups,

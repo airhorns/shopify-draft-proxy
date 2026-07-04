@@ -194,6 +194,8 @@ struct SellingPlanGroupRecord {
     options: Vec<String>,
     position: i64,
     created_at: String,
+    #[serde(default)]
+    updated_at: String,
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,

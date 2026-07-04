@@ -4031,3 +4031,29 @@ Practical rule:
 - keep nested-connection parity targets pinned to the public count-precedence
   response unless a future capture finds a public document that isolates the
   depth message
+
+## 95. Selling-plan group connection args are not symmetric between roots
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` accepts `query`,
+`sortKey`, `reverse`, and cursor windowing on the top-level
+`sellingPlanGroups(...)` connection, but rejects `query` and `sortKey` on the
+nested `Product.sellingPlanGroups(...)` and
+`ProductVariant.sellingPlanGroups(...)` connections. The nested connections did
+accept `reverse` and cursor arguments in the live capture.
+
+The same capture intentionally created alpha, beta, and gamma groups, waited
+after creating gamma, then updated beta's description before reading
+`sellingPlanGroups(query:, sortKey: UPDATED_AT, reverse: true)`. Shopify still
+returned gamma before beta, so a description-only `sellingPlanGroupUpdate` did
+not make the group sort as newer than a later-created group for this connection.
+
+Practical rule:
+
+- implement top-level selling-plan group query/sort/reverse/windowing through
+  the staged connection helper, but keep nested product/variant connections to
+  schema-valid reverse/window behavior unless a future public schema exposes
+  `query` or `sortKey`
+- do not bump a staged selling-plan group's effective timestamp just because a
+  local update or membership mutation touched it; keep `UPDATED_AT` ordering
+  pinned to the stored effective timestamp until a capture proves which mutation
+  families actually move that ordering
