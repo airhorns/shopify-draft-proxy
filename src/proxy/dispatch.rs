@@ -581,6 +581,15 @@ impl DraftProxy {
                 selection,
             ));
         }
+        if let Some(configuration) = self
+            .store
+            .staged
+            .tax_app_configuration
+            .as_ref()
+            .filter(|configuration| configuration["id"].as_str() == Some(id))
+        {
+            return Some(selected_json(configuration, selection));
+        }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
@@ -1866,9 +1875,24 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let data = self.functions_metadata_mutation_data(request, &fields);
-                self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
-                ok_json(json!({ "data": data }))
+                let (data, errors) = self.functions_metadata_mutation_data(request, &fields);
+                if data
+                    .as_object()
+                    .is_some_and(|fields| fields.values().any(|value| !value.is_null()))
+                {
+                    self.record_mutation_log_entry(
+                        request,
+                        &query,
+                        &variables,
+                        root_field,
+                        Vec::new(),
+                    );
+                }
+                if errors.is_empty() {
+                    ok_json(json!({ "data": data }))
+                } else {
+                    ok_json(json!({ "data": data, "errors": errors }))
+                }
             }
             (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
