@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-07T15:38:22.558Z",
+  "capturedAt": "2026-07-03T08:16:44.159Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": {
@@ -8,7 +8,7 @@
       "query": "#graphql\n  mutation LocationAddressCodeDerivationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        address {\n          country\n          countryCode\n          province\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "name": "Proxy GB 20260507153822",
+          "name": "Proxy GB 20260703081644",
           "fulfillsOnlineOrders": false,
           "address": {
             "countryCode": "GB"
@@ -21,8 +21,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112877764914",
-                "name": "Proxy GB 20260507153822",
+                "id": "gid://shopify/Location/113774199090",
+                "name": "Proxy GB 20260703081644",
                 "address": {
                   "country": "United Kingdom",
                   "countryCode": "GB",
@@ -51,15 +51,15 @@
       "name": "gbRead",
       "query": "#graphql\n  query LocationAddressCodeDerivationRead($id: ID!) {\n    location(id: $id) {\n      id\n      name\n      address {\n        country\n        countryCode\n        province\n        provinceCode\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Location/112877764914"
+        "id": "gid://shopify/Location/113774199090"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112877764914",
-              "name": "Proxy GB 20260507153822",
+              "id": "gid://shopify/Location/113774199090",
+              "name": "Proxy GB 20260703081644",
               "address": {
                 "country": "United Kingdom",
                 "countryCode": "GB",
@@ -87,7 +87,7 @@
       "query": "#graphql\n  mutation LocationAddressCodeDerivationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        address {\n          country\n          countryCode\n          province\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "name": "Proxy AU 20260507153822",
+          "name": "Proxy AU 20260703081644",
           "fulfillsOnlineOrders": false,
           "address": {
             "countryCode": "AU",
@@ -101,8 +101,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112877797682",
-                "name": "Proxy AU 20260507153822",
+                "id": "gid://shopify/Location/113774231858",
+                "name": "Proxy AU 20260703081644",
                 "address": {
                   "country": "Australia",
                   "countryCode": "AU",
@@ -131,15 +131,15 @@
       "name": "auRead",
       "query": "#graphql\n  query LocationAddressCodeDerivationRead($id: ID!) {\n    location(id: $id) {\n      id\n      name\n      address {\n        country\n        countryCode\n        province\n        provinceCode\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Location/112877797682"
+        "id": "gid://shopify/Location/113774231858"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112877797682",
-              "name": "Proxy AU 20260507153822",
+              "id": "gid://shopify/Location/113774231858",
+              "name": "Proxy AU 20260703081644",
               "address": {
                 "country": "Australia",
                 "countryCode": "AU",
@@ -162,12 +162,92 @@
         }
       }
     },
+    "aeAdd": {
+      "name": "aeAdd",
+      "query": "#graphql\n  mutation LocationAddressCodeDerivationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        address {\n          country\n          countryCode\n          province\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "Proxy AE 20260703081644",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "countryCode": "AE",
+            "provinceCode": "DU"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113774264626",
+                "name": "Proxy AE 20260703081644",
+                "address": {
+                  "country": "United Arab Emirates",
+                  "countryCode": "AE",
+                  "province": "Dubai",
+                  "provinceCode": "DU"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "aeRead": {
+      "name": "aeRead",
+      "query": "#graphql\n  query LocationAddressCodeDerivationRead($id: ID!) {\n    location(id: $id) {\n      id\n      name\n      address {\n        country\n        countryCode\n        province\n        provinceCode\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/113774264626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/113774264626",
+              "name": "Proxy AE 20260703081644",
+              "address": {
+                "country": "United Arab Emirates",
+                "countryCode": "AE",
+                "province": "Dubai",
+                "provinceCode": "DU"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "caSetupAdd": {
       "name": "caSetupAdd",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        address {\n          country\n          countryCode\n          province\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "name": "Proxy CA 20260507153822",
+          "name": "Proxy CA 20260703081644",
           "fulfillsOnlineOrders": false,
           "address": {
             "countryCode": "CA",
@@ -181,8 +261,8 @@
           "data": {
             "locationAdd": {
               "location": {
-                "id": "gid://shopify/Location/112877830450",
-                "name": "Proxy CA 20260507153822",
+                "id": "gid://shopify/Location/113774297394",
+                "name": "Proxy CA 20260703081644",
                 "address": {
                   "country": "Canada",
                   "countryCode": "CA",
@@ -211,7 +291,7 @@
       "name": "caProvinceOnlyEdit",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationEdit($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        id\n        name\n        address {\n          country\n          countryCode\n          province\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Location/112877830450",
+        "id": "gid://shopify/Location/113774297394",
         "input": {
           "address": {
             "provinceCode": "ON"
@@ -224,8 +304,8 @@
           "data": {
             "locationEdit": {
               "location": {
-                "id": "gid://shopify/Location/112877830450",
-                "name": "Proxy CA 20260507153822",
+                "id": "gid://shopify/Location/113774297394",
+                "name": "Proxy CA 20260703081644",
                 "address": {
                   "country": "Canada",
                   "countryCode": "CA",
@@ -254,15 +334,15 @@
       "name": "caProvinceOnlyRead",
       "query": "#graphql\n  query LocationAddressCodeDerivationRead($id: ID!) {\n    location(id: $id) {\n      id\n      name\n      address {\n        country\n        countryCode\n        province\n        provinceCode\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Location/112877830450"
+        "id": "gid://shopify/Location/113774297394"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "location": {
-              "id": "gid://shopify/Location/112877830450",
-              "name": "Proxy CA 20260507153822",
+              "id": "gid://shopify/Location/113774297394",
+              "name": "Proxy CA 20260703081644",
               "address": {
                 "country": "Canada",
                 "countryCode": "CA",
@@ -291,8 +371,8 @@
       "name": "cleanupDeactivate",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877830450",
-        "idempotencyKey": "location-address-code-derivation-cleanup-20260507153822-112877830450"
+        "locationId": "gid://shopify/Location/113774297394",
+        "idempotencyKey": "location-address-code-derivation-cleanup-20260703081644-113774297394"
       },
       "response": {
         "status": 200,
@@ -300,7 +380,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112877830450",
+                "id": "gid://shopify/Location/113774297394",
                 "isActive": false
               },
               "locationDeactivateUserErrors": []
@@ -324,14 +404,14 @@
       "name": "cleanupDelete",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877830450"
+        "locationId": "gid://shopify/Location/113774297394"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112877830450",
+              "deletedLocationId": "gid://shopify/Location/113774297394",
               "locationDeleteUserErrors": []
             }
           },
@@ -353,8 +433,8 @@
       "name": "cleanupDeactivate",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877797682",
-        "idempotencyKey": "location-address-code-derivation-cleanup-20260507153822-112877797682"
+        "locationId": "gid://shopify/Location/113774264626",
+        "idempotencyKey": "location-address-code-derivation-cleanup-20260703081644-113774264626"
       },
       "response": {
         "status": 200,
@@ -362,7 +442,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112877797682",
+                "id": "gid://shopify/Location/113774264626",
                 "isActive": false
               },
               "locationDeactivateUserErrors": []
@@ -386,14 +466,14 @@
       "name": "cleanupDelete",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877797682"
+        "locationId": "gid://shopify/Location/113774264626"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112877797682",
+              "deletedLocationId": "gid://shopify/Location/113774264626",
               "locationDeleteUserErrors": []
             }
           },
@@ -415,8 +495,8 @@
       "name": "cleanupDeactivate",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877764914",
-        "idempotencyKey": "location-address-code-derivation-cleanup-20260507153822-112877764914"
+        "locationId": "gid://shopify/Location/113774231858",
+        "idempotencyKey": "location-address-code-derivation-cleanup-20260703081644-113774231858"
       },
       "response": {
         "status": 200,
@@ -424,7 +504,7 @@
           "data": {
             "locationDeactivate": {
               "location": {
-                "id": "gid://shopify/Location/112877764914",
+                "id": "gid://shopify/Location/113774231858",
                 "isActive": false
               },
               "locationDeactivateUserErrors": []
@@ -448,14 +528,76 @@
       "name": "cleanupDelete",
       "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "locationId": "gid://shopify/Location/112877764914"
+        "locationId": "gid://shopify/Location/113774231858"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "locationDelete": {
-              "deletedLocationId": "gid://shopify/Location/112877764914",
+              "deletedLocationId": "gid://shopify/Location/113774231858",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113774199090",
+        "idempotencyKey": "location-address-code-derivation-cleanup-20260703081644-113774199090"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113774199090",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationAddressCodeDerivationCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113774199090"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113774199090",
               "locationDeleteUserErrors": []
             }
           },
