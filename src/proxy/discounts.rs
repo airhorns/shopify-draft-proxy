@@ -1580,7 +1580,9 @@ impl DraftProxy {
     }
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
-        let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
+        let Some(query) = self.discount_catalog_query(field) else {
+            return Vec::new();
+        };
         self.store
             .staged
             .discounts
@@ -1594,6 +1596,18 @@ impl DraftProxy {
             })
             .filter(|record| discount_matches_query(record, &query))
             .collect()
+    }
+
+    fn discount_catalog_query(&self, field: &RootFieldSelection) -> Option<String> {
+        if field.arguments.contains_key("savedSearchId")
+            || field.arguments.contains_key("saved_search_id")
+        {
+            return resolved_string_field(&field.arguments, "savedSearchId")
+                .or_else(|| resolved_string_field(&field.arguments, "saved_search_id"))
+                .and_then(|id| self.store.saved_search_by_id(&id))
+                .map(|saved_search| saved_search.query);
+        }
+        Some(resolved_string_field(&field.arguments, "query").unwrap_or_default())
     }
 
     pub(in crate::proxy) fn discount_node_value_by_id(
@@ -3228,55 +3242,264 @@ pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
 }
 
 fn discount_matches_query(record: &Value, query: &str) -> bool {
-    let normalized = query.to_ascii_lowercase();
-    if normalized.is_empty() {
+    let query = query.trim();
+    if query.is_empty() {
         return true;
     }
-    if normalized.contains("status:active") && record["status"].as_str() != Some("ACTIVE") {
-        return false;
+    let tokens = discount_search_terms(query);
+    if tokens.is_empty() {
+        return true;
     }
-    if normalized.contains("status:expired") && record["status"].as_str() != Some("EXPIRED") {
-        return false;
-    }
-    if normalized.contains("status:scheduled") && record["status"].as_str() != Some("SCHEDULED") {
-        return false;
-    }
-    if normalized.contains("type:free_shipping") {
-        return record["typename"]
-            .as_str()
-            .map(|typename| typename.contains("FreeShipping"))
-            .unwrap_or(false);
-    }
-    if normalized.contains("type:automatic") {
-        return discount_kind(record) == "automatic";
-    }
-    // `type:app` narrows to app-managed (Function-backed) discounts, whose
-    // concrete type is DiscountCodeApp / DiscountAutomaticApp.
-    if normalized.contains("type:app") {
-        return record["typename"]
-            .as_str()
-            .map(|typename| typename.contains("App"))
-            .unwrap_or(false);
-    }
-    // `discount_class:<class>` narrows by the discount's discountClasses set
-    // (PRODUCT / ORDER / SHIPPING). Multiple class tokens AND together.
-    for token in normalized.split_whitespace() {
-        if let Some(class) = token.strip_prefix("discount_class:") {
-            let matches_class = record["discountClasses"]
-                .as_array()
-                .map(|classes| {
-                    classes
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .any(|existing| existing.eq_ignore_ascii_case(class))
-                })
-                .unwrap_or(false);
-            if !matches_class {
-                return false;
-            }
+    for token in tokens {
+        match discount_search_term_decision(record, &token) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch | StagedSearchDecision::Unsupported => return false,
         }
     }
     true
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DiscountSearchTerm {
+    field: Option<String>,
+    value: String,
+}
+
+fn discount_search_terms(query: &str) -> Vec<DiscountSearchTerm> {
+    discount_search_tokens(query)
+        .into_iter()
+        .map(DiscountSearchTerm::new)
+        .collect()
+}
+
+fn discount_search_tokens(query: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let chars = query.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < chars.len() {
+        while index < chars.len() && chars[index].is_whitespace() {
+            index += 1;
+        }
+        if index >= chars.len() {
+            break;
+        }
+        let mut value = String::new();
+        while index < chars.len() && !chars[index].is_whitespace() {
+            if chars[index] == '"' || chars[index] == '\'' {
+                let quote = chars[index];
+                index += 1;
+                while index < chars.len() && chars[index] != quote {
+                    value.push(chars[index]);
+                    index += 1;
+                }
+                if index < chars.len() {
+                    index += 1;
+                }
+            } else {
+                value.push(chars[index]);
+                index += 1;
+            }
+        }
+        if !value.is_empty() {
+            tokens.push(value);
+        }
+    }
+    tokens
+}
+
+impl DiscountSearchTerm {
+    fn new(value: String) -> Self {
+        if let Some((field, value)) = value.split_once(':') {
+            if !field.is_empty() && !value.is_empty() {
+                return Self {
+                    field: Some(field.to_ascii_lowercase()),
+                    value: discount_search_unquote(value),
+                };
+            }
+        }
+        Self {
+            field: None,
+            value: discount_search_unquote(&value),
+        }
+    }
+}
+
+fn discount_search_term_decision(
+    record: &Value,
+    term: &DiscountSearchTerm,
+) -> StagedSearchDecision {
+    let value = term.value.trim();
+    if value.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    match term.field.as_deref() {
+        None => StagedSearchDecision::from_bool(discount_search_string_matches(
+            record["title"].as_str().unwrap_or_default(),
+            value,
+        )),
+        Some("title") => StagedSearchDecision::from_bool(discount_search_string_matches(
+            record["title"].as_str().unwrap_or_default(),
+            value,
+        )),
+        Some("id") => StagedSearchDecision::from_bool(discount_search_string_matches(
+            discount_id(record),
+            value,
+        )),
+        Some("status") => discount_status_search_decision(record, value),
+        Some("method") => discount_method_search_decision(record, value),
+        Some("type") | Some("discount_type") => discount_type_search_decision(record, value),
+        Some("discount_class") => {
+            StagedSearchDecision::from_bool(discount_record_has_class(record, value))
+        }
+        Some("times_used") => StagedSearchDecision::from_bool(discount_matches_numeric_query(
+            record["asyncUsageCount"].as_i64().unwrap_or_default(),
+            value,
+        )),
+        Some("starts_at") => discount_date_search_decision(record, "startsAt", value),
+        Some("ends_at") => discount_date_search_decision(record, "endsAt", value),
+        Some("created_at") => discount_date_search_decision(record, "createdAt", value),
+        Some("updated_at") => discount_date_search_decision(record, "updatedAt", value),
+        Some("code") => StagedSearchDecision::from_bool(
+            discount_record_codes(record)
+                .iter()
+                .any(|code| discount_search_string_matches(code, value)),
+        ),
+        Some("combines_with") => {
+            StagedSearchDecision::from_bool(discount_record_combines_with(record, value))
+        }
+        Some(_) => StagedSearchDecision::Unsupported,
+    }
+}
+
+fn discount_status_search_decision(record: &Value, value: &str) -> StagedSearchDecision {
+    let expected = match value.to_ascii_lowercase().as_str() {
+        "active" => "ACTIVE",
+        "expired" => "EXPIRED",
+        "scheduled" => "SCHEDULED",
+        _ => return StagedSearchDecision::NoMatch,
+    };
+    StagedSearchDecision::from_bool(record["status"].as_str() == Some(expected))
+}
+
+fn discount_method_search_decision(record: &Value, value: &str) -> StagedSearchDecision {
+    match discount_search_slug(value).as_str() {
+        "automatic" => StagedSearchDecision::from_bool(discount_kind(record) == "automatic"),
+        "code" => StagedSearchDecision::from_bool(discount_kind(record) == "code"),
+        _ => StagedSearchDecision::NoMatch,
+    }
+}
+
+fn discount_type_search_decision(record: &Value, value: &str) -> StagedSearchDecision {
+    let typename = record["typename"].as_str().unwrap_or_default();
+    match discount_search_slug(value).as_str() {
+        "automatic" => StagedSearchDecision::from_bool(discount_kind(record) == "automatic"),
+        "code" => StagedSearchDecision::from_bool(discount_kind(record) == "code"),
+        "app" => StagedSearchDecision::from_bool(typename.contains("App")),
+        "basic" => StagedSearchDecision::from_bool(typename.contains("Basic")),
+        "bxgy" | "buy_x_get_y" => StagedSearchDecision::from_bool(typename.contains("Bxgy")),
+        "free_shipping" => StagedSearchDecision::from_bool(typename.contains("FreeShipping")),
+        _ => StagedSearchDecision::NoMatch,
+    }
+}
+
+fn discount_record_has_class(record: &Value, value: &str) -> bool {
+    record["discountClasses"]
+        .as_array()
+        .map(|classes| {
+            classes
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|existing| existing.eq_ignore_ascii_case(value))
+        })
+        .unwrap_or(false)
+}
+
+fn discount_date_search_decision(record: &Value, field: &str, query: &str) -> StagedSearchDecision {
+    let Some(actual) = record[field].as_str() else {
+        return StagedSearchDecision::NoMatch;
+    };
+    StagedSearchDecision::from_bool(discount_matches_date_query(actual, query))
+}
+
+fn discount_matches_date_query(actual: &str, query: &str) -> bool {
+    let (operator, expected) = discount_search_comparator(query);
+    if expected.is_empty() {
+        return false;
+    }
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        "=" => actual.starts_with(expected),
+        _ => false,
+    }
+}
+
+fn discount_matches_numeric_query(actual: i64, query: &str) -> bool {
+    let (operator, expected) = discount_search_comparator(query);
+    let Ok(expected) = expected.parse::<i64>() else {
+        return false;
+    };
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        "=" => actual == expected,
+        _ => false,
+    }
+}
+
+fn discount_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn discount_record_combines_with(record: &Value, value: &str) -> bool {
+    let combines_with = &record["combinesWith"];
+    match discount_search_slug(value).as_str() {
+        "product_discounts" | "product" | "products" => {
+            combines_with["productDiscounts"].as_bool().unwrap_or(false)
+        }
+        "order_discounts" | "order" | "orders" => {
+            combines_with["orderDiscounts"].as_bool().unwrap_or(false)
+        }
+        "shipping_discounts" | "shipping" => combines_with["shippingDiscounts"]
+            .as_bool()
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn discount_search_string_matches(actual: &str, query_value: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value.to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+fn discount_search_unquote(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string()
+}
+
+fn discount_search_slug(value: &str) -> String {
+    value.trim().to_ascii_lowercase().replace('-', "_")
 }
 
 fn resolved_non_blank_string_field(
