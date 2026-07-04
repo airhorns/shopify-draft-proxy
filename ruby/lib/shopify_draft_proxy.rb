@@ -51,6 +51,12 @@ module ShopifyDraftProxy
   class DraftProxy
     DEFAULT_API_VERSION = "2025-01"
 
+    # Version token for a brand-new proxy: zero log entries, none settled, and
+    # the synthetic id counter at its initial value. Mirrors the Rust
+    # `state_version()` format `"<len>:<settled>:<next_synthetic_id>"`, so it is
+    # the baseline to compare a userland dump/restore seed of `nil` against.
+    PRISTINE_STATE_VERSION = "0:0:1"
+
     # Inject the default Net::HTTP transport unless the caller supplied one, so
     # every construction path (create, .new) ends up with a working transport
     # while still letting embedders override it.
@@ -63,6 +69,21 @@ module ShopifyDraftProxy
           options[:transport] = Transports::DEFAULT
         end
         native_new(options)
+      end
+
+      # Compute the state-version token for a state dump Hash: an opaque token
+      # that is equal iff two dumps carry the same persistable state — the same
+      # value the runtime stamps on every response as the `x-sdp-state-version`
+      # header. Callers that drive their own dump/restore persistence use it to
+      # tell whether an operation changed staged state: compare this token for
+      # the seed dump against the response header and persist the new dump only
+      # when they differ. Accepts string- or symbol-keyed dumps.
+      def state_version_of(dump)
+        log = dump["log"] || dump[:log] || {}
+        entries = log["entries"] || log[:entries] || []
+        settled = entries.count { |entry| (entry["status"] || entry[:status]) != "staged" }
+        next_id = dump["nextSyntheticId"] || dump[:nextSyntheticId] || 1
+        "#{entries.length}:#{settled}:#{next_id}"
       end
     end
 
