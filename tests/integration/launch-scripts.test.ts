@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = new URL('../..', import.meta.url);
 const testOrigin = 'https://example.myshopify.com';
 const pnpmCommand = 'corepack';
+const serverStartupTimeoutMs = 60_000;
 
 function pnpmArgs(args: string[]): string[] {
   return ['pnpm', ...args];
@@ -41,7 +42,7 @@ async function runPnpm(args: string[]): Promise<void> {
 }
 
 async function waitForServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
-  const deadline = Date.now() + 60_000;
+  const deadline = Date.now() + serverStartupTimeoutMs;
 
   while (Date.now() < deadline) {
     if (getOutput().includes('shopify-draft-proxy rust runtime listening')) {

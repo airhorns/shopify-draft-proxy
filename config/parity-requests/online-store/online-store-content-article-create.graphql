@@ -16,6 +16,9 @@ mutation OnlineStoreContentArticleCreate($article: ArticleCreateInput!) {
         id
         title
         handle
+        commentPolicy
+        createdAt
+        updatedAt
       }
       commentsCount {
         count
