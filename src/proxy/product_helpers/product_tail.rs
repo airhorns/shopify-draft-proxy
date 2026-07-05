@@ -1300,7 +1300,7 @@ impl DraftProxy {
         let product_value = product
             .as_ref()
             .map(|product| {
-                product_json_with_variants_and_currency(
+                self.product_json_with_variants_and_currency_context(
                     product,
                     &self.store.product_variants_for_product(&product.id),
                     selected_child_selection(&field.selection, "product")

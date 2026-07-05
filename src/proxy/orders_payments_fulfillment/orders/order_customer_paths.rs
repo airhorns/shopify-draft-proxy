@@ -81,6 +81,7 @@ impl DraftProxy {
         let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
         self.store.staged.next_b2b_company_id += 5;
         let company = json!({
+            "__typename": "Company",
             "id": id,
             "name": name,
             "externalId": Value::Null,
@@ -162,20 +163,25 @@ impl DraftProxy {
         let order_input = resolved_object_field(&field.arguments, "order")?;
         let id = self.next_proxy_synthetic_gid("Order");
         let customer_id = resolved_string_field(&order_input, "customerId");
-        // Retain the purchasing entity so a later company delete can detect that an
-        // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = draft_order_purchasing_entity(&order_input);
+        // Retain purchasing entity so company delete detects B2B references.
+        let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
         if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let order = json!({
-            "id": id,
-            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
-            "purchasingEntity": purchasing_entity
-        });
+        let mut order = self.build_order_create_record(&id, &order_input);
+        order["purchasingEntity"] = purchasing_entity;
+        if let Some(customer_id) = customer_id {
+            order["customer"] = self
+                .store
+                .staged
+                .customers
+                .get(&customer_id)
+                .cloned()
+                .unwrap_or_else(|| json!({ "id": customer_id }));
+        }
         self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),
             order.clone(),
@@ -184,6 +190,41 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         ))
+    }
+
+    pub(super) fn order_create_b2b_purchasing_entity(
+        &self,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let purchasing_entity = draft_order_purchasing_entity(order_input);
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
+            return purchasing_entity;
+        }
+        let Some(location_id) = resolved_string_field(order_input, "companyLocationId") else {
+            return purchasing_entity;
+        };
+        let company_id = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .and_then(|location| location["companyId"].as_str())
+            .map(str::to_string);
+        let contact_id = company_id.as_ref().and_then(|id| {
+            self.store
+                .staged
+                .b2b_companies
+                .get(id)
+                .and_then(|company| company["mainContactId"].as_str())
+                .map(str::to_string)
+        });
+        json!({
+            "companyId": company_id,
+            "companyLocationId": location_id,
+            "company": company_id.as_ref().map(|id| json!({ "id": id })).unwrap_or(Value::Null),
+            "contact": contact_id.as_ref().map(|id| json!({ "id": id })).unwrap_or(Value::Null),
+            "location": { "id": location_id }
+        })
     }
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(
@@ -695,6 +736,7 @@ pub(super) fn order_customer_purchasing_entity_is_b2b(entity: &Value) -> bool {
                     .and_then(|company| company.get("id"))
                     .is_some_and(Value::is_string)
                 || map.get("companyId").is_some_and(Value::is_string)
+                || map.get("companyLocationId").is_some_and(Value::is_string)
                 || map.values().any(order_customer_purchasing_entity_is_b2b)
         }
         Value::Array(items) => items.iter().any(order_customer_purchasing_entity_is_b2b),

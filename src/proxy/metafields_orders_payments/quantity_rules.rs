@@ -1,57 +1,104 @@
 use super::*;
 
-pub(in crate::proxy) fn quantity_rules_mutation_response(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    store: &Store,
-) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, variables)
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
-    let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
-    let payload = if root_field == "quantityRulesDelete" {
-        let variant_ids = list_string_field(variables, "variantIds");
-        let variant_errors = quantity_rules_delete_variant_errors(store, &variant_ids);
-        if !store
-            .staged
-            .price_lists
-            .contains_key(price_list_id.as_str())
-        {
-            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
-        } else if !variant_errors.is_empty() {
-            json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})
+impl DraftProxy {
+    pub(in crate::proxy) fn quantity_rules_mutation_response(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let (response_key, payload_selection) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+        let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
+        let (payload, staged_variant_ids) = if root_field == "quantityRulesDelete" {
+            let variant_ids = list_string_field(variables, "variantIds");
+            let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
+            if !self
+                .store
+                .staged
+                .price_lists
+                .contains_key(price_list_id.as_str())
+            {
+                (
+                    json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]}),
+                    Vec::new(),
+                )
+            } else if !variant_errors.is_empty() {
+                (
+                    json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors}),
+                    Vec::new(),
+                )
+            } else {
+                if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
+                    delete_quantity_rule_nodes(price_list, &variant_ids);
+                }
+                (
+                    json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []}),
+                    list_string_field(variables, "variantIds"),
+                )
+            }
         } else {
-            json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
-        }
-    } else {
-        let quantity_rules = resolved_object_list_field(variables, "quantityRules");
-        let variant_errors = quantity_rules_add_variant_errors(store, &quantity_rules);
-        if !store
-            .staged
-            .price_lists
-            .contains_key(price_list_id.as_str())
+            let quantity_rules = resolved_object_list_field(variables, "quantityRules");
+            let variant_errors = quantity_rules_add_variant_errors(&self.store, &quantity_rules);
+            if !self
+                .store
+                .staged
+                .price_lists
+                .contains_key(price_list_id.as_str())
+            {
+                (
+                    json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]}),
+                    Vec::new(),
+                )
+            } else if !variant_errors.is_empty() {
+                (
+                    json!({"quantityRules": [], "userErrors": variant_errors}),
+                    Vec::new(),
+                )
+            } else if let Some(errors) = quantity_rules_add_validation_errors(&quantity_rules) {
+                (
+                    json!({"quantityRules": [], "userErrors": errors}),
+                    Vec::new(),
+                )
+            } else {
+                if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
+                    upsert_quantity_rule_nodes(price_list, &quantity_rules);
+                }
+                let staged_variant_ids = quantity_rules
+                    .iter()
+                    .filter_map(|rule| resolved_string_field(rule, "variantId"))
+                    .collect::<Vec<_>>();
+                (
+                    json!({
+                        "quantityRules": quantity_rules.into_iter().map(|rule| json!({
+                            "minimum": resolved_int_field(&rule, "minimum").unwrap_or(1),
+                            "maximum": resolved_int_field(&rule, "maximum"),
+                            "increment": resolved_int_field(&rule, "increment").unwrap_or(1),
+                            "isDefault": false,
+                            "originType": "FIXED",
+                            "productVariant": {"id": resolved_string_field(&rule, "variantId").unwrap_or_default()}
+                        })).collect::<Vec<_>>(),
+                        "userErrors": []
+                    }),
+                    staged_variant_ids,
+                )
+            }
+        };
+        if payload["userErrors"]
+            .as_array()
+            .is_some_and(|errors| errors.is_empty())
         {
-            json!({"quantityRules": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
-        } else if !variant_errors.is_empty() {
-            json!({"quantityRules": [], "userErrors": variant_errors})
-        } else if let Some(errors) = quantity_rules_add_validation_errors(&quantity_rules) {
-            json!({"quantityRules": [], "userErrors": errors})
-        } else {
-            json!({
-                "quantityRules": quantity_rules.into_iter().map(|rule| json!({
-                    "minimum": resolved_int_field(&rule, "minimum").unwrap_or(1),
-                    "maximum": resolved_int_field(&rule, "maximum"),
-                    "increment": resolved_int_field(&rule, "increment").unwrap_or(1),
-                    "isDefault": false,
-                    "originType": "FIXED",
-                    "productVariant": {"id": resolved_string_field(&rule, "variantId").unwrap_or_default()}
-                })).collect::<Vec<_>>(),
-                "userErrors": []
-            })
+            let mut touched_ids = Vec::new();
+            if !price_list_id.is_empty() {
+                touched_ids.push(price_list_id);
+            }
+            extend_unique_strings(&mut touched_ids, staged_variant_ids);
+            self.record_mutation_log_entry(request, query, variables, root_field, touched_ids);
         }
-    };
-    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
 }
 
 pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {

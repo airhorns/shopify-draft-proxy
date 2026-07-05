@@ -99,7 +99,7 @@ impl DraftProxy {
                 ));
             }
             if resource_exists
-                && resource_id.starts_with("gid://shopify/Product/")
+                && is_shopify_gid_of_type(&resource_id, "Product")
                 && publishable_input_needs_publication_catalog_hydration(
                     field.arguments.get("input"),
                     to_current,
@@ -245,7 +245,7 @@ impl DraftProxy {
                 .get("id")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
+            if is_shopify_gid_of_type(id, "Collection") {
                 self.store.stage_collection(publishable.clone());
             }
         }

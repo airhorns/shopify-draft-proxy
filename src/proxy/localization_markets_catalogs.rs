@@ -268,10 +268,7 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
 }
 
 fn value_gid_tail_sort_value(value: &Value) -> StagedSortValue {
-    let tail = resource_id_tail(value_string(value, "id"));
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(value.get("id").and_then(Value::as_str))
 }
 
 fn catalog_gid_tail_sort_value(catalog: &Value) -> StagedSortValue {
@@ -633,8 +630,8 @@ impl DraftProxy {
             .localization_mutation_target_ids(fields)
             .into_iter()
             .filter(|id| {
-                (id.starts_with("gid://shopify/Market/") && !self.market_exists(id))
-                    || (id.starts_with("gid://shopify/MarketWebPresence/")
+                (is_shopify_gid_of_type(id, "Market") && !self.market_exists(id))
+                    || (is_shopify_gid_of_type(id, "MarketWebPresence")
                         && !self.market_web_presence_exists(id))
             })
             .collect::<Vec<_>>();
@@ -2360,6 +2357,14 @@ impl DraftProxy {
             {
                 touched_ids.push(id.to_string());
             }
+            for id in outcome.value["deletedQuantityRulesVariantIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                push_unique_string(&mut touched_ids, id);
+            }
             errors.extend(outcome.errors);
             Some(outcome.value)
         });
@@ -2953,7 +2958,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn quantity_rules_delete_price_list_response(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
     ) -> Value {
         let price_list_id =
@@ -2969,6 +2974,9 @@ impl DraftProxy {
         } else {
             let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
             if variant_errors.is_empty() {
+                if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
+                    delete_quantity_rule_nodes(price_list, &variant_ids);
+                }
                 json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
             } else {
                 json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})
@@ -4238,7 +4246,7 @@ impl DraftProxy {
             let Some(id) = market.get("id").and_then(Value::as_str) else {
                 continue;
             };
-            if !id.starts_with("gid://shopify/Market/")
+            if !is_shopify_gid_of_type(id, "Market")
                 || !market.get("name").is_some_and(Value::is_string)
                 || !market.get("handle").is_some_and(Value::is_string)
                 || !market.get("status").is_some_and(Value::is_string)
@@ -4333,7 +4341,7 @@ impl DraftProxy {
                 .iter()
                 .filter(|node| {
                     node.get("__typename").and_then(Value::as_str) == Some("Market")
-                        || record_gid(node, "gid://shopify/Market/").is_some()
+                        || record_gid(node, "Market").is_some()
                 })
                 .cloned(),
         );
@@ -4345,7 +4353,12 @@ impl DraftProxy {
         // Catalogs: top-level plus nested under each market.
         let mut catalog_records = markets_collect_records(data, "catalogs", "catalog");
         for market in &market_records {
-            catalog_records.extend(markets_connection_nodes(market.get("catalogs")));
+            catalog_records.extend(
+                market
+                    .get("catalogs")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
@@ -4367,14 +4380,19 @@ impl DraftProxy {
         // Web presences: top-level plus nested under each market.
         let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
         for market in &market_records {
-            web_presence_records.extend(markets_connection_nodes(market.get("webPresences")));
+            web_presence_records.extend(
+                market
+                    .get("webPresences")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         web_presence_records.extend(
             hydrate_nodes
                 .iter()
                 .filter(|node| {
                     node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
-                        || record_gid(node, "gid://shopify/MarketWebPresence/").is_some()
+                        || record_gid(node, "MarketWebPresence").is_some()
                 })
                 .cloned(),
         );
@@ -4418,9 +4436,11 @@ impl DraftProxy {
             "marketLocalizableResources",
             "marketLocalizableResource",
         );
-        localizable_records.extend(markets_connection_nodes(
-            data.get("marketLocalizableResourcesByIds"),
-        ));
+        localizable_records.extend(
+            data.get("marketLocalizableResourcesByIds")
+                .map(connection_nodes)
+                .unwrap_or_default(),
+        );
         for record in &localizable_records {
             self.stage_observed_market_localizable_resource(record);
         }
@@ -4556,13 +4576,13 @@ impl DraftProxy {
         }
         for resource in &resources {
             if let Some(resource_id) = resource.get("resourceId").and_then(Value::as_str) {
-                if resource_id.starts_with("gid://shopify/Product/") {
+                if is_shopify_gid_of_type(resource_id, "Product") {
                     self.store
                         .base
                         .localization_product_ids
                         .insert(resource_id.to_string());
                     self.stage_observed_localization_product_source(resource_id, resource);
-                } else if resource_id.starts_with("gid://shopify/Collection/") {
+                } else if is_shopify_gid_of_type(resource_id, "Collection") {
                     self.stage_observed_localization_collection_source(resource_id, resource);
                 }
             }
@@ -4747,14 +4767,14 @@ impl DraftProxy {
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
         let locale = self.localization_primary_locale();
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             return self
                 .store
                 .product_staged_or_base(resource_id)
                 .map(|product| localization_product_translatable_content(&product, &locale))
                 .unwrap_or_default();
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             return self
                 .store
                 .collection_by_id(resource_id)
@@ -4785,7 +4805,7 @@ impl DraftProxy {
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
     /// is skipped — matching Shopify's captured "content not found -> no digest error" behavior.
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             let product = self.store.product_staged_or_base(resource_id)?;
             let value = match key {
                 "title" => product.title.clone(),
@@ -4798,7 +4818,7 @@ impl DraftProxy {
             };
             return Some(value);
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             let collection = self.store.collection_by_id(resource_id)?;
             let value = match key {
                 "title" => collection
@@ -4850,13 +4870,13 @@ impl DraftProxy {
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
-        resource_id.starts_with("gid://shopify/Product/")
-            || (resource_id.starts_with("gid://shopify/Collection/")
+        is_shopify_gid_of_type(resource_id, "Product")
+            || (is_shopify_gid_of_type(resource_id, "Collection")
                 && self.store.collection_by_id(resource_id).is_some())
     }
 
     fn localization_translation_key_is_valid(&self, resource_id: &str, key: &str) -> bool {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             return matches!(
                 key,
                 "title"
@@ -4867,7 +4887,7 @@ impl DraftProxy {
                     | "meta_description"
             );
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             return matches!(
                 key,
                 "title" | "body_html" | "handle" | "meta_title" | "meta_description"
@@ -5091,30 +5111,11 @@ fn markets_variables_have_local_id(
     })
 }
 
-fn markets_connection_nodes(value: Option<&Value>) -> Vec<Value> {
-    let Some(value) = value else {
-        return Vec::new();
-    };
-    let mut nodes = value
-        .get("nodes")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if nodes.is_empty() {
-        nodes = value
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned())
-            .filter(|node| node.is_object())
-            .collect();
-    }
-    nodes
-}
-
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
-    let mut records = markets_connection_nodes(data.get(connection_key));
+    let mut records = data
+        .get(connection_key)
+        .map(connection_nodes)
+        .unwrap_or_default();
     if let Some(record) = data.get(singular_key).filter(|value| value.is_object()) {
         records.push(record.clone());
     }
