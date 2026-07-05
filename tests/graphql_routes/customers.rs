@@ -1610,7 +1610,6 @@ fn customer_detail_connections_apply_query_sort_reverse_and_page_info() {
                     "email": email,
                     "currency": "USD",
                     "financialStatus": "PENDING",
-                    "fulfillmentStatus": "UNFULFILLED",
                     "processedAt": processed_at,
                     "tags": [tag],
                     "lineItems": [{
