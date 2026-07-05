@@ -356,9 +356,23 @@ impl DraftProxy {
         profile: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
     ) {
+        self.delivery_profile_delete_conditions(profile, input);
+        self.delivery_profile_create_location_groups(profile, input);
+        self.delivery_profile_update_location_groups(profile, input);
+        refresh_delivery_profile_counts(profile);
+    }
+
+    fn delivery_profile_delete_conditions(
+        &self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         let delete_ids = list_string_field(input, "conditionsToDelete")
             .into_iter()
             .collect::<BTreeSet<_>>();
+        if delete_ids.is_empty() {
+            return;
+        }
         for group in profile["profileLocationGroups"]
             .as_array_mut()
             .into_iter()
@@ -385,13 +399,26 @@ impl DraftProxy {
                 }
             }
         }
+    }
 
+    fn delivery_profile_create_location_groups(
+        &mut self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         for group_input in resolved_object_list_field(input, "locationGroupsToCreate") {
             let group = self.delivery_location_group_from_input(&group_input);
             if let Some(groups) = profile["profileLocationGroups"].as_array_mut() {
                 groups.push(group);
             }
         }
+    }
+
+    fn delivery_profile_update_location_groups(
+        &mut self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         for group_update in resolved_object_list_field(input, "locationGroupsToUpdate") {
             let group_id = resolved_string_field(&group_update, "id").unwrap_or_default();
             let Some(group) = profile["profileLocationGroups"]
@@ -402,66 +429,100 @@ impl DraftProxy {
             else {
                 continue;
             };
-            if let Some(locations) = group["locationGroup"]["locations"].as_array_mut() {
-                for location_id in list_string_field(&group_update, "locationsToAdd") {
-                    if !locations.iter().any(|location| {
-                        location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
-                    }) {
-                        locations.push(self.delivery_profile_location_record(&location_id));
-                    }
-                }
-                let count = locations.len();
-                group["locationGroup"]["locationsCount"] = count_object(count);
-            }
-            for zone_update in resolved_object_list_field(&group_update, "zonesToUpdate") {
-                let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();
-                let Some(zone) = group["locationGroupZones"]
-                    .as_array_mut()
-                    .into_iter()
-                    .flatten()
-                    .find(|zone| zone["zone"]["id"].as_str() == Some(zone_id.as_str()))
-                else {
-                    continue;
-                };
-                if let Some(name) = resolved_string_field(&zone_update, "name") {
-                    zone["zone"]["name"] = json!(name);
-                }
-                for method_update in
-                    resolved_object_list_field(&zone_update, "methodDefinitionsToUpdate")
-                {
-                    let method_id = resolved_string_field(&method_update, "id").unwrap_or_default();
-                    let Some(method) = zone["methodDefinitions"]
-                        .as_array_mut()
-                        .into_iter()
-                        .flatten()
-                        .find(|method| method["id"].as_str() == Some(method_id.as_str()))
-                    else {
-                        continue;
-                    };
-                    if let Some(name) = resolved_string_field(&method_update, "name") {
-                        method["name"] = json!(name);
-                    }
-                    if let Some(active) = resolved_bool_field(&method_update, "active") {
-                        method["active"] = json!(active);
-                    }
-                    if method_update.contains_key("rateDefinition") {
-                        method["rateProvider"]["price"] =
-                            delivery_price_from_method_input(&method_update);
-                    }
-                }
-                let mut new_methods =
-                    resolved_object_list_field(&zone_update, "methodDefinitionsToCreate")
-                        .into_iter()
-                        .map(|method_input| {
-                            self.delivery_method_definition_from_input(&method_input)
-                        })
-                        .collect::<Vec<_>>();
-                if let Some(methods) = zone["methodDefinitions"].as_array_mut() {
-                    methods.append(&mut new_methods);
-                }
+            self.delivery_profile_add_locations_to_group(group, &group_update);
+            self.delivery_profile_update_zones(group, &group_update);
+        }
+    }
+
+    fn delivery_profile_add_locations_to_group(
+        &mut self,
+        group: &mut Value,
+        group_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let Some(locations) = group["locationGroup"]["locations"].as_array_mut() else {
+            return;
+        };
+        for location_id in list_string_field(group_update, "locationsToAdd") {
+            if !locations.iter().any(|location| {
+                location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
+            }) {
+                locations.push(self.delivery_profile_location_record(&location_id));
             }
         }
-        refresh_delivery_profile_counts(profile);
+        let count = locations.len();
+        group["locationGroup"]["locationsCount"] = count_object(count);
+    }
+
+    fn delivery_profile_update_zones(
+        &mut self,
+        group: &mut Value,
+        group_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for zone_update in resolved_object_list_field(group_update, "zonesToUpdate") {
+            let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();
+            let Some(zone) = group["locationGroupZones"]
+                .as_array_mut()
+                .into_iter()
+                .flatten()
+                .find(|zone| zone["zone"]["id"].as_str() == Some(zone_id.as_str()))
+            else {
+                continue;
+            };
+            self.delivery_profile_update_zone(zone, &zone_update);
+        }
+    }
+
+    fn delivery_profile_update_zone(
+        &mut self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if let Some(name) = resolved_string_field(zone_update, "name") {
+            zone["zone"]["name"] = json!(name);
+        }
+        self.delivery_profile_update_method_definitions(zone, zone_update);
+        self.delivery_profile_create_method_definitions(zone, zone_update);
+    }
+
+    fn delivery_profile_update_method_definitions(
+        &self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for method_update in resolved_object_list_field(zone_update, "methodDefinitionsToUpdate") {
+            let method_id = resolved_string_field(&method_update, "id").unwrap_or_default();
+            let Some(method) = zone["methodDefinitions"]
+                .as_array_mut()
+                .into_iter()
+                .flatten()
+                .find(|method| method["id"].as_str() == Some(method_id.as_str()))
+            else {
+                continue;
+            };
+            if let Some(name) = resolved_string_field(&method_update, "name") {
+                method["name"] = json!(name);
+            }
+            if let Some(active) = resolved_bool_field(&method_update, "active") {
+                method["active"] = json!(active);
+            }
+            if method_update.contains_key("rateDefinition") {
+                method["rateProvider"]["price"] = delivery_price_from_method_input(&method_update);
+            }
+        }
+    }
+
+    fn delivery_profile_create_method_definitions(
+        &mut self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let mut new_methods = resolved_object_list_field(zone_update, "methodDefinitionsToCreate")
+            .into_iter()
+            .map(|method_input| self.delivery_method_definition_from_input(&method_input))
+            .collect::<Vec<_>>();
+        if let Some(methods) = zone["methodDefinitions"].as_array_mut() {
+            methods.append(&mut new_methods);
+        }
     }
 
     fn delivery_profile_apply_associations(
