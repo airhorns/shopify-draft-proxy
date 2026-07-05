@@ -170,6 +170,15 @@ const taxUpdateDocument = `#graphql
   }
 `;
 
+const taxUpdateInlineInvalidEnumDocument = `#graphql
+  mutation B2BContactLocationAssignmentsTaxInlineInvalid($companyLocationId: ID!) {
+    companyLocationTaxSettingsUpdate(companyLocationId: $companyLocationId, exemptionsToAssign: [FOO_BAR]) {
+      companyLocation { id taxSettings { taxRegistrationId taxExempt taxExemptions } }
+      userErrors { field message code }
+    }
+  }
+`;
+
 const contactUpdateDocument = `#graphql
   mutation B2BContactLocationAssignmentsContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
     companyContactUpdate(companyContactId: $companyContactId, input: $input) {
@@ -612,6 +621,9 @@ try {
     companyLocationId: mainLocationId,
     exemptionsToAssign: ['NOT_A_REAL_EXEMPTION'],
   });
+  const taxUpdateInlineUnknownEnum = await runRecorded(taxUpdateInlineInvalidEnumDocument, {
+    companyLocationId: mainLocationId,
+  });
 
   const taxUpdate = await runRequired(
     taxUpdateDocument,
@@ -796,6 +808,7 @@ try {
     assignLocationRoles,
     assignAddress,
     taxUpdateUnknownEnum,
+    taxUpdateInlineUnknownEnum,
     taxUpdate,
     contactUpdate,
     locationUpdate,

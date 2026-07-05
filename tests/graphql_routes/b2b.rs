@@ -51,7 +51,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let invalid_literal = proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInvalidEnumLiteral {
-          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/123", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/123", exemptionsToAssign: [FOO_BAR]) {
             companyLocation { id taxSettings { taxExemptions } }
             userErrors { field message code }
           }
@@ -64,10 +64,38 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
         invalid_literal.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
     );
-    assert!(invalid_literal.body["errors"][0]["message"]
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["typeName"],
+        json!("Field")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["argumentName"],
+        json!("exemptionsToAssign")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["message"],
+        json!("Argument 'exemptionsToAssign' on Field 'companyLocationTaxSettingsUpdate' has an invalid value ([FOO_BAR]). Expected type '[TaxExemption!]'.")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["locations"],
+        json!([{ "line": 3, "column": 11 }])
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["path"],
+        json!([
+            "mutation RustB2BTaxSettingsInvalidEnumLiteral",
+            "companyLocationTaxSettingsUpdate",
+            "exemptionsToAssign"
+        ])
+    );
+    assert!(!invalid_literal.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+        .unwrap()
+        .contains("Did you mean"));
+    assert!(!invalid_literal.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("NOT_A_REAL_EXEMPTION"));
     assert!(invalid_literal.body["data"].is_null());
 
     let invalid_variable = proxy.process_request(json_graphql_request(

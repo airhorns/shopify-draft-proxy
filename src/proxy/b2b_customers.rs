@@ -19,7 +19,6 @@ pub(in crate::proxy) use self::consent::{
 };
 use self::consent::{customer_update_inline_consent_errors, resolved_inline_consent_state};
 use self::customers::apply_customer_marketing_consent;
-pub(in crate::proxy) use self::customers::is_valid_customer_email;
 use self::merge_erasure::{
     connection_has_nodes, customer_merge_extract_order_records, customer_merge_job_from_request,
     nodes_connection, order_connection_cursor,

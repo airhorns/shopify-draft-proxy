@@ -185,9 +185,12 @@ values without inventing defaults. Omitting `taxExempt` or `taxRegistrationId`
 preserves the current value; literal `taxExempt: null` and variable
 `taxExempt: null` return `INVALID_INPUT`, while an unbound optional
 `$taxExempt` variable is treated as omitted. Supplying no tax-setting knobs is a
-successful no-op that returns the unchanged company location. In LiveHybrid
-mode, `companyLocationTaxSettingsUpdate`, `companyLocationUpdate`, and
-company-location store-credit ownership checks hydrate an existing upstream
+successful no-op that returns the unchanged company location. Invalid
+`TaxExemption` variables and inline literals are top-level GraphQL errors before
+staging; inline literal messages echo the submitted enum literal in Shopify's
+field-level coercion shape rather than a fixed fallback value or suggestion. In
+LiveHybrid mode, `companyLocationTaxSettingsUpdate`, `companyLocationUpdate`,
+and company-location store-credit ownership checks hydrate an existing upstream
 `CompanyLocation` before staging local effects when it is not already in the
 local graph; snapshot mode only accepts locations already present in local
 state.

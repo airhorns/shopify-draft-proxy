@@ -271,6 +271,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-contact-location-assignments-tax.json`,
       'config/parity-specs/b2b/b2b-contact-location-assignments-tax.json',
+      'config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax-inline-invalid.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable company with additional disposable company locations; revokes explicit assignments, deletes the staged billing address, and deletes the company during cleanup.',
@@ -1426,6 +1427,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/product-merchandising-product-full-sync.graphql',
       'config/parity-requests/products/product-feedback-invalid-state.graphql',
       'config/parity-requests/products/shop-feedback-invalid-state.graphql',
+      'config/parity-requests/products/product-feedback-foobar-state.graphql',
+      'config/parity-requests/products/shop-feedback-foobar-state.graphql',
     ],
     cleanupBehavior:
       'Validation/access-blocker probes only; productFeedCreate is rejected by Shopify before a feed is created, unknown-id probes do not mutate state, and feedback probes either fail schema validation or access checks.',
@@ -7928,7 +7931,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-abandoned-checkout-conformance.ts',
     purpose:
-      'Abandoned checkout empty/no-data reads and unknown abandonment delivery-status validation against the disposable conformance store.',
+      'Abandoned checkout empty/no-data reads and positive-tail unknown abandonment delivery-status validation against the disposable conformance store.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}abandoned-checkout-empty-read.json`,
@@ -11756,7 +11759,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'delivery-profiles',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
-    purpose: 'Delivery profile read/write lifecycle behavior.',
+    purpose:
+      'Delivery profile read/write lifecycle behavior, including post-create deliveryProfiles catalog readback that keeps the merchant default profile visible.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-validation.json',
@@ -13485,6 +13489,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}customer-add-tax-exemptions-parity.json`,
       `${CAPTURE_ROOT}customer-remove-tax-exemptions-parity.json`,
       `${CAPTURE_ROOT}customer-replace-tax-exemptions-parity.json`,
+      'config/parity-specs/customers/customerAddTaxExemptions-parity.json',
+      'config/parity-specs/customers/customerRemoveTaxExemptions-parity.json',
+      'config/parity-specs/customers/customerReplaceTaxExemptions-parity.json',
+      'config/parity-requests/customers/customerAddTaxExemptions-inline-invalid-enum.graphql',
+      'config/parity-requests/customers/customerRemoveTaxExemptions-inline-invalid-enum.graphql',
+      'config/parity-requests/customers/customerReplaceTaxExemptions-inline-invalid-enum.graphql',
     ],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
