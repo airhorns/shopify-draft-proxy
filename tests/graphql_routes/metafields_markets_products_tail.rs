@@ -2589,6 +2589,256 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         json!({"quantityRules": [{"minimum": 2, "maximum": 10, "increment": 2, "productVariant": {"id": "gid://shopify/ProductVariant/49875425296690"}}], "userErrors": []})
     );
 
+    let valid_quantity_price_breaks_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "price": { "amount": "20.00", "currencyCode": "CAD" }
+                }],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimumQuantity": 4,
+                    "price": { "amount": "18.00", "currencyCode": "CAD" }
+                }],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        valid_quantity_price_breaks_add.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let downstream_read_after_quantity_writes = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityPricingPriceListRead($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges {
+                node {
+                  minimum
+                  maximum
+                  increment
+                  isDefault
+                  originType
+                  productVariant { id }
+                }
+              }
+            }
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  price { amount currencyCode }
+                  originType
+                  variant { id }
+                  quantityPriceBreaks(first: 10) {
+                    edges {
+                      node {
+                        minimumQuantity
+                        price { amount currencyCode }
+                        variant { id }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        json!({
+            "quantityRulesEdges": downstream_read_after_quantity_writes.body["data"]["priceList"]["quantityRules"]["edges"].clone(),
+            "priceEdges": downstream_read_after_quantity_writes.body["data"]["priceList"]["prices"]["edges"].clone()
+        }),
+        json!({
+            "quantityRulesEdges": [{
+                "node": {
+                    "minimum": 2,
+                    "maximum": 10,
+                    "increment": 2,
+                    "isDefault": false,
+                    "originType": "FIXED",
+                    "productVariant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+                }
+            }],
+            "priceEdges": [{
+                "node": {
+                    "price": { "amount": "20.0", "currencyCode": "CAD" },
+                    "originType": "FIXED",
+                    "variant": { "id": "gid://shopify/ProductVariant/49875425296690" },
+                    "quantityPriceBreaks": {
+                        "edges": [{
+                            "node": {
+                                "minimumQuantity": 4,
+                                "price": { "amount": "18.0", "currencyCode": "CAD" },
+                                "variant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+                            }
+                        }]
+                    }
+                }
+            }]
+        })
+    );
+
+    let update_quantity_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+            quantityRules { minimum maximum increment productVariant { id } }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "quantityRules": [{
+                "variantId": "gid://shopify/ProductVariant/49875425296690",
+                "minimum": 4,
+                "maximum": 12,
+                "increment": 4
+            }]
+        }),
+    ));
+    assert_eq!(
+        update_quantity_rules.body["data"]["quantityRulesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_read_after_quantity_rule_update = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityRulesReadAfterUpdate($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges {
+                node {
+                  minimum
+                  maximum
+                  increment
+                  productVariant { id }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        downstream_read_after_quantity_rule_update.body["data"]["priceList"]["quantityRules"]
+            ["edges"],
+        json!([{
+            "node": {
+                "minimum": 4,
+                "maximum": 12,
+                "increment": 4,
+                "productVariant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+            }
+        }])
+    );
+
+    let clear_quantity_price_breaks = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": ["gid://shopify/ProductVariant/49875425296690"]
+            }
+        }),
+    ));
+    assert_eq!(
+        clear_quantity_price_breaks.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let delete_quantity_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
+        }),
+    ));
+    assert_eq!(
+        delete_quantity_rules.body["data"]["quantityRulesDelete"],
+        json!({"deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"], "userErrors": []})
+    );
+
+    let downstream_read_after_quantity_deletes = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityPricingPriceListRead($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges { node { minimum maximum increment productVariant { id } } }
+            }
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  price { amount currencyCode }
+                  variant { id }
+                  quantityPriceBreaks(first: 10) {
+                    edges { node { minimumQuantity price { amount currencyCode } variant { id } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        json!({
+            "quantityRulesEdges": downstream_read_after_quantity_deletes.body["data"]["priceList"]["quantityRules"]["edges"].clone(),
+            "priceEdges": downstream_read_after_quantity_deletes.body["data"]["priceList"]["prices"]["edges"].clone()
+        }),
+        json!({
+            "quantityRulesEdges": [],
+            "priceEdges": [{
+                "node": {
+                    "price": { "amount": "20.0", "currencyCode": "CAD" },
+                    "variant": { "id": "gid://shopify/ProductVariant/49875425296690" },
+                    "quantityPriceBreaks": { "edges": [] }
+                }
+            }]
+        })
+    );
+
     let invalid_quantity_rule_cases = [
         (
             json!([{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 0, "maximum": 10, "increment": 1}]),

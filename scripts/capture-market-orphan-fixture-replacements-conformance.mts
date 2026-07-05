@@ -58,6 +58,13 @@ async function readDocument(relativePath: string): Promise<string> {
   return await readFile(relativePath, 'utf8');
 }
 
+function compactGraphqlDocument(document: string): string {
+  return document
+    .replace(/^#graphql\s*/u, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 async function readVariables(relativePath: string): Promise<JsonRecord> {
   const raw = await readDocument(relativePath);
   const parsed: unknown = JSON.parse(raw);
@@ -766,6 +773,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
             edges {
               cursor
               node {
+                id
                 minimumQuantity
                 price { amount currencyCode }
                 variant { id }
@@ -786,6 +794,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
     }
   }
 }`;
+  const preflightDocument = compactGraphqlDocument(preflightQuery);
   const input = {
     pricesToAdd: [{ variantId, price: { amount: '17.00', currencyCode: 'CAD' } }],
     pricesToDeleteByVariantId: [],
@@ -801,7 +810,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
     quantityPriceBreaksToDelete: [],
   };
   const updateVariables = { priceListId, input };
-  const setup = await run2025(preflightQuery, updateVariables);
+  const setup = await run2025(preflightDocument, updateVariables);
   assertGraphqlOk('quantity pricing setup', setup);
   const update = await run2025(updateQuery, updateVariables);
   assertGraphqlOk('quantity pricing update', update);
@@ -839,17 +848,17 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
     priceListId,
     variantIds: [missingVariantId],
   };
-  const cleanupRulePreflight = await run2025(preflightQuery, cleanupRuleVariables);
+  const cleanupRulePreflight = await run2025(preflightDocument, cleanupRuleVariables);
   assertGraphqlOk('quantity pricing cleanup rule preflight', cleanupRulePreflight);
-  const missingPriceListUpdatePreflight = await run2025(preflightQuery, missingPriceListUpdateVariables);
+  const missingPriceListUpdatePreflight = await run2025(preflightDocument, missingPriceListUpdateVariables);
   assertGraphqlOk('quantity pricing missing price list update preflight', missingPriceListUpdatePreflight);
-  const missingPriceListRulesAddPreflight = await run2025(preflightQuery, missingPriceListRulesAddVariables);
+  const missingPriceListRulesAddPreflight = await run2025(preflightDocument, missingPriceListRulesAddVariables);
   assertGraphqlOk('quantity pricing missing price list rules add preflight', missingPriceListRulesAddPreflight);
-  const missingPriceListRulesDeletePreflight = await run2025(preflightQuery, missingPriceListRulesDeleteVariables);
+  const missingPriceListRulesDeletePreflight = await run2025(preflightDocument, missingPriceListRulesDeleteVariables);
   assertGraphqlOk('quantity pricing missing price list rules delete preflight', missingPriceListRulesDeletePreflight);
-  const missingVariantRulesAddPreflight = await run2025(preflightQuery, missingVariantRulesAddVariables);
+  const missingVariantRulesAddPreflight = await run2025(preflightDocument, missingVariantRulesAddVariables);
   assertGraphqlOk('quantity pricing missing variant rules add preflight', missingVariantRulesAddPreflight);
-  const missingVariantRulesDeletePreflight = await run2025(preflightQuery, missingVariantRulesDeleteVariables);
+  const missingVariantRulesDeletePreflight = await run2025(preflightDocument, missingVariantRulesDeleteVariables);
   assertGraphqlOk('quantity pricing missing variant rules delete preflight', missingVariantRulesDeletePreflight);
   const validationBranches = [
     {
@@ -948,31 +957,31 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: updateVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: { status: setup.status, body: setup.payload },
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: cleanupRuleVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: { status: cleanupRulePreflight.status, body: cleanupRulePreflight.payload },
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: missingPriceListUpdateVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: { status: missingPriceListUpdatePreflight.status, body: missingPriceListUpdatePreflight.payload },
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: missingPriceListRulesAddVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: { status: missingPriceListRulesAddPreflight.status, body: missingPriceListRulesAddPreflight.payload },
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: missingPriceListRulesDeleteVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: {
           status: missingPriceListRulesDeletePreflight.status,
           body: missingPriceListRulesDeletePreflight.payload,
@@ -981,13 +990,13 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: missingVariantRulesAddVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: { status: missingVariantRulesAddPreflight.status, body: missingVariantRulesAddPreflight.payload },
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: missingVariantRulesDeleteVariables,
-        query: preflightQuery.replace(/\s+/gu, ' ').trim(),
+        query: preflightDocument,
         response: {
           status: missingVariantRulesDeletePreflight.status,
           body: missingVariantRulesDeletePreflight.payload,
@@ -998,20 +1007,30 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
 }
 
 const capturedAt = new Date().toISOString();
-const outputPaths = [
-  await captureQuantityPricingRules(capturedAt),
-  await captureCatalogCreateMissingContext(capturedAt),
-  await captureCatalogLifecycleValidation(capturedAt),
-  await captureMarketCreateStatusEnabledMismatch(capturedAt),
-  await captureMarketLocalizableEmptyRead(capturedAt),
-  await captureMarketLocalizationValidation(capturedAt),
-  await captureMarketLocalizationsRegisterTooManyKeys(capturedAt),
-  await captureMarketWebPresenceDelete(capturedAt),
-  await captureMarketWebPresenceValidation(capturedAt),
-  await capturePriceListCreateDkk(capturedAt),
-  await capturePriceListFixedPricesByProductUpdate(capturedAt),
-  await capturePriceListMutationValidation(capturedAt),
-];
+const captureOnly = process.env['SHOPIFY_CONFORMANCE_MARKET_LEGACY_CAPTURE_ONLY'];
+const outputPaths =
+  captureOnly === 'quantity-pricing-rules'
+    ? [await captureQuantityPricingRules(capturedAt)]
+    : captureOnly
+      ? (() => {
+          throw new Error(
+            `Unsupported SHOPIFY_CONFORMANCE_MARKET_LEGACY_CAPTURE_ONLY=${captureOnly}; expected quantity-pricing-rules.`,
+          );
+        })()
+      : [
+          await captureQuantityPricingRules(capturedAt),
+          await captureCatalogCreateMissingContext(capturedAt),
+          await captureCatalogLifecycleValidation(capturedAt),
+          await captureMarketCreateStatusEnabledMismatch(capturedAt),
+          await captureMarketLocalizableEmptyRead(capturedAt),
+          await captureMarketLocalizationValidation(capturedAt),
+          await captureMarketLocalizationsRegisterTooManyKeys(capturedAt),
+          await captureMarketWebPresenceDelete(capturedAt),
+          await captureMarketWebPresenceValidation(capturedAt),
+          await capturePriceListCreateDkk(capturedAt),
+          await capturePriceListFixedPricesByProductUpdate(capturedAt),
+          await capturePriceListMutationValidation(capturedAt),
+        ];
 
 console.log(
   JSON.stringify(
