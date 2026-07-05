@@ -775,9 +775,7 @@ impl DraftProxy {
     fn stage_observed_owner_metafields(&mut self, owner_id: &str, node: &Value) {
         let mut records = node
             .get("metafields")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
-            .cloned()
+            .map(connection_nodes)
             .unwrap_or_default();
         if let Some(page_info) = node
             .get("metafields")
