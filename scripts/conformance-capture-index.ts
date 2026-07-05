@@ -11466,7 +11466,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'delivery-profiles',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
-    purpose: 'Delivery profile read/write lifecycle behavior.',
+    purpose:
+      'Delivery profile read/write lifecycle behavior, including post-create deliveryProfiles catalog readback that keeps the merchant default profile visible.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-validation.json',

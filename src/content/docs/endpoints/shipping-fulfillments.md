@@ -206,7 +206,10 @@ observed, or LiveHybrid-hydrated location state; unknown IDs return the public
 synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` merges
 observed merchant baseline profiles, including the default profile, with staged
 profile creates/updates/removals before computing page windows and `pageInfo`
-boundary cursors instead of returning a canned connection envelope.
+boundary cursors instead of returning a canned connection envelope. Captured
+2026-04 parity target `delivery-profile-post-create-catalog-keeps-default`
+creates a disposable profile and then lists `deliveryProfiles`, asserting the
+merchant default profile remains visible alongside the staged create.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`

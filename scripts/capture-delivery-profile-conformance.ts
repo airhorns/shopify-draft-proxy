@@ -375,6 +375,35 @@ function readDefaultProfileId(result: ConformanceGraphqlResult): string {
   throw new Error(`deliveryProfiles catalog did not include a default profile: ${JSON.stringify(result.payload)}`);
 }
 
+function readProfileNodes(result: ConformanceGraphqlResult): JsonRecord[] {
+  const data = readObject(result.payload.data);
+  const deliveryProfiles = readObject(data?.['deliveryProfiles']);
+  const edges = deliveryProfiles?.['edges'];
+  if (!Array.isArray(edges)) {
+    throw new Error(`deliveryProfiles catalog did not return edges: ${JSON.stringify(result.payload)}`);
+  }
+
+  return edges.flatMap((edge): JsonRecord[] => {
+    const node = readObject(readObject(edge)?.['node']);
+    return node ? [node] : [];
+  });
+}
+
+function assertPostCreateCatalogIncludesDefaultAndProfile(result: ConformanceGraphqlResult, profileId: string): void {
+  const nodes = readProfileNodes(result);
+  const defaultNodes = nodes.filter((node) => node['default'] === true);
+  if (defaultNodes.length !== 1) {
+    throw new Error(
+      `deliveryProfiles post-create catalog expected exactly one default profile, got ${defaultNodes.length}: ${JSON.stringify(result.payload)}`,
+    );
+  }
+  if (!nodes.some((node) => node['id'] === profileId)) {
+    throw new Error(
+      `deliveryProfiles post-create catalog did not include created profile ${profileId}: ${JSON.stringify(result.payload)}`,
+    );
+  }
+}
+
 function readUsableLocationIds(hydrate: GraphqlCapture): string[] {
   assertHttpOk('locations hydrate', hydrate.result);
   const nodes = readPath(hydrate.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'nodes']);
@@ -447,6 +476,7 @@ const deliveryProfileLifecycleMissingRemoveMutation = await readRequest(
 const deliveryProfileLifecycleDefaultRemoveMutation = await readRequest(
   'delivery-profile-lifecycle-default-remove.graphql',
 );
+const deliveryProfilesCatalogReadQuery = await readRequest('delivery-profiles-catalog-read.graphql');
 
 const locationsHydrate = await captureGraphql(locationsHydrateQuery);
 const usableLocationIds = readUsableLocationIds(locationsHydrate);
@@ -526,6 +556,8 @@ const lifecycleStamp = Date.now();
 const lifecycleBlankCreate = await captureGraphql(deliveryProfileLifecycleBlankCreateMutation, {
   profile: { name: '' },
 });
+const lifecyclePreCreateCatalog = await captureGraphql(deliveryProfilesCatalogReadQuery, { first: 250 });
+readDefaultProfileId(lifecyclePreCreateCatalog.result);
 const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreateMutation, {
   profile: {
     name: `Delivery profile lifecycle ${lifecycleStamp}`,
@@ -556,6 +588,8 @@ const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreat
   },
 });
 const lifecycleProfileId = readCreatedProfileId(lifecycleNestedCreate, 'deliveryProfileCreate');
+const lifecyclePostCreateCatalog = await captureGraphql(deliveryProfilesCatalogReadQuery, { first: 250 });
+assertPostCreateCatalogIncludesDefaultAndProfile(lifecyclePostCreateCatalog.result, lifecycleProfileId);
 const lifecycleLocationGroupId = requireString(
   readPath(lifecycleNestedCreate.result.payload, [
     'data',
@@ -717,6 +751,7 @@ await writeFile(
       mutations: {
         blankCreate: lifecycleBlankCreate,
         nestedCreate: lifecycleNestedCreate,
+        postCreateCatalog: lifecyclePostCreateCatalog,
         nestedUpdate: lifecycleNestedUpdate,
         remove: lifecycleRemove,
         readAfterRemovePoll: lifecycleReadAfterRemovePoll,
@@ -724,9 +759,12 @@ await writeFile(
         missingRemove: lifecycleMissingRemove,
         defaultRemove: lifecycleDefaultRemove,
       },
+      queries: {
+        preCreateCatalog: lifecyclePreCreateCatalog,
+      },
       notes: [
         'Captured with home-folder conformance auth against a disposable Shopify test store.',
-        'The capture creates one disposable delivery profile, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.',
+        'The capture creates one disposable delivery profile, records the post-create deliveryProfiles catalog with the merchant default still present, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.',
       ],
       upstreamCalls: [
         {
@@ -736,6 +774,15 @@ await writeFile(
           response: {
             status: locationsHydrate.result.status,
             body: locationsHydrate.result.payload,
+          },
+        },
+        {
+          operationName: 'DeliveryProfilesCatalog',
+          variables: lifecyclePreCreateCatalog.variables,
+          query: lifecyclePreCreateCatalog.query,
+          response: {
+            status: lifecyclePreCreateCatalog.result.status,
+            body: lifecyclePreCreateCatalog.result.payload,
           },
         },
         {

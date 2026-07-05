@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T14:28:21.804Z",
+  "capturedAt": "2026-07-05T00:07:32.751Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -35,7 +35,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1970,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -47,7 +47,7 @@
       "query": "mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n          }\n        }\n      }\n      profileLocationGroups {\n        locationGroup {\n          id\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              id\n              name\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                id\n                name\n                active\n                rateProvider {\n                  ... on DeliveryRateDefinition {\n                    id\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on Weight {\n                      value\n                      unit\n                    }\n                    ... on MoneyV2 {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "profile": {
-          "name": "Delivery profile lifecycle 1782829698479",
+          "name": "Delivery profile lifecycle 1783210049430",
           "locationGroupsToCreate": [
             {
               "locations": ["gid://shopify/Location/106318430514"],
@@ -93,8 +93,8 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132621336882",
-                "name": "Delivery profile lifecycle 1782829698479",
+                "id": "gid://shopify/DeliveryProfile/132685234482",
+                "name": "Delivery profile lifecycle 1783210049430",
                 "version": 1,
                 "originLocationCount": 1,
                 "zoneCountryCount": 1,
@@ -105,23 +105,23 @@
                 "profileLocationGroups": [
                   {
                     "locationGroup": {
-                      "id": "gid://shopify/DeliveryLocationGroup/134328058162"
+                      "id": "gid://shopify/DeliveryLocationGroup/134392611122"
                     },
                     "locationGroupZones": {
                       "nodes": [
                         {
                           "zone": {
-                            "id": "gid://shopify/DeliveryZone/585227403570",
+                            "id": "gid://shopify/DeliveryZone/585444983090",
                             "name": "Domestic"
                           },
                           "methodDefinitions": {
                             "nodes": [
                               {
-                                "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                                "id": "gid://shopify/DeliveryMethodDefinition/1107853705522",
                                 "name": "Standard",
                                 "active": true,
                                 "rateProvider": {
-                                  "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
+                                  "id": "gid://shopify/DeliveryRateDefinition/1029523407154",
                                   "price": {
                                     "amount": "7.25",
                                     "currencyCode": "USD"
@@ -129,7 +129,7 @@
                                 },
                                 "methodConditions": [
                                   {
-                                    "id": "gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to",
+                                    "id": "gid://shopify/DeliveryCondition/308962099506?operator=greater_than_or_equal_to",
                                     "field": "TOTAL_WEIGHT",
                                     "operator": "GREATER_THAN_OR_EQUAL_TO",
                                     "conditionCriteria": {
@@ -157,7 +157,75 @@
               "actualQueryCost": 24,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "postCreateCatalog": {
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 4,
+                    "activeMethodDefinitionsCount": 0,
+                    "locationsWithoutRatesCount": 28,
+                    "originLocationCount": 0,
+                    "zoneCountryCount": 0,
+                    "productVariantsCount": {
+                      "count": 500,
+                      "precision": "AT_LEAST"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzI2ODUyMzQ0ODIsImxhc3RfdmFsdWUiOiIxMzI2ODUyMzQ0ODIifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/132685234482",
+                    "name": "Delivery profile lifecycle 1783210049430",
+                    "default": false,
+                    "version": 1,
+                    "activeMethodDefinitionsCount": 1,
+                    "locationsWithoutRatesCount": 27,
+                    "originLocationCount": 1,
+                    "zoneCountryCount": 1,
+                    "productVariantsCount": {
+                      "count": 0,
+                      "precision": "EXACT"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzI2ODUyMzQ0ODIsImxhc3RfdmFsdWUiOiIxMzI2ODUyMzQ0ODIifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
                 "restoreRate": 100
               }
             }
@@ -168,25 +236,25 @@
     "nestedUpdate": {
       "query": "mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882",
+        "id": "gid://shopify/DeliveryProfile/132685234482",
         "profile": {
           "name": "Delivery profile lifecycle updated",
-          "conditionsToDelete": ["gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to"],
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/308962099506?operator=greater_than_or_equal_to"],
           "locationGroupsToUpdate": [
             {
-              "id": "gid://shopify/DeliveryLocationGroup/134328058162",
+              "id": "gid://shopify/DeliveryLocationGroup/134392611122",
               "locationsToAdd": ["gid://shopify/Location/106318463282"],
               "zonesToUpdate": [
                 {
-                  "id": "gid://shopify/DeliveryZone/585227403570",
+                  "id": "gid://shopify/DeliveryZone/585444983090",
                   "name": "Domestic updated",
                   "methodDefinitionsToUpdate": [
                     {
-                      "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                      "id": "gid://shopify/DeliveryMethodDefinition/1107853705522",
                       "name": "Standard updated",
                       "active": false,
                       "rateDefinition": {
-                        "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
+                        "id": "gid://shopify/DeliveryRateDefinition/1029523407154",
                         "price": {
                           "amount": "8.50",
                           "currencyCode": "USD"
@@ -227,7 +295,7 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132621336882",
+                "id": "gid://shopify/DeliveryProfile/132685234482",
                 "name": "Delivery profile lifecycle updated",
                 "version": 2,
                 "originLocationCount": 2,
@@ -250,7 +318,7 @@
               "actualQueryCost": 25,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1993,
+                "currentlyAvailable": 1975,
                 "restoreRate": 100
               }
             }
@@ -261,7 +329,7 @@
     "remove": {
       "query": "mutation DeliveryProfileLifecycleRemove($id: ID!) {\n  deliveryProfileRemove(id: $id) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882"
+        "id": "gid://shopify/DeliveryProfile/132685234482"
       },
       "result": {
         "status": 200,
@@ -269,7 +337,7 @@
           "data": {
             "deliveryProfileRemove": {
               "job": {
-                "id": "gid://shopify/Job/8a7c70d6-575e-4ddb-a7a3-c38a284c709a",
+                "id": "gid://shopify/Job/35759173-7d9e-4375-a494-bf157077a7ab",
                 "done": false
               },
               "userErrors": []
@@ -292,7 +360,7 @@
     "readAfterRemovePoll": {
       "query": "query DeliveryProfileLifecycleReadAfterRemove($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882"
+        "id": "gid://shopify/DeliveryProfile/132685234482"
       },
       "result": {
         "status": 200,
@@ -408,7 +476,60 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "queries": {
+    "preCreateCatalog": {
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 4,
+                    "activeMethodDefinitionsCount": 0,
+                    "locationsWithoutRatesCount": 28,
+                    "originLocationCount": 0,
+                    "zoneCountryCount": 0,
+                    "productVariantsCount": {
+                      "count": 500,
+                      "precision": "AT_LEAST"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
                 "restoreRate": 100
               }
             }
@@ -419,7 +540,7 @@
   },
   "notes": [
     "Captured with home-folder conformance auth against a disposable Shopify test store.",
-    "The capture creates one disposable delivery profile, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches."
+    "The capture creates one disposable delivery profile, records the post-create deliveryProfiles catalog with the merchant default still present, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches."
   ],
   "upstreamCalls": [
     {
@@ -468,6 +589,58 @@
       }
     },
     {
+      "operationName": "DeliveryProfilesCatalog",
+      "variables": {
+        "first": 250
+      },
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 4,
+                    "activeMethodDefinitionsCount": 0,
+                    "locationsWithoutRatesCount": 28,
+                    "originLocationCount": 0,
+                    "zoneCountryCount": 0,
+                    "productVariantsCount": {
+                      "count": 500,
+                      "precision": "AT_LEAST"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "ShippingDeliveryProfileHydrate",
       "variables": {
         "id": "gid://shopify/DeliveryProfile/125254992178"
@@ -490,7 +663,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
