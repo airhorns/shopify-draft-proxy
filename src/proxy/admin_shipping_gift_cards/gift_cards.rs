@@ -767,9 +767,12 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(processed_at) = resolved_string_field(&input, "processedAt") {
-                if let Some(error) =
-                    gift_card_processed_at_error(&field.name, input_name, &processed_at)
-                {
+                if let Some(error) = gift_card_processed_at_error(
+                    &field.name,
+                    input_name,
+                    &processed_at,
+                    self.current_epoch_seconds(),
+                ) {
                     user_errors.push(error);
                 }
             }
@@ -1234,7 +1237,7 @@ impl DraftProxy {
             )];
         }
         if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
-            let now = gift_card_synthetic_now_epoch_seconds();
+            let now = self.current_epoch_seconds();
             let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
             match parse_rfc3339_epoch_seconds(&send_at) {
                 Some(send_at) if send_at >= now && send_at <= max_send_at => {}
@@ -1311,7 +1314,7 @@ impl DraftProxy {
     }
 
     fn gift_card_today_epoch_day(&self) -> i64 {
-        let now = gift_card_synthetic_now_epoch_seconds();
+        let now = self.current_epoch_seconds();
         let Some(offset_minutes) = self.store.base.shop["timezoneOffsetMinutes"].as_i64() else {
             eprintln!(
                 "shopify-draft-proxy: gift-card expiry validation using UTC date because shop timezone baseline is missing"
@@ -1442,6 +1445,7 @@ fn gift_card_processed_at_error(
     root_field: &str,
     input_name: &str,
     processed_at: &str,
+    now_epoch_seconds: i64,
 ) -> Option<Value> {
     let Some(processed_at) = parse_rfc3339_epoch_seconds(processed_at) else {
         return Some(gift_card_user_error(
@@ -1459,7 +1463,7 @@ fn gift_card_processed_at_error(
             "A valid processed date must be used.",
         ));
     }
-    if processed_at > gift_card_synthetic_now_epoch_seconds() {
+    if processed_at > now_epoch_seconds {
         return Some(gift_card_user_error(
             root_field,
             json!([input_name, "processedAt"]),
@@ -1470,14 +1474,6 @@ fn gift_card_processed_at_error(
     None
 }
 
-fn gift_card_synthetic_now_epoch_seconds() -> i64 {
-    parse_rfc3339_epoch_seconds(&gift_card_validation_now_timestamp())
-        .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
-}
-
-fn gift_card_validation_now_timestamp() -> String {
-    format!("{:04}-{:02}-{:02}T09:31:02Z", 2026, 4, 29)
-}
 fn normalize_gift_card_code(code: &str) -> String {
     code.chars()
         .filter(|character| !character.is_whitespace() && *character != '-')

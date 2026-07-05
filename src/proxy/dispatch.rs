@@ -953,6 +953,15 @@ impl DraftProxy {
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
+        if capability.domain == CapabilityDomain::GiftCards
+            && capability.execution == CapabilityExecution::StageLocally
+            && operation.operation_type == OperationType::Mutation
+            && root_fields(&query, &variables)
+                .map(|fields| fields.iter().any(|field| field.name == "giftCardCreate"))
+                .unwrap_or(false)
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the

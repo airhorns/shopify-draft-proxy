@@ -12435,6 +12435,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-recipient-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-recipient-validation-conformance.ts',
     purpose:
       'Gift-card create/update recipientAttributes validation for required recipient id, nonexistent recipient id, structurally invalid no-contact sentinel recipient id, blank text fields, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
@@ -12453,7 +12454,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates one disposable customer plus one active gift card, records recipient validation branches, deactivates setup gift cards, and deletes setup customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The public giftCardUpdate userErrors type in Admin API 2025-01 exposes field/message only, so replay expectations add the typed code contract used by the local model.',
+      'The public giftCardUpdate userErrors type in Admin API 2026-04 exposes field/message only, so update replay targets compare that public shape. Valid in-range sendNotificationAt controls are recorded for manual review, but long-lived parity targets compare only stable past/too-far-future range errors because absolute valid timestamps age.',
   },
   {
     domain: 'gift-cards',
