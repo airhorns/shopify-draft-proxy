@@ -314,7 +314,7 @@ impl DraftProxy {
                 "product" => Some(if operation.is_some() {
                     Value::Null
                 } else {
-                    product_json_with_variants_and_currency(
+                    self.product_json_with_variants_and_currency_context(
                         &product,
                         &self.store.product_variants_for_product(&product_id),
                         &product_selection,
@@ -617,8 +617,9 @@ impl DraftProxy {
                 "product" => Some(
                     product
                         .map(|product| {
-                            product_json_with_currency(
+                            self.product_json_with_variants_and_currency_context(
                                 product,
+                                &[],
                                 product_selection,
                                 &self.store.shop_currency_code(),
                             )
@@ -850,7 +851,7 @@ impl DraftProxy {
                 } else {
                     duplicate
                         .map(|product| {
-                            product_json_with_variants_and_currency(
+                            self.product_json_with_variants_and_currency_context(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 new_product_selection,
@@ -1057,7 +1058,7 @@ impl DraftProxy {
         product_id
             .and_then(|id| self.store.product_by_id(id))
             .map(|product| {
-                product_json_with_variants_and_currency(
+                self.product_json_with_variants_and_currency_context(
                     product,
                     &self.store.product_variants_for_product(&product.id),
                     selections,

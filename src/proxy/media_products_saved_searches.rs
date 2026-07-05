@@ -337,7 +337,7 @@ impl DraftProxy {
             product_staged_sort_key,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants_and_currency(
+                let base = self.product_json_with_variants_and_currency_context(
                     product,
                     &variants,
                     selections,
@@ -910,8 +910,9 @@ impl DraftProxy {
                     "data": {
                         response_key: selected_json(
                             &json!({
-                                "product": product_json_with_currency(
+                                "product": self.product_json_with_variants_and_currency_context(
                                     &existing,
+                                    &[],
                                     &product_selection,
                                     &self.store.shop_currency_code()
                                 ),
@@ -1036,8 +1037,9 @@ impl DraftProxy {
             "data": {
                 response_key: selected_json(
                     &json!({
-                        "product": product_json_with_currency(
+                        "product": self.product_json_with_variants_and_currency_context(
                             existing,
+                            &[],
                             &product_selection,
                             &self.store.shop_currency_code()
                         ),
@@ -1347,7 +1349,7 @@ impl DraftProxy {
                 "product" => Some(match self.store.product_by_id(product_id) {
                     Some(product) if user_errors.is_empty() => {
                         let variants = self.store.product_variants_for_product(product_id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_variants_and_currency_context(
                             product,
                             &variants,
                             &selection.selection,
@@ -2242,7 +2244,7 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_variants_and_currency_context(
                             product,
                             &variants,
                             &selection.selection,
@@ -2379,7 +2381,7 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_variants_and_currency_context(
                             product,
                             &variants,
                             &product_selection,
@@ -2970,8 +2972,9 @@ impl DraftProxy {
         let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
         let payload_selection = &field.selection;
         let payload = json!({
-            "node": product_json_with_currency(
+            "node": self.product_json_with_variants_and_currency_context(
                 &product,
+                &[],
                 &node_selection,
                 &self.store.shop_currency_code(),
             ),
@@ -3265,8 +3268,9 @@ impl DraftProxy {
 
         let payload = selected_payload_json(&payload_selection, |selection| {
             match selection.name.as_str() {
-                "product" => Some(product_json_with_currency(
+                "product" => Some(self.product_json_with_variants_and_currency_context(
                     &product,
+                    &[],
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),

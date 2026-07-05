@@ -1490,18 +1490,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-publishable-resource-existence-current-channel-conformance.ts',
     purpose:
-      'Generic/current-channel publishable top-level id resource-existence validation plus current-channel resourcePublications payload projection after publish/unpublish.',
+      'Generic/current-channel publishable top-level id resource-existence validation plus current-channel resourcePublications payload projection and downstream product readback after publish/unpublish.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_publications', 'write_publications'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-current-channel-non-sentinel-membership.json',
       'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
+      'config/parity-requests/store-properties/publishable-current-channel-product-read.graphql',
       'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
       'config/parity-requests/store-properties/current-app-publication-hydrate.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable active product, records missing-id and current-channel membership branches, captures hydrate cassettes while the product exists, then deletes the product.',
+      'Creates one disposable active product, records missing-id and current-channel membership/readback branches, captures hydrate cassettes while the product exists, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

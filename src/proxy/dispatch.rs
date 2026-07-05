@@ -579,7 +579,7 @@ impl DraftProxy {
             if let Some(product) = self.store.product_by_id(id) {
                 let variants = self.store.product_variants_for_product(id);
                 let shop_currency_code = self.store.shop_currency_code();
-                return Some(product_json_with_variants_and_currency(
+                return Some(self.product_json_with_variants_and_currency_context(
                     product,
                     &variants,
                     selection,

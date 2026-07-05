@@ -455,6 +455,7 @@ pub(in crate::proxy) fn staged_resource_publication_connection_json(
 pub(in crate::proxy) fn product_publication_field_json(
     product: &ProductRecord,
     selection: &SelectedField,
+    published_on_current_publication: Option<bool>,
 ) -> Option<Value> {
     match selection.name.as_str() {
         "publishedAt" => Some(
@@ -465,8 +466,10 @@ pub(in crate::proxy) fn product_publication_field_json(
                 .unwrap_or(Value::Null),
         ),
         "publishedOnCurrentPublication" => Some(Value::Bool(
-            product.status == "ACTIVE"
-                && product_is_published_on_publication(product, "gid://shopify/Publication/1"),
+            published_on_current_publication.unwrap_or_else(|| {
+                product.status == "ACTIVE"
+                    && product_is_published_on_publication(product, "gid://shopify/Publication/1")
+            }),
         )),
         "publishedOnPublication" => {
             let publication_id = selection
@@ -1312,14 +1315,25 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.log_entries.len() as u64)
     }
-}
 
-pub(in crate::proxy) fn product_json_with_currency(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-    currency_code: &str,
-) -> Value {
-    product_json_with_variants_and_currency(product, &[], selections, currency_code)
+    pub(in crate::proxy) fn product_json_with_variants_and_currency_context(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+        currency_code: &str,
+    ) -> Value {
+        product_json_with_variants_and_currency_and_publication_context(
+            product,
+            variants,
+            selections,
+            currency_code,
+            Some(
+                self.store
+                    .product_is_published_on_current_publication(product),
+            ),
+        )
+    }
 }
 
 pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
@@ -1590,6 +1604,22 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
     selections: &[SelectedField],
     currency_code: &str,
 ) -> Value {
+    product_json_with_variants_and_currency_and_publication_context(
+        product,
+        variants,
+        selections,
+        currency_code,
+        None,
+    )
+}
+
+pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selections: &[SelectedField],
+    currency_code: &str,
+    published_on_current_publication: Option<bool>,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -1762,13 +1792,14 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product_publication_field_json(product, selection).or_else(|| {
-            product
-                .extra_fields
-                .get(&selection.name)
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-        }),
+        _ => product_publication_field_json(product, selection, published_on_current_publication)
+            .or_else(|| {
+                product
+                    .extra_fields
+                    .get(&selection.name)
+                    .cloned()
+                    .map(|value| nullable_selected_json(&value, &selection.selection))
+            }),
     })
 }
 

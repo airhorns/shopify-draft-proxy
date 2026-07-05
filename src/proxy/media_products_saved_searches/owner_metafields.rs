@@ -928,7 +928,7 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base = product_json_with_variants_and_currency(
+                let base = self.product_json_with_variants_and_currency_context(
                     product,
                     &variants,
                     selections,
