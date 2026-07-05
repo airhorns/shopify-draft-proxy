@@ -661,6 +661,16 @@ fn cad_snapshot_proxy() -> DraftProxy {
     proxy
 }
 
+fn snapshot_proxy_with_gift_card_fixed_validation_clock() -> DraftProxy {
+    snapshot_proxy_with_clock(Arc::new(Mutex::new(utc_time(1_777_455_062))))
+}
+
+fn cad_snapshot_proxy_with_gift_card_fixed_validation_clock() -> DraftProxy {
+    let mut proxy = snapshot_proxy_with_gift_card_fixed_validation_clock();
+    restore_shop_currency(&mut proxy, "CAD");
+    proxy
+}
+
 fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, input_arg: &str) {
     assert_eq!(data[alias][node_field], json!(null));
     assert_eq!(
@@ -8680,6 +8690,146 @@ fn gift_card_connection_returns_edges_cursors_windows_sort_and_reverse() {
 }
 
 #[test]
+fn gift_card_connection_sorts_disabled_at_from_deactivated_at() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardDisabledAtSetup {
+          first: giftCardCreate(input: { initialValue: "41.01", code: "disabledsortnuqa" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+          second: giftCardCreate(input: { initialValue: "41.02", code: "disabledsortnuqb" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+          third: giftCardCreate(input: { initialValue: "41.03", code: "disabledsortnuqc" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    for alias in ["first", "second", "third"] {
+        assert_eq!(
+            setup.body["data"][alias]["userErrors"],
+            json!([]),
+            "{alias} setup should succeed"
+        );
+    }
+    let first_id = setup.body["data"]["first"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = setup.body["data"]["second"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let third_id = setup.body["data"]["third"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardDisabledAtDeactivate($first: ID!, $second: ID!) {
+          first: giftCardDeactivate(id: $first) {
+            giftCard { id enabled deactivatedAt }
+            userErrors { field message }
+          }
+          second: giftCardDeactivate(id: $second) {
+            giftCard { id enabled deactivatedAt }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "first": first_id, "second": second_id }),
+    ));
+    assert_eq!(deactivate.status, 200);
+    assert_eq!(deactivate.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(deactivate.body["data"]["second"]["userErrors"], json!([]));
+    let first_deactivated_at = deactivate.body["data"]["first"]["giftCard"]["deactivatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_deactivated_at = deactivate.body["data"]["second"]["giftCard"]["deactivatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardDisabledAtConnection($query: String!, $after: String!) {
+          disabledOrder: giftCards(first: 3, query: $query, sortKey: DISABLED_AT) {
+            nodes { id lastCharacters enabled deactivatedAt }
+          }
+          reverseWindow: giftCards(first: 2, query: $query, sortKey: DISABLED_AT, reverse: true) {
+            edges { cursor node { id lastCharacters enabled deactivatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterWindow: giftCards(first: 1, query: $query, sortKey: DISABLED_AT, reverse: true, after: $after) {
+            edges { cursor node { id lastCharacters enabled deactivatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "query": "nuq", "after": first_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["disabledOrder"]["nodes"],
+        json!([
+            { "id": first_id, "lastCharacters": "nuqa", "enabled": false, "deactivatedAt": first_deactivated_at },
+            { "id": second_id, "lastCharacters": "nuqb", "enabled": false, "deactivatedAt": second_deactivated_at },
+            { "id": third_id, "lastCharacters": "nuqc", "enabled": true, "deactivatedAt": null }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["reverseWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": second_id,
+                    "node": {
+                        "id": second_id,
+                        "lastCharacters": "nuqb",
+                        "enabled": false,
+                        "deactivatedAt": second_deactivated_at
+                    }
+                },
+                {
+                    "cursor": first_id,
+                    "node": {
+                        "id": first_id,
+                        "lastCharacters": "nuqa",
+                        "enabled": false,
+                        "deactivatedAt": first_deactivated_at
+                    }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": second_id,
+                "endCursor": first_id
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["afterWindow"],
+        json!({
+            "edges": [{
+                "cursor": third_id,
+                "node": { "id": third_id, "lastCharacters": "nuqc", "enabled": true, "deactivatedAt": null }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": third_id,
+                "endCursor": third_id
+            }
+        })
+    );
+}
+
+#[test]
 fn gift_cards_count_honors_limit_precision_after_query_filtering() {
     let mut proxy = snapshot_proxy();
     restore_proxy_state(&mut proxy, |restored| {
@@ -9781,7 +9931,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
 
 #[test]
 fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy_with_gift_card_fixed_validation_clock();
     seed_legacy_gift_card_base_state(&mut proxy);
 
     let setup_customer = proxy.process_request(json_graphql_request(
@@ -9860,6 +10010,195 @@ fn gift_card_recipient_validation_rejects_length_html_and_send_at_bounds() {
             "updatePastSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "message": "Send notification at must be within 90 days from now" }] },
             "updateFutureSendAt": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "sendNotificationAt"], "message": "Send notification at must be within 90 days from now" }] },
             "updateValidSendAt": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "recipientAttributes": { "sendNotificationAt": "2026-07-01T00:00:00Z" } }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_date_validation_boundaries_follow_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_780_185_600)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    restore_shop_currency(&mut proxy, "CAD");
+
+    let setup_customer = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardClockValidationCustomer {
+          customerCreate(input: { firstName: "Clock", lastName: "Boundary", email: "gift-card-clock-boundary@example.com" }) {
+            customer { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        setup_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let recipient_id = json_string(
+        &setup_customer.body["data"]["customerCreate"]["customer"]["id"],
+        "clock validation customer id",
+    );
+
+    let setup_card = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardClockValidationActive {
+          giftCardCreate(input: { initialValue: "10", code: "clockproc" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        setup_card.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let active_id = json_string(
+        &setup_card.body["data"]["giftCardCreate"]["giftCard"]["id"],
+        "clock validation active gift card id",
+    );
+
+    let processed_at_input = json!({
+        "processedAt": "2026-06-01T00:00:00Z",
+        "creditAmount": { "amount": "1.00", "currencyCode": "CAD" }
+    });
+    let future_processed_at = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardProcessedAtClock($id: ID!, $input: GiftCardCreditInput!) {
+          giftCardCredit(id: $id, creditInput: $input) {
+            giftCardCreditTransaction { processedAt }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": active_id.clone(), "input": processed_at_input.clone() }),
+    ));
+    assert_eq!(
+        future_processed_at.body["data"]["giftCardCredit"],
+        json!({
+            "giftCardCreditTransaction": null,
+            "userErrors": [{
+                "field": ["creditInput", "processedAt"],
+                "code": "INVALID",
+                "message": "The processed date must not be in the future."
+            }]
+        })
+    );
+
+    let send_at_input = "2026-08-30T00:00:00Z";
+    let too_far_send_at = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardSendAtClock($recipientId: ID!, $sendAt: DateTime!) {
+          giftCardCreate(input: { initialValue: "10", code: "clocksendtoo", recipientAttributes: { id: $recipientId, sendNotificationAt: $sendAt } }) {
+            giftCard { id recipientAttributes { sendNotificationAt } }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "recipientId": recipient_id.clone(), "sendAt": send_at_input }),
+    ));
+    assert_eq!(
+        too_far_send_at.body["data"]["giftCardCreate"],
+        json!({
+            "giftCard": null,
+            "giftCardCode": null,
+            "userErrors": [{
+                "field": ["input", "recipientAttributes", "sendNotificationAt"],
+                "code": "INVALID",
+                "message": "Send notification at must be within 90 days from now"
+            }]
+        })
+    );
+
+    set_clock(&clock, 1_780_272_000);
+    let accepted_send_at = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardSendAtClock($recipientId: ID!, $sendAt: DateTime!) {
+          giftCardCreate(input: { initialValue: "10", code: "clocksendok", recipientAttributes: { id: $recipientId, sendNotificationAt: $sendAt } }) {
+            giftCard { id recipientAttributes { sendNotificationAt } }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "recipientId": recipient_id, "sendAt": send_at_input }),
+    ));
+    assert_eq!(
+        accepted_send_at.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted_send_at.body["data"]["giftCardCreate"]["giftCard"]["recipientAttributes"]
+            ["sendNotificationAt"],
+        json!(send_at_input)
+    );
+
+    let expiring_setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryClockSetup {
+          giftCardCreate(input: { initialValue: "10", code: "clockexpiry", expiresOn: "2026-06-01" }) {
+            giftCard { id expiresOn }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        expiring_setup.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let expiring_id = json_string(
+        &expiring_setup.body["data"]["giftCardCreate"]["giftCard"]["id"],
+        "clock validation expiring gift card id",
+    );
+    let active_on_expiry_day = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryClockActive($id: ID!) {
+          giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardCreditTransaction { __typename }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": expiring_id.clone() }),
+    ));
+    assert_eq!(
+        active_on_expiry_day.body["data"]["giftCardCredit"],
+        json!({
+            "giftCardCreditTransaction": { "__typename": "GiftCardCreditTransaction" },
+            "userErrors": []
+        })
+    );
+
+    set_clock(&clock, 1_780_358_400);
+    let accepted_processed_at = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardProcessedAtClock($id: ID!, $input: GiftCardCreditInput!) {
+          giftCardCredit(id: $id, creditInput: $input) {
+            giftCardCreditTransaction { processedAt amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": active_id, "input": processed_at_input }),
+    ));
+    assert_eq!(
+        accepted_processed_at.body["data"]["giftCardCredit"],
+        json!({
+            "giftCardCreditTransaction": {
+                "processedAt": "2026-06-01T00:00:00Z",
+                "amount": { "amount": "1.0", "currencyCode": "CAD" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let expired_after_clock_advance = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardExpiryClockExpired($id: ID!) {
+          giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "1.00", currencyCode: CAD } }) {
+            giftCardDebitTransaction { __typename }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": expiring_id }),
+    ));
+    assert_eq!(
+        expired_after_clock_advance.body["data"]["giftCardDebit"],
+        json!({
+            "giftCardDebitTransaction": null,
+            "userErrors": [{
+                "field": ["id"],
+                "code": "INVALID",
+                "message": "The gift card has expired."
+            }]
         })
     );
 }
@@ -10149,7 +10488,7 @@ fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
 
 #[test]
 fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_trip() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy_with_gift_card_fixed_validation_clock();
 
     let plain_create = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreatePlain {
@@ -10862,7 +11201,7 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
 
 #[test]
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
-    let mut proxy = cad_snapshot_proxy();
+    let mut proxy = cad_snapshot_proxy_with_gift_card_fixed_validation_clock();
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -10963,7 +11302,7 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
 
 #[test]
 fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
-    let mut proxy = cad_snapshot_proxy();
+    let mut proxy = cad_snapshot_proxy_with_gift_card_fixed_validation_clock();
 
     let setup = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardExpiryUtcFallbackSetup {
@@ -11272,7 +11611,7 @@ fn gift_card_local_only_and_schema_hidden_branches_have_explicit_runtime_coverag
 
     // gift-card-expiry-shop-timezone
     {
-        let mut proxy = cad_snapshot_proxy();
+        let mut proxy = cad_snapshot_proxy_with_gift_card_fixed_validation_clock();
         let dump = proxy.process_request(request_with_body(
             "POST",
             "/__meta/dump",

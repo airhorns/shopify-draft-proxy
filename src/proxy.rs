@@ -1908,6 +1908,3 @@ pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
-
-#[cfg(test)]
-mod store_tests;

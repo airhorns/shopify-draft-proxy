@@ -972,14 +972,16 @@ impl DraftProxy {
             && caller_token == token
             && !token.starts_with("shpat_delegate_proxy_")
         {
-            user_errors.push(delegate_access_token_destroy_user_error(
+            user_errors.push(user_error(
+                Value::Null,
                 "Can only delete delegate tokens.",
-                "CAN_ONLY_DELETE_DELEGATE_TOKENS",
+                Some("CAN_ONLY_DELETE_DELEGATE_TOKENS"),
             ));
         } else if caller_token.starts_with("shpat_delegate_proxy_") && caller_token != token {
-            user_errors.push(delegate_access_token_destroy_user_error(
+            user_errors.push(user_error(
+                Value::Null,
                 "Access denied.",
-                "ACCESS_DENIED",
+                Some("ACCESS_DENIED"),
             ));
         } else if self
             .store
@@ -987,9 +989,10 @@ impl DraftProxy {
             .uninstalled_app_ids
             .contains(&normalize_app_gid(&caller_api_client_id))
         {
-            user_errors.push(delegate_access_token_destroy_user_error(
+            user_errors.push(user_error(
+                Value::Null,
                 "Access token does not exist.",
-                "ACCESS_TOKEN_NOT_FOUND",
+                Some("ACCESS_TOKEN_NOT_FOUND"),
             ));
         } else if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
             let token_api_client_id = record
@@ -997,9 +1000,10 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .unwrap_or("gid://shopify/App/local");
             if normalize_app_gid(token_api_client_id) != normalize_app_gid(&caller_api_client_id) {
-                user_errors.push(delegate_access_token_destroy_user_error(
+                user_errors.push(user_error(
+                    Value::Null,
                     "Access denied.",
-                    "ACCESS_DENIED",
+                    Some("ACCESS_DENIED"),
                 ));
             } else {
                 self.store.staged.delegate_access_tokens.remove(&token);
@@ -1013,9 +1017,10 @@ impl DraftProxy {
                 status = true;
             }
         } else {
-            user_errors.push(delegate_access_token_destroy_user_error(
+            user_errors.push(user_error(
+                Value::Null,
                 "Access token does not exist.",
-                "ACCESS_TOKEN_NOT_FOUND",
+                Some("ACCESS_TOKEN_NOT_FOUND"),
             ));
         }
         let shop = self.store.effective_shop();

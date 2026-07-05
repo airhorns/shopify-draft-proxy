@@ -1,36 +1,47 @@
-use super::*;
+use std::collections::BTreeMap;
+
+use pretty_assertions::assert_eq;
+use serde_json::{json, Value};
+use shopify_draft_proxy::proxy::{
+    Config, DraftProxy, ProductRecord, ReadMode, Request, Response, UnsupportedMutationMode,
+};
 
 fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
     ProductRecord {
         id: id.to_string(),
-        created_at: default_product_timestamp(),
-        updated_at: default_product_timestamp(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: title.to_string(),
         handle: handle.to_string(),
         status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        total_inventory: 0,
-        tracks_inventory: false,
-        variants: Vec::new(),
-        media: Vec::new(),
-        collections: Vec::new(),
-        extra_fields: BTreeMap::new(),
+        ..ProductRecord::default()
     }
 }
 
-fn saved_search(id: &str, name: &str, resource_type: &str) -> SavedSearchRecord {
-    SavedSearchRecord {
-        id: id.to_string(),
-        name: name.to_string(),
-        query: "tag:promo".to_string(),
-        resource_type: resource_type.to_string(),
-    }
+fn product_state(id: &str, title: &str, handle: &str) -> Value {
+    json!({
+        "id": id,
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "title": title,
+        "handle": handle,
+        "status": "ACTIVE",
+        "descriptionHtml": "",
+        "vendor": "",
+        "productType": "",
+        "tags": [],
+        "templateSuffix": "",
+        "seo": {
+            "title": "",
+            "description": ""
+        },
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "media": { "nodes": [] },
+        "variants": { "nodes": [] },
+        "collections": { "nodes": [] },
+        "extraFields": {}
+    })
 }
 
 fn snapshot_proxy() -> DraftProxy {
@@ -48,7 +59,7 @@ fn request(method: &str, path: &str, body: &str) -> Request {
     Request {
         method: method.to_string(),
         path: path.to_string(),
-        headers: BTreeMap::new(),
+        headers: Default::default(),
         body: body.to_string(),
     }
 }
@@ -65,297 +76,495 @@ fn graphql_request(query: &str, variables: Value) -> Request {
     )
 }
 
+fn ok_json(body: Value) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body,
+    }
+}
+
+fn dump(proxy: &mut DraftProxy) -> Value {
+    let response = proxy.process_request(request(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-05-23T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
+fn restore(proxy: &mut DraftProxy, body: &Value) {
+    let response = proxy.process_request(request("POST", "/__meta/restore", &body.to_string()));
+    assert_eq!(response.status, 200);
+}
+
 #[test]
 fn store_effective_products_stage_overrides_base_and_tombstones() {
-    let mut store = Store::default();
-    store.replace_base_products(vec![
+    let mut proxy = snapshot_proxy().with_base_products(vec![
         product("gid://shopify/Product/base-1", "Base one", "base-one"),
         product("gid://shopify/Product/base-2", "Base two", "base-two"),
     ]);
 
-    store.stage_product(product(
-        "gid://shopify/Product/base-1",
-        "Updated one",
-        "updated-one",
+    let update = proxy.process_request(graphql_request(
+        r#"
+        mutation ProductStoreUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/base-1",
+                "title": "Updated one",
+                "handle": "updated-one"
+            }
+        }),
     ));
-    store.stage_product(product(
-        "gid://shopify/Product/new",
-        "New product",
-        "new-product",
-    ));
-    store.delete_product("gid://shopify/Product/base-2");
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"]["title"],
+        json!("Updated one")
+    );
 
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation ProductStoreCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "New product",
+                "handle": "new-product"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let new_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return an id")
+        .to_string();
+
+    let delete = proxy.process_request(graphql_request(
+        r#"
+        mutation ProductStoreDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/base-2" } }),
+    ));
+    assert_eq!(delete.status, 200);
     assert_eq!(
-        store
-            .product_by_id("gid://shopify/Product/base-1")
-            .unwrap()
-            .title,
-        "Updated one"
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!("gid://shopify/Product/base-2")
     );
-    assert!(store
-        .product_by_id("gid://shopify/Product/base-2")
-        .is_none());
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query ProductStoreRead($updatedId: ID!, $deletedId: ID!, $newHandle: String!) {
+          updated: product(id: $updatedId) { id title handle }
+          deleted: product(id: $deletedId) { id }
+          byHandle: productByIdentifier(identifier: { handle: $newHandle }) { id title handle }
+          products(first: 10) { nodes { id title handle } }
+          productsCount { count precision }
+        }
+        "#,
+        json!({
+            "updatedId": "gid://shopify/Product/base-1",
+            "deletedId": "gid://shopify/Product/base-2",
+            "newHandle": "new-product"
+        }),
+    ));
+    assert_eq!(read.status, 200);
     assert_eq!(
-        store
-            .product_by_handle("new-product")
-            .map(|record| record.id.as_str()),
-        Some("gid://shopify/Product/new")
+        read.body["data"]["updated"],
+        json!({
+            "id": "gid://shopify/Product/base-1",
+            "title": "Updated one",
+            "handle": "updated-one"
+        })
+    );
+    assert_eq!(read.body["data"]["deleted"], Value::Null);
+    assert_eq!(
+        read.body["data"]["byHandle"],
+        json!({
+            "id": new_id,
+            "title": "New product",
+            "handle": "new-product"
+        })
     );
     assert_eq!(
-        store
-            .products()
-            .iter()
-            .map(|record| record.id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
+        read.body["data"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/base-1",
+                "title": "Updated one",
+                "handle": "updated-one"
+            },
+            {
+                "id": new_id,
+                "title": "New product",
+                "handle": "new-product"
+            }
+        ])
     );
-    assert_eq!(store.product_count(), 2);
+    assert_eq!(
+        read.body["data"]["productsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
 }
 
 #[test]
 fn store_saved_searches_overlay_defaults_base_and_tombstones_in_order() {
-    let mut store = Store::default();
-    store.base.saved_searches.replace_with_order(
-        BTreeMap::from([(
-            "gid://shopify/SavedSearch/base".to_string(),
-            saved_search("gid://shopify/SavedSearch/base", "Base products", "PRODUCT"),
-        )]),
-        vec!["gid://shopify/SavedSearch/base".to_string()],
+    let mut proxy = snapshot_proxy();
+    let mut seed = dump(&mut proxy);
+    seed["state"]["baseState"]["savedSearches"] = json!({
+        "gid://shopify/SavedSearch/base": {
+            "id": "gid://shopify/SavedSearch/base",
+            "name": "Base products",
+            "query": "tag:promo",
+            "resourceType": "PRODUCT"
+        }
+    });
+    seed["state"]["baseState"]["savedSearchOrder"] = json!(["gid://shopify/SavedSearch/base"]);
+    restore(&mut proxy, &seed);
+
+    let update = proxy.process_request(graphql_request(
+        r#"
+        mutation SavedSearchStoreUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/SavedSearch/base",
+                "name": "Updated base products",
+                "query": "tag:promo"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["name"],
+        json!("Updated base products")
     );
 
-    store.stage_saved_search(saved_search(
-        "gid://shopify/SavedSearch/base",
-        "Updated base products",
-        "PRODUCT",
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation SavedSearchStoreCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "New products",
+                "query": "tag:promo",
+                "resourceType": "PRODUCT"
+            }
+        }),
     ));
-    store.stage_saved_search(saved_search(
-        "gid://shopify/SavedSearch/new",
-        "New products",
-        "PRODUCT",
-    ));
-    assert!(store.delete_saved_search("gid://shopify/SavedSearch/base"));
+    assert_eq!(create.status, 200);
+    let new_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .expect("savedSearchCreate should return an id")
+        .to_string();
 
-    assert!(store
-        .saved_search_by_id("gid://shopify/SavedSearch/base")
-        .is_none());
+    let delete = proxy.process_request(graphql_request(
+        r#"
+        mutation SavedSearchStoreDelete($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/SavedSearch/base" } }),
+    ));
+    assert_eq!(delete.status, 200);
     assert_eq!(
-        store
-            .saved_searches_for_resource("PRODUCT")
-            .iter()
-            .map(|record| record.id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["gid://shopify/SavedSearch/new"]
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/base")
+    );
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query SavedSearchStoreRead {
+          productSavedSearches(first: 10) {
+            nodes { id name query resourceType }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": new_id,
+            "name": "New products",
+            "query": "tag:promo",
+            "resourceType": "PRODUCT"
+        }])
     );
 }
 
 #[test]
 fn store_clear_staged_resets_overlays_and_tombstones_without_dropping_base() {
-    let mut store = Store::default();
-    store.replace_base_products(vec![product(
+    let mut proxy = snapshot_proxy().with_base_products(vec![product(
         "gid://shopify/Product/base",
         "Base product",
         "base-product",
     )]);
-    store.stage_product(product(
-        "gid://shopify/Product/base",
-        "Updated product",
-        "updated-product",
+    let update = proxy.process_request(graphql_request(
+        r#"
+        mutation ResetProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/base",
+                "title": "Updated product",
+                "handle": "updated-product"
+            }
+        }),
     ));
-    store.delete_product("gid://shopify/Product/base");
+    assert_eq!(update.status, 200);
 
-    store.clear_staged();
+    let delete = proxy.process_request(graphql_request(
+        r#"
+        mutation ResetProductDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/base" } }),
+    ));
+    assert_eq!(delete.status, 200);
 
+    let reset = proxy.process_request(request("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query ResetProductRead {
+          product(id: "gid://shopify/Product/base") { id title handle }
+        }
+        "#,
+        json!({}),
+    ));
     assert_eq!(
-        store
-            .product_by_id("gid://shopify/Product/base")
-            .unwrap()
-            .title,
-        "Base product"
+        read.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/base",
+            "title": "Base product",
+            "handle": "base-product"
+        })
     );
-    assert!(store.staged.products.records.is_empty());
-    assert!(store.staged.products.tombstones.is_empty());
+    let state = proxy.process_request(request("GET", "/__meta/state", ""));
+    assert_eq!(state.status, 200);
+    assert_eq!(state.body["stagedState"]["products"], json!({}));
+    assert_eq!(state.body["stagedState"]["deletedProductIds"], json!([]));
 }
 
 #[test]
 fn store_dump_restore_round_trips_order_and_tombstones() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![
-        product("gid://shopify/Product/base-1", "Base one", "base-one"),
-        product("gid://shopify/Product/base-2", "Base two", "base-two"),
-    ]);
-    proxy.store.stage_product(product(
+    let mut proxy = snapshot_proxy();
+    let mut body = dump(&mut proxy);
+    body["state"]["baseState"]["products"] = json!({
+        "gid://shopify/Product/base-1": product_state(
+            "gid://shopify/Product/base-1",
+            "Base one",
+            "base-one"
+        ),
+        "gid://shopify/Product/base-2": product_state(
+            "gid://shopify/Product/base-2",
+            "Base two",
+            "base-two"
+        )
+    });
+    body["state"]["baseState"]["productOrder"] = json!([
         "gid://shopify/Product/base-1",
-        "Updated one",
-        "updated-one",
-    ));
-    proxy.store.stage_product(product(
-        "gid://shopify/Product/new",
-        "New product",
-        "new-product",
-    ));
-    proxy.store.delete_product("gid://shopify/Product/base-2");
-    proxy.store.stage_saved_search(saved_search(
-        "gid://shopify/SavedSearch/new",
-        "New products",
-        "PRODUCT",
-    ));
-    proxy.store.staged.locations.insert(
-        "gid://shopify/Location/live".to_string(),
-        json!({"id": "gid://shopify/Location/live", "name": "Live location"}),
-    );
-    proxy.store.staged.locations.insert(
-        "gid://shopify/Location/deleted".to_string(),
-        json!({"id": "gid://shopify/Location/deleted", "name": "Deleted location"}),
-    );
-    proxy
-        .store
-        .staged
-        .locations
-        .tombstone_staged("gid://shopify/Location/deleted");
-    proxy.store.staged.delivery_profiles.insert(
-        "gid://shopify/DeliveryProfile/live".to_string(),
-        json!({"id": "gid://shopify/DeliveryProfile/live", "name": "Live profile"}),
-    );
-    proxy.store.staged.delivery_profiles.insert(
-        "gid://shopify/DeliveryProfile/deleted".to_string(),
-        json!({"id": "gid://shopify/DeliveryProfile/deleted", "name": "Deleted profile"}),
-    );
-    proxy
-        .store
-        .staged
-        .delivery_profiles
-        .tombstone_staged("gid://shopify/DeliveryProfile/deleted");
-    proxy.store.staged.store_credit_accounts.insert(
-        "gid://shopify/StoreCreditAccount/1".to_string(),
-        json!({"id": "gid://shopify/StoreCreditAccount/1"}),
-    );
-    proxy.store.staged.b2b_locations.insert(
-        "gid://shopify/CompanyLocation/1".to_string(),
-        json!({"id": "gid://shopify/CompanyLocation/1"}),
-    );
-    proxy.store.staged.customers.insert(
-        "gid://shopify/Customer/deleted".to_string(),
-        json!({"id": "gid://shopify/Customer/deleted"}),
-    );
-    proxy
-        .store
-        .staged
-        .customers
-        .tombstone_staged("gid://shopify/Customer/deleted");
-    proxy.store.staged.collections.insert(
-        "gid://shopify/Collection/deleted".to_string(),
-        json!({"id": "gid://shopify/Collection/deleted"}),
-    );
-    proxy
-        .store
-        .staged
-        .collections
-        .tombstone_staged("gid://shopify/Collection/deleted");
+        "gid://shopify/Product/base-2"
+    ]);
+    body["state"]["stagedState"]["products"] = json!({
+        "gid://shopify/Product/base-1": product_state(
+            "gid://shopify/Product/base-1",
+            "Updated one",
+            "updated-one"
+        ),
+        "gid://shopify/Product/new": product_state(
+            "gid://shopify/Product/new",
+            "New product",
+            "new-product"
+        )
+    });
+    body["state"]["stagedState"]["productOrder"] =
+        json!(["gid://shopify/Product/base-1", "gid://shopify/Product/new"]);
+    body["state"]["stagedState"]["deletedProductIds"] = json!(["gid://shopify/Product/base-2"]);
+    body["state"]["stagedState"]["savedSearches"] = json!({
+        "gid://shopify/SavedSearch/new": {
+            "id": "gid://shopify/SavedSearch/new",
+            "name": "New products",
+            "query": "tag:promo",
+            "resourceType": "PRODUCT"
+        }
+    });
+    body["state"]["stagedState"]["savedSearchOrder"] = json!(["gid://shopify/SavedSearch/new"]);
+    body["state"]["stagedState"]["locations"] = json!({
+        "gid://shopify/Location/live": {
+            "id": "gid://shopify/Location/live",
+            "name": "Live location"
+        }
+    });
+    body["state"]["stagedState"]["locationOrder"] = json!(["gid://shopify/Location/live"]);
+    body["state"]["stagedState"]["deletedLocationIds"] = json!(["gid://shopify/Location/deleted"]);
+    body["state"]["stagedState"]["deliveryProfiles"] = json!({
+        "gid://shopify/DeliveryProfile/live": {
+            "id": "gid://shopify/DeliveryProfile/live",
+            "name": "Live profile"
+        }
+    });
+    body["state"]["stagedState"]["deliveryProfileOrder"] =
+        json!(["gid://shopify/DeliveryProfile/live"]);
+    body["state"]["stagedState"]["deletedDeliveryProfileIds"] =
+        json!(["gid://shopify/DeliveryProfile/deleted"]);
+    body["state"]["stagedState"]["storeCreditAccounts"] = json!({
+        "gid://shopify/StoreCreditAccount/1": {
+            "id": "gid://shopify/StoreCreditAccount/1"
+        }
+    });
+    body["state"]["stagedState"]["storeCreditAccountOrder"] =
+        json!(["gid://shopify/StoreCreditAccount/1"]);
+    body["state"]["stagedState"]["b2bLocations"] = json!({
+        "gid://shopify/CompanyLocation/1": {
+            "id": "gid://shopify/CompanyLocation/1"
+        }
+    });
+    body["state"]["stagedState"]["b2bLocationOrder"] = json!(["gid://shopify/CompanyLocation/1"]);
+    body["state"]["stagedState"]["deletedCustomerIds"] = json!(["gid://shopify/Customer/deleted"]);
+    body["state"]["stagedState"]["deletedCollectionIds"] =
+        json!(["gid://shopify/Collection/deleted"]);
 
-    let dump = proxy.process_request(request(
-        "POST",
-        "/__meta/dump",
-        &json!({ "createdAt": "2026-05-23T00:00:00.000Z" }).to_string(),
-    ));
+    let mut restored = snapshot_proxy();
+    restore(&mut restored, &body);
+    let round_trip = dump(&mut restored);
+
     assert_eq!(
-        dump.body["state"]["baseState"]["productOrder"],
+        round_trip["state"]["baseState"]["productOrder"],
         json!([
             "gid://shopify/Product/base-1",
             "gid://shopify/Product/base-2"
         ])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["productOrder"],
+        round_trip["state"]["stagedState"]["productOrder"],
         json!(["gid://shopify/Product/base-1", "gid://shopify/Product/new"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deletedProductIds"],
+        round_trip["state"]["stagedState"]["deletedProductIds"],
         json!(["gid://shopify/Product/base-2"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["locationOrder"],
+        round_trip["state"]["stagedState"]["savedSearchOrder"],
+        json!(["gid://shopify/SavedSearch/new"])
+    );
+    assert_eq!(
+        round_trip["state"]["stagedState"]["locationOrder"],
         json!(["gid://shopify/Location/live"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deletedLocationIds"],
+        round_trip["state"]["stagedState"]["deletedLocationIds"],
         json!(["gid://shopify/Location/deleted"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deliveryProfileOrder"],
+        round_trip["state"]["stagedState"]["deliveryProfileOrder"],
         json!(["gid://shopify/DeliveryProfile/live"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deletedDeliveryProfileIds"],
+        round_trip["state"]["stagedState"]["deletedDeliveryProfileIds"],
         json!(["gid://shopify/DeliveryProfile/deleted"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["storeCreditAccountOrder"],
+        round_trip["state"]["stagedState"]["storeCreditAccountOrder"],
         json!(["gid://shopify/StoreCreditAccount/1"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["b2bLocationOrder"],
+        round_trip["state"]["stagedState"]["b2bLocationOrder"],
         json!(["gid://shopify/CompanyLocation/1"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deletedCustomerIds"],
+        round_trip["state"]["stagedState"]["deletedCustomerIds"],
         json!(["gid://shopify/Customer/deleted"])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["deletedCollectionIds"],
+        round_trip["state"]["stagedState"]["deletedCollectionIds"],
         json!(["gid://shopify/Collection/deleted"])
     );
 
-    let mut restored = snapshot_proxy();
-    let restore =
-        restored.process_request(request("POST", "/__meta/restore", &dump.body.to_string()));
-    assert_eq!(restore.status, 200);
+    let products = restored.process_request(graphql_request(
+        r#"
+        query RestoredProductRead {
+          products(first: 10) { nodes { id title handle } }
+          productsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
     assert_eq!(
-        restored
-            .store
-            .products()
-            .iter()
-            .map(|record| record.id.as_str())
-            .collect::<Vec<_>>(),
-        vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
+        products.body["data"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/base-1",
+                "title": "Updated one",
+                "handle": "updated-one"
+            },
+            {
+                "id": "gid://shopify/Product/new",
+                "title": "New product",
+                "handle": "new-product"
+            }
+        ])
     );
     assert_eq!(
-        restored.store.saved_searches_for_resource("PRODUCT")[0].id,
-        "gid://shopify/SavedSearch/new"
+        products.body["data"]["productsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
     );
+
+    let saved_searches = restored.process_request(graphql_request(
+        r#"
+        query RestoredSavedSearchRead {
+          productSavedSearches(first: 10) { nodes { id name query resourceType } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(saved_searches.status, 200);
     assert_eq!(
-        restored
-            .store
-            .staged
-            .locations
-            .get("gid://shopify/Location/live"),
-        Some(&json!({"id": "gid://shopify/Location/live", "name": "Live location"}))
-    );
-    assert!(restored
-        .store
-        .staged
-        .locations
-        .is_tombstoned("gid://shopify/Location/deleted"));
-    assert!(restored
-        .store
-        .staged
-        .delivery_profiles
-        .is_tombstoned("gid://shopify/DeliveryProfile/deleted"));
-    assert!(restored
-        .store
-        .staged
-        .customers
-        .is_tombstoned("gid://shopify/Customer/deleted"));
-    assert!(restored
-        .store
-        .staged
-        .collections
-        .is_tombstoned("gid://shopify/Collection/deleted"));
-    assert_eq!(
-        restored.store.staged.store_credit_accounts.order,
-        vec!["gid://shopify/StoreCreditAccount/1"]
-    );
-    assert_eq!(
-        restored.store.staged.b2b_locations.order,
-        vec!["gid://shopify/CompanyLocation/1"]
+        saved_searches.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": "gid://shopify/SavedSearch/new",
+            "name": "New products",
+            "query": "tag:promo",
+            "resourceType": "PRODUCT"
+        }])
     );
 }
 
@@ -1461,5 +1670,513 @@ fn collection_downstream_read_uses_observed_passthrough_membership_state() {
     assert_eq!(
         read.body["data"]["second"]["collections"]["nodes"],
         read.body["data"]["first"]["collections"]["nodes"]
+    );
+}
+
+#[test]
+fn smart_collection_downstream_read_evaluates_rule_set_membership() {
+    let mut cheap_product = product("gid://shopify/Product/cheap", "Budget Tee", "budget-tee");
+    cheap_product.vendor = "Hermes".to_string();
+    cheap_product.product_type = "Shirt".to_string();
+    cheap_product.tags = vec!["summer".to_string(), "sale".to_string()];
+    cheap_product.variants = vec![json!({
+        "id": "gid://shopify/ProductVariant/cheap-default",
+        "price": "7.50"
+    })];
+    let mut expensive_product = product(
+        "gid://shopify/Product/expensive",
+        "Premium Jacket",
+        "premium-jacket",
+    );
+    expensive_product.vendor = "Hermes".to_string();
+    expensive_product.product_type = "Outerwear".to_string();
+    expensive_product.tags = vec!["winter".to_string()];
+    expensive_product.variants = vec![json!({
+        "id": "gid://shopify/ProductVariant/expensive-default",
+        "price": "19.00"
+    })];
+    let mut proxy = snapshot_proxy().with_base_products(vec![cheap_product, expensive_product]);
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation SmartCollectionCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+              ruleSet {
+                appliedDisjunctively
+                rules {
+                  column
+                  relation
+                  condition
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Cheap Hermes Shirts",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [
+                        {
+                            "column": "VENDOR",
+                            "relation": "EQUALS",
+                            "condition": "Hermes"
+                        },
+                        {
+                            "column": "TYPE",
+                            "relation": "EQUALS",
+                            "condition": "Shirt"
+                        },
+                        {
+                            "column": "TAG",
+                            "relation": "EQUALS",
+                            "condition": "sale"
+                        },
+                        {
+                            "column": "VARIANT_PRICE",
+                            "relation": "LESS_THAN",
+                            "condition": "10"
+                        }
+                    ]
+                }
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collection create should return id")
+        .to_string();
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query SmartCollectionRead($id: ID!) {
+          collection(id: $id) {
+            productsCount {
+              count
+              precision
+            }
+            products(first: 10) {
+              nodes {
+                id
+                title
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["collection"]["productsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/cheap",
+                "title": "Budget Tee"
+            }
+        ])
+    );
+}
+
+#[test]
+fn smart_collection_rules_include_staged_products_without_affecting_manual_collections() {
+    let mut base_match = product("gid://shopify/Product/silk", "Silk Scarf", "silk-scarf");
+    base_match.vendor = "Baseline Vendor".to_string();
+    let mut base_miss = product("gid://shopify/Product/canvas", "Canvas Bag", "canvas-bag");
+    base_miss.vendor = "Baseline Vendor".to_string();
+    let mut proxy = snapshot_proxy().with_base_products(vec![base_match, base_miss]);
+
+    let smart_create = proxy.process_request(graphql_request(
+        r#"
+        mutation SmartCollectionOrCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Silk Or Staged Vendor",
+                "ruleSet": {
+                    "appliedDisjunctively": true,
+                    "rules": [
+                        {
+                            "column": "TITLE",
+                            "relation": "CONTAINS",
+                            "condition": "silk"
+                        },
+                        {
+                            "column": "VENDOR",
+                            "relation": "EQUALS",
+                            "condition": "Staged Vendor"
+                        }
+                    ]
+                }
+            }
+        }),
+    ));
+    assert_eq!(smart_create.status, 200);
+    assert_eq!(
+        smart_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let smart_collection_id = smart_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("smart collection create should return id")
+        .to_string();
+
+    let manual_create = proxy.process_request(graphql_request(
+        r#"
+        mutation ManualCollectionCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Manual Collection",
+                "sortOrder": "MANUAL"
+            }
+        }),
+    ));
+    assert_eq!(manual_create.status, 200);
+    assert_eq!(
+        manual_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let manual_collection_id = manual_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("manual collection create should return id")
+        .to_string();
+
+    let product_create = proxy.process_request(graphql_request(
+        r#"
+        mutation StagedSmartCollectionProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Staged Vendor Cap",
+                "vendor": "Staged Vendor"
+            }
+        }),
+    ));
+    assert_eq!(product_create.status, 200);
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_product_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("product create should return id")
+        .to_string();
+
+    let unsupported_create = proxy.process_request(graphql_request(
+        r#"
+        mutation UnsupportedSmartCollectionRuleCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Unsupported Variant Title",
+                "ruleSet": {
+                    "appliedDisjunctively": true,
+                    "rules": [
+                        {
+                            "column": "VARIANT_TITLE",
+                            "relation": "EQUALS",
+                            "condition": "Default Title"
+                        }
+                    ]
+                }
+            }
+        }),
+    ));
+    assert_eq!(unsupported_create.status, 200);
+    assert_eq!(
+        unsupported_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let unsupported_collection_id = unsupported_create.body["data"]["collectionCreate"]
+        ["collection"]["id"]
+        .as_str()
+        .expect("unsupported smart collection create should return id")
+        .to_string();
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query SmartManualAndUnsupportedRead($smartId: ID!, $manualId: ID!, $unsupportedId: ID!) {
+          smart: collection(id: $smartId) {
+            productsCount {
+              count
+              precision
+            }
+            products(first: 10, sortKey: TITLE) {
+              nodes {
+                id
+                title
+              }
+            }
+          }
+          manual: collection(id: $manualId) {
+            productsCount {
+              count
+              precision
+            }
+            products(first: 10, sortKey: MANUAL) {
+              nodes {
+                id
+                title
+              }
+            }
+          }
+          unsupported: collection(id: $unsupportedId) {
+            productsCount {
+              count
+              precision
+            }
+            products(first: 10) {
+              nodes {
+                id
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "smartId": smart_collection_id,
+            "manualId": manual_collection_id,
+            "unsupportedId": unsupported_collection_id
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["smart"]["productsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["smart"]["products"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/silk",
+                "title": "Silk Scarf"
+            },
+            {
+                "id": staged_product_id,
+                "title": "Staged Vendor Cap"
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["manual"]["productsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["manual"]["products"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["unsupported"]["productsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["unsupported"]["products"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn smart_collection_rules_include_product_set_products() {
+    let mut proxy = snapshot_proxy();
+
+    let product_set = proxy.process_request(graphql_request(
+        r#"
+        mutation SmartCollectionProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              title
+              vendor
+              productType
+              tags
+              variants(first: 10) {
+                nodes {
+                  price
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Smart RuleSet Product",
+                "status": "ACTIVE",
+                "vendor": "Hermes Smart Rule Vendor",
+                "productType": "Smart Rule Shirt",
+                "tags": ["smart-ruleset"],
+                "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                    "price": "7.50",
+                    "inventoryItem": { "tracked": false, "requiresShipping": true }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(product_set.status, 200);
+    assert_eq!(
+        product_set.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    let product_id = product_set.body["data"]["productSet"]["product"]["id"]
+        .as_str()
+        .expect("productSet should return id")
+        .to_string();
+
+    let dumped = proxy.process_request(request(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "1970-01-01T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dumped.status, 200);
+    let restored =
+        proxy.process_request(request("POST", "/__meta/restore", &dumped.body.to_string()));
+    assert_eq!(restored.status, 200);
+
+    let collection_create = proxy.process_request(graphql_request(
+        r#"
+        mutation SmartCollectionCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart RuleSet Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [
+                        { "column": "TITLE", "relation": "CONTAINS", "condition": "RuleSet Product" },
+                        { "column": "TYPE", "relation": "EQUALS", "condition": "Smart Rule Shirt" },
+                        { "column": "VENDOR", "relation": "EQUALS", "condition": "Hermes Smart Rule Vendor" },
+                        { "column": "TAG", "relation": "EQUALS", "condition": "smart-ruleset" },
+                        { "column": "VARIANT_PRICE", "relation": "LESS_THAN", "condition": "10" }
+                    ]
+                }
+            }
+        }),
+    ));
+    assert_eq!(collection_create.status, 200);
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should return id")
+        .to_string();
+
+    let dumped = proxy.process_request(request(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "1970-01-01T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dumped.status, 200);
+    let restored =
+        proxy.process_request(request("POST", "/__meta/restore", &dumped.body.to_string()));
+    assert_eq!(restored.status, 200);
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query SmartCollectionRead($id: ID!) {
+          collection(id: $id) {
+            productsCount {
+              count
+              precision
+            }
+            products(first: 10) {
+              nodes {
+                id
+                title
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["collection"]["productsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["products"]["nodes"],
+        json!([{
+            "id": product_id,
+            "title": "Smart RuleSet Product"
+        }])
     );
 }

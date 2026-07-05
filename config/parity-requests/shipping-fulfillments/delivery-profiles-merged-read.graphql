@@ -1,0 +1,18 @@
+query DeliveryProfilesMergedRead($first: Int, $after: String) {
+  deliveryProfiles(first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        default
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

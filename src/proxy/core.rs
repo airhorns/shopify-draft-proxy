@@ -1231,16 +1231,10 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.staged.next_store_credit_account_id = state["stagedState"]
-            .get("nextStoreCreditAccountId")
-            .and_then(Value::as_u64)
-            .filter(|id| *id > 0)
-            .unwrap_or(1);
-        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
-            .get("nextStoreCreditTransactionId")
-            .and_then(Value::as_u64)
-            .filter(|id| *id > 0)
-            .unwrap_or(1);
+        self.store.staged.next_store_credit_account_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditAccountId", 1);
+        self.store.staged.next_store_credit_transaction_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextStoreCreditTransactionId", 1);
         self.store.staged.gift_cards = value_map_from_json(state["stagedState"].get("giftCards"));
         self.store.staged.taggable_resources =
             value_map_from_json(state["stagedState"].get("taggableResources"));
@@ -1260,11 +1254,8 @@ impl DraftProxy {
                     &self.store.staged.customer_payment_methods,
                 )
             });
-        self.store.staged.next_customer_payment_method_id = state["stagedState"]
-            .get("nextCustomerPaymentMethodId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
+        self.store.staged.next_customer_payment_method_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.order_customer_orders =
             value_map_from_json(state["stagedState"].get("orderCustomerOrders"));
         self.store.staged.order_customer_cancelled_ids = state["stagedState"]
@@ -1285,49 +1276,26 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_order_customer_order_id = state["stagedState"]
-            .get("nextOrderCustomerOrderId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.orders.replace_with_order(
-            value_map_from_json(Some(&state["stagedState"]["orders"])),
-            Vec::new(),
+        self.store.staged.next_order_customer_order_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextOrderCustomerOrderId", 1);
+        replace_staged_value_records(
+            &mut self.store.staged.orders,
+            &state["stagedState"],
+            "orders",
+            None,
+            Some("deletedOrderIds"),
         );
-        self.store.staged.next_order_id = state["stagedState"]
-            .get("nextOrderId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_order_number = state["stagedState"]
-            .get("nextOrderNumber")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_refund_id = state["stagedState"]
-            .get("nextRefundId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_refund_line_item_id = state["stagedState"]
-            .get("nextRefundLineItemId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.order_payment_next_transaction_id = state["stagedState"]
-            .get("orderPaymentNextTransactionId")
-            .and_then(Value::as_u64)
-            .unwrap_or(3)
-            .max(3);
+        self.store.staged.next_order_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextOrderId", 1);
+        self.store.staged.next_order_number =
+            counter_from_json_with_floor(&state["stagedState"], "nextOrderNumber", 1);
+        self.store.staged.next_refund_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextRefundId", 1);
+        self.store.staged.next_refund_line_item_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextRefundLineItemId", 1);
+        self.store.staged.order_payment_next_transaction_id =
+            counter_from_json_with_floor(&state["stagedState"], "orderPaymentNextTransactionId", 3);
         self.advance_order_counters_from_staged_orders();
-        self.store.staged.orders.replace_tombstones(
-            state["stagedState"]["deletedOrderIds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|value| value.as_str().map(str::to_string))
-                .collect(),
-        );
         // Draft orders are dumped in the cursor-wrapped overlay format
         // ({ "id", "cursor", "data" }); unwrap `data` back to the staged record.
         // These MUST round-trip because the parity runner restores mainState
@@ -1348,17 +1316,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.next_draft_order_id = state["stagedState"]
-            .get("nextDraftOrderId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
+        self.store.staged.next_draft_order_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderId", 1);
         self.advance_draft_order_counter_from_staged_draft_orders();
-        self.store.staged.next_draft_order_bulk_tag_job_id = state["stagedState"]
-            .get("nextDraftOrderBulkTagJobId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
+        self.store.staged.next_draft_order_bulk_tag_job_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderBulkTagJobId", 1);
         self.store.staged.draft_order_tags = state["stagedState"]["draftOrderTags"]
             .as_object()
             .map(|tags| {
@@ -1450,10 +1412,11 @@ impl DraftProxy {
         self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
             &state["stagedState"]["inventoryQuantityUpdatedAt"],
         );
-        self.store.staged.next_inventory_quantity_timestamp = state["stagedState"]
-            .get("nextInventoryQuantityTimestamp")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
+        self.store.staged.next_inventory_quantity_timestamp = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextInventoryQuantityTimestamp",
+            0,
+        );
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
@@ -1663,21 +1626,15 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.next_b2b_company_id = state["stagedState"]
-            .get("nextB2bCompanyId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_b2b_contact_id = state["stagedState"]
-            .get("nextB2bContactId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_b2b_contact_role_assignment_id = state["stagedState"]
-            .get("nextB2bContactRoleAssignmentId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
+        self.store.staged.next_b2b_company_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextB2bCompanyId", 1);
+        self.store.staged.next_b2b_contact_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextB2bContactId", 1);
+        self.store.staged.next_b2b_contact_role_assignment_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextB2bContactRoleAssignmentId",
+            1,
+        );
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
         self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
@@ -1823,6 +1780,14 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn counter_from_json_with_floor(staged_state: &Value, key: &str, floor: u64) -> u64 {
+    staged_state
+        .get(key)
+        .and_then(Value::as_u64)
+        .unwrap_or(floor)
+        .max(floor)
 }
 
 fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
