@@ -11777,7 +11777,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
     purpose:
-      'bulkOperationRunMutation immediate CREATED response for valid uploaded JSONL plus no-such-file null-operation branch.',
+      'bulkOperationRunMutation immediate CREATED response, completed import counters, downstream read-after-import, and no-such-file null-operation branch.',
     requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-run-mutation-created-status.json`,
