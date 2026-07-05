@@ -250,20 +250,8 @@ impl DraftProxy {
                 None,
             ));
         }
-        let trial_days = arguments
-            .get("trialDays")
-            .and_then(|value| match value {
-                ResolvedValue::Int(value) => Some(*value),
-                _ => None,
-            })
-            .unwrap_or(0);
-        let test = arguments
-            .get("test")
-            .and_then(|value| match value {
-                ResolvedValue::Bool(value) => Some(*value),
-                _ => None,
-            })
-            .unwrap_or(false);
+        let trial_days = resolved_int_field(&arguments, "trialDays").unwrap_or(0);
+        let test = resolved_bool_field(&arguments, "test").unwrap_or(false);
         let line_items = app_subscription_line_items_from_arguments(&arguments, &[]);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
             user_errors.push(user_error(
@@ -486,34 +474,27 @@ impl DraftProxy {
             let subscription_selection =
                 selected_child_selection(&root.selection, "appSubscription").unwrap_or_default();
             let id = resolved_string_field(&root.arguments, "id").unwrap_or_default();
-            let capped = match root.arguments.get("cappedAmount") {
-                Some(ResolvedValue::Object(value)) => value,
-                _ => {
-                    data.insert(
-                        root.response_key,
-                        app_subscription_payload_json(
-                            Value::Null,
-                            &root.selection,
-                            &subscription_selection,
-                            vec![user_error_omit_code(
-                                ["cappedAmount"],
-                                "Capped amount is required",
-                                None,
-                            )],
-                        ),
-                    );
-                    continue;
-                }
+            let Some(capped) = resolved_object_field(&root.arguments, "cappedAmount") else {
+                data.insert(
+                    root.response_key,
+                    app_subscription_payload_json(
+                        Value::Null,
+                        &root.selection,
+                        &subscription_selection,
+                        vec![user_error_omit_code(
+                            ["cappedAmount"],
+                            "Capped amount is required",
+                            None,
+                        )],
+                    ),
+                );
+                continue;
             };
             let requested_amount = money_amount_string_from_resolved(capped.get("amount"));
-            let requested_currency = match capped.get("currencyCode") {
-                Some(ResolvedValue::String(value)) => value.clone(),
-                _ => "USD".to_string(),
-            };
-            let require_approval = match root.arguments.get("requireApproval") {
-                Some(ResolvedValue::Bool(value)) => *value,
-                _ => true,
-            };
+            let requested_currency =
+                resolved_string_field(&capped, "currencyCode").unwrap_or_else(|| "USD".to_string());
+            let require_approval =
+                resolved_bool_field(&root.arguments, "requireApproval").unwrap_or(true);
 
             let mut matched_subscription_id = None;
             let mut matched_line_item = None;
@@ -670,24 +651,19 @@ impl DraftProxy {
             resolved_string_field(&arguments, "subscriptionLineItemId").unwrap_or_default();
         let idempotency_key =
             resolved_string_field(&arguments, "idempotencyKey").unwrap_or_default();
-        let price = match arguments.get("price") {
-            Some(ResolvedValue::Object(price)) => price,
-            _ => {
-                return ok_json(json!({
-                    "data": { response_key: app_usage_record_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &usage_record_selection,
-                        vec![user_error(["price"], "Price is required", None)],
-                    ) }
-                }));
-            }
+        let Some(price) = resolved_object_field(&arguments, "price") else {
+            return ok_json(json!({
+                "data": { response_key: app_usage_record_payload_json(
+                    Value::Null,
+                    &payload_selection,
+                    &usage_record_selection,
+                    vec![user_error(["price"], "Price is required", None)],
+                ) }
+            }));
         };
         let amount = money_amount_string_from_resolved(price.get("amount"));
-        let currency = match price.get("currencyCode") {
-            Some(ResolvedValue::String(value)) => value.clone(),
-            _ => "USD".to_string(),
-        };
+        let currency =
+            resolved_string_field(&price, "currencyCode").unwrap_or_else(|| "USD".to_string());
         let description = resolved_string_field(&arguments, "description").unwrap_or_default();
 
         let mut usage_record = Value::Null;
@@ -829,10 +805,7 @@ impl DraftProxy {
             .or_else(|| input.get("accessScopes"))
             .map(resolved_string_list)
             .unwrap_or_default();
-        let expires_in = match input.get("expiresIn") {
-            Some(ResolvedValue::Int(value)) => *value,
-            _ => 3600,
-        };
+        let expires_in = resolved_int_field(&input, "expiresIn").unwrap_or(3600);
         let mut user_errors = Vec::new();
         if scopes.is_empty() {
             user_errors.push(user_error(
@@ -1163,10 +1136,7 @@ impl DraftProxy {
             .get("name")
             .and_then(resolved_value_string)
             .unwrap_or_default();
-        let price = match arguments.get("price") {
-            Some(ResolvedValue::Object(price)) => price.clone(),
-            _ => BTreeMap::new(),
-        };
+        let price = resolved_object_field(&arguments, "price").unwrap_or_default();
         let amount = money_amount_string_from_resolved(price.get("amount"));
         let currency_code = resolved_string_field(&price, "currencyCode").unwrap_or_default();
         let mut user_errors = Vec::new();

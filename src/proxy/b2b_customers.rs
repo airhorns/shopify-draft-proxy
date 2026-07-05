@@ -463,7 +463,7 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
         let currency = resolved_string_field(&amount_input, "currencyCode").unwrap_or_default();
-        let amount_text = resolved_money_amount_text(&amount_input, "amount");
+        let amount_text = resolved_scalar_text_field(&amount_input, "amount");
         let amount = amount_text
             .as_deref()
             .and_then(|value| value.parse::<f64>().ok())
@@ -5774,21 +5774,6 @@ fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
             "Store credit account does not exist",
             "ACCOUNT_NOT_FOUND",
         )
-    }
-}
-
-/// Read a money `amount` field from a resolved input map, accepting either the
-/// canonical string form or a numeric literal (GraphQL `Decimal` is serialized
-/// as a string but some callers send numbers).
-fn resolved_money_amount_text(
-    input: &BTreeMap<String, ResolvedValue>,
-    field: &str,
-) -> Option<String> {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        Some(ResolvedValue::Int(value)) => Some(value.to_string()),
-        Some(ResolvedValue::Float(value)) => Some(value.to_string()),
-        _ => None,
     }
 }
 

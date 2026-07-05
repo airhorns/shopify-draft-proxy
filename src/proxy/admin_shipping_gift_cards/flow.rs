@@ -118,10 +118,10 @@ impl DraftProxy {
     }
 
     fn flow_trigger_receive_field(&mut self, field: &RootFieldSelection) -> (Value, bool) {
-        let has_body = argument_string(&field.arguments, "body")
+        let has_body = resolved_string_field(&field.arguments, "body")
             .map(|body| !body.is_empty())
             .unwrap_or(false);
-        let has_handle = argument_string(&field.arguments, "handle")
+        let has_handle = resolved_string_field(&field.arguments, "handle")
             .map(|handle| !handle.is_empty())
             .unwrap_or(false);
         let has_payload = field
@@ -140,7 +140,7 @@ impl DraftProxy {
             );
         }
         if has_body {
-            let body = argument_string(&field.arguments, "body").unwrap_or_default();
+            let body = resolved_string_field(&field.arguments, "body").unwrap_or_default();
             return match flow_trigger_body_validation_message(&body) {
                 Some(message) => (flow_trigger_payload(field, "body", &message), false),
                 None => {
@@ -164,7 +164,7 @@ impl DraftProxy {
             );
         }
 
-        let handle = argument_string(&field.arguments, "handle").unwrap_or_default();
+        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
         let Some(payload) = field.arguments.get("payload") else {
             return (
                 flow_trigger_payload(
@@ -299,13 +299,6 @@ fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &
 
 fn flow_trigger_success_payload(field: &RootFieldSelection) -> Value {
     selected_json(&json!({ "userErrors": [] }), &field.selection)
-}
-
-fn argument_string(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
-    match arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 fn flow_trigger_body_validation_message(body: &str) -> Option<String> {

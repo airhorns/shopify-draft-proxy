@@ -1803,13 +1803,6 @@ fn selling_plan_group_summary(
     )
 }
 
-fn resolved_decimal_text_field(
-    input: &BTreeMap<String, ResolvedValue>,
-    key: &str,
-) -> Option<String> {
-    resolved_decimal_text(input.get(key))
-}
-
 fn json_number_value(value: &Value) -> Option<f64> {
     match value {
         Value::Number(number) => number.as_f64(),

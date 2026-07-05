@@ -113,12 +113,3 @@ pub(in crate::proxy) fn shopify_decimal_text(value: &str) -> String {
     }
     formatted
 }
-
-pub(in crate::proxy) fn resolved_decimal_text(value: Option<&ResolvedValue>) -> Option<String> {
-    match value {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}

@@ -4203,26 +4203,6 @@ fn discount_metafields_from_input(
     }
 }
 
-fn resolved_decimal_text_path(
-    input: &BTreeMap<String, ResolvedValue>,
-    path: &[&str],
-) -> Option<String> {
-    let root = ResolvedValue::Object(input.clone());
-    resolved_decimal_text(resolved_object_path(Some(&root), path))
-}
-
-fn resolved_scalar_text_path(
-    input: &BTreeMap<String, ResolvedValue>,
-    path: &[&str],
-) -> Option<String> {
-    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        Some(ResolvedValue::Int(value)) => Some(value.to_string()),
-        Some(ResolvedValue::Float(value)) => Some(value.to_string()),
-        _ => None,
-    }
-}
-
 /// The input argument name carrying the discount payload for each create *or
 /// update* field. Buyer-context member resolution walks both, because the segment
 /// / customer selection a discount echoes back can be established at create time or
