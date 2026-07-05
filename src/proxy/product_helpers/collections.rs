@@ -1031,9 +1031,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Unable to parse publishable mutation");
         };
+        let operation_path = document.operation_path.clone();
+        let fields = document.root_fields;
         let publish = matches!(
             root_field,
             "publishablePublish" | "publishablePublishToCurrentChannel"
@@ -1050,7 +1052,9 @@ impl DraftProxy {
             if field.name != root_field {
                 return None;
             }
-            if let Some(response) = publishable_empty_string_publication_error(root_field, field) {
+            if let Some(response) =
+                publishable_empty_string_publication_error(query, &operation_path, field)
+            {
                 early_response = Some(response);
                 return None;
             }
@@ -1070,6 +1074,16 @@ impl DraftProxy {
                     "Resource does not exist",
                     Some("RESOURCE_DOES_NOT_EXIST"),
                 ));
+            }
+            if resource_exists
+                && resource_id.starts_with("gid://shopify/Product/")
+                && publishable_input_needs_publication_catalog_hydration(
+                    field.arguments.get("input"),
+                    to_current,
+                    self.store.has_known_publication_ids(),
+                )
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
             }
             user_errors.extend(
                 self.publishable_publication_input_errors(field.arguments.get("input"), to_current),

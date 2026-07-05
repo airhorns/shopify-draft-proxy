@@ -2294,7 +2294,7 @@ pub(in crate::proxy) fn inline_argument_value_location(
     source_location_for_byte_offset(query, value_offset_after(query, after_name)?)
 }
 
-fn inline_argument_list_item_object_location(
+pub(in crate::proxy) fn inline_argument_list_item_object_location(
     query: &str,
     field: &RootFieldSelection,
     argument_name: &str,
