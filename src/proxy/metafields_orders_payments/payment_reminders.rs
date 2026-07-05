@@ -29,7 +29,7 @@ impl DraftProxy {
         let schedule_id =
             resolved_string_field(&field.arguments, "paymentScheduleId").unwrap_or_default();
 
-        if schedule_id.is_empty() || !schedule_id.starts_with("gid://shopify/") {
+        if schedule_id.is_empty() || !has_shopify_gid_prefix(&schedule_id) {
             return Some(payment_reminder_invalid_gid_error(
                 &schedule_id,
                 variable_definition_info(query, "paymentScheduleId")
@@ -38,7 +38,7 @@ impl DraftProxy {
             ));
         }
 
-        if !schedule_id.starts_with("gid://shopify/PaymentSchedule/") {
+        if !is_shopify_gid_of_type(&schedule_id, "PaymentSchedule") {
             return Some(payment_reminder_resource_not_found_error(field));
         }
 
@@ -130,7 +130,7 @@ impl DraftProxy {
             let Some(owner_id) = self.payment_reminder_owner_id_for_terms(terms_id) else {
                 continue;
             };
-            let owner = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            let owner = if is_shopify_gid_of_type(&owner_id, "DraftOrder") {
                 self.store.staged.draft_orders.get(&owner_id)
             } else {
                 self.store.staged.orders.get(&owner_id)
@@ -140,7 +140,7 @@ impl DraftProxy {
             };
             let mut payment_terms =
                 payment_terms_record_with_effective_due(terms, self.current_epoch_seconds());
-            if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            if is_shopify_gid_of_type(&owner_id, "DraftOrder") {
                 payment_terms["draftOrder"] = owner.clone();
                 payment_terms["order"] = Value::Null;
             } else {

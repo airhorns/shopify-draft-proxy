@@ -241,10 +241,7 @@ fn collection_product_sort_key(
 }
 
 fn collection_product_gid_tail_sort_value(entry: &CollectionProductEntry) -> StagedSortValue {
-    let tail = resource_id_tail(&entry.product.id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(&entry.product.id))
 }
 
 fn collection_product_min_price_cents(entry: &CollectionProductEntry) -> Option<i64> {
@@ -404,7 +401,7 @@ impl DraftProxy {
 
     fn observe_collection_value(&mut self, value: &Value) {
         if let Some(id) = value.get("id").and_then(Value::as_str) {
-            if id.starts_with("gid://shopify/Collection/")
+            if is_shopify_gid_of_type(id, "Collection")
                 && !self.store.collection_is_deleted(id)
                 && self.store.collection_by_id(id).is_none()
             {
@@ -580,9 +577,9 @@ impl DraftProxy {
             let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
                 continue;
             };
-            if id.starts_with("gid://shopify/Product/") {
+            if is_shopify_gid_of_type(&id, "Product") {
                 self.store.stage_observed_product_json(node);
-            } else if id.starts_with("gid://shopify/Collection/") {
+            } else if is_shopify_gid_of_type(&id, "Collection") {
                 self.stage_collection_from_observed_json(node);
             }
             // Mark the resource as known to the engine (so re-hydration does not
@@ -907,7 +904,7 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("");
         let pubs = self.resource_publication_set(resource_id);
-        let live_pubs = if resource_id.starts_with("gid://shopify/Product/")
+        let live_pubs = if is_shopify_gid_of_type(resource_id, "Product")
             && self
                 .product_record_by_id(resource_id)
                 .map(|product| product.status != "ACTIVE")
@@ -1009,7 +1006,7 @@ impl DraftProxy {
         resource_id: &str,
         pubs: &BTreeSet<String>,
     ) -> usize {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             let active = self
                 .product_record_by_id(resource_id)
                 .map(|product| product.status == "ACTIVE")
@@ -2238,22 +2235,15 @@ fn collection_normalized_sort_string(value: &str) -> StagedSortValue {
     StagedSortValue::String(value.to_ascii_lowercase())
 }
 
-fn collection_gid_tail_sort_string(id: &str) -> StagedSortValue {
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
-}
-
 fn collection_staged_sort_key(collection: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let id = collection_string_field(collection, "id");
     let primary = match sort_key.unwrap_or("ID") {
         "TITLE" => collection_normalized_sort_string(&collection_string_field(collection, "title")),
         "UPDATED_AT" => StagedSortValue::String(collection_string_field(collection, "updatedAt")),
-        "ID" | "RELEVANCE" => collection_gid_tail_sort_string(&id),
-        _ => collection_gid_tail_sort_string(&id),
+        "ID" | "RELEVANCE" => resource_id_tail_sort_value(Some(&id)),
+        _ => resource_id_tail_sort_value(Some(&id)),
     };
-    vec![primary, collection_gid_tail_sort_string(&id)]
+    vec![primary, resource_id_tail_sort_value(Some(&id))]
 }
 
 fn collection_search_terms(query: &str) -> Vec<String> {

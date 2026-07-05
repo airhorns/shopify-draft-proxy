@@ -1588,14 +1588,7 @@ fn gift_card_search_decision(card: &Value, query: Option<&str>) -> StagedSearchD
 }
 
 fn gift_card_gid_tail_sort_value(card: &Value) -> StagedSortValue {
-    let tail = card
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(card.get("id").and_then(Value::as_str))
 }
 
 fn gift_card_string_sort_value(card: &Value, field: &str) -> StagedSortValue {
@@ -1738,9 +1731,9 @@ fn gift_card_matches_search_term(card: &Value, term: &str) -> bool {
 }
 
 fn gift_card_matches_id(card: &Value, value: &str) -> bool {
-    card.get("id").and_then(Value::as_str).is_some_and(|id| {
-        id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
-    })
+    card.get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, value))
 }
 
 fn gift_card_matches_status(card: &Value, value: &str) -> bool {
@@ -1764,11 +1757,9 @@ fn gift_card_matches_balance_status(card: &Value, value: &str) -> bool {
 }
 
 fn gift_card_matches_related_id(value: &Value, query_value: &str) -> bool {
-    value.as_str().is_some_and(|id| {
-        id == query_value
-            || resource_id_tail(id) == query_value
-            || resource_id_path_tail(id) == query_value
-    })
+    value
+        .as_str()
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, query_value))
 }
 
 fn gift_card_matches_code_fragment(card: &Value, term: &str) -> bool {

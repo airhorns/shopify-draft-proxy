@@ -275,7 +275,7 @@ fn backup_region_country_from_code(country_code: &str) -> Value {
     let name = country_name_for_code(&code).unwrap_or(&code);
     json!({
         "__typename": "MarketRegionCountry",
-        "id": format!("gid://shopify/MarketRegionCountry/local-{code}"),
+        "id": shopify_gid("MarketRegionCountry", format_args!("local-{code}")),
         "name": name,
         "code": code
     })

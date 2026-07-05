@@ -7,10 +7,7 @@ fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
 }
 
 fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
-    let tail = id.map(resource_id_tail).unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(id)
 }
 
 fn marketing_activity_cursor(record: &Value) -> String {
@@ -134,7 +131,7 @@ fn marketing_app_json(api_client_id: Option<&str>) -> Value {
     let Some(api_client_id) = api_client_id.map(str::trim).filter(|id| !id.is_empty()) else {
         return json!({ "id": "gid://shopify/App/local", "title": "local" });
     };
-    let app_id = if api_client_id.starts_with("gid://shopify/App/") {
+    let app_id = if is_shopify_gid_of_type(api_client_id, "App") {
         api_client_id.to_string()
     } else {
         shopify_gid("App", api_client_id)

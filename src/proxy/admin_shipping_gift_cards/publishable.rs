@@ -232,7 +232,7 @@ impl DraftProxy {
                 .get("id")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
+            if is_shopify_gid_of_type(id, "Collection") {
                 self.store.stage_collection(publishable.clone());
             }
         }

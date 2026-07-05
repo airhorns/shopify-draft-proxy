@@ -2596,14 +2596,7 @@ fn metaobject_normalized_sort_value(record: &Value, field: &str) -> StagedSortVa
 }
 
 fn metaobject_id_sort_value(record: &Value) -> StagedSortValue {
-    let tail = record
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(record.get("id").and_then(Value::as_str))
 }
 
 fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {

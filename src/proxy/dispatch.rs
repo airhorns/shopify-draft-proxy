@@ -719,7 +719,7 @@ impl DraftProxy {
         }
         for node in nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
+            if is_shopify_gid_of_type(id, "Collection") {
                 self.stage_collection_from_observed_json(&node);
             }
         }
@@ -727,7 +727,7 @@ impl DraftProxy {
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-        if id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {
                 for variant in node
@@ -749,18 +749,18 @@ impl DraftProxy {
                     }
                 }
             }
-        } else if id.starts_with("gid://shopify/Collection/") {
+        } else if is_shopify_gid_of_type(id, "Collection") {
             self.stage_collection_from_observed_json(node);
-        } else if id.starts_with("gid://shopify/ProductVariant/") {
+        } else if is_shopify_gid_of_type(id, "ProductVariant") {
             if let Some(variant) = product_variant_state_from_observed_json(node) {
                 self.store.stage_product_variant(variant);
             }
             if let Some(product) = node.get("product").and_then(product_state_from_json) {
                 self.store.stage_observed_product(product);
             }
-        } else if id.starts_with("gid://shopify/InventoryItem/") {
+        } else if is_shopify_gid_of_type(id, "InventoryItem") {
             self.observe_inventory_item_node(node);
-        } else if id.starts_with("gid://shopify/InventoryLevel/") {
+        } else if is_shopify_gid_of_type(id, "InventoryLevel") {
             self.observe_inventory_level_node(node);
         } else if shopify_gid_resource_type(id) == Some("Location") {
             self.merge_staged_location(node, &[]);

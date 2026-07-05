@@ -71,16 +71,9 @@ fn return_search_decision(return_value: &Value, query: Option<&str>) -> StagedSe
 }
 
 fn return_sort_key(return_value: &Value, _sort_key: Option<&str>) -> StagedSortKey {
-    let tail = return_value
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    let id_value = tail
-        .parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
-    vec![id_value]
+    vec![resource_id_tail_sort_value(
+        return_value.get("id").and_then(Value::as_str),
+    )]
 }
 
 fn selected_return_connection(

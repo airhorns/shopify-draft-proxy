@@ -221,11 +221,7 @@ pub(in crate::proxy) fn webhook_subscription_numeric_id(record: &Value) -> u64 {
 }
 
 fn webhook_subscription_gid_tail_sort_value(record: &Value) -> StagedSortValue {
-    let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(record.get("id").and_then(Value::as_str))
 }
 
 fn webhook_subscription_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {

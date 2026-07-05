@@ -173,7 +173,7 @@ pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&
 pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
     let (level_tail, query) = inventory_level_id_tail_and_query(id)?;
     let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
-    let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+    let item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
         query.to_string()
     } else {
         shopify_gid("InventoryItem", item_tail)
@@ -669,12 +669,7 @@ impl DraftProxy {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_id = resolved_string_field(variables, "variantId")
             .or_else(|| variant.map(|variant| variant.id.clone()))
-            .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/ProductVariant/{}",
-                    resource_id_tail(inventory_item_id)
-                )
-            });
+            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(inventory_item_id)));
         let mut fields = serde_json::Map::new();
         for selection in selections {
             let value = match selection.name.as_str() {
@@ -1435,9 +1430,9 @@ impl DraftProxy {
         let ids = ids
             .into_iter()
             .filter(|id| {
-                if id.starts_with("gid://shopify/InventoryItem/") {
+                if is_shopify_gid_of_type(id, "InventoryItem") {
                     !self.inventory_item_exists(id)
-                } else if id.starts_with("gid://shopify/Location/") {
+                } else if is_shopify_gid_of_type(id, "Location") {
                     !self.inventory_location_exists(id)
                 } else {
                     false
@@ -2465,7 +2460,7 @@ impl DraftProxy {
 
     fn inventory_item_exists(&self, inventory_item_id: &str) -> bool {
         if inventory_item_id.is_empty()
-            || !inventory_item_id.starts_with("gid://shopify/InventoryItem/")
+            || !is_shopify_gid_of_type(inventory_item_id, "InventoryItem")
         {
             return false;
         }
@@ -2493,7 +2488,7 @@ impl DraftProxy {
     }
 
     fn inventory_location_exists(&self, location_id: &str) -> bool {
-        if location_id.is_empty() || !location_id.starts_with("gid://shopify/Location/") {
+        if location_id.is_empty() || !is_shopify_gid_of_type(location_id, "Location") {
             return false;
         }
         self.inventory_location_has_local_state(location_id)
@@ -2538,7 +2533,7 @@ impl DraftProxy {
 
     fn inventory_level_parts_from_id_or_fallback(&self, id: &str) -> Option<(String, String)> {
         let (_, query) = inventory_level_id_tail_and_query(id)?;
-        let inventory_item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+        let inventory_item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
             query.to_string()
         } else {
             shopify_gid("InventoryItem", query)
@@ -2646,7 +2641,7 @@ impl DraftProxy {
             return;
         }
         let location_id = if self.inventory_location_exists(requested_location_id)
-            && requested_location_id.starts_with("gid://shopify/Location/")
+            && is_shopify_gid_of_type(requested_location_id, "Location")
         {
             requested_location_id.to_string()
         } else {
@@ -5281,7 +5276,7 @@ fn inventory_invalid_adjust_ledger_document_payload(
                     )],
                 ));
             }
-            (_, Some(ledger)) if ledger.starts_with("gid://shopify/") => {
+            (_, Some(ledger)) if has_shopify_gid_prefix(ledger) => {
                 return Some(inventory_invalid_adjustment_payload(
                     field,
                     vec![user_error(
@@ -5471,7 +5466,7 @@ fn inventory_id_matches_query(id: &str, raw_value: &str) -> bool {
         return false;
     }
     let actual_tail = resource_id_tail(id);
-    let expected_tail = if expected.starts_with("gid://shopify/") {
+    let expected_tail = if has_shopify_gid_prefix(&expected) {
         resource_id_tail(&expected).to_string()
     } else {
         expected.clone()
@@ -5523,11 +5518,7 @@ fn inventory_datetime_matches_query(actual: Option<&str>, raw_value: &str) -> bo
 }
 
 fn inventory_gid_sort_key(id: &str) -> StagedSortKey {
-    let tail = resource_id_tail(id);
-    match tail.parse::<i64>() {
-        Ok(value) => vec![StagedSortValue::I64(value)],
-        Err(_) => vec![StagedSortValue::String(tail.to_ascii_lowercase())],
-    }
+    vec![resource_id_tail_sort_value(Some(id))]
 }
 
 fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> StagedSortKey {

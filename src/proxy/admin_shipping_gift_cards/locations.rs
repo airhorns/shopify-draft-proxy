@@ -1588,10 +1588,7 @@ fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedS
 
 fn location_gid_tail_sort_value(location: &Value) -> StagedSortValue {
     let id = location_value_string(location, "id");
-    let tail = resource_id_tail(&id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(&id))
 }
 
 fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {

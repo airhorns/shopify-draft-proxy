@@ -166,10 +166,10 @@ pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/App/") {
+    } else if is_shopify_gid_of_type(trimmed, "App") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/App/{trimmed}")
+        shopify_gid("App", trimmed)
     }
 }
 
@@ -177,10 +177,10 @@ pub(in crate::proxy) fn normalize_app_installation_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/AppInstallation/") {
+    } else if is_shopify_gid_of_type(trimmed, "AppInstallation") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/AppInstallation/{trimmed}")
+        shopify_gid("AppInstallation", trimmed)
     }
 }
 
@@ -217,10 +217,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
         .map(|value| normalize_app_installation_gid(&value))
         .unwrap_or_else(|| {
             if explicit_app_id.is_some() {
-                format!(
-                    "gid://shopify/AppInstallation/{}?shopify-draft-proxy=synthetic",
-                    resource_id_tail(&app_id)
-                )
+                synthetic_shopify_gid("AppInstallation", resource_id_tail(&app_id))
             } else {
                 DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
             }
