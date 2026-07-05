@@ -928,6 +928,125 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
 }
 
 #[test]
+fn shop_owner_metafields_reflect_staged_set_and_delete() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let shop_id = "gid://shopify/Shop/1";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShopOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              type
+              value
+              ownerType
+              owner { __typename ... on Shop { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": shop_id,
+            "namespace": "custom",
+            "key": "rw",
+            "type": "single_line_text_field",
+            "value": "1"
+        }]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["owner"]["__typename"],
+        json!("Shop")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopOwnerMetafieldsRead {
+          shop {
+            id
+            single: metafield(namespace: "custom", key: "rw") {
+              namespace
+              key
+              type
+              value
+              ownerType
+              owner { __typename ... on Shop { id } }
+            }
+            list: metafields(first: 10, namespace: "custom") {
+              nodes { namespace key type value ownerType }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["shop"]["id"], json!(shop_id));
+    assert_eq!(read.body["data"]["shop"]["single"]["value"], json!("1"));
+    assert_eq!(
+        read.body["data"]["shop"]["single"]["owner"]["id"],
+        json!(shop_id)
+    );
+    assert_eq!(
+        read.body["data"]["shop"]["list"]["nodes"],
+        json!([{
+            "namespace": "custom",
+            "key": "rw",
+            "type": "single_line_text_field",
+            "value": "1",
+            "ownerType": "SHOP"
+        }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShopOwnerMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": shop_id,
+            "namespace": "custom",
+            "key": "rw"
+        }]}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["deletedMetafields"][0],
+        json!({"ownerId": shop_id, "namespace": "custom", "key": "rw"})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopOwnerMetafieldsPostDelete {
+          shop {
+            single: metafield(namespace: "custom", key: "rw") { value }
+            list: metafields(first: 10, namespace: "custom") { nodes { key } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(post_delete.status, 200);
+    assert_eq!(post_delete.body["data"]["shop"]["single"], Value::Null);
+    assert_eq!(post_delete.body["data"]["shop"]["list"]["nodes"], json!([]));
+}
+
+#[test]
 fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
