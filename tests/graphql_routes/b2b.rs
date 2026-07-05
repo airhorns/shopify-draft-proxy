@@ -3064,6 +3064,445 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
 }
 
 #[test]
+fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              totalSpent { amount currencyCode }
+              spend: totalSpent { value: amount currencyCode }
+              ordersCount { count precision }
+              orderSummary: ordersCount { total: count precision }
+              lifetimeDuration
+              locations(first: 5) {
+                nodes {
+                  id
+                  totalSpent { amount currencyCode }
+                  currency
+                  ordersCount { count precision }
+                  orderCount
+                  market { id name }
+                  catalogs(first: 5) { nodes { id title } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Aggregate Buyer" },
+                "companyLocation": { "name": "Aggregate HQ" }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let location_id = company["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+    assert_eq!(
+        company["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        company["spend"],
+        json!({ "value": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        company["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        company["orderSummary"],
+        json!({ "total": 0, "precision": "EXACT" })
+    );
+    assert_eq!(company["lifetimeDuration"], Value::Null);
+    assert_eq!(
+        company["locations"]["nodes"][0]["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(company["locations"]["nodes"][0]["currency"], json!("USD"));
+    assert_eq!(
+        company["locations"]["nodes"][0]["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(company["locations"]["nodes"][0]["orderCount"], json!(0));
+    assert_eq!(company["locations"]["nodes"][0]["market"], Value::Null);
+    assert_eq!(
+        company["locations"]["nodes"][0]["catalogs"]["nodes"],
+        json!([])
+    );
+
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id currentTotalPriceSet { shopMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "aggregate-buyer@example.test",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "purchasingEntity": {
+                    "purchasingCompany": {
+                        "companyId": company_id,
+                        "companyLocationId": location_id
+                    }
+                },
+                "lineItems": [{
+                    "title": "Aggregate item",
+                    "quantity": 2,
+                    "priceSet": { "amount": "12.50", "currencyCode": "USD" }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+
+    let create_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Aggregate Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [location_id] }
+            }
+        }),
+    ));
+    assert_eq!(create_catalog.status, 200);
+    assert_eq!(
+        create_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = create_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("catalog id")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAggregatesRead($companyId: ID!, $locationId: ID!) {
+          company(id: $companyId) {
+            id
+            totalSpent { amount currencyCode }
+            spend: totalSpent { value: amount currencyCode }
+            ordersCount { count precision }
+            orderSummary: ordersCount { total: count precision }
+            lifetimeDuration
+          }
+          companyLocation(id: $locationId) {
+            id
+            totalSpent { amount currencyCode }
+            locationSpend: totalSpent { value: amount currencyCode }
+            currency
+            ordersCount { count precision }
+            orderSummary: ordersCount { total: count precision }
+            orderCount
+            market { id name }
+            catalogs(first: 5) { nodes { id title } }
+          }
+          companyNode: node(id: $companyId) {
+            ... on Company {
+              totalSpent { amount currencyCode }
+              ordersCount { count precision }
+              lifetimeDuration
+            }
+          }
+          locationNode: node(id: $locationId) {
+            ... on CompanyLocation {
+              totalSpent { amount currencyCode }
+              currency
+              ordersCount { count precision }
+              orderCount
+              catalogs(first: 5) { nodes { id title } }
+            }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "locationId": location_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["spend"],
+        json!({ "value": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["orderSummary"],
+        json!({ "total": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["lifetimeDuration"],
+        json!("less than 5 seconds")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["locationSpend"],
+        json!({ "value": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["currency"],
+        json!("USD")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["orderSummary"],
+        json!({ "total": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["companyLocation"]["orderCount"], json!(1));
+    assert_eq!(read.body["data"]["companyLocation"]["market"], Value::Null);
+    assert_eq!(
+        read.body["data"]["companyLocation"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
+    );
+    assert_eq!(
+        read.body["data"]["companyNode"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyNode"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["companyNode"]["lifetimeDuration"],
+        json!("less than 5 seconds")
+    );
+    assert_eq!(
+        read.body["data"]["locationNode"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(read.body["data"]["locationNode"]["currency"], json!("USD"));
+    assert_eq!(
+        read.body["data"]["locationNode"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["locationNode"]["orderCount"], json!(1));
+    assert_eq!(
+        read.body["data"]["locationNode"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
+    );
+}
+
+#[test]
+fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_orders() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCanadianCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              mainContact { id }
+              locations(first: 1) {
+                nodes {
+                  id
+                  currency
+                  totalSpent { amount currencyCode }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Canadian Aggregate Buyer" },
+                "companyContact": {
+                    "firstName": "Canadian",
+                    "lastName": "Buyer",
+                    "email": "canadian-aggregate-buyer@example.test"
+                },
+                "companyLocation": {
+                    "name": "Canadian Aggregate HQ",
+                    "phone": "+16135550145",
+                    "shippingAddress": {
+                        "address1": "145 Aggregate Way",
+                        "city": "Ottawa",
+                        "countryCode": "CA"
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let contact_id = company["mainContact"]["id"]
+        .as_str()
+        .expect("main contact id")
+        .to_string();
+    let location = &company["locations"]["nodes"][0];
+    let location_id = location["id"].as_str().expect("location id").to_string();
+    assert_eq!(location["currency"], json!("CAD"));
+    assert_eq!(
+        location["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+
+    let create_draft_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesDraftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "purchasingEntity": {
+                    "purchasingCompany": {
+                        "companyId": company_id,
+                        "companyContactId": contact_id,
+                        "companyLocationId": location_id
+                    }
+                },
+                "email": "canadian-aggregate-draft@example.test",
+                "lineItems": [{
+                    "title": "Canadian aggregate item",
+                    "quantity": 1,
+                    "originalUnitPrice": "25.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_draft_order.status, 200);
+    assert_eq!(
+        create_draft_order.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create_draft_order.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("draft order id")
+        .to_string();
+    assert_eq!(
+        create_draft_order.body["data"]["draftOrderCreate"]["draftOrder"]["totalPriceSet"]
+            ["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesDraftOrderComplete($id: ID!) {
+          draftOrderComplete(id: $id, paymentPending: false) {
+            draftOrder {
+              order {
+                id
+                currentTotalPriceSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["currentTotalPriceSet"]
+            ["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAggregatesCanadianRead($companyId: ID!, $locationId: ID!) {
+          company(id: $companyId) {
+            totalSpent { amount currencyCode }
+            ordersCount { count precision }
+          }
+          companyLocation(id: $locationId) {
+            currency
+            totalSpent { amount currencyCode }
+            ordersCount { count precision }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "locationId": location_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["currency"],
+        json!("CAD")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn b2b_company_connections_filter_sort_reverse_count_and_window() {
     let mut proxy = snapshot_proxy();
     let acme_company_id = create_b2b_company(&mut proxy, "Acme Supplies");
