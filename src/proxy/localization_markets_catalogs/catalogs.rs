@@ -471,38 +471,23 @@ impl DraftProxy {
         match catalog_driver {
             CatalogContextDriver::Market => {
                 let mut market_ids = catalog_market_ids(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let remove = list_string_field(context, "marketIds")
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    market_ids.retain(|id| !remove.contains(id));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for market_id in list_string_field(context, "marketIds") {
-                        if !market_ids.contains(&market_id) {
-                            market_ids.push(market_id);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut market_ids,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    |context| list_string_field(context, "marketIds"),
+                );
                 let market_names = self.staged_market_names();
                 set_catalog_market_ids(&mut updated_catalog, &market_ids, &market_names);
             }
             CatalogContextDriver::CompanyLocation => {
                 let mut company_location_ids = catalog_company_location_ids(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let mut remove = list_string_field(context, "companyLocationIds")
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    remove.extend(list_string_field(context, "locationIds"));
-                    company_location_ids.retain(|id| !remove.contains(id));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for location_id in company_location_ids_from_context(context) {
-                        if !company_location_ids.contains(&location_id) {
-                            company_location_ids.push(location_id);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut company_location_ids,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    company_location_ids_from_context,
+                );
                 set_catalog_company_location_ids(
                     &mut updated_catalog,
                     &company_location_ids,
@@ -511,19 +496,12 @@ impl DraftProxy {
             }
             CatalogContextDriver::Country => {
                 let mut country_codes = catalog_country_codes(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let remove = country_codes_from_context(context)
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    country_codes.retain(|code| !remove.contains(code));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for country_code in country_codes_from_context(context) {
-                        if !country_codes.contains(&country_code) {
-                            country_codes.push(country_code);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut country_codes,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    country_codes_from_context,
+                );
                 set_catalog_country_codes(&mut updated_catalog, &country_codes);
             }
         }
@@ -535,8 +513,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_catalog_id(&self, driver_type: CatalogContextDriver) -> String {
-        let numeric_id =
-            (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
+        let numeric_id = next_markets_catalogs_numeric_id(&self.store, 0);
         shopify_gid(driver_type.catalog_type_name(), numeric_id)
     }
 
@@ -1221,10 +1198,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_price_list_id(&self) -> String {
-        let numeric_id = (self.store.staged.markets.len() * 2)
-            + (self.store.staged.catalogs.len() * 2)
-            + self.store.staged.price_lists.len()
-            + 1;
+        let numeric_id =
+            next_markets_catalogs_numeric_id(&self.store, self.store.staged.price_lists.len());
         shopify_gid("PriceList", numeric_id)
     }
 
