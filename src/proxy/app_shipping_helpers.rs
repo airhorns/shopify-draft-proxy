@@ -146,6 +146,13 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     })
 }
 
+pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
+    message: &str,
+    code: &str,
+) -> Value {
+    user_error(Value::Null, message, Some(code))
+}
+
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
@@ -200,7 +207,7 @@ pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -
 }
 
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
-    let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+    let explicit_app_id = request_header(request, API_CLIENT_ID_HEADER);
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
     let installation_id = request_header(request, "x-shopify-draft-proxy-app-installation-id")
         .map(|value| normalize_app_installation_gid(&value))
@@ -223,8 +230,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     });
     let requested_access_scopes =
         request_required_access_scope_values(request).unwrap_or_else(|| {
-            if explicit_app_id.is_some()
-                || request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+            if explicit_app_id.is_some() || request_header(request, ACCESS_SCOPES_HEADER).is_some()
             {
                 Vec::new()
             } else {
@@ -248,7 +254,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
 }
 
 fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
+    request_header(request, ACCESS_SCOPES_HEADER)
         .map(|header| access_scope_values_from_header(&header))
         .filter(|scopes| !scopes.is_empty())
 }
@@ -759,10 +765,7 @@ pub(in crate::proxy) fn delivery_profile_payload_json(
             } else {
                 delivery_profile_selected_json(&profile, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -780,25 +783,10 @@ pub(in crate::proxy) fn delivery_profile_remove_payload_json(
             } else {
                 selected_json(&job, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
-}
-
-pub(in crate::proxy) fn delivery_profile_user_errors_json(
-    user_errors: Vec<Value>,
-    selection: &[SelectedField],
-) -> Value {
-    Value::Array(
-        user_errors
-            .into_iter()
-            .map(|error| selected_json(&error, selection))
-            .collect(),
-    )
 }
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
@@ -1515,51 +1503,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     })
 }
 
-pub(in crate::proxy) fn segment_payload_json(
-    segment: Value,
-    deleted_segment_id: Value,
-    payload_selection: &[SelectedField],
-    segment_selection: &[SelectedField],
-    deleted_segment_id_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "segment" => Some(if segment.is_null() {
-                Value::Null
-            } else {
-                selected_json(&segment, segment_selection)
-            }),
-            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
-                deleted_segment_id.clone()
-            } else {
-                selected_json(&deleted_segment_id, deleted_segment_id_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn customer_segment_members_query_payload_json(
-    query_record: Value,
-    payload_selection: &[SelectedField],
-    query_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
-                Value::Null
-            } else {
-                selected_json(&query_record, query_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn fulfillment_service_payload_json(
     service: Value,
     payload_selection: &[SelectedField],
@@ -1573,7 +1516,7 @@ pub(in crate::proxy) fn fulfillment_service_payload_json(
             } else {
                 selected_json(&service, service_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -1602,7 +1545,7 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -1904,321 +1847,8 @@ pub(in crate::proxy) fn slugify_handle(title: &str) -> String {
     handle.trim_end_matches('-').to_string()
 }
 
-impl DraftProxy {
-    // Collect the `feedbackInput[].productId`s that reference a product the
-    // proxy can prove is unavailable to resource feedback, so
-    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry missing
-    // product userError. A locally tombstoned id is reported missing
-    // immediately. Known non-ACTIVE products are also unavailable. An id merely
-    // absent from the local catalog is NOT assumed missing — the proxy never
-    // seeds every real product, so absence alone is no proof. Instead we confirm
-    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
-    // (or, in Snapshot mode, no upstream to consult) means the product does not
-    // exist; a hydrated node means it does and feedback stages normally.
-    pub(in crate::proxy) fn feedback_missing_product_ids(
-        &self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> BTreeSet<String> {
-        let mut missing = BTreeSet::new();
-        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
-        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
-        // oversized batch returns TOO_LONG without ever looking up a product. Never
-        // forward an existence lookup the resolver itself would not perform.
-        if inputs.len() > 50 {
-            return missing;
-        }
-        for input in inputs.iter() {
-            // Per-entry message / generated-at / length guards run before the
-            // existence check, mirroring Shopify's resolver order: an entry that
-            // fails one of those reports only that error and never resolves (nor
-            // forwards a lookup for) its product.
-            if resource_feedback_validation_error(input, None).is_some() {
-                continue;
-            }
-            let Some(id) = resolved_string_field(input, "productId") else {
-                continue;
-            };
-            if self.store.product_is_tombstoned(&id) {
-                missing.insert(id);
-                continue;
-            }
-            if let Some(product) = self.store.product_staged_or_base(&id) {
-                if !product.status.is_empty() && product.status != "ACTIVE" {
-                    missing.insert(id);
-                }
-                continue;
-            }
-            // Only LiveHybrid can prove a product's absence by hydrating it
-            // upstream (a definitive null node). In Snapshot mode there is no
-            // upstream to consult, so an unseeded product is treated as existing
-            // (fail open) rather than fabricated-missing — absence from the local
-            // seed is not evidence the product does not exist.
-            if self.config.read_mode == ReadMode::LiveHybrid
-                && self.hydrate_product_for_tags(&id, request).is_none()
-            {
-                missing.insert(id);
-            }
-        }
-        missing
-    }
-}
-
-pub(in crate::proxy) fn product_tail_resource_feedback_payload(
-    field: &RootFieldSelection,
-    missing_product_ids: &BTreeSet<String>,
-) -> Value {
-    let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
-    let payload = if inputs.len() > 50 {
-        json!({
-            "feedback": [],
-            "userErrors": [user_error(
-                ["feedback"],
-                "Feedback cannot contain more than 50 entries",
-                Some("TOO_LONG")
-            )]
-        })
-    } else {
-        let mut feedback = Vec::new();
-        let mut user_errors = Vec::new();
-        for (index, input) in inputs.iter().enumerate() {
-            if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
-                user_errors.push(error);
-                continue;
-            }
-            // Per-entry product availability is validated only after the message /
-            // generated-at / length guards pass, mirroring Shopify's resolver
-            // order: a blank-message or future-date entry never also reports the
-            // product missing.
-            let product_id = resolved_string_field(input, "productId").unwrap_or_default();
-            if missing_product_ids.contains(&product_id) {
-                user_errors.push(resource_feedback_missing_product_error(Some(index)));
-            } else {
-                feedback.push(product_resource_feedback_json(input));
-            }
-        }
-        json!({ "feedback": feedback, "userErrors": user_errors })
-    };
-    selected_json(&payload, &field.selection)
-}
-
-pub(in crate::proxy) fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
-    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-    let payload = if let Some(error) = resource_feedback_validation_error(&input, None) {
-        json!({
-            "feedback": null,
-            "userErrors": [error]
-        })
-    } else {
-        json!({ "feedback": shop_resource_feedback_json(&input), "userErrors": [] })
-    };
-    selected_json(&payload, &field.selection)
-}
-
-fn product_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    json!({
-        "productId": resolved_string_field(input, "productId").unwrap_or_default(),
-        "state": resolved_string_field(input, "state").unwrap_or_default(),
-        "messages": list_string_field(input, "messages"),
-        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default(),
-        "productUpdatedAt": resolved_string_field(input, "productUpdatedAt").unwrap_or_default()
-    })
-}
-
-fn shop_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    let messages = list_string_field(input, "messages")
-        .into_iter()
-        .map(|message| json!({ "message": message }))
-        .collect::<Vec<_>>();
-    json!({
-        "state": resolved_string_field(input, "state").unwrap_or_default(),
-        "messages": messages,
-        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default()
-    })
-}
-
-fn resource_feedback_validation_error(
-    input: &BTreeMap<String, ResolvedValue>,
-    feedback_index: Option<usize>,
-) -> Option<Value> {
-    let messages = list_string_field(input, "messages");
-    if messages.is_empty() {
-        return Some(presence_user_error(
-            feedback_field_path(feedback_index, "messages", None),
-            "Messages",
-        ));
-    }
-
-    let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
-    if feedback_generated_at_is_future(&generated_at) {
-        return Some(user_error(
-            feedback_field_path(feedback_index, "feedbackGeneratedAt", None),
-            "Feedback generated at must not be in the future",
-            Some("INVALID"),
-        ));
-    }
-
-    messages
-        .iter()
-        .position(|message| message.chars().count() > 100)
-        .map(|message_index| {
-            length_user_error(
-                feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message",
-                LengthUserErrorBound::TooLong { maximum: 100 },
-            )
-        })
-}
-
-fn feedback_field_path(
-    feedback_index: Option<usize>,
-    field: &str,
-    nested_index: Option<usize>,
-) -> Vec<String> {
-    let mut path = match feedback_index {
-        Some(index) => vec!["feedback".to_string(), index.to_string()],
-        None => vec!["feedback".to_string()],
-    };
-    path.push(field.to_string());
-    if let Some(index) = nested_index {
-        path.push(index.to_string());
-    }
-    path
-}
-
-// Shopify reports referenced-but-unavailable products at the product id field,
-// distinct from the BLANK / INVALID / TOO_LONG resolver guards.
-fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
-    let field = feedback_index
-        .map(|index| json!(["feedback", index.to_string(), "productId"]))
-        .unwrap_or(Value::Null);
-    user_error(field, "Product does not exist", None)
-}
-
-fn feedback_generated_at_is_future(generated_at: &str) -> bool {
-    let Some(generated_at) = parse_rfc3339_epoch_seconds(generated_at) else {
-        return false;
-    };
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
-        return false;
-    };
-    generated_at > now.as_secs() as i64
-}
-
-pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> {
-    let bytes = value.as_bytes();
-    if bytes.len() < 20 {
-        return None;
-    }
-
-    let year = parse_fixed_digits(bytes, 0, 4)?;
-    expect_byte(bytes, 4, b'-')?;
-    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
-    expect_byte(bytes, 7, b'-')?;
-    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
-    match bytes.get(10) {
-        Some(b'T' | b't') => {}
-        _ => return None,
-    }
-    let hour = parse_fixed_digits(bytes, 11, 2)? as u32;
-    expect_byte(bytes, 13, b':')?;
-    let minute = parse_fixed_digits(bytes, 14, 2)? as u32;
-    expect_byte(bytes, 16, b':')?;
-    let second = parse_fixed_digits(bytes, 17, 2)? as u32;
-
-    if !valid_utc_date_time(year, month, day, hour, minute, second) {
-        return None;
-    }
-
-    let mut offset_index = 19;
-    if bytes.get(offset_index) == Some(&b'.') {
-        offset_index += 1;
-        let fraction_start = offset_index;
-        while bytes
-            .get(offset_index)
-            .is_some_and(|byte| byte.is_ascii_digit())
-        {
-            offset_index += 1;
-        }
-        if offset_index == fraction_start {
-            return None;
-        }
-    }
-
-    let offset_seconds = match bytes.get(offset_index) {
-        Some(b'Z' | b'z') if offset_index + 1 == bytes.len() => 0,
-        Some(b'+' | b'-') if offset_index + 6 == bytes.len() => {
-            let sign = if bytes[offset_index] == b'+' { 1 } else { -1 };
-            let offset_hour = parse_fixed_digits(bytes, offset_index + 1, 2)?;
-            expect_byte(bytes, offset_index + 3, b':')?;
-            let offset_minute = parse_fixed_digits(bytes, offset_index + 4, 2)?;
-            if offset_hour > 23 || offset_minute > 59 {
-                return None;
-            }
-            sign * (offset_hour * 3600 + offset_minute * 60)
-        }
-        _ => return None,
-    };
-
-    let days = days_from_civil(year, month, day);
-    Some(days * 86_400 + i64::from(hour * 3600 + minute * 60 + second) - i64::from(offset_seconds))
-}
-
-pub(in crate::proxy) fn parse_iso_date_epoch_days(value: &str) -> Option<i64> {
-    let bytes = value.as_bytes();
-    if bytes.len() != 10 {
-        return None;
-    }
-
-    let year = parse_fixed_digits(bytes, 0, 4)?;
-    expect_byte(bytes, 4, b'-')?;
-    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
-    expect_byte(bytes, 7, b'-')?;
-    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
-    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
-        return None;
-    }
-    Some(days_from_civil(year, month, day))
-}
-
-pub(in crate::proxy) fn epoch_seconds_to_utc_epoch_days(seconds: i64) -> i64 {
-    seconds.div_euclid(86_400)
-}
-
-fn parse_fixed_digits(bytes: &[u8], start: usize, len: usize) -> Option<i32> {
-    let end = start.checked_add(len)?;
-    let digits = bytes.get(start..end)?;
-    digits.iter().try_fold(0_i32, |value, byte| {
-        if byte.is_ascii_digit() {
-            Some(value * 10 + i32::from(byte - b'0'))
-        } else {
-            None
-        }
-    })
-}
-
-fn expect_byte(bytes: &[u8], index: usize, expected: u8) -> Option<()> {
-    (bytes.get(index) == Some(&expected)).then_some(())
-}
-
-fn valid_utc_date_time(
-    year: i32,
-    month: u32,
-    day: u32,
-    hour: u32,
-    minute: u32,
-    second: u32,
-) -> bool {
-    (1..=12).contains(&month)
-        && day >= 1
-        && day <= days_in_month(year, month)
-        && hour <= 23
-        && minute <= 59
-        && second <= 60
-}
-
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())
 }
 

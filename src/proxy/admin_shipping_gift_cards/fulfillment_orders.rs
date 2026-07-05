@@ -1959,7 +1959,6 @@ fn fulfillment_hold_display_reason(reason: &str) -> String {
         "HIGH_RISK_OF_FRAUD" => "High risk of fraud",
         "INCORRECT_ADDRESS" => "Incorrect address",
         "AWAITING_PAYMENT" => "Awaiting payment",
-        "OTHER" => "Other",
         _ => "Other",
     }
     .to_string()

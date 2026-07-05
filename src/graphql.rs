@@ -216,11 +216,6 @@ pub fn variable_definition_info(
         .cloned()
 }
 
-pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
-    let root_field = primary_root_field(query, &BTreeMap::new())?;
-    nested_selected_field(&root_field.selection, path).map(|field| field.selection.clone())
-}
-
 fn selected_fields<'a>(
     selections: &'a [Selection<'a, &'a str>],
     variables: &BTreeMap<String, ResolvedValue>,
@@ -470,18 +465,6 @@ fn collect_root_field_selections<'a>(
             }
         }
     }
-}
-
-fn nested_selected_field<'a>(
-    selections: &'a [SelectedField],
-    path: &[&str],
-) -> Option<&'a SelectedField> {
-    let (next, remaining) = path.split_first()?;
-    selections.iter().find_map(|selection| match selection {
-        field if field.name == *next && remaining.is_empty() => Some(field),
-        field if field.name == *next => nested_selected_field(&field.selection, remaining),
-        _ => None,
-    })
 }
 
 fn raw_argument_value<'a>(

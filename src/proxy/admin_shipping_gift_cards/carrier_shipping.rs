@@ -17,6 +17,12 @@ const SHIPPING_PACKAGE_HYDRATE_QUERY: &str = r#"query ShippingPackageHydrate($id
   }
 }"#;
 
+fn merge_shipping_package_input(package: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
+    for (key, value) in input {
+        package[key] = resolved_value_json(value);
+    }
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn shipping_settings_read_response(
         &mut self,

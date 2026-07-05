@@ -115,6 +115,51 @@ const replaceTaxExemptionsMutation = `#graphql
   }
 `;
 
+const addTaxExemptionsInlineInvalidEnumMutation = `#graphql
+  mutation CustomerAddTaxExemptionsInlineInvalidEnum($customerId: ID!) {
+    customerAddTaxExemptions(customerId: $customerId, taxExemptions: [FOO_BAR]) {
+      customer {
+        id
+        taxExemptions
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const removeTaxExemptionsInlineInvalidEnumMutation = `#graphql
+  mutation CustomerRemoveTaxExemptionsInlineInvalidEnum($customerId: ID!) {
+    customerRemoveTaxExemptions(customerId: $customerId, taxExemptions: [FOO_BAR]) {
+      customer {
+        id
+        taxExemptions
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const replaceTaxExemptionsInlineInvalidEnumMutation = `#graphql
+  mutation CustomerReplaceTaxExemptionsInlineInvalidEnum($customerId: ID!) {
+    customerReplaceTaxExemptions(customerId: $customerId, taxExemptions: [FOO_BAR]) {
+      customer {
+        id
+        taxExemptions
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const downstreamReadQuery = `#graphql
   query CustomerTaxExemptionsDownstream(
     $id: ID!
@@ -167,6 +212,12 @@ async function runInvalidEnum(mutation, customerId, context) {
     customerId,
     taxExemptions: ['NOT_A_TAX_EXEMPTION'],
   });
+  assertGraphqlErrors(result, context);
+  return result;
+}
+
+async function runInvalidEnumLiteral(mutation, customerId, context) {
+  const result = await runGraphql(mutation, { customerId });
   assertGraphqlErrors(result, context);
   return result;
 }
@@ -269,6 +320,11 @@ async function main() {
     customerId,
     'customerAddTaxExemptions invalid enum',
   );
+  const addInvalidEnumLiteral = await runInvalidEnumLiteral(
+    addTaxExemptionsInlineInvalidEnumMutation,
+    customerId,
+    'customerAddTaxExemptions inline invalid enum',
+  );
 
   // State now [CA_BC, US_CA] (add applied; empty-list and duplicate-input were no-ops).
   // This is the precondition the remove spec's mutation will hydrate.
@@ -303,6 +359,11 @@ async function main() {
     removeTaxExemptionsMutation,
     customerId,
     'customerRemoveTaxExemptions invalid enum',
+  );
+  const removeInvalidEnumLiteral = await runInvalidEnumLiteral(
+    removeTaxExemptionsInlineInvalidEnumMutation,
+    customerId,
+    'customerRemoveTaxExemptions inline invalid enum',
   );
 
   // State now [CA_BC] (remove dropped US_CA; empty-list and no-op remove changed nothing).
@@ -343,6 +404,11 @@ async function main() {
     customerId,
     'customerReplaceTaxExemptions invalid enum',
   );
+  const replaceInvalidEnumLiteral = await runInvalidEnumLiteral(
+    replaceTaxExemptionsInlineInvalidEnumMutation,
+    customerId,
+    'customerReplaceTaxExemptions inline invalid enum',
+  );
 
   const deleteResult = await runTaxMutation(deleteMutation, { input: { id: customerId } }, 'customerDelete cleanup');
 
@@ -375,6 +441,10 @@ async function main() {
       invalidEnumVariable: {
         variables: { customerId, taxExemptions: ['NOT_A_TAX_EXEMPTION'] },
         response: addInvalidEnum.payload,
+      },
+      invalidEnumLiteral: {
+        variables: { customerId },
+        response: addInvalidEnumLiteral.payload,
       },
     },
     upstreamCalls: [
@@ -413,6 +483,10 @@ async function main() {
         variables: { customerId, taxExemptions: ['NOT_A_TAX_EXEMPTION'] },
         response: removeInvalidEnum.payload,
       },
+      invalidEnumLiteral: {
+        variables: { customerId },
+        response: removeInvalidEnumLiteral.payload,
+      },
     },
     upstreamCalls: [
       hydrateUpstreamCall(customerId, removeHydratePayload),
@@ -449,6 +523,10 @@ async function main() {
       invalidEnumVariable: {
         variables: { customerId, taxExemptions: ['NOT_A_TAX_EXEMPTION'] },
         response: replaceInvalidEnum.payload,
+      },
+      invalidEnumLiteral: {
+        variables: { customerId },
+        response: replaceInvalidEnumLiteral.payload,
       },
     },
     upstreamCalls: [

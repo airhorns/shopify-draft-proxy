@@ -177,69 +177,11 @@ fn data_sale_opt_out_sanitized_email(email: &str) -> Option<String> {
         .chars()
         .filter(|character| *character != ' ' && *character != '\n' && *character != '\r')
         .collect::<String>();
-    if data_sale_opt_out_valid_email(&sanitized) {
+    if shopify_email_is_valid(&sanitized, EmailValidationMode::Strict) {
         Some(sanitized)
     } else {
         None
     }
-}
-
-fn data_sale_opt_out_valid_email(email: &str) -> bool {
-    if email.is_empty() || email.chars().count() > 255 {
-        return false;
-    }
-    let Some((local, domain)) = email.split_once('@') else {
-        return false;
-    };
-    // Mirrors Shopify Core's
-    // components/platform/essentials/app/validators/email_address_validator.rb
-    // EmailAddress#strict_regexp sub-rules (`atom_char`, `local_part_pattern`,
-    // `tld_label_pattern`) after dataSaleOptOut's observed whitespace stripping.
-    // Core uses Unicode-aware POSIX `alpha`/`alnum` classes, so use Rust char
-    // classifications here instead of ASCII byte predicates.
-    !domain.contains('@')
-        && data_sale_opt_out_valid_local_part(local)
-        && data_sale_opt_out_valid_domain(domain)
-}
-
-fn data_sale_opt_out_valid_local_part(local: &str) -> bool {
-    !local.is_empty()
-        && local.chars().count() <= 128
-        && !local.starts_with('.')
-        && !local.ends_with('.')
-        && !local.contains("..")
-        && local
-            .split('.')
-            .all(|atom| !atom.is_empty() && atom.chars().all(data_sale_opt_out_valid_atom_char))
-}
-
-fn data_sale_opt_out_valid_atom_char(character: char) -> bool {
-    character.is_alphanumeric() || "!\"#$%&'*+-/=?^_`{|}~".contains(character)
-}
-
-fn data_sale_opt_out_valid_domain(domain: &str) -> bool {
-    if domain.is_empty()
-        || domain.starts_with('.')
-        || domain.ends_with('.')
-        || domain.contains("..")
-    {
-        return false;
-    }
-    let labels = domain.split('.').collect::<Vec<_>>();
-    let Some(tld) = labels.last() else {
-        return false;
-    };
-    labels.len() >= 2
-        && labels.iter().all(|label| {
-            !label.is_empty()
-                && label.chars().next().is_some_and(char::is_alphanumeric)
-                && label.chars().last().is_some_and(char::is_alphanumeric)
-                && label
-                    .chars()
-                    .all(|character| character.is_alphanumeric() || character == '-')
-        })
-        && (1..=64).contains(&tld.chars().count())
-        && tld.chars().all(char::is_alphabetic)
 }
 
 fn data_sale_opt_out_customer_defaults(id: &str, email: &str, timestamp: &str) -> Value {

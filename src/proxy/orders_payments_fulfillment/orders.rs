@@ -561,20 +561,14 @@ pub(in crate::proxy) fn order_update_shipping_address_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    if resolved_string_field(input, "lastName")
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(true)
-    {
+    if resolved_non_blank_string_field(input, "lastName").is_none() {
         errors.push(user_error_omit_code(
             ["shippingAddress", "lastName"],
             "Enter a last name",
             None,
         ));
     }
-    if resolved_string_field(input, "zip")
-        .map(|value| value.trim().is_empty())
-        .unwrap_or(true)
-    {
+    if resolved_non_blank_string_field(input, "zip").is_none() {
         errors.push(user_error_omit_code(
             ["shippingAddress", "zip"],
             "Enter a ZIP code",

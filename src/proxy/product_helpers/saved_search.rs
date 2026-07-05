@@ -539,7 +539,7 @@ fn saved_search_base_filter_key(key: &str) -> &str {
 const DEFAULT_SAVED_SEARCH_API_CLIENT_ID: &str = "shopify-draft-proxy-local-app";
 
 pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .map(|value| saved_search_namespace_api_client_id(&value))
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_SAVED_SEARCH_API_CLIENT_ID.to_string())

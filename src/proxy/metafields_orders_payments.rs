@@ -678,7 +678,6 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
     }
 }
 
-pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE: &str =
     "API client identity is required to resolve or authorize app-reserved namespaces and types.";
 
@@ -2242,13 +2241,6 @@ fn line_items_price_set_values(
         format_money_amount(presentment_total),
         presentment_currency,
     ]
-}
-
-fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
-    selections.iter().any(|selection| {
-        names.contains(&selection.name.as_str())
-            || selection_contains_any(&selection.selection, names)
-    })
 }
 
 fn selected_field_contains_only_any(

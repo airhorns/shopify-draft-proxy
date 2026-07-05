@@ -45,3 +45,115 @@ pub(in crate::proxy) fn days_in_month(year: i32, month: u32) -> u32 {
 pub(in crate::proxy) fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
+
+pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 20 {
+        return None;
+    }
+
+    let year = parse_fixed_digits(bytes, 0, 4)?;
+    expect_byte(bytes, 4, b'-')?;
+    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
+    expect_byte(bytes, 7, b'-')?;
+    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
+    match bytes.get(10) {
+        Some(b'T' | b't') => {}
+        _ => return None,
+    }
+    let hour = parse_fixed_digits(bytes, 11, 2)? as u32;
+    expect_byte(bytes, 13, b':')?;
+    let minute = parse_fixed_digits(bytes, 14, 2)? as u32;
+    expect_byte(bytes, 16, b':')?;
+    let second = parse_fixed_digits(bytes, 17, 2)? as u32;
+
+    if !valid_utc_date_time(year, month, day, hour, minute, second) {
+        return None;
+    }
+
+    let mut offset_index = 19;
+    if bytes.get(offset_index) == Some(&b'.') {
+        offset_index += 1;
+        let fraction_start = offset_index;
+        while bytes
+            .get(offset_index)
+            .is_some_and(|byte| byte.is_ascii_digit())
+        {
+            offset_index += 1;
+        }
+        if offset_index == fraction_start {
+            return None;
+        }
+    }
+
+    let offset_seconds = match bytes.get(offset_index) {
+        Some(b'Z' | b'z') if offset_index + 1 == bytes.len() => 0,
+        Some(b'+' | b'-') if offset_index + 6 == bytes.len() => {
+            let sign = if bytes[offset_index] == b'+' { 1 } else { -1 };
+            let offset_hour = parse_fixed_digits(bytes, offset_index + 1, 2)?;
+            expect_byte(bytes, offset_index + 3, b':')?;
+            let offset_minute = parse_fixed_digits(bytes, offset_index + 4, 2)?;
+            if offset_hour > 23 || offset_minute > 59 {
+                return None;
+            }
+            sign * (offset_hour * 3600 + offset_minute * 60)
+        }
+        _ => return None,
+    };
+
+    let days = days_from_civil(year, month, day);
+    Some(days * 86_400 + i64::from(hour * 3600 + minute * 60 + second) - i64::from(offset_seconds))
+}
+
+pub(in crate::proxy) fn parse_iso_date_epoch_days(value: &str) -> Option<i64> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10 {
+        return None;
+    }
+
+    let year = parse_fixed_digits(bytes, 0, 4)?;
+    expect_byte(bytes, 4, b'-')?;
+    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
+    expect_byte(bytes, 7, b'-')?;
+    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
+    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(days_from_civil(year, month, day))
+}
+
+pub(in crate::proxy) fn epoch_seconds_to_utc_epoch_days(seconds: i64) -> i64 {
+    seconds.div_euclid(86_400)
+}
+
+fn parse_fixed_digits(bytes: &[u8], start: usize, len: usize) -> Option<i32> {
+    let end = start.checked_add(len)?;
+    let digits = bytes.get(start..end)?;
+    digits.iter().try_fold(0_i32, |value, byte| {
+        if byte.is_ascii_digit() {
+            Some(value * 10 + i32::from(byte - b'0'))
+        } else {
+            None
+        }
+    })
+}
+
+fn expect_byte(bytes: &[u8], index: usize, expected: u8) -> Option<()> {
+    (bytes.get(index) == Some(&expected)).then_some(())
+}
+
+fn valid_utc_date_time(
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+) -> bool {
+    (1..=12).contains(&month)
+        && day >= 1
+        && day <= days_in_month(year, month)
+        && hour <= 23
+        && minute <= 59
+        && second <= 60
+}
