@@ -1227,7 +1227,14 @@ fn bulk_operation_run_mutation_nested_connection_returns_count_error_without_sta
 #[test]
 fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "one-shallow-connection.jsonl", "42");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "one-shallow-connection.jsonl",
+        &format!(
+            "{}\n",
+            json!({"product": {"title": "One shallow connection"}})
+        ),
+    );
     let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let response = proxy.process_request(json_graphql_request(
@@ -1303,9 +1310,20 @@ fn staged_bulk_mutation_upload_path(
         .to_string()
 }
 
+fn staged_bulk_mutation_upload_path_with_body(
+    proxy: &mut DraftProxy,
+    filename: &str,
+    body: &str,
+) -> String {
+    let path = staged_bulk_mutation_upload_path(proxy, filename, &body.len().to_string());
+    proxy.record_bulk_operation_staged_upload_body(&path, body.to_string());
+    path
+}
+
 #[test]
 fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     let mut proxy = snapshot_proxy();
+    let upload_body = format!("{}\n", json!({"product": {"title": "Ordinary import"}}));
     let staged = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
@@ -1324,7 +1342,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
                 "filename": "ordinary-import.jsonl",
                 "mimeType": "text/jsonl",
                 "httpMethod": "POST",
-                "fileSize": "42"
+                "fileSize": upload_body.len().to_string()
             }]
         }),
     ));
@@ -1337,6 +1355,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         .and_then(|parameter| parameter["value"].as_str())
         .unwrap()
         .to_string();
+    proxy.record_bulk_operation_staged_upload_body(&path, upload_body);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1361,7 +1380,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         }
         "#,
         json!({
-            "mutation": "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { id email } userErrors { field message } } }",
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
             "path": path
         }),
     ));
@@ -1423,13 +1442,25 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     );
     assert_eq!(
         read.body["data"]["bulkOperation"]["objectCount"],
-        json!("0")
+        json!("1")
     );
     assert_eq!(
         read.body["data"]["bulkOperation"]["rootObjectCount"],
-        json!("0")
+        json!("1")
     );
-    assert_eq!(read.body["data"]["bulkOperation"]["fileSize"], json!("0"));
+    let artifact = proxy.process_request(request_with_body(
+        "GET",
+        &format!(
+            "/__meta/bulk-operations/{}/result.jsonl",
+            operation_id.rsplit('/').next().unwrap()
+        ),
+        "",
+    ));
+    assert_eq!(artifact.status, 200);
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["fileSize"],
+        json!(artifact.body.as_str().unwrap().len().to_string())
+    );
 }
 
 #[test]
@@ -1607,7 +1638,11 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "1");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "exact-limit-import.jsonl",
+        &format!("{}\n", json!({"product": {"title": "Exact limit import"}})),
+    );
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1942,7 +1977,11 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "1");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "throttled-import.jsonl",
+        &format!("{}\n", json!({"product": {"title": "Throttled import"}})),
+    );
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -2017,10 +2056,13 @@ fn live_hybrid_proxy_with_bulk_operation_hydration(
 }
 
 fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
-    let path = staged_bulk_mutation_upload_path(
+    let path = staged_bulk_mutation_upload_path_with_body(
         proxy,
         &format!("mutation-import-{api_version}.jsonl"),
-        "1",
+        &format!(
+            "{}\n",
+            json!({"product": {"title": format!("Mutation import {api_version}")}})
+        ),
     );
     let mut request = json_graphql_request(
         r#"
