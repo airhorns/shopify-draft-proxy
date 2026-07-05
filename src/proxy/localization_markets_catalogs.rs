@@ -227,17 +227,6 @@ impl PriceListFieldOutcome {
         ))
     }
 
-    fn price_list_with_user_errors(
-        field: &RootFieldSelection,
-        price_list: Value,
-        user_errors: Vec<Value>,
-    ) -> Self {
-        Self::payload(selected_json(
-            &json!({"priceList": price_list, "userErrors": user_errors}),
-            &field.selection,
-        ))
-    }
-
     fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
         Self {
             value: Value::Null,
@@ -971,14 +960,13 @@ impl DraftProxy {
                         .staged
                         .price_lists
                         .get(&id)
-                        .map(|price_list| selected_price_list_json(price_list, &field.selection))
+                        .map(|price_list| {
+                            self.selected_price_list_json(price_list, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
-                "priceLists" => selected_price_lists_connection_with_args(
-                    &self.store.staged.price_lists,
-                    &field.arguments,
-                    &field.selection,
-                ),
+                "priceLists" => self
+                    .selected_price_lists_connection_with_args(&field.arguments, &field.selection),
                 "webPresences" => {
                     let records = self
                         .store
@@ -1068,7 +1056,7 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &result.records,
             selection,
-            selected_json,
+            |catalog, node_selection| self.selected_catalog_json(catalog, node_selection),
             value_id_cursor,
             result.page_info,
         )
@@ -1127,8 +1115,177 @@ impl DraftProxy {
                     &selection.selection,
                 ))
             }
+            "priceList" => {
+                let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList");
+                price_list_id
+                    .as_deref()
+                    .and_then(|id| self.store.staged.price_lists.get(id))
+                    .map(|price_list| {
+                        self.selected_price_list_json(price_list, &selection.selection)
+                    })
+                    .or_else(|| selected_record_field(catalog, selection))
+            }
+            "publication" => {
+                let publication_id = catalog_relation_id(catalog, "publicationId", "publication");
+                publication_id
+                    .as_deref()
+                    .and_then(|id| self.store.staged.publications.get(id))
+                    .map(|publication| selected_json(publication, &selection.selection))
+                    .or_else(|| selected_record_field(catalog, selection))
+            }
             _ => selected_record_field(catalog, selection),
         })
+    }
+
+    fn selected_price_list_json(&self, price_list: &Value, selection: &[SelectedField]) -> Value {
+        let mut record = serde_json::Map::new();
+        for field in selection {
+            if let Some(type_condition) = field.type_condition.as_deref() {
+                if !matches!(type_condition, "PriceList" | "Node") {
+                    continue;
+                }
+            }
+            let value = match field.name.as_str() {
+                "prices" => Some(selected_price_list_prices(
+                    price_list,
+                    &field.arguments,
+                    &field.selection,
+                )),
+                "catalog" => {
+                    let catalog_id = catalog_relation_id(price_list, "catalogId", "catalog");
+                    catalog_id
+                        .as_deref()
+                        .and_then(|id| self.store.staged.catalogs.get(id))
+                        .map(|catalog| self.selected_catalog_json(catalog, &field.selection))
+                        .or_else(|| selected_record_field(price_list, field))
+                }
+                _ => selected_record_field(price_list, field),
+            };
+            if let Some(value) = value {
+                record.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(record)
+    }
+
+    fn selected_price_list_payload(
+        &self,
+        field: &RootFieldSelection,
+        price_list: Value,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "priceList" => {
+                    Some(self.selected_price_list_json(&price_list, &selection.selection))
+                }
+                "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+                _ => None,
+            }
+        })
+    }
+
+    fn selected_price_list_outcome(
+        &self,
+        field: &RootFieldSelection,
+        price_list: Value,
+        user_errors: Vec<Value>,
+    ) -> PriceListFieldOutcome {
+        PriceListFieldOutcome::payload(self.selected_price_list_payload(
+            field,
+            price_list,
+            user_errors,
+        ))
+    }
+
+    fn selected_price_lists_connection_with_args(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let records = self
+            .store
+            .staged
+            .price_lists
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            arguments,
+            selection,
+            |price_list, node_selection| self.selected_price_list_json(price_list, node_selection),
+            value_id_cursor,
+        )
+    }
+
+    fn apply_catalog_update_context_input(
+        &self,
+        field: &RootFieldSelection,
+        catalog: &mut Value,
+        context: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let context_type_fields = catalog_context_type_fields(context);
+        if context_type_fields.len() != 1 {
+            return Some(selected_catalog_error(
+                field,
+                vec!["input", "context"],
+                "Must provide exactly one context type.",
+                "CONTEXT_DRIVER_MISMATCH",
+            ));
+        }
+
+        let (driver, field_name) = context_type_fields[0];
+        let catalog_driver = catalog_context_driver(catalog);
+        if driver != catalog_driver {
+            return Some(selected_catalog_error(
+                field,
+                vec!["input", "context", field_name],
+                CATALOG_CONTEXT_DRIVER_MISMATCH_MESSAGE,
+                "CONTEXT_DRIVER_MISMATCH",
+            ));
+        }
+
+        match driver {
+            CatalogContextDriver::Market => {
+                let market_ids = list_string_field(context, field_name);
+                for (index, market_id) in market_ids.iter().enumerate() {
+                    if !self.market_exists(market_id) {
+                        return Some(selected_catalog_error(
+                            field,
+                            vec!["input", "context", field_name, &index.to_string()],
+                            "Market does not exist",
+                            "MARKET_NOT_FOUND",
+                        ));
+                    }
+                }
+                let market_names = self.staged_market_names();
+                set_catalog_market_ids(catalog, &market_ids, &market_names);
+            }
+            CatalogContextDriver::CompanyLocation => {
+                let company_location_ids = company_location_ids_from_context(context);
+                for (index, location_id) in company_location_ids.iter().enumerate() {
+                    if !self.store.staged.b2b_locations.contains_key(location_id) {
+                        return Some(selected_catalog_error(
+                            field,
+                            vec!["input", "context", field_name, &index.to_string()],
+                            COMPANY_LOCATION_NOT_FOUND_MESSAGE,
+                            "COMPANY_LOCATION_NOT_FOUND",
+                        ));
+                    }
+                }
+                set_catalog_company_location_ids(
+                    catalog,
+                    &company_location_ids,
+                    &self.staged_company_locations_for_catalog(),
+                );
+            }
+            CatalogContextDriver::Country => {
+                let country_codes = country_codes_from_context(context);
+                set_catalog_country_codes(catalog, &country_codes);
+            }
+        }
+        None
     }
 
     fn selected_catalog_payload(
@@ -2071,6 +2228,23 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut updated_catalog = existing_catalog;
+        if let Some(title) = resolved_string_field(&input, "title") {
+            if let Some(object) = updated_catalog.as_object_mut() {
+                object.insert("title".to_string(), json!(title));
+            }
+        }
+        if let Some(status) = resolved_string_field(&input, "status") {
+            if let Some(object) = updated_catalog.as_object_mut() {
+                object.insert("status".to_string(), json!(status));
+            }
+        }
+        if let Some(context) = resolved_object_field(&input, "context") {
+            if let Some(error) =
+                self.apply_catalog_update_context_input(field, &mut updated_catalog, &context)
+            {
+                return error;
+            }
+        }
 
         if let Some(price_list_id) = resolved_string_field(&input, "priceListId") {
             self.catalog_relation_price_list_preflight(request, &price_list_id);
@@ -2385,11 +2559,10 @@ impl DraftProxy {
                 return PriceListFieldOutcome::resource_not_found(catalog_id, field);
             }
             if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::price_list_with_user_errors(
-                    field,
-                    Value::Null,
-                    vec![error],
-                );
+                return PriceListFieldOutcome::payload(selected_json(
+                    &json!({"priceList": Value::Null, "userErrors": vec![error]}),
+                    &field.selection,
+                ));
             }
         }
 
@@ -2417,22 +2590,20 @@ impl DraftProxy {
         if let Some(error) = price_list_adjustment_error(&adjustment) {
             return PriceListFieldOutcome::price_list_error(field, error);
         }
-        let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
 
         let id = self.next_price_list_id();
         let price_list = price_list_record(
             &id,
             &name,
             &currency,
-            &adjustment_type,
-            price_list_adjustment_value_json(&adjustment),
+            price_list_parent_json(&parent),
             catalog_id.as_deref(),
         );
         if let Some(catalog_id) = catalog_id.as_deref() {
             self.attach_price_list_to_catalog(catalog_id, &id);
         }
         self.store.staged.price_lists.insert(id, price_list.clone());
-        PriceListFieldOutcome::price_list_with_user_errors(field, price_list, Vec::new())
+        self.selected_price_list_outcome(field, price_list, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_update_response(
@@ -2463,7 +2634,7 @@ impl DraftProxy {
             let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
             if let Some(error) = price_list_adjustment_error(&adjustment) {
                 let (path, message, code) = error;
-                return PriceListFieldOutcome::price_list_with_user_errors(
+                return self.selected_price_list_outcome(
                     field,
                     existing.clone(),
                     vec![price_list_user_error(path, message, code)],
@@ -2478,11 +2649,10 @@ impl DraftProxy {
                 if let Some(error) =
                     self.price_list_catalog_validation_error(&catalog_id, Some(&id))
                 {
-                    return PriceListFieldOutcome::price_list_with_user_errors(
-                        field,
-                        Value::Null,
-                        vec![error],
-                    );
+                    return PriceListFieldOutcome::payload(selected_json(
+                        &json!({"priceList": Value::Null, "userErrors": vec![error]}),
+                        &field.selection,
+                    ));
                 }
             }
         }
@@ -2499,13 +2669,8 @@ impl DraftProxy {
             }
         }
         if let Some(parent) = parent_update.as_ref() {
-            let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
-            let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
             if let Some(object) = updated.as_object_mut() {
-                object.insert(
-                    "parent".to_string(),
-                    json!({"adjustment": {"type": adjustment_type, "value": price_list_adjustment_value_json(&adjustment)}}),
-                );
+                object.insert("parent".to_string(), price_list_parent_json(parent));
             }
         }
         if input.get("catalogId") == Some(&ResolvedValue::Null) {
@@ -2523,7 +2688,7 @@ impl DraftProxy {
             }
         }
         self.store.staged.price_lists.insert(id, updated.clone());
-        PriceListFieldOutcome::price_list_with_user_errors(field, updated, Vec::new())
+        self.selected_price_list_outcome(field, updated, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_delete_response(

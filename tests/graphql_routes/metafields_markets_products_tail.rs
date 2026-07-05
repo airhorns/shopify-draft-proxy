@@ -6322,6 +6322,281 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 }
 
 #[test]
+fn catalog_update_scalars_context_and_relation_reads_project_full_records() {
+    let mut proxy = snapshot_proxy();
+
+    let market_create_query = r#"
+        mutation CatalogRelationReadMarketSeed($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({ "input": { "name": "Original Context", "regions": [{ "countryCode": "US" }] } }),
+    ));
+    let first_market_id = first_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({ "input": { "name": "Updated Context", "regions": [{ "countryCode": "CA" }] } }),
+    ));
+    let second_market_id = second_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogRelationReadCatalogSeed($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Original Catalog",
+                "status": "DRAFT",
+                "context": { "driverType": "MARKET", "marketIds": [first_market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogRelationReadPublicationSeed($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id name autoPublish }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "autoPublish": true } }),
+    ));
+    assert_eq!(
+        publication.body["data"]["publicationCreate"]["userErrors"],
+        json!([])
+    );
+    let publication_id = publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogRelationReadPriceListSeed($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList {
+              id
+              name
+              currency
+              parent { adjustment { type value } settings { compareAtMode } }
+              catalog { id title status }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Relation Prices",
+                "currency": "USD",
+                "catalogId": catalog_id,
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 },
+                    "settings": { "compareAtMode": "ADJUSTED" }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        price_list.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let updated_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogRelationReadPriceListUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList {
+              id
+              parent { adjustment { type value } settings { compareAtMode } }
+              catalog { id title status }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": price_list_id,
+            "input": {
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_INCREASE", "value": 15 },
+                    "settings": { "compareAtMode": "NULLIFY" }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        updated_price_list.body["data"]["priceListUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogRelationReadCatalogUpdate($id: ID!, $input: CatalogUpdateInput!) {
+          catalogUpdate(id: $id, input: $input) {
+            catalog {
+              id
+              title
+              status
+              ... on MarketCatalog {
+                markets(first: 5) { nodes { id name } }
+              }
+              priceList {
+                id
+                name
+                currency
+                parent { adjustment { type value } settings { compareAtMode } }
+                catalog { id title status }
+              }
+              publication {
+                id
+                name
+                autoPublish
+                channel { id name publication { id name } }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": catalog_id,
+            "input": {
+                "title": "Updated Catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [second_market_id] },
+                "publicationId": publication_id
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["catalog"]["title"],
+        json!("Updated Catalog")
+    );
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["catalog"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["catalog"]["markets"]["nodes"],
+        json!([{ "id": second_market_id, "name": "Updated Context" }])
+    );
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["catalog"]["priceList"],
+        json!({
+            "id": price_list_id,
+            "name": "Relation Prices",
+            "currency": "USD",
+            "parent": {
+                "adjustment": { "type": "PERCENTAGE_INCREASE", "value": 15 },
+                "settings": { "compareAtMode": "NULLIFY" }
+            },
+            "catalog": {
+                "id": catalog_id,
+                "title": "Updated Catalog",
+                "status": "ACTIVE"
+            }
+        })
+    );
+    assert_eq!(
+        update.body["data"]["catalogUpdate"]["catalog"]["publication"]["autoPublish"],
+        json!(true)
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogRelationReadBack($catalogId: ID!, $priceListId: ID!) {
+          catalog(id: $catalogId) {
+            id
+            title
+            status
+            ... on MarketCatalog {
+              markets(first: 5) { nodes { id name } }
+            }
+            priceList {
+              id
+              name
+              currency
+              parent { adjustment { type value } settings { compareAtMode } }
+            }
+            publication { id name autoPublish }
+          }
+          catalogs(first: 10) {
+            nodes {
+              id
+              title
+              status
+              ... on MarketCatalog {
+                markets(first: 5) { nodes { id name } }
+              }
+              priceList { id name currency }
+              publication { id name autoPublish }
+            }
+          }
+          priceList(id: $priceListId) {
+            id
+            name
+            currency
+            parent { adjustment { type value } settings { compareAtMode } }
+            catalog { id title status }
+          }
+        }
+        "#,
+        json!({ "catalogId": catalog_id, "priceListId": price_list_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["catalog"]["markets"]["nodes"],
+        json!([{ "id": second_market_id, "name": "Updated Context" }])
+    );
+    assert_eq!(
+        readback.body["data"]["catalog"]["priceList"]["parent"]["settings"],
+        json!({ "compareAtMode": "NULLIFY" })
+    );
+    assert_eq!(
+        readback.body["data"]["catalogs"]["nodes"][0]["publication"]["autoPublish"],
+        json!(true)
+    );
+    assert_eq!(
+        readback.body["data"]["priceList"]["catalog"],
+        json!({ "id": catalog_id, "title": "Updated Catalog", "status": "ACTIVE" })
+    );
+}
+
+#[test]
 fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() {
     // Covers price-list helper behavior:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,

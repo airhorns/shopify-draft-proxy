@@ -5324,6 +5324,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalog-update-relation-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-update-relation-read-conformance.mts',
+    purpose:
+      'catalogUpdate scalar/context write-through to readbacks, full Catalog.priceList/PriceList.catalog/Publication relation projection, and price-list parent compare-at settings.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_publications', 'write_publications'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-update-relation-read.json`,
+      'config/parity-specs/markets/catalog-update-scalar-context-relation-read.json',
+      'config/parity-requests/markets/catalog-update-relation-read-catalog-create.graphql',
+      'config/parity-requests/markets/catalog-update-relation-read-publication-create.graphql',
+      'config/parity-requests/markets/catalog-update-relation-read-price-list-create.graphql',
+      'config/parity-requests/markets/catalog-update-relation-read-price-list-update.graphql',
+      'config/parity-requests/markets/catalog-update-scalar-context-relations.graphql',
+      'config/parity-requests/markets/catalog-update-scalar-context-relation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Uses existing market contexts, creates a disposable catalog, publication, and price list, updates price-list parent settings and catalog scalar/context/publication fields, captures downstream readbacks, then deletes created records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'bundled-price-list-web-presence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bundled-price-list-web-presence-conformance.mts',

@@ -403,12 +403,33 @@ pub(in crate::proxy) fn price_list_adjustment_value_json(
     }
 }
 
+pub(in crate::proxy) fn price_list_parent_json(parent: &BTreeMap<String, ResolvedValue>) -> Value {
+    let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
+    let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
+    let mut parent_json = json!({
+        "adjustment": {
+            "type": adjustment_type,
+            "value": price_list_adjustment_value_json(&adjustment)
+        }
+    });
+    if let Some(settings) = resolved_object_field(parent, "settings") {
+        if let Some(compare_at_mode) = resolved_string_field(&settings, "compareAtMode") {
+            if let Some(object) = parent_json.as_object_mut() {
+                object.insert(
+                    "settings".to_string(),
+                    json!({ "compareAtMode": compare_at_mode }),
+                );
+            }
+        }
+    }
+    parent_json
+}
+
 pub(in crate::proxy) fn price_list_record(
     id: &str,
     name: &str,
     currency: &str,
-    adjustment_type: &str,
-    adjustment_value: Value,
+    parent: Value,
     catalog_id: Option<&str>,
 ) -> Value {
     let catalog = catalog_id
@@ -419,7 +440,7 @@ pub(in crate::proxy) fn price_list_record(
         "id": id,
         "name": name,
         "currency": currency,
-        "parent": {"adjustment": {"type": adjustment_type, "value": adjustment_value}},
+        "parent": parent,
         "catalogId": catalog_id,
         "catalog": catalog,
         "fixedPricesCount": 0,
@@ -548,50 +569,6 @@ pub(in crate::proxy) fn selected_price_list_prices(
             "pageInfo": page_info
         }),
         selection,
-    )
-}
-
-pub(in crate::proxy) fn selected_price_list_json(
-    price_list: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    let mut record = serde_json::Map::new();
-    for field in selection {
-        if let Some(type_condition) = field.type_condition.as_deref() {
-            if !matches!(type_condition, "PriceList" | "Node") {
-                continue;
-            }
-        }
-        let value = if field.name == "prices" {
-            Some(selected_price_list_prices(
-                price_list,
-                &field.arguments,
-                &field.selection,
-            ))
-        } else {
-            selected_json(price_list, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|projected| projected.get(&field.response_key).cloned())
-        };
-        if let Some(value) = value {
-            record.insert(field.response_key.clone(), value);
-        }
-    }
-    Value::Object(record)
-}
-
-pub(in crate::proxy) fn selected_price_lists_connection_with_args(
-    records: &BTreeMap<String, Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let records = records.values().cloned().collect::<Vec<_>>();
-    selected_typed_connection_with_args(
-        &records,
-        arguments,
-        selection,
-        selected_price_list_json,
-        value_id_cursor,
     )
 }
 

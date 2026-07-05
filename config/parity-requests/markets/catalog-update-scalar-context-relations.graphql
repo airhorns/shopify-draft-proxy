@@ -1,0 +1,46 @@
+mutation CatalogUpdateScalarContextRelations($id: ID!, $input: CatalogUpdateInput!) {
+  catalogUpdate(id: $id, input: $input) {
+    catalog {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+      priceList {
+        id
+        name
+        currency
+        parent {
+          adjustment {
+            type
+            value
+          }
+          settings {
+            compareAtMode
+          }
+        }
+        catalog {
+          id
+          title
+          status
+        }
+      }
+      publication {
+        id
+        autoPublish
+        supportsFuturePublishing
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

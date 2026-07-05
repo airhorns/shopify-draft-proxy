@@ -1,0 +1,78 @@
+query CatalogUpdateScalarContextRelationRead($catalogId: ID!, $priceListId: ID!, $catalogQuery: String!) {
+  catalog(id: $catalogId) {
+    id
+    title
+    status
+    ... on MarketCatalog {
+      markets(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    priceList {
+      id
+      name
+      currency
+      parent {
+        adjustment {
+          type
+          value
+        }
+        settings {
+          compareAtMode
+        }
+      }
+    }
+    publication {
+      id
+      autoPublish
+      supportsFuturePublishing
+    }
+  }
+  catalogs(first: 5, type: MARKET, query: $catalogQuery) {
+    nodes {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+      priceList {
+        id
+        name
+        currency
+      }
+      publication {
+        id
+        autoPublish
+        supportsFuturePublishing
+      }
+    }
+  }
+  priceList(id: $priceListId) {
+    id
+    name
+    currency
+    parent {
+      adjustment {
+        type
+        value
+      }
+      settings {
+        compareAtMode
+      }
+    }
+    catalog {
+      id
+      title
+      status
+    }
+  }
+}
