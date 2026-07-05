@@ -2159,7 +2159,9 @@ impl DraftProxy {
                     // contact email). Mirror that record so reads of
                     // order.customer reflect the customer, not the order email.
                     if let Some(customer) = self.store.staged.customers.get(&id) {
-                        customer.clone()
+                        let mut customer = customer.clone();
+                        customer["canDelete"] = json!(false);
+                        customer
                     } else {
                         json!({
                             "id": id,

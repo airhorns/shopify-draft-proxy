@@ -13367,6 +13367,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_blocked_by_orders.json',
       'config/parity-specs/customers/customer_delete_no_orders_control.json',
       'config/parity-specs/customers/customer_delete_blocked_by_orders.json',
+      'config/parity-requests/customers/customer-delete-order-precondition-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and deletes remaining customers.',

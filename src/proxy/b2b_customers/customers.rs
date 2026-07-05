@@ -329,6 +329,7 @@ impl DraftProxy {
         // that recorded page is projected verbatim instead.
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "canDelete" => Some(json!(self.customer_can_delete_value(id, customer))),
             "orders" => Some(match mapped_orders {
                 Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
@@ -379,6 +380,29 @@ impl DraftProxy {
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
         })
+    }
+
+    fn customer_can_delete_value(&self, id: &str, customer: &Value) -> bool {
+        if self.customer_has_effective_orders(id, customer) {
+            return false;
+        }
+        customer
+            .get("canDelete")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+    }
+
+    fn customer_has_effective_orders(&self, id: &str, customer: &Value) -> bool {
+        self.store
+            .staged
+            .customer_orders
+            .get(id)
+            .is_some_and(|orders| !orders.is_empty())
+            || connection_has_nodes(&customer["orders"])
+            || customer_order_count(customer).is_some_and(|count| count > 0)
+            || customer
+                .get("lastOrder")
+                .is_some_and(|last_order| !last_order.is_null())
     }
 
     pub(in crate::proxy) fn store_credit_account_read_fields(
@@ -1015,6 +1039,10 @@ impl DraftProxy {
             .cloned()
             .unwrap_or(Value::Null);
         let id = self.next_proxy_synthetic_gid("Order");
+        let mut customer = customer;
+        if !customer.is_null() {
+            customer["canDelete"] = json!(false);
+        }
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
             self.store
@@ -3291,6 +3319,16 @@ fn customer_number_of_orders_matches(customer: &Value, value: &str) -> bool {
             .as_i64()
             .or_else(|| value.as_str().and_then(|value| value.parse::<i64>().ok()))
     }) == Some(expected)
+}
+
+fn customer_order_count(customer: &Value) -> Option<u64> {
+    customer
+        .get("numberOfOrders")
+        .and_then(|count| match count {
+            Value::String(value) => value.parse::<u64>().ok(),
+            Value::Number(value) => value.as_u64(),
+            _ => None,
+        })
 }
 
 /// Surface Shopify's order-summary defaults on a freshly staged customer record:
