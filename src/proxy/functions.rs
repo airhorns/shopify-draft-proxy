@@ -1834,14 +1834,7 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
-        let id = shopify_gid(
-            "FulfillmentConstraintRule",
-            self.store
-                .staged
-                .function_fulfillment_constraint_rule_order
-                .len()
-                + 1,
-        );
+        let id = self.next_synthetic_gid("FulfillmentConstraintRule");
         let metafield_ids = match field.arguments.get("metafields") {
             Some(ResolvedValue::List(metafields)) => metafields
                 .iter()

@@ -765,11 +765,11 @@ impl DraftProxy {
     /// Whether a product / variant / collection gid is already present in staged
     /// state (and so does not need an upstream existence lookup).
     fn discount_reference_already_staged(&self, gid: &str) -> bool {
-        if gid.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(gid, "Product") {
             self.store.has_product(gid)
-        } else if gid.starts_with("gid://shopify/ProductVariant/") {
+        } else if is_shopify_gid_of_type(gid, "ProductVariant") {
             self.store.product_variant_by_id(gid).is_some()
-        } else if gid.starts_with("gid://shopify/Collection/") {
+        } else if is_shopify_gid_of_type(gid, "Collection") {
             self.store.collection_by_id(gid).is_some()
         } else {
             false
@@ -2221,14 +2221,14 @@ impl DraftProxy {
     }
 
     fn discount_product_title_for_gid(&self, gid: &str) -> Option<String> {
-        if gid.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(gid, "Product") {
             return self
                 .store
                 .product_by_id(gid)
                 .map(|product| product.title.clone())
                 .filter(|title| !title.trim().is_empty());
         }
-        if gid.starts_with("gid://shopify/ProductVariant/") {
+        if is_shopify_gid_of_type(gid, "ProductVariant") {
             let variant = self.store.product_variant_by_id(gid)?;
             return self
                 .store
@@ -3578,10 +3578,7 @@ fn discount_nullable_string_sort_value(record: &Value, field: &str) -> StagedSor
 }
 
 fn discount_gid_tail_sort_value(record: &Value) -> StagedSortValue {
-    let tail = resource_id_tail(discount_id(record));
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(discount_id(record)))
 }
 
 fn app_discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {

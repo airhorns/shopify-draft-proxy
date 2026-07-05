@@ -545,10 +545,8 @@ pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) ->
 }
 
 fn saved_search_namespace_api_client_id(value: &str) -> String {
-    let tail = value
-        .trim()
-        .strip_prefix("gid://shopify/App/")
-        .unwrap_or_else(|| value.trim());
+    let trimmed = value.trim();
+    let tail = shopify_gid_tail_for_type(trimmed, "App").unwrap_or(trimmed);
     tail.chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
         .collect()

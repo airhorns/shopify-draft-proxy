@@ -7,10 +7,7 @@ fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
 }
 
 fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
-    let tail = id.map(resource_id_tail).unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(id)
 }
 
 fn marketing_activity_cursor(record: &Value) -> String {

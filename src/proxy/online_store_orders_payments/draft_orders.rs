@@ -772,9 +772,7 @@ fn draft_order_matches_id(draft_order: &Value, value: &str) -> bool {
     draft_order
         .get("id")
         .and_then(Value::as_str)
-        .is_some_and(|id| {
-            id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
-        })
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, value))
 }
 
 fn draft_order_matches_status(draft_order: &Value, value: &str) -> bool {
@@ -812,7 +810,7 @@ fn draft_order_matches_customer_id(draft_order: &Value, value: &str) -> bool {
     ]
     .into_iter()
     .flatten()
-    .any(|id| id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+    .any(|id| resource_id_matches_gid_or_tail(id, value))
 }
 
 fn draft_order_matches_tag(draft_order: &Value, value: &str) -> bool {
@@ -931,14 +929,7 @@ fn draft_order_search_token_matches(actual: &str, query_value: &str) -> bool {
 }
 
 fn draft_order_gid_tail_sort_value(draft_order: &Value) -> StagedSortValue {
-    let tail = draft_order
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(draft_order.get("id").and_then(Value::as_str))
 }
 
 fn draft_order_string_sort_value(draft_order: &Value, field: &str) -> StagedSortValue {

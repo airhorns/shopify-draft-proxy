@@ -37,13 +37,6 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
     StagedSortValue::String(value.to_ascii_lowercase())
 }
 
-fn gid_tail_sort_string(id: &str) -> StagedSortValue {
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
-}
-
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("CREATED_AT") {
         "TITLE" => normalized_sort_string(&product.title),
@@ -56,10 +49,10 @@ fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> S
             .map(|value| StagedSortValue::String(value.to_string()))
             .unwrap_or(StagedSortValue::Null),
         "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
-        "ID" => gid_tail_sort_string(&product.id),
+        "ID" => resource_id_tail_sort_value(Some(&product.id)),
         _ => StagedSortValue::String(product.created_at.clone()),
     };
-    vec![primary, gid_tail_sort_string(&product.id)]
+    vec![primary, resource_id_tail_sort_value(Some(&product.id))]
 }
 
 impl DraftProxy {
@@ -3560,7 +3553,7 @@ fn product_variant_media_is_image(media: &Value) -> bool {
         None => media
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/MediaImage/")),
+            .is_some_and(|id| is_shopify_gid_of_type(id, "MediaImage")),
     }
 }
 

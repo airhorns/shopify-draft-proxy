@@ -912,10 +912,7 @@ fn selling_plan_group_effective_updated_at(group: &SellingPlanGroupRecord) -> &s
 }
 
 fn selling_plan_group_gid_tail_sort_value(id: &str) -> StagedSortValue {
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(id))
 }
 
 fn selling_plan_group_staged_sort_key(

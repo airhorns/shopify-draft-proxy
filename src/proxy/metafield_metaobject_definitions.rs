@@ -2773,7 +2773,7 @@ fn apply_metafield_definition_constraints_update(
 }
 
 fn metafield_definition_constraint_value(value: &str) -> String {
-    if value.starts_with("gid://shopify/TaxonomyCategory/") {
+    if is_shopify_gid_of_type(value, "TaxonomyCategory") {
         resource_id_tail(value).to_string()
     } else {
         value.to_string()

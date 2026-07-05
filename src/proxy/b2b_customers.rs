@@ -5470,10 +5470,7 @@ fn customer_normalized_string(customer: &Value, field: &str) -> StagedSortValue 
 
 fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
     let id = customer_value_string(customer, "id");
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(id))
 }
 
 fn customer_name_sort_key(customer: &Value) -> StagedSortKey {
@@ -6103,17 +6100,8 @@ fn store_credit_account_search_decision(
 }
 
 fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
-    let tail = account
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    let id_value = tail
-        .parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
     vec![
-        id_value,
+        resource_id_tail_sort_value(account.get("id").and_then(Value::as_str)),
         StagedSortValue::String(store_credit_account_currency(account).to_ascii_lowercase()),
     ]
 }

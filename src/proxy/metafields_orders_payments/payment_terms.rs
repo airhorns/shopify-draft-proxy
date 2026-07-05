@@ -686,7 +686,7 @@ impl DraftProxy {
                                 &field.selection,
                             ),
                             Some(owner)
-                                if owner_id.starts_with("gid://shopify/Order/")
+                                if is_shopify_gid_of_type(&owner_id, "Order")
                                     && payment_terms_order_paid(&owner) =>
                             {
                                 payment_terms_owner_paid_payload(
@@ -695,7 +695,7 @@ impl DraftProxy {
                                 )
                             }
                             Some(owner)
-                                if owner_id.starts_with("gid://shopify/Order/")
+                                if is_shopify_gid_of_type(&owner_id, "Order")
                                     && payment_terms_order_channel_disallowed(&owner) =>
                             {
                                 payment_terms_owner_channel_policy_payload(
@@ -764,7 +764,7 @@ impl DraftProxy {
                                 )
                             } else if owner_id
                                 .as_deref()
-                                .is_some_and(|owner| owner.starts_with("gid://shopify/Order/"))
+                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
                                 && owner_record.as_ref().is_some_and(payment_terms_order_paid)
                                 || cold_node
                                     .as_ref()
@@ -776,7 +776,7 @@ impl DraftProxy {
                                 )
                             } else if owner_id
                                 .as_deref()
-                                .is_some_and(|owner| owner.starts_with("gid://shopify/Order/"))
+                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
                                 && owner_record
                                     .as_ref()
                                     .is_some_and(payment_terms_order_channel_disallowed)
@@ -917,7 +917,7 @@ impl DraftProxy {
             return Some(owner.clone());
         }
         let owner = self.hydrate_payment_terms_owner(request, owner_id)?;
-        if owner_id.starts_with("gid://shopify/DraftOrder/") {
+        if is_shopify_gid_of_type(owner_id, "DraftOrder") {
             self.store
                 .staged
                 .draft_orders
@@ -942,7 +942,7 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let (query, operation_name) = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+        let (query, operation_name) = if is_shopify_gid_of_type(owner_id, "DraftOrder") {
             (
                 PAYMENT_TERMS_DRAFT_HYDRATE_QUERY,
                 "PaymentTermsDraftHydrate",
@@ -1033,7 +1033,7 @@ impl DraftProxy {
                 payment_terms_record_with_effective_due(terms, self.current_epoch_seconds())
             })
             .unwrap_or(Value::Null);
-        let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+        let entry = if is_shopify_gid_of_type(owner_id, "DraftOrder") {
             self.store
                 .staged
                 .draft_orders
