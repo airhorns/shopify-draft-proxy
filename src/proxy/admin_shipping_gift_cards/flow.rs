@@ -75,7 +75,7 @@ impl DraftProxy {
         }
 
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        if !id.starts_with("gid://shopify/FlowActionDefinition/") {
+        if !is_shopify_gid_of_type(&id, "FlowActionDefinition") {
             return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
         }
 
@@ -235,17 +235,12 @@ fn flow_generate_signature_required_arg_error(
     }
     let arguments = missing.join(", ");
     Some(json!({
-        "errors": [{
-            "message": format!("Field 'flowGenerateSignature' is missing required arguments: {arguments}"),
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "flowGenerateSignature"],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": "flowGenerateSignature",
-                "arguments": arguments
-            }
-        }]
+        "errors": [missing_required_arguments_error(
+            "flowGenerateSignature",
+            &arguments,
+            field.location,
+            vec![json!(operation_path), json!("flowGenerateSignature")],
+        )]
     }))
 }
 
@@ -261,16 +256,13 @@ fn flow_generate_signature_null_arg_error(
             continue;
         }
         return Some(json!({
-            "errors": [{
-                "message": format!("Argument '{name}' on Field 'flowGenerateSignature' has an invalid value (null). Expected type '{expected_type}'."),
-                "locations": [{ "line": field.location.line, "column": field.location.column }],
-                "path": [operation_path, "flowGenerateSignature", name],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": name
-                }
-            }]
+            "errors": [required_argument_null_error(
+                "flowGenerateSignature",
+                name,
+                expected_type,
+                field.location,
+                vec![json!(operation_path), json!("flowGenerateSignature"), json!(name)],
+            )]
         }));
     }
     None
@@ -395,7 +387,7 @@ fn flow_trigger_body_validation_message(body: &str) -> Option<String> {
 }
 
 fn is_local_flow_trigger_reference(value: &str) -> bool {
-    value.starts_with("local-") || value.starts_with("gid://shopify/FlowTrigger/")
+    value.starts_with("local-") || is_shopify_gid_of_type(value, "FlowTrigger")
 }
 
 fn is_local_flow_handle(value: &str) -> bool {

@@ -32,6 +32,8 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'gift-cards');
 const outputPath = path.join(outputDir, 'gift-card-transaction-validation.json');
+const activeExpiresOn = '2099-01-01';
+const expiredExpiresOn = '2000-01-01';
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -206,9 +208,24 @@ async function hydrateGiftCard(id: string): Promise<RecordedCall> {
   };
 }
 
-const setupActive = await createGiftCard('active', '2026-10-01');
-const setupExpired = await createGiftCard('expired', '2026-04-28');
-const setupDeactivated = await createGiftCard('deactivated', '2026-10-01');
+async function hydrateShopPricing(): Promise<RecordedCall> {
+  const query = `query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }`;
+  const variables = {};
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName: 'DraftProxyShopPricingHydrate',
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
+const setupActive = await createGiftCard('active', activeExpiresOn);
+const setupExpired = await createGiftCard('expired', expiredExpiresOn);
+const setupDeactivated = await createGiftCard('deactivated', activeExpiresOn);
 
 const activeId = readGiftCardId(setupActive);
 const expiredId = readGiftCardId(setupExpired);
@@ -216,7 +233,7 @@ const deactivatedId = readGiftCardId(setupDeactivated);
 const cardCurrency = readGiftCardCurrency(setupActive) ?? 'CAD';
 const mismatchCurrency = cardCurrency === 'EUR' ? 'USD' : 'EUR';
 const setupDeactivate = deactivatedId === null ? null : await deactivateGiftCard('setupDeactivate', deactivatedId);
-const upstreamCalls: RecordedCall[] = [];
+const upstreamCalls: RecordedCall[] = [await hydrateShopPricing()];
 
 if (activeId !== null && expiredId !== null && deactivatedId !== null) {
   upstreamCalls.push(await hydrateGiftCard(expiredId));
@@ -237,7 +254,7 @@ const mismatchCreditInput = {
   },
 };
 const futureCreditInput = {
-  processedAt: '2030-01-01T00:00:00Z',
+  processedAt: '2099-01-01T00:00:00Z',
   creditAmount: {
     amount: '5.00',
     currencyCode: cardCurrency,
@@ -257,7 +274,7 @@ const validDebitInput = {
   },
 };
 const futureDebitInput = {
-  processedAt: '2030-01-01T00:00:00Z',
+  processedAt: '2099-01-01T00:00:00Z',
   debitAmount: {
     amount: '5.00',
     currencyCode: cardCurrency,
@@ -480,8 +497,8 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'Captures giftCardCredit/giftCardDebit validation branches for ordinary recent-past expired cards, deactivated cards, mismatched currency, ordinary future processedAt, ordinary pre-epoch processedAt, and typed success payload behavior.',
-        'Setup creates three disposable gift cards: active future-expiring, recent-past expired, and deactivated future-expiring. Cleanup deactivates any setup cards that are not already deactivated.',
+        'Captures giftCardCredit/giftCardDebit validation branches for stable-past expired cards, deactivated cards, mismatched currency, future processedAt, pre-epoch processedAt, and typed success payload behavior.',
+        'Setup creates three disposable gift cards: active far-future-expiring, stable-past expired, and deactivated far-future-expiring. Cleanup deactivates any setup cards that are not already deactivated.',
       ],
       proxyVariables: {
         transactionValidation: {

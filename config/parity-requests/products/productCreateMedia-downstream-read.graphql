@@ -19,5 +19,46 @@ query ProductCreateMediaDownstreamRead($id: ID!) {
         }
       }
     }
+    images(first: 10) {
+      nodes {
+        id
+        url
+        altText
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    featuredImage {
+      id
+      url
+      altText
+    }
+    featuredMedia {
+      __typename
+      ... on MediaImage {
+        id
+        alt
+        mediaContentType
+        status
+        image {
+          id
+          url
+          altText
+          width
+          height
+        }
+        preview {
+          image {
+            url
+            width
+            height
+          }
+        }
+      }
+    }
   }
 }

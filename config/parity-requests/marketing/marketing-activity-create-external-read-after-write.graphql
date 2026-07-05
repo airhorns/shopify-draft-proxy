@@ -6,6 +6,10 @@ mutation MarketingActivityLifecycle(
   createExternal: marketingActivityCreateExternal(input: $createInput) {
     marketingActivity {
       id
+      app {
+        id
+        title
+      }
       adSpend {
         amount
         currencyCode
@@ -24,6 +28,10 @@ mutation MarketingActivityLifecycle(
     marketingActivity {
       id
       title
+      app {
+        id
+        title
+      }
       adSpend {
         amount
         currencyCode

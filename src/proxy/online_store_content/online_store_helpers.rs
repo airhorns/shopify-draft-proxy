@@ -18,7 +18,7 @@ pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> boo
     record
         .get("id")
         .and_then(Value::as_str)
-        .is_some_and(|id| id.starts_with("gid://shopify/ScriptTag/"))
+        .is_some_and(|id| is_shopify_gid_of_type(id, "ScriptTag"))
 }
 
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {
@@ -501,20 +501,12 @@ pub(in crate::proxy) fn server_pixel_missing_argument_error(
     field: &RootFieldSelection,
     argument_name: &str,
 ) -> Value {
-    json!({
-        "message": format!(
-            "Field '{}' is missing required arguments: {}",
-            field.name, argument_name
-        ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [field.response_key],
-        "extensions": {
-            "code": "missingRequiredArguments",
-            "className": "Field",
-            "name": field.name,
-            "arguments": argument_name
-        }
-    })
+    missing_required_arguments_error(
+        &field.name,
+        argument_name,
+        field.location,
+        vec![json!(field.response_key.clone())],
+    )
 }
 
 pub(in crate::proxy) fn server_pixel_blank_argument_error(

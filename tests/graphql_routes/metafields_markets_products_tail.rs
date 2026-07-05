@@ -928,6 +928,125 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
 }
 
 #[test]
+fn shop_owner_metafields_reflect_staged_set_and_delete() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let shop_id = "gid://shopify/Shop/1";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShopOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              type
+              value
+              ownerType
+              owner { __typename ... on Shop { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": shop_id,
+            "namespace": "custom",
+            "key": "rw",
+            "type": "single_line_text_field",
+            "value": "1"
+        }]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["owner"]["__typename"],
+        json!("Shop")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopOwnerMetafieldsRead {
+          shop {
+            id
+            single: metafield(namespace: "custom", key: "rw") {
+              namespace
+              key
+              type
+              value
+              ownerType
+              owner { __typename ... on Shop { id } }
+            }
+            list: metafields(first: 10, namespace: "custom") {
+              nodes { namespace key type value ownerType }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["shop"]["id"], json!(shop_id));
+    assert_eq!(read.body["data"]["shop"]["single"]["value"], json!("1"));
+    assert_eq!(
+        read.body["data"]["shop"]["single"]["owner"]["id"],
+        json!(shop_id)
+    );
+    assert_eq!(
+        read.body["data"]["shop"]["list"]["nodes"],
+        json!([{
+            "namespace": "custom",
+            "key": "rw",
+            "type": "single_line_text_field",
+            "value": "1",
+            "ownerType": "SHOP"
+        }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShopOwnerMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": shop_id,
+            "namespace": "custom",
+            "key": "rw"
+        }]}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["deletedMetafields"][0],
+        json!({"ownerId": shop_id, "namespace": "custom", "key": "rw"})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopOwnerMetafieldsPostDelete {
+          shop {
+            single: metafield(namespace: "custom", key: "rw") { value }
+            list: metafields(first: 10, namespace: "custom") { nodes { key } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(post_delete.status, 200);
+    assert_eq!(post_delete.body["data"]["shop"]["single"], Value::Null);
+    assert_eq!(post_delete.body["data"]["shop"]["list"]["nodes"], json!([]));
+}
+
+#[test]
 fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
@@ -1344,7 +1463,16 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
             {"ownerId": owner_id, "namespace": "custom", "key": "list_integer", "type": "list.number_integer", "value": "[1,\"x\"]"},
             {"ownerId": owner_id, "namespace": "custom", "key": "list_text", "type": "list.single_line_text_field", "value": too_many_list_values},
             {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": "gid://shopify/Product/999999998"},
-            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"}
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "integer_plus", "type": "number_integer", "value": "+5"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_blank_currency", "type": "money", "value": "{\"amount\":\"1.00\",\"currency_code\":\"\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_amount_type", "type": "money", "value": "{\"amount\":\"abc\",\"currency_code\":\"USD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_out_of_range", "type": "money", "value": "{\"amount\":\"1000000000000000001\",\"currency_code\":\"CAD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_invalid_shape", "type": "money", "value": "[]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_invalid_currency", "type": "money", "value": "{\"amount\":\"1.00\",\"currency_code\":\"ZZZ\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url_unsupported_scheme", "type": "url", "value": "ftp://x"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date_time", "type": "date_time", "value": "nope"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "json_blank", "type": "json", "value": ""}
         ]}),
     ));
 
@@ -1356,7 +1484,7 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
     let errors = response.body["data"]["metafieldsSet"]["userErrors"]
         .as_array()
         .unwrap();
-    assert_eq!(errors.len(), 16);
+    assert_eq!(errors.len(), 25);
     for (index, error) in errors.iter().enumerate() {
         assert_eq!(
             error["field"],
@@ -1365,8 +1493,42 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
         );
         assert_eq!(error["code"], json!("INVALID_VALUE"));
     }
+    assert_eq!(
+        errors[2]["message"],
+        json!("Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'")
+    );
     assert_eq!(errors[12]["elementIndex"], json!(1));
     assert_eq!(errors[15]["elementIndex"], Value::Null);
+    assert_eq!(errors[16]["message"], json!("Value must be an integer."));
+    assert_eq!(
+        errors[17]["message"],
+        json!("Value must have a currency code.")
+    );
+    assert_eq!(
+        errors[18]["message"],
+        json!("Value must have a numeric amount.")
+    );
+    assert_eq!(
+        errors[19]["message"],
+        json!("Value must be within +/-1000000000000000000.")
+    );
+    assert_eq!(
+        errors[20]["message"],
+        json!("Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.")
+    );
+    assert_eq!(
+        errors[21]["message"],
+        json!("Value contains an invalid currency, ZZZ.")
+    );
+    assert_eq!(
+        errors[22]["message"],
+        json!("Value must be one of the following URL schemes: http, https, mailto, sms, tel.")
+    );
+    assert_eq!(
+        errors[23]["message"],
+        json!("Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00")
+    );
+    assert_eq!(errors[24]["message"], json!("Value can't be blank."));
 }
 
 #[test]
@@ -1397,7 +1559,7 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         r#"
         mutation ExtendedMetafieldsSetValidValues($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
-            metafields { namespace key type value jsonValue owner { id } }
+            metafields { namespace key type value jsonValue compareDigest owner { id } }
             userErrors { field message code elementIndex }
           }
         }
@@ -1416,7 +1578,15 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
             {"ownerId": owner_id, "namespace": "custom", "key": "multi", "type": "multi_line_text_field", "value": "Line\nBreak"},
             {"ownerId": owner_id, "namespace": "custom", "key": "list_decimal", "type": "list.number_decimal", "value": "[\"1.1\",\"2.2\"]"},
             {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": owner_id},
-            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()}
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_one", "type": "boolean", "value": "1"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_trimmed", "type": "boolean", "value": " TRUE "},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_t", "type": "boolean", "value": "t"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_f", "type": "boolean", "value": "f"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_false", "type": "boolean", "value": "false"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_zero", "type": "boolean", "value": "0"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "integer_decimal", "type": "number_integer", "value": "5.000"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal_truncated", "type": "number_decimal", "value": "1.1234567891"}
         ]}),
     ));
     assert_eq!(set.status, 200);
@@ -1426,15 +1596,49 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
             .as_array()
             .unwrap()
             .len(),
-        14
+        22
+    );
+    let metafields = set.body["data"]["metafieldsSet"]["metafields"]
+        .as_array()
+        .unwrap();
+    let set_by_key = |key: &str| {
+        metafields
+            .iter()
+            .find(|metafield| metafield["key"] == json!(key))
+            .unwrap_or_else(|| panic!("missing mutation metafield {key}"))
+    };
+    assert_eq!(set_by_key("boolean_one")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_one")["jsonValue"], json!(true));
+    assert_eq!(set_by_key("boolean_trimmed")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_trimmed")["jsonValue"], json!(true));
+    assert_eq!(set_by_key("boolean_t")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_f")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_f")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("boolean_false")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_false")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("boolean_zero")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_zero")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("integer_decimal")["value"], json!("5"));
+    assert_eq!(set_by_key("integer_decimal")["jsonValue"], json!(5));
+    assert_eq!(
+        set_by_key("decimal_truncated")["value"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        set_by_key("decimal_truncated")["jsonValue"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        set_by_key("decimal_truncated")["compareDigest"],
+        json!(sha256_hex("1.123456789"))
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ExtendedMetafieldsRead($id: ID!) {
           product(id: $id) {
-            metafields(first: 20, namespace: "custom") {
-              nodes { key type value jsonValue owner { id } }
+            metafields(first: 25, namespace: "custom") {
+              nodes { key type value jsonValue compareDigest owner { id } }
             }
           }
         }
@@ -1445,6 +1649,12 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
     let nodes = read.body["data"]["product"]["metafields"]["nodes"]
         .as_array()
         .unwrap();
+    let read_by_key = |key: &str| {
+        nodes
+            .iter()
+            .find(|node| node["key"] == json!(key))
+            .unwrap_or_else(|| panic!("missing read metafield {key}"))
+    };
     assert!(nodes
         .iter()
         .any(|node| { node["key"] == json!("product_ref") && node["value"] == json!(owner_id) }));
@@ -1455,6 +1665,23 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         node["key"] == json!("money_value")
             && node["jsonValue"] == json!({"amount": "12.00", "currency_code": "CAD"})
     }));
+    assert_eq!(read_by_key("integer_decimal")["value"], json!("5"));
+    assert_eq!(read_by_key("integer_decimal")["jsonValue"], json!(5));
+    assert_eq!(read_by_key("boolean_f")["jsonValue"], json!("false"));
+    assert_eq!(read_by_key("boolean_false")["jsonValue"], json!("false"));
+    assert_eq!(read_by_key("boolean_zero")["jsonValue"], json!("false"));
+    assert_eq!(
+        read_by_key("decimal_truncated")["value"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        read_by_key("decimal_truncated")["jsonValue"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        read_by_key("decimal_truncated")["compareDigest"],
+        json!(sha256_hex("1.123456789"))
+    );
 }
 
 #[test]
@@ -2587,6 +2814,256 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         valid_quantity_rules_add.body["data"]["quantityRulesAdd"],
         json!({"quantityRules": [{"minimum": 2, "maximum": 10, "increment": 2, "productVariant": {"id": "gid://shopify/ProductVariant/49875425296690"}}], "userErrors": []})
+    );
+
+    let valid_quantity_price_breaks_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "price": { "amount": "20.00", "currencyCode": "CAD" }
+                }],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [{
+                    "variantId": "gid://shopify/ProductVariant/49875425296690",
+                    "minimumQuantity": 4,
+                    "price": { "amount": "18.00", "currencyCode": "CAD" }
+                }],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        valid_quantity_price_breaks_add.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let downstream_read_after_quantity_writes = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityPricingPriceListRead($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges {
+                node {
+                  minimum
+                  maximum
+                  increment
+                  isDefault
+                  originType
+                  productVariant { id }
+                }
+              }
+            }
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  price { amount currencyCode }
+                  originType
+                  variant { id }
+                  quantityPriceBreaks(first: 10) {
+                    edges {
+                      node {
+                        minimumQuantity
+                        price { amount currencyCode }
+                        variant { id }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        json!({
+            "quantityRulesEdges": downstream_read_after_quantity_writes.body["data"]["priceList"]["quantityRules"]["edges"].clone(),
+            "priceEdges": downstream_read_after_quantity_writes.body["data"]["priceList"]["prices"]["edges"].clone()
+        }),
+        json!({
+            "quantityRulesEdges": [{
+                "node": {
+                    "minimum": 2,
+                    "maximum": 10,
+                    "increment": 2,
+                    "isDefault": false,
+                    "originType": "FIXED",
+                    "productVariant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+                }
+            }],
+            "priceEdges": [{
+                "node": {
+                    "price": { "amount": "20.0", "currencyCode": "CAD" },
+                    "originType": "FIXED",
+                    "variant": { "id": "gid://shopify/ProductVariant/49875425296690" },
+                    "quantityPriceBreaks": {
+                        "edges": [{
+                            "node": {
+                                "minimumQuantity": 4,
+                                "price": { "amount": "18.0", "currencyCode": "CAD" },
+                                "variant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+                            }
+                        }]
+                    }
+                }
+            }]
+        })
+    );
+
+    let update_quantity_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesAdd($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+          quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+            quantityRules { minimum maximum increment productVariant { id } }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "quantityRules": [{
+                "variantId": "gid://shopify/ProductVariant/49875425296690",
+                "minimum": 4,
+                "maximum": 12,
+                "increment": 4
+            }]
+        }),
+    ));
+    assert_eq!(
+        update_quantity_rules.body["data"]["quantityRulesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_read_after_quantity_rule_update = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityRulesReadAfterUpdate($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges {
+                node {
+                  minimum
+                  maximum
+                  increment
+                  productVariant { id }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        downstream_read_after_quantity_rule_update.body["data"]["priceList"]["quantityRules"]
+            ["edges"],
+        json!([{
+            "node": {
+                "minimum": 4,
+                "maximum": 12,
+                "increment": 4,
+                "productVariant": { "id": "gid://shopify/ProductVariant/49875425296690" }
+            }
+        }])
+    );
+
+    let clear_quantity_price_breaks = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": ["gid://shopify/ProductVariant/49875425296690"]
+            }
+        }),
+    ));
+    assert_eq!(
+        clear_quantity_price_breaks.body["data"]["quantityPricingByVariantUpdate"],
+        json!({"productVariants": [{"id": "gid://shopify/ProductVariant/49875425296690"}], "userErrors": []})
+    );
+
+    let delete_quantity_rules = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDelete($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field code message }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id.clone(),
+            "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
+        }),
+    ));
+    assert_eq!(
+        delete_quantity_rules.body["data"]["quantityRulesDelete"],
+        json!({"deletedQuantityRulesVariantIds": ["gid://shopify/ProductVariant/49875425296690"], "userErrors": []})
+    );
+
+    let downstream_read_after_quantity_deletes = proxy.process_request(json_graphql_request(
+        r#"
+        query QuantityPricingPriceListRead($priceListId: ID!) {
+          priceList(id: $priceListId) {
+            quantityRules(first: 10) {
+              edges { node { minimum maximum increment productVariant { id } } }
+            }
+            prices(first: 10, originType: FIXED) {
+              edges {
+                node {
+                  price { amount currencyCode }
+                  variant { id }
+                  quantityPriceBreaks(first: 10) {
+                    edges { node { minimumQuantity price { amount currencyCode } variant { id } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"priceListId": price_list_id.clone()}),
+    ));
+    assert_eq!(
+        json!({
+            "quantityRulesEdges": downstream_read_after_quantity_deletes.body["data"]["priceList"]["quantityRules"]["edges"].clone(),
+            "priceEdges": downstream_read_after_quantity_deletes.body["data"]["priceList"]["prices"]["edges"].clone()
+        }),
+        json!({
+            "quantityRulesEdges": [],
+            "priceEdges": [{
+                "node": {
+                    "price": { "amount": "20.0", "currencyCode": "CAD" },
+                    "variant": { "id": "gid://shopify/ProductVariant/49875425296690" },
+                    "quantityPriceBreaks": { "edges": [] }
+                }
+            }]
+        })
     );
 
     let invalid_quantity_rule_cases = [
@@ -7571,6 +8048,429 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
 }
 
 #[test]
+fn market_localizable_resource_connections_cold_read_ignores_market_overlay_state() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *upstream_calls_for_proxy.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResources"),
+                "unexpected upstream query: {query}"
+            );
+            let resource = json!({
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let connection = json!({
+                "nodes": [resource.clone()],
+                "edges": [{"cursor": resource_id, "node": resource}],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": resource_id,
+                    "endCursor": resource_id
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResources": connection.clone(),
+                        "marketLocalizableResourcesByIds": connection
+                    }
+                }),
+            }
+        });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableColdGateCreateMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Cold Gate", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableColdGateRead($resourceIds: [ID!]!) {
+          marketLocalizableResources(first: 5, resourceType: METAFIELD) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+          marketLocalizableResourcesByIds(first: 5, resourceIds: $resourceIds) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+        }
+        "#,
+        json!({"resourceIds": [resource_id]}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "unrelated staged market state must not force local-empty resource reads"
+    );
+    assert_eq!(
+        read.body["data"]["marketLocalizableResources"]["nodes"][0]["resourceId"],
+        json!(resource_id)
+    );
+    assert_eq!(
+        read.body["data"]["marketLocalizableResourcesByIds"]["nodes"][0]["resourceId"],
+        json!(resource_id)
+    );
+}
+
+#[test]
+fn market_localizable_resource_connections_survive_singular_observation_restore() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let missing_resource_id = "gid://shopify/Metafield/999";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *upstream_calls_for_proxy.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResource")
+                    && !query.contains("marketLocalizableResourcesByIds"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResource": {
+                            "resourceId": resource_id,
+                            "marketLocalizableContent": [
+                                {"key": "value", "value": "5.99", "digest": "digest-value"}
+                            ],
+                            "marketLocalizations": []
+                        }
+                    }
+                }),
+            }
+        });
+
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableRestoreObservation($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            resourceId
+            marketLocalizableContent { key value digest }
+            marketLocalizations { key value outdated }
+          }
+        }
+        "#,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(singular.status, 200);
+    assert_eq!(
+        singular.body["data"]["marketLocalizableResource"]["resourceId"],
+        json!(resource_id)
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let connections = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableRestoreConnections($resourceIds: [ID!]!) {
+          marketLocalizableResources(first: 5, resourceType: METAFIELD) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+          marketLocalizableResourcesByIds(first: 5, resourceIds: $resourceIds) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+        }
+        "#,
+        json!({"resourceIds": [missing_resource_id, resource_id]}),
+    ));
+    assert_eq!(connections.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "restored observed localizable resources should serve plural/byIds locally"
+    );
+    assert_eq!(
+        connections.body["data"]["marketLocalizableResources"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "value", "value": "5.99", "digest": "digest-value"}
+            ]
+        }])
+    );
+    assert_eq!(
+        connections.body["data"]["marketLocalizableResourcesByIds"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "value", "value": "5.99", "digest": "digest-value"}
+            ]
+        }])
+    );
+}
+
+#[test]
+fn market_localizable_resource_connections_project() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let other_resource_id = "gid://shopify/Metafield/200";
+    let missing_resource_id = "gid://shopify/Metafield/999";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let mut calls = upstream_calls_for_proxy.lock().unwrap();
+            *calls += 1;
+            assert_eq!(
+                *calls, 1,
+                "only the cold plural/byIds localization-resource read should reach upstream"
+            );
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResources")
+                    && query.contains("marketLocalizableResourcesByIds"),
+                "unexpected upstream query: {query}"
+            );
+            let first = body["variables"]["first"].as_i64().unwrap_or(10);
+            assert_eq!(first, 10);
+            let resource = json!({
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let other_resource = json!({
+                "resourceId": other_resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Other title", "digest": "digest-other-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let nodes = vec![resource, other_resource];
+            let edges = nodes
+                .iter()
+                .map(|node| {
+                    json!({
+                        "cursor": node["resourceId"],
+                        "node": node
+                    })
+                })
+                .collect::<Vec<_>>();
+            let connection = json!({
+                "nodes": nodes,
+                "edges": edges,
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": resource_id,
+                    "endCursor": other_resource_id
+                }
+            });
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResources": connection.clone(),
+                        "marketLocalizableResourcesByIds": connection
+                    }
+                }),
+            }
+        });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableConnectionsCreateMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Canada", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("marketCreate returns an id")
+        .to_string();
+
+    let cold_connection_query = r#"
+        query RustMarketLocalizableConnectionsColdRead($first: Int!, $resourceIds: [ID!]!) {
+          marketLocalizableResources(first: $first, resourceType: METAFIELD) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+    "#;
+    let cold = proxy.process_request(json_graphql_request(
+        cold_connection_query,
+        json!({
+            "first": 10,
+            "resourceIds": [resource_id, missing_resource_id, other_resource_id]
+        }),
+    ));
+    assert_eq!(cold.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(
+        cold.body["data"]["marketLocalizableResources"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let register = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableConnectionsRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { field code }
+          }
+        }
+        "#,
+        json!({
+            "resourceId": resource_id,
+            "marketLocalizations": [{
+                "marketId": market_id,
+                "key": "title",
+                "value": "Titre",
+                "marketLocalizableContentDigest": "digest-title"
+            }]
+        }),
+    ));
+    assert_eq!(
+        register.body["data"]["marketLocalizationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let local_query = r#"
+        query RustMarketLocalizableConnectionsLocalRead($resourceId: ID!, $resourceIds: [ID!]!, $marketId: ID!) {
+          singular: marketLocalizableResource(resourceId: $resourceId) {
+            resourceId
+            marketLocalizableContent { key value digest }
+            marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+          }
+          plural: marketLocalizableResources(first: 1, resourceType: METAFIELD) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+              marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+            }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byIds: marketLocalizableResourcesByIds(first: 10, resourceIds: $resourceIds) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+              marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+    "#;
+    let local = proxy.process_request(json_graphql_request(
+        local_query,
+        json!({
+            "resourceId": resource_id,
+            "resourceIds": [other_resource_id, missing_resource_id, resource_id],
+            "marketId": market_id
+        }),
+    ));
+    assert_eq!(local.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "observed resource reads should serve locally after the cold fetch"
+    );
+
+    let expected_localization = json!({
+        "key": "title",
+        "value": "Titre",
+        "outdated": false,
+        "market": {"id": market_id, "name": "Canada"}
+    });
+    assert_eq!(
+        local.body["data"]["singular"]["marketLocalizations"],
+        json!([expected_localization.clone()])
+    );
+    assert_eq!(
+        local.body["data"]["plural"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "title", "value": "Title", "digest": "digest-title"}
+            ],
+            "marketLocalizations": [expected_localization.clone()]
+        }])
+    );
+    assert_eq!(
+        local.body["data"]["plural"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": resource_id,
+            "endCursor": resource_id
+        })
+    );
+    assert_eq!(
+        local.body["data"]["byIds"]["nodes"],
+        json!([
+            {
+                "resourceId": other_resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Other title", "digest": "digest-other-title"}
+                ],
+                "marketLocalizations": []
+            },
+            {
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": [expected_localization]
+            }
+        ])
+    );
+}
+
+#[test]
 fn product_helper_and_variant_reads_return_no_data_without_staged_products() {
     let mut proxy = snapshot_proxy();
     let helper_query =
@@ -9088,8 +9988,8 @@ fn product_change_status_stages_archived_status_and_effective_downstream_read() 
 
     let null_id = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductChangeStatusNullLiteralConformance {
-          productChangeStatus(productId: null, status: ARCHIVED) {
+        mutation ProductChangeStatusNullLiteralDerivedPath {
+          statusAlias: productChangeStatus(productId: null, status: ARCHIVED) {
             product { id status updatedAt }
             userErrors { field message }
           }
@@ -9104,8 +10004,8 @@ fn product_change_status_stages_archived_status_and_effective_downstream_read() 
     assert_eq!(
         null_id.body["errors"][0]["path"],
         json!([
-            "mutation ProductChangeStatusNullLiteralConformance",
-            "productChangeStatus",
+            "mutation ProductChangeStatusNullLiteralDerivedPath",
+            "statusAlias",
             "productId"
         ])
     );
@@ -9698,10 +10598,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
 fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_variables_by_ast() {
     let mut proxy = snapshot_proxy();
 
-    let missing_inline = proxy.process_request(graphql_request(
-        "POST",
-        &json!({
-            "query": r#"
+    let missing_inline_query = r#"
                 mutation AnyDeleteName {
                   deletionAlias: productDelete(input: {
                   }) {
@@ -9709,7 +10606,11 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     userErrors { field message  }
                   }
                 }
-            "#
+            "#;
+    let missing_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": missing_inline_query
         })
         .to_string(),
     ));
@@ -9718,11 +10619,12 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
         missing_inline.body["errors"][0]["extensions"]["code"],
         json!("missingRequiredInputObjectAttribute")
     );
+    assert_eq!(
+        missing_inline.body["errors"][0]["path"],
+        json!(["mutation AnyDeleteName", "deletionAlias", "input", "id"])
+    );
 
-    let null_inline = proxy.process_request(graphql_request(
-        "POST",
-        &json!({
-            "query": r#"
+    let null_inline_query = r#"
                 mutation AnyDeleteName {
                   deletionAlias: productDelete(input: {
                     id: null
@@ -9731,7 +10633,11 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     userErrors { field message  }
                   }
                 }
-            "#
+            "#;
+    let null_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": null_inline_query
         })
         .to_string(),
     ));
@@ -9740,18 +10646,21 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
         null_inline.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
     );
+    assert_eq!(
+        null_inline.body["errors"][0]["path"],
+        json!(["mutation AnyDeleteName", "deletionAlias", "input", "id"])
+    );
 
-    let unbound_variable = proxy.process_request(json_graphql_request(
-        r#"
+    let unbound_variable_query = r#"
             mutation AnyDeleteName($input: ProductDeleteInput!) {
               deletionAlias: productDelete(input: $input) {
                 deletedProductId
                 userErrors { field message  }
               }
             }
-        "#,
-        json!({}),
-    ));
+        "#;
+    let unbound_variable =
+        proxy.process_request(json_graphql_request(unbound_variable_query, json!({})));
     assert_eq!(unbound_variable.status, 200);
     assert_eq!(
         unbound_variable.body["errors"][0]["extensions"]["code"],

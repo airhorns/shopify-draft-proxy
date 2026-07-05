@@ -7,10 +7,7 @@ fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
 }
 
 fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
-    let tail = id.map(resource_id_tail).unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(id)
 }
 
 fn marketing_activity_cursor(record: &Value) -> String {
@@ -89,57 +86,72 @@ pub(in crate::proxy) fn marketing_engagement_payload(
 }
 
 pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing activity does not exist.",
-        "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing activity does not exist.",
+        Some("MARKETING_ACTIVITY_DOES_NOT_EXIST"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
-    json!({
-        "field": null,
-        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
-        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
-    })
+    user_error(
+        Value::Null,
+        "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        Some("CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_to_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
-        "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+        Some("CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_from_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic from STOREFRONT_APP.",
-        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic from STOREFRONT_APP.",
+        Some("CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing event does not exist.",
-        "code": "MARKETING_EVENT_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing event does not exist.",
+        Some("MARKETING_EVENT_DOES_NOT_EXIST"),
+    )
 }
 
 const MARKETING_EVENT_ID_OFFSET: u64 = 1_000_000;
 
-fn marketing_app_json(api_client_id: Option<&str>) -> Value {
-    let Some(api_client_id) = api_client_id.map(str::trim).filter(|id| !id.is_empty()) else {
-        return json!({ "id": "gid://shopify/App/local", "title": "local" });
-    };
-    let app_id = if api_client_id.starts_with("gid://shopify/App/") {
-        api_client_id.to_string()
-    } else {
-        shopify_gid("App", api_client_id)
-    };
-    json!({ "id": app_id, "title": resource_id_tail(api_client_id) })
+#[derive(Clone)]
+pub(in crate::proxy) struct MarketingActivityAppContext {
+    api_client_id: Option<String>,
+    app: Value,
+}
+
+fn marketing_app_json(app: Option<&Value>, fallback_app_id: &str) -> Value {
+    let app_id = app
+        .and_then(|app| app.get("id"))
+        .and_then(Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| fallback_app_id.to_string());
+    let handle = app
+        .and_then(|app| app.get("handle"))
+        .and_then(Value::as_str)
+        .filter(|handle| !handle.trim().is_empty())
+        .unwrap_or("shopify-draft-proxy");
+    let title = app
+        .and_then(|app| app.get("title"))
+        .and_then(Value::as_str)
+        .filter(|title| !title.trim().is_empty())
+        .filter(|title| !resource_id_tail(&app_id).eq_ignore_ascii_case(title.trim()))
+        .unwrap_or(handle);
+    json!({ "__typename": "App", "id": app_id, "handle": handle, "title": title })
 }
 
 fn non_empty_channel_handle(handle: &str) -> bool {
@@ -150,11 +162,12 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     id: &str,
     input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    api_client_id: Option<String>,
+    app_context: MarketingActivityAppContext,
     new_marketing_event_id: Option<String>,
     timestamp: &str,
     shop_currency_code: &str,
 ) -> Value {
+    let MarketingActivityAppContext { api_client_id, app } = app_context;
     let old = existing.cloned().unwrap_or_else(|| json!({}));
     let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
         old["title"]
@@ -240,7 +253,6 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let started_at = old["marketingEvent"]["startedAt"]
         .as_str()
         .unwrap_or(timestamp);
-    let app = marketing_app_json(api_client_id.as_deref());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -297,7 +309,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
     id: &str,
     mut input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    api_client_id: Option<String>,
+    app_context: MarketingActivityAppContext,
     timestamp: &str,
     shop_currency_code: &str,
 ) -> Value {
@@ -317,7 +329,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
         id,
         input,
         existing,
-        api_client_id,
+        app_context,
         None,
         timestamp,
         shop_currency_code,
@@ -457,11 +469,11 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     ] {
         if let Some(url) = value {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
-                return Some(json!({
-                    "field": ["input", field],
-                    "message": format!("{} is not a valid URL", field),
-                    "code": "INVALID"
-                }));
+                return Some(user_error(
+                    vec!["input".to_string(), field.to_string()],
+                    &format!("{field} is not a valid URL"),
+                    Some("INVALID"),
+                ));
             }
         }
     }
@@ -605,6 +617,30 @@ pub(in crate::proxy) fn marketing_source_and_medium(
 }
 
 impl DraftProxy {
+    fn marketing_app_context_for_request(&self, request: &Request) -> MarketingActivityAppContext {
+        let request_installation = current_app_installation_from_request(request);
+        let request_app_id = app_id_from_installation(&request_installation)
+            .unwrap_or_else(|| request_app_gid(request));
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .cloned();
+        if let Some(installed_app_id) =
+            self.current_app_installation_app_id_for_request(&request_app_id)
+        {
+            if let Some(installation) = self.store.staged.installed_apps.get(&installed_app_id) {
+                return MarketingActivityAppContext {
+                    api_client_id,
+                    app: marketing_app_json(installation.get("app"), &request_app_id),
+                };
+            }
+        }
+        MarketingActivityAppContext {
+            api_client_id,
+            app: marketing_app_json(request_installation.get("app"), &request_app_id),
+        }
+    }
+
     pub(in crate::proxy) fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
@@ -803,14 +839,12 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = native_marketing_activity_from_input(
             &id,
             input,
             None,
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             &timestamp,
             &shop_currency_code,
         );
@@ -835,14 +869,12 @@ impl DraftProxy {
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = native_marketing_activity_from_input(
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             &timestamp,
             &shop_currency_code,
         );
@@ -1087,14 +1119,12 @@ impl DraftProxy {
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = marketing_activity_from_input(
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             new_marketing_event_id,
             &timestamp,
             &shop_currency_code,
@@ -1577,15 +1607,30 @@ fn marketing_search_decision(
     if query.is_empty() {
         return StagedSearchDecision::Match;
     }
+    let mut group_matches = true;
+    let mut group_has_terms = false;
     for term in marketing_query_terms(query) {
+        if term.eq_ignore_ascii_case("OR") {
+            if group_has_terms && group_matches {
+                return StagedSearchDecision::Match;
+            }
+            group_matches = true;
+            group_has_terms = false;
+            continue;
+        }
         if term.eq_ignore_ascii_case("AND") {
             continue;
         }
+        group_has_terms = true;
         if !term_matches(record, &term) {
-            return StagedSearchDecision::NoMatch;
+            group_matches = false;
         }
     }
-    StagedSearchDecision::Match
+    if !group_has_terms || group_matches {
+        StagedSearchDecision::Match
+    } else {
+        StagedSearchDecision::NoMatch
+    }
 }
 
 fn marketing_query_terms(query: &str) -> Vec<String> {

@@ -79,6 +79,14 @@ const productCreateMutation = `#graphql
           minVariantPrice { amount currencyCode }
           maxVariantPrice { amount currencyCode }
         }
+        variantsCount {
+          count
+          precision
+        }
+        compareAtPriceRange {
+          minVariantCompareAtPrice { amount currencyCode }
+          maxVariantCompareAtPrice { amount currencyCode }
+        }
         variants(first: 10) {
           nodes {
             id
@@ -116,6 +124,14 @@ const priceUpdateMutation = `#graphql
           minVariantPrice { amount currencyCode }
           maxVariantPrice { amount currencyCode }
         }
+        variantsCount {
+          count
+          precision
+        }
+        compareAtPriceRange {
+          minVariantCompareAtPrice { amount currencyCode }
+          maxVariantCompareAtPrice { amount currencyCode }
+        }
         totalVariants
         hasOnlyDefaultVariant
         hasOutOfStockVariants
@@ -125,6 +141,7 @@ const priceUpdateMutation = `#graphql
       productVariants {
         id
         price
+        compareAtPrice
       }
       userErrors {
         field
@@ -148,6 +165,14 @@ const bulkCreateMutation = `#graphql
           minVariantPrice { amount currencyCode }
           maxVariantPrice { amount currencyCode }
         }
+        variantsCount {
+          count
+          precision
+        }
+        compareAtPriceRange {
+          minVariantCompareAtPrice { amount currencyCode }
+          maxVariantCompareAtPrice { amount currencyCode }
+        }
         totalVariants
         hasOnlyDefaultVariant
         hasOutOfStockVariants
@@ -158,6 +183,7 @@ const bulkCreateMutation = `#graphql
         id
         title
         price
+        compareAtPrice
       }
       userErrors {
         field
@@ -180,11 +206,47 @@ const priceRangeDownstreamQuery = `#graphql
         minVariantPrice { amount currencyCode }
         maxVariantPrice { amount currencyCode }
       }
+      variantsCount {
+        count
+        precision
+      }
+      compareAtPriceRange {
+        minVariantCompareAtPrice { amount currencyCode }
+        maxVariantCompareAtPrice { amount currencyCode }
+      }
       totalVariants
       hasOnlyDefaultVariant
       hasOutOfStockVariants
       tracksInventory
       totalInventory
+    }
+  }
+`;
+
+const bulkDeleteMutation = `#graphql
+  mutation ProductDerivedFieldsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+    productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+      product {
+        id
+        priceRangeV2 {
+          minVariantPrice { amount currencyCode }
+          maxVariantPrice { amount currencyCode }
+        }
+        variantsCount {
+          count
+          precision
+        }
+        compareAtPriceRange {
+          minVariantCompareAtPrice { amount currencyCode }
+          maxVariantCompareAtPrice { amount currencyCode }
+        }
+        totalVariants
+      }
+      userErrors {
+        field
+        message
+        code
+      }
     }
   }
 `;
@@ -338,7 +400,7 @@ try {
 
   const priceUpdateVariables = {
     productId: priceProductId,
-    variants: [{ id: redVariantId, price: '10.00' }],
+    variants: [{ id: redVariantId, price: '10.00', compareAtPrice: '15.00' }],
   };
   const priceUpdate = await runGraphql(priceUpdateMutation, priceUpdateVariables);
   expectNoUserErrors(
@@ -350,8 +412,8 @@ try {
   const bulkCreateVariables = {
     productId: priceProductId,
     variants: [
-      { optionValues: [{ optionName: 'Color', name: 'Blue' }], price: '5.00' },
-      { optionValues: [{ optionName: 'Color', name: 'Green' }], price: '20.00' },
+      { optionValues: [{ optionName: 'Color', name: 'Blue' }], price: '5.00', compareAtPrice: '9.00' },
+      { optionValues: [{ optionName: 'Color', name: 'Green' }], price: '20.00', compareAtPrice: '30.00' },
     ],
   };
   const bulkCreate = await runGraphql(bulkCreateMutation, bulkCreateVariables);
@@ -361,6 +423,22 @@ try {
       ?.productVariantsBulkCreate?.userErrors,
   );
   const priceRangeDownstream = await runGraphql(priceRangeDownstreamQuery, { id: priceProductId });
+  const blueVariantId = requireString(
+    (
+      bulkCreate.data as
+        | { productVariantsBulkCreate?: { productVariants?: Array<{ id?: string | null }> | null } }
+        | undefined
+    )?.productVariantsBulkCreate?.productVariants?.[0]?.id,
+    'bulk-created Blue variant id',
+  );
+  const bulkDeleteVariables = { productId: priceProductId, variantsIds: [blueVariantId] };
+  const bulkDelete = await runGraphql(bulkDeleteMutation, bulkDeleteVariables);
+  expectNoUserErrors(
+    'productVariantsBulkDelete derived fields',
+    (bulkDelete.data as { productVariantsBulkDelete?: { userErrors?: UserError[] | null } } | undefined)
+      ?.productVariantsBulkDelete?.userErrors,
+  );
+  const postDeleteDownstream = await runGraphql(priceRangeDownstreamQuery, { id: priceProductId });
 
   await writeFile(
     path.join(outputDir, 'product-create-then-bulk-create-price-range-parity.json'),
@@ -371,6 +449,8 @@ try {
         priceUpdate: { variables: priceUpdateVariables, response: priceUpdate },
         bulkCreate: { variables: bulkCreateVariables, response: bulkCreate },
         downstreamRead: priceRangeDownstream,
+        bulkDelete: { variables: bulkDeleteVariables, response: bulkDelete },
+        postDeleteDownstreamRead: postDeleteDownstream,
         upstreamCalls: [],
       },
       null,
