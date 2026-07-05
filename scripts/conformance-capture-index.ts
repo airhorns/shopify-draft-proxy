@@ -7893,6 +7893,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}draft-order-complete-parity.json`,
       'config/parity-specs/orders/draftOrderComplete-parity-plan.json',
       'config/parity-requests/orders/draft-order-hydrate.graphql',
+      'config/parity-requests/orders/draftOrderComplete-parity-plan.graphql',
+      'config/parity-requests/orders/draftOrderComplete-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable draft with non-taxable custom line items, completes it, then cancels the resulting order (restock:false) in cleanup.',

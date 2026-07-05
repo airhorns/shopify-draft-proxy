@@ -12,8 +12,43 @@ mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceNa
       ready
       invoiceUrl
       completedAt
+      lineItemsSubtotalPrice {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalTax
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
       totalPriceSet {
         shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
           amount
           currencyCode
         }
@@ -37,6 +72,50 @@ mutation DraftOrderCompleteParityPlan($id: ID!, $paymentGatewayId: ID, $sourceNa
         tags
         currentTotalPriceSet {
           shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        subtotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalTaxSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalReceivedSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
             amount
             currencyCode
           }
