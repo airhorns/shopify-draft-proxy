@@ -1,0 +1,19 @@
+mutation OrdersSortKeyTotalPriceDraftCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder {
+        id
+        email
+        tags
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

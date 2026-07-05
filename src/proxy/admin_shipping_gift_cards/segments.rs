@@ -1,6 +1,37 @@
 use super::*;
 use crate::graphql::ParsedDocument;
 
+fn segment_gid_tail_sort_value(segment: &Value) -> StagedSortValue {
+    let tail = segment
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn segment_string_sort_value(segment: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        segment
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn segment_staged_sort_key(segment: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key {
+        Some("CREATION_DATE") => segment_string_sort_value(segment, "creationDate"),
+        Some("LAST_EDIT_DATE") => segment_string_sort_value(segment, "lastEditDate"),
+        None | Some("ID") | Some("RELEVANCE") => segment_gid_tail_sort_value(segment),
+        Some(_) => segment_gid_tail_sort_value(segment),
+    };
+    vec![primary, segment_gid_tail_sort_value(segment)]
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
         &self,
@@ -81,10 +112,13 @@ impl DraftProxy {
                             .values()
                             .cloned()
                             .collect::<Vec<_>>();
-                        selected_connection_json_with_args(
+                        selected_staged_connection_with_args(
                             records,
                             &field.arguments,
                             &field.selection,
+                            |_, _| StagedSearchDecision::Match,
+                            segment_staged_sort_key,
+                            selected_json,
                             value_id_cursor,
                         )
                     }
