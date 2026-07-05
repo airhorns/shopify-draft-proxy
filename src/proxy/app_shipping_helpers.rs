@@ -1001,18 +1001,56 @@ fn delivery_profile_location_group_selected_json(
             &selection.arguments,
             &selection.selection,
         )),
-        "countriesInAnyZone" => Some(Value::Array(
-            group
+        "countriesInAnyZone" => {
+            let stored = group
                 .get("countriesInAnyZone")
                 .and_then(Value::as_array)
                 .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|country| selected_json(&country, &selection.selection))
-                .collect(),
-        )),
+                .unwrap_or_default();
+            let countries = if stored.is_empty() {
+                delivery_profile_countries_in_any_zone(group)
+            } else {
+                stored
+            };
+            Some(Value::Array(
+                countries
+                    .into_iter()
+                    .map(|country| selected_json(&country, &selection.selection))
+                    .collect(),
+            ))
+        }
         _ => None,
     })
+}
+
+fn delivery_profile_countries_in_any_zone(group: &Value) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut countries = Vec::new();
+    for zone in group["locationGroupZones"].as_array().into_iter().flatten() {
+        let zone_name = zone["zone"]["name"].as_str().unwrap_or_default();
+        for country in zone["zone"]["countries"].as_array().into_iter().flatten() {
+            let key = delivery_profile_country_union_key(country);
+            if key.is_empty() || !seen.insert(key) {
+                continue;
+            }
+            countries.push(json!({
+                "zone": zone_name,
+                "country": country
+            }));
+        }
+    }
+    countries
+}
+
+fn delivery_profile_country_union_key(country: &Value) -> String {
+    if country["code"]["restOfWorld"].as_bool() == Some(true) {
+        return "REST_OF_WORLD".to_string();
+    }
+    country["code"]["countryCode"]
+        .as_str()
+        .or_else(|| country.get("id").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn delivery_location_group_selected_json(group: &Value, selections: &[SelectedField]) -> Value {
@@ -1304,7 +1342,10 @@ fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
 pub(in crate::proxy) fn delivery_profile_countries_from_input(
     zone_input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
-    delivery_profile_zone_countries_from_input(zone_input)
+    let mut countries = delivery_profile_zone_countries_from_input(zone_input);
+    countries.sort();
+    countries.dedup();
+    countries
         .into_iter()
         .map(|country| delivery_profile_country_record(&country))
         .collect()

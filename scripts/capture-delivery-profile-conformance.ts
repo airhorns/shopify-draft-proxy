@@ -434,6 +434,9 @@ const deliveryProfileLifecycleBlankCreateMutation = await readRequest(
 );
 const deliveryProfileLifecycleCreateMutation = await readRequest('delivery-profile-lifecycle-create.graphql');
 const deliveryProfileLifecycleUpdateMutation = await readRequest('delivery-profile-lifecycle-update.graphql');
+const deliveryProfileLifecycleReadAfterUpdateQuery = await readRequest(
+  'delivery-profile-lifecycle-read-after-update.graphql',
+);
 const deliveryProfileLifecycleRemoveMutation = await readRequest('delivery-profile-lifecycle-remove.graphql');
 const deliveryProfileLifecycleReadAfterRemoveQuery = await readRequest(
   'delivery-profile-lifecycle-read-after-remove.graphql',
@@ -535,10 +538,14 @@ const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreat
         zonesToCreate: [
           {
             name: 'Domestic',
-            countries: [{ code: 'US', includeAllProvinces: true }],
+            countries: [
+              { code: 'US', includeAllProvinces: true },
+              { code: 'CA', includeAllProvinces: true },
+            ],
             methodDefinitionsToCreate: [
               {
                 name: 'Standard',
+                description: 'Standard ground service',
                 active: true,
                 rateDefinition: { price: { amount: '7.25', currencyCode: 'USD' } },
                 weightConditionsToCreate: [
@@ -656,6 +663,7 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
               {
                 id: lifecycleMethodId,
                 name: 'Standard updated',
+                description: 'Updated standard ground service',
                 active: false,
                 rateDefinition: {
                   id: lifecycleRateId,
@@ -666,6 +674,7 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
             methodDefinitionsToCreate: [
               {
                 name: 'Express',
+                description: 'Express air service',
                 active: true,
                 rateDefinition: { price: { amount: '12.00', currencyCode: 'USD' } },
                 priceConditionsToCreate: [
@@ -681,6 +690,9 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
       },
     ],
   },
+});
+const lifecycleReadAfterUpdate = await captureGraphql(deliveryProfileLifecycleReadAfterUpdateQuery, {
+  id: lifecycleProfileId,
 });
 const lifecycleRemove = await captureGraphql(deliveryProfileLifecycleRemoveMutation, { id: lifecycleProfileId });
 const lifecycleReadAfterRemovePoll = await waitForRemovedProfileRead(
@@ -718,6 +730,7 @@ await writeFile(
         blankCreate: lifecycleBlankCreate,
         nestedCreate: lifecycleNestedCreate,
         nestedUpdate: lifecycleNestedUpdate,
+        readAfterUpdate: lifecycleReadAfterUpdate,
         remove: lifecycleRemove,
         readAfterRemovePoll: lifecycleReadAfterRemovePoll,
         missingUpdate: lifecycleMissingUpdate,
