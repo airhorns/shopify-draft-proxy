@@ -254,32 +254,24 @@ impl DraftProxy {
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["companyLocationId"],
-                        "The company location doesn't exist",
-                        Some("RESOURCE_NOT_FOUND"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["companyLocationId"],
+                    "The company location doesn't exist",
+                    Some("RESOURCE_NOT_FOUND"),
+                )],
+            ));
         }
         if tax_exempt_is_null {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["taxExempt"],
-                        "Tax exempt must be true or false",
-                        Some("INVALID_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["taxExempt"],
+                    "Tax exempt must be true or false",
+                    Some("INVALID_INPUT"),
+                )],
+            ));
         }
 
         let mut location = self
@@ -900,10 +892,8 @@ impl DraftProxy {
                 "RESOURCE_NOT_FOUND",
                 None,
             );
-            return (
+            return failed_payload_outcome(
                 json!({ "companyContact": null, "userErrors": [error] }),
-                "failed",
-                Vec::new(),
             );
         };
         if customer["email"]
@@ -918,10 +908,8 @@ impl DraftProxy {
                 "INVALID_INPUT",
                 None,
             );
-            return (
+            return failed_payload_outcome(
                 json!({ "companyContact": null, "userErrors": [error] }),
-                "failed",
-                Vec::new(),
             );
         }
         let already_contact = self
@@ -937,10 +925,8 @@ impl DraftProxy {
                 "INVALID_INPUT",
                 None,
             );
-            return (
+            return failed_payload_outcome(
                 json!({ "companyContact": null, "userErrors": [error] }),
-                "failed",
-                Vec::new(),
             );
         }
         let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
@@ -987,7 +973,7 @@ impl DraftProxy {
         let errors =
             b2b_company_create_validation_errors(&company_input, &self.store.staged.b2b_companies);
         if !errors.is_empty() {
-            return (b2b_company_payload(None, errors), "failed", Vec::new());
+            return failed_payload_outcome(b2b_company_payload(None, errors));
         }
         // The nested companyLocation is validated under its own field path before
         // anything is staged, so an invalid nested phone rejects the whole create.
@@ -1000,11 +986,7 @@ impl DraftProxy {
                 location_phone_country_code.as_deref(),
             );
             if !location_errors.is_empty() {
-                return (
-                    b2b_company_payload(None, location_errors),
-                    "failed",
-                    Vec::new(),
-                );
+                return failed_payload_outcome(b2b_company_payload(None, location_errors));
             }
         }
         // The nested companyContact is likewise validated before anything is staged:
@@ -1013,11 +995,7 @@ impl DraftProxy {
             let contact_errors =
                 b2b_contact_input_errors(&nested_contact, &["input", "companyContact"]);
             if !contact_errors.is_empty() {
-                return (
-                    b2b_company_payload(None, contact_errors),
-                    "failed",
-                    Vec::new(),
-                );
+                return failed_payload_outcome(b2b_company_payload(None, contact_errors));
             }
         }
 
@@ -1178,34 +1156,26 @@ impl DraftProxy {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
-            return (
-                b2b_company_payload(
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["companyId"],
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["companyId"],
-                        "Resource requested does not exist.",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         };
         if input.is_empty() {
-            return (
-                b2b_company_payload(
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["input"],
+                    "At least one attribute to change must be present",
+                    "INVALID",
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["input"],
-                        "At least one attribute to change must be present",
-                        "INVALID",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         }
         let errors = b2b_company_update_validation_errors(
             &input,
@@ -1213,7 +1183,7 @@ impl DraftProxy {
             &company_id,
         );
         if !errors.is_empty() {
-            return (b2b_company_payload(None, errors), "failed", Vec::new());
+            return failed_payload_outcome(b2b_company_payload(None, errors));
         }
 
         if let Some(name) = resolved_string_field(&input, "name") {
@@ -1247,43 +1217,31 @@ impl DraftProxy {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
-            return (
-                b2b_company_location_payload(
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["companyId"],
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["companyId"],
-                        "Resource requested does not exist.",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         };
 
         let phone_country_code = self.b2b_location_phone_country_code(&input, None);
         let errors = b2b_location_input_errors(&input, &["input"], phone_country_code.as_deref());
         if !errors.is_empty() {
-            return (
-                b2b_company_location_payload(None, errors),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(None, errors));
         }
         if !b2b_location_create_has_meaningful_non_address_input(&input) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        Value::Null,
-                        "Company location create input is empty.",
-                        Some("NO_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    Value::Null,
+                    "Company location create input is empty.",
+                    Some("NO_INPUT"),
+                )],
+            ));
         }
 
         // externalId length/charset/uniqueness is validated against every staged
@@ -1297,11 +1255,10 @@ impl DraftProxy {
                 None,
             );
             if !external_id_errors.is_empty() {
-                return (
-                    b2b_company_location_payload(None, external_id_errors),
-                    "failed",
-                    Vec::new(),
-                );
+                return failed_payload_outcome(b2b_company_location_payload(
+                    None,
+                    external_id_errors,
+                ));
             }
         }
 
@@ -1347,51 +1304,39 @@ impl DraftProxy {
                 "staffAssignmentIds": []
             }),
             None => {
-                return (
-                    b2b_company_location_payload(
+                return failed_payload_outcome(b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["input"],
+                        "The company location doesn't exist",
+                        "RESOURCE_NOT_FOUND",
                         None,
-                        vec![b2b_company_user_error(
-                            vec!["input"],
-                            "The company location doesn't exist",
-                            "RESOURCE_NOT_FOUND",
-                            None,
-                        )],
-                    ),
-                    "failed",
-                    Vec::new(),
-                );
+                    )],
+                ));
             }
         };
         if input.is_empty() {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        Value::Null,
-                        "Company location update input is empty.",
-                        Some("NO_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    Value::Null,
+                    "Company location update input is empty.",
+                    Some("NO_INPUT"),
+                )],
+            ));
         }
         if resolved_string_field(&input, "name")
             .is_some_and(|name| b2b_strip_html_tags(&name).trim().is_empty())
         {
-            return (
-                b2b_company_location_payload(
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["input", "name"],
+                    "Name can't be blank",
+                    BLANK_USER_ERROR_CODE,
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["input", "name"],
-                        "Name can't be blank",
-                        BLANK_USER_ERROR_CODE,
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         }
 
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
@@ -1402,11 +1347,7 @@ impl DraftProxy {
                 Some(&location_id),
             );
             if !errors.is_empty() {
-                return (
-                    b2b_company_location_payload(None, errors),
-                    "failed",
-                    Vec::new(),
-                );
+                return failed_payload_outcome(b2b_company_location_payload(None, errors));
             }
         }
 
@@ -1415,11 +1356,7 @@ impl DraftProxy {
         {
             let errors = b2b_location_buyer_experience_errors(&buyer_experience);
             if !errors.is_empty() {
-                return (
-                    b2b_company_location_payload(None, errors),
-                    "failed",
-                    Vec::new(),
-                );
+                return failed_payload_outcome(b2b_company_location_payload(None, errors));
             }
         }
 
@@ -1428,19 +1365,15 @@ impl DraftProxy {
             !phone.trim().is_empty()
                 && b2b_normalize_phone(&phone, phone_country_code.as_deref()).is_none()
         }) {
-            return (
-                b2b_company_location_payload(
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["input", "phone"],
+                    "Phone is invalid",
+                    "INVALID",
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["input", "phone"],
-                        "Phone is invalid",
-                        "INVALID",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         }
 
         if let Some(name) = resolved_string_field(&input, "name") {
@@ -1508,33 +1441,25 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
-            return (
-                b2b_company_contact_payload(
+            return failed_payload_outcome(b2b_company_contact_payload(
+                None,
+                vec![b2b_company_user_error(
+                    vec!["companyContactId"],
+                    "The company contact doesn't exist.",
+                    "RESOURCE_NOT_FOUND",
                     None,
-                    vec![b2b_company_user_error(
-                        vec!["companyContactId"],
-                        "The company contact doesn't exist.",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                )],
+            ));
         };
         if input.is_empty() {
-            return (
-                b2b_company_contact_payload(
-                    None,
-                    vec![user_error(
-                        Value::Null,
-                        "Company contact update input is empty.",
-                        Some("NO_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_contact_payload(
+                None,
+                vec![user_error(
+                    Value::Null,
+                    "Company contact update input is empty.",
+                    Some("NO_INPUT"),
+                )],
+            ));
         }
         for key in ["title", "locale", "firstName", "lastName"] {
             if input.contains_key(key) {
@@ -1601,36 +1526,24 @@ impl DraftProxy {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return (
-                b2b_company_contact_payload(
-                    None,
-                    vec![b2b_not_found(["companyId"], "Company does not exist.")],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_contact_payload(
+                None,
+                vec![b2b_not_found(["companyId"], "Company does not exist.")],
+            ));
         }
         if input.is_empty() {
-            return (
-                b2b_company_contact_payload(
-                    None,
-                    vec![user_error(
-                        Value::Null,
-                        "Company contact create input is empty.",
-                        Some("NO_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_contact_payload(
+                None,
+                vec![user_error(
+                    Value::Null,
+                    "Company contact create input is empty.",
+                    Some("NO_INPUT"),
+                )],
+            ));
         }
         let errors = b2b_contact_create_input_errors(&input, &["input"]);
         if !errors.is_empty() {
-            return (
-                b2b_company_contact_payload(None, errors),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_contact_payload(None, errors));
         }
 
         let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
@@ -1687,14 +1600,10 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
-            return (
-                json!({
-                    "deletedCompanyContactId": Value::Null,
-                    "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedCompanyContactId": Value::Null,
+                "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
+            }));
         }
         self.b2b_delete_company_contact(&contact_id);
         (
@@ -1756,14 +1665,10 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
-            return (
-                json!({
-                    "removedCompanyContactId": Value::Null,
-                    "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "removedCompanyContactId": Value::Null,
+                "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
+            }));
         }
         self.b2b_delete_company_contact(&contact_id);
         (
@@ -1786,41 +1691,32 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let Some(company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
-            return (
-                b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![b2b_resource_not_found(["companyId"])],
+            ));
         };
         if !b2b_json_id_list(&company, "contactIds")
             .iter()
             .any(|id| id == &contact_id)
         {
             if self.store.staged.b2b_contacts.contains_key(&contact_id) {
-                return (
-                    b2b_company_payload(
-                        None,
-                        vec![user_error(
-                            ["companyContactId"],
-                            "The company contact does not belong to the company.",
-                            Some("INVALID_INPUT"),
-                        )],
-                    ),
-                    "failed",
-                    Vec::new(),
-                );
-            }
-            return (
-                b2b_company_payload(
+                return failed_payload_outcome(b2b_company_payload(
                     None,
-                    vec![b2b_not_found(
+                    vec![user_error(
                         ["companyContactId"],
-                        "The company contact doesn't exist.",
+                        "The company contact does not belong to the company.",
+                        Some("INVALID_INPUT"),
                     )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                ));
+            }
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![b2b_not_found(
+                    ["companyContactId"],
+                    "The company contact doesn't exist.",
+                )],
+            ));
         }
         self.b2b_set_main_contact(&company_id, Some(&contact_id));
         let company = self
@@ -1845,11 +1741,10 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return (
-                b2b_company_payload(None, vec![b2b_resource_not_found(["companyId"])]),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![b2b_resource_not_found(["companyId"])],
+            ));
         }
         self.b2b_set_main_contact(&company_id, None);
         let company = self
@@ -1880,14 +1775,10 @@ impl DraftProxy {
         let location_id =
             resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let Some(contact) = self.store.staged.b2b_contacts.get(&contact_id) else {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "companyContactRoleAssignment": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyContactId"])]
+            }));
         };
         // The contact's owning company scopes which roles and locations are
         // assignable: Shopify treats a role or location belonging to a *different*
@@ -1904,14 +1795,10 @@ impl DraftProxy {
                 location["companyId"].as_str() == contact_company_id.as_deref()
             });
         if !location_in_company {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [b2b_not_found(["companyLocationId"], "The company location doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "companyContactRoleAssignment": Value::Null,
+                "userErrors": [b2b_not_found(["companyLocationId"], "The company location doesn't exist.")]
+            }));
         }
         let role_in_company = self
             .store
@@ -1920,27 +1807,19 @@ impl DraftProxy {
             .get(&role_id)
             .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
         if !role_in_company {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "companyContactRoleAssignment": Value::Null,
+                "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
+            }));
         }
         // Shopify permits a contact at most one role assignment per location, so a
         // second assignment at a location where the contact already holds a role is
         // rejected as LIMIT_REACHED (with a null field) rather than silently deduped.
         if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [user_error(Value::Null, "Company contact has already been assigned a role in that company location.", Some("LIMIT_REACHED"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "companyContactRoleAssignment": Value::Null,
+                "userErrors": [user_error(Value::Null, "Company contact has already been assigned a role in that company location.", Some("LIMIT_REACHED"))]
+            }));
         }
         let assignment = self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id);
         let assignment_id = assignment["id"].as_str().unwrap_or_default().to_string();
@@ -1972,14 +1851,10 @@ impl DraftProxy {
             return payload;
         }
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
-            return (
-                json!({
-                    "roleAssignments": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "roleAssignments": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyContactId"])]
+            }));
         }
         let mut assignments = Vec::new();
         let mut user_errors = Vec::new();
@@ -2036,15 +1911,11 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "companyContactRoleAssignmentId")
                 .unwrap_or_default();
         let Some(company_contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
-            return (
-                json!({
-                    "revokedCompanyContactRoleAssignmentId": Value::Null,
-                    "companyContact": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "revokedCompanyContactRoleAssignmentId": Value::Null,
+                "companyContact": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyContactId"])]
+            }));
         };
         let assignment_matches_contact = self
             .store
@@ -2055,15 +1926,11 @@ impl DraftProxy {
             == Some(contact_id.as_str());
 
         if !assignment_matches_contact {
-            return (
-                json!({
-                    "revokedCompanyContactRoleAssignmentId": Value::Null,
-                    "companyContact": Value::Null,
-                    "userErrors": [b2b_not_found(["companyContactRoleAssignmentId"], "The role assignment doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "revokedCompanyContactRoleAssignmentId": Value::Null,
+                "companyContact": Value::Null,
+                "userErrors": [b2b_not_found(["companyContactRoleAssignmentId"], "The role assignment doesn't exist.")]
+            }));
         }
 
         let _ = self.b2b_remove_role_assignment(&assignment_id);
@@ -2097,24 +1964,16 @@ impl DraftProxy {
         }
         let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
         if assignment_ids.is_empty() && !revoke_all {
-            return (
-                json!({
-                    "revokedRoleAssignmentIds": Value::Null,
-                    "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "revokedRoleAssignmentIds": Value::Null,
+                "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
+            }));
         }
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
-            return (
-                json!({
-                    "revokedRoleAssignmentIds": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyContactId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "revokedRoleAssignmentIds": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyContactId"])]
+            }));
         }
         let ids_to_revoke = if revoke_all {
             self.store
@@ -2203,24 +2062,16 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return (
-                json!({
-                    "deletedCompanyId": Value::Null,
-                    "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedCompanyId": Value::Null,
+                "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
+            }));
         }
         if self.b2b_company_has_delete_blocker(&company_id) {
-            return (
-                json!({
-                    "deletedCompanyId": Value::Null,
-                    "userErrors": [user_error(["id"], "Failed to delete the company.", Some("FAILED_TO_DELETE"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedCompanyId": Value::Null,
+                "userErrors": [user_error(["id"], "Failed to delete the company.", Some("FAILED_TO_DELETE"))]
+            }));
         }
         self.b2b_remove_company_graph(&company_id);
         (
@@ -2353,27 +2204,19 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
-            return (
-                json!({
-                    "deletedCompanyLocationId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedCompanyLocationId": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+            }));
         }
         if self
             .b2b_company_location_delete_blocker(&location_id)
             .is_some()
         {
-            return (
-                json!({
-                    "deletedCompanyLocationId": Value::Null,
-                    "userErrors": [user_error(["companyLocationId"], "Failed to delete the company location.", Some("FAILED_TO_DELETE"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedCompanyLocationId": Value::Null,
+                "userErrors": [user_error(["companyLocationId"], "Failed to delete the company location.", Some("FAILED_TO_DELETE"))]
+            }));
         }
         self.b2b_delete_company_location(&location_id);
         (
@@ -2508,24 +2351,16 @@ impl DraftProxy {
         let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
         let address_types = list_string_field(&field.arguments, "addressTypes");
         if !b2b_unique_strings(&address_types) {
-            return (
-                json!({
-                    "addresses": Value::Null,
-                    "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "addresses": Value::Null,
+                "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
+            }));
         }
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
-            return (
-                json!({
-                    "addresses": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["locationId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "addresses": Value::Null,
+                "userErrors": [b2b_resource_not_found(["locationId"])]
+            }));
         };
 
         // The assigned CompanyAddressInput is validated the same way as on
@@ -2533,11 +2368,10 @@ impl DraftProxy {
         // zip/free-text value is rejected before it mutates staged state.
         let address_errors = b2b_address_input_errors(&address_input, &["address"]);
         if !address_errors.is_empty() {
-            return (
-                json!({ "addresses": Value::Null, "userErrors": address_errors }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "addresses": Value::Null,
+                "userErrors": address_errors
+            }));
         }
 
         let mut changed_addresses = Vec::new();
@@ -2629,14 +2463,10 @@ impl DraftProxy {
             .unwrap_or_default();
         let touched_location_ids = self.b2b_delete_company_address(&address_id);
         if touched_location_ids.is_empty() {
-            return (
-                json!({
-                    "deletedAddressId": Value::Null,
-                    "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "deletedAddressId": Value::Null,
+                "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
+            }));
         }
         (
             json!({
@@ -2664,14 +2494,10 @@ impl DraftProxy {
             return payload;
         }
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
-            return (
-                json!({
-                    "companyLocationStaffMemberAssignments": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "companyLocationStaffMemberAssignments": Value::Null,
+                "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+            }));
         };
 
         let mut assignments = Vec::new();
@@ -2803,14 +2629,10 @@ impl DraftProxy {
             return payload;
         }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
-            return (
-                json!({
-                    "roleAssignments": Value::Null,
-                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "roleAssignments": Value::Null,
+                "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
+            }));
         };
         let mut assignments = Vec::new();
         let mut user_errors = Vec::new();
@@ -2881,15 +2703,11 @@ impl DraftProxy {
             return payload;
         }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
-            return (
-                json!({
-                    "revokedRoleAssignmentIds": Value::Null,
-                    "revokedCompanyContactRoleAssignmentIds": Value::Null,
-                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(json!({
+                "revokedRoleAssignmentIds": Value::Null,
+                "revokedCompanyContactRoleAssignmentIds": Value::Null,
+                "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
+            }));
         }
         let mut revoked_ids = Vec::new();
         let mut user_errors = Vec::new();
@@ -4558,7 +4376,7 @@ fn b2b_bulk_action_limit_payload(
             Some("LIMIT_REACHED")
         )]),
     );
-    Some((Value::Object(payload), "failed", Vec::new()))
+    Some(failed_payload_outcome(Value::Object(payload)))
 }
 
 fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {

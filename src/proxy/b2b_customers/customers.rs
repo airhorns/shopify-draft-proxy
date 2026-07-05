@@ -239,7 +239,7 @@ impl DraftProxy {
                     !self.store.staged.customers.is_tombstoned(id)
                 })
                 .filter(|customer| {
-                    customer_search_decision(customer, query.as_deref())
+                    customer_overlay_search_decision(customer, query.as_deref())
                         == StagedSearchDecision::Match
                 })
                 .count();
@@ -483,10 +483,10 @@ impl DraftProxy {
         {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, "expiresAt"],
+                user_error(
+                    [input_name, "expiresAt"],
                     "The expiry date must be in the future",
-                    "EXPIRES_AT_IN_PAST",
+                    Some("EXPIRES_AT_IN_PAST"),
                 ),
             );
         }
@@ -494,14 +494,14 @@ impl DraftProxy {
         if amount <= 0.0 {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     if is_credit {
                         "A positive amount must be used to credit a store credit account"
                     } else {
                         "A positive amount must be used to debit a store credit account"
                     },
-                    "NEGATIVE_OR_ZERO_AMOUNT",
+                    Some("NEGATIVE_OR_ZERO_AMOUNT"),
                 ),
             );
         }
@@ -511,10 +511,10 @@ impl DraftProxy {
                 let Some(existing) = self.store.staged.store_credit_accounts.get(account_id) else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -533,10 +533,10 @@ impl DraftProxy {
         if currency != account_currency {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "currencyCode"],
+                user_error(
+                    [input_name, amount_name, "currencyCode"],
                     "The currency provided does not match the currency of the store credit account",
-                    "MISMATCHING_CURRENCY",
+                    Some("MISMATCHING_CURRENCY"),
                 ),
             );
         }
@@ -544,20 +544,20 @@ impl DraftProxy {
         if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     "The operation would cause the account's credit limit to be exceeded",
-                    "CREDIT_LIMIT_EXCEEDED",
+                    Some("CREDIT_LIMIT_EXCEEDED"),
                 ),
             );
         }
         if !is_credit && amount > current_balance {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     "The store credit account does not have sufficient funds to satisfy the request",
-                    "INSUFFICIENT_FUNDS",
+                    Some("INSUFFICIENT_FUNDS"),
                 ),
             );
         }
@@ -573,10 +573,10 @@ impl DraftProxy {
                 else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -593,10 +593,10 @@ impl DraftProxy {
                 else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -892,10 +892,9 @@ impl DraftProxy {
     }
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
-    /// (excluding merged-away / deleted records) by the optional `query` (currently
-    /// `tag:<value>`, `email:<value>`, plus a generic substring fallback over
-    /// email/display/first/last name) and projects each node through the shared
-    /// customer renderer so nested
+    /// (excluding merged-away / deleted records) by supported local query terms,
+    /// while unsupported search terms do not narrow staged customers. Projects
+    /// each node through the shared customer renderer so nested
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
     pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
@@ -917,7 +916,7 @@ impl DraftProxy {
             records,
             &field.arguments,
             &field.selection,
-            customer_search_decision,
+            customer_overlay_search_decision,
             customer_staged_sort_key,
             |customer, selection| {
                 let id = customer["id"].as_str().unwrap_or_default().to_string();
@@ -2802,11 +2801,12 @@ fn customer_staged_sort_key(customer: &Value, sort_key: Option<&str>) -> StagedS
     vec![primary, customer_gid_tail_sort_value(customer)]
 }
 
-/// Evaluate a (small subset of a) customer search `query` against a staged customer.
-/// Supports `tag:<value>` and `email:<value>` predicates plus a generic
-/// case-insensitive free-text match over email / display name / first name.
-/// Unknown keyed predicates are explicit unsupported terms instead of broad
-/// positive matches.
+/// Evaluate a customer search `query` against a staged customer.
+///
+/// The local slice intentionally stays query-language-small, but it covers the
+/// documented customer fields exercised by captured parity (`state:`, grouped
+/// `tag:` OR/negation) and common keyed fields used by staged read-after-write
+/// tests. Unknown keyed predicates remain explicit unsupported terms.
 fn customer_search_decision(customer: &Value, query: Option<&str>) -> StagedSearchDecision {
     let Some(query) = query else {
         return StagedSearchDecision::Match;
@@ -2815,46 +2815,482 @@ fn customer_search_decision(customer: &Value, query: Option<&str>) -> StagedSear
     if query.is_empty() {
         return StagedSearchDecision::Match;
     }
-    for term in query.split_whitespace() {
-        match customer_search_term_decision(customer, term) {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
-    }
-    StagedSearchDecision::Match
-}
-
-fn customer_search_term_decision(customer: &Value, term: &str) -> StagedSearchDecision {
-    let term = term.trim().trim_matches('\'').trim_matches('"');
-    if term.is_empty() {
+    let tokens = customer_search_tokens(query);
+    if tokens.is_empty() {
         return StagedSearchDecision::Match;
     }
-    if let Some((key, value)) = term.split_once(':') {
-        let value = value.trim().trim_matches('\'').trim_matches('"');
-        return match key {
-            "tag" => StagedSearchDecision::from_bool(
-                customer["tags"]
-                    .as_array()
-                    .map(|tags| tags.iter().any(|tag| tag.as_str() == Some(value)))
-                    .unwrap_or(false),
-            ),
-            "email" => StagedSearchDecision::from_bool(
-                customer_value_string(customer, "email").eq_ignore_ascii_case(value),
-            ),
-            _ => StagedSearchDecision::Unsupported,
-        };
+    let mut parser = CustomerSearchParser::new(tokens);
+    parser
+        .parse()
+        .map(|expression| expression.decision(customer))
+        .unwrap_or(StagedSearchDecision::Unsupported)
+}
+
+fn customer_overlay_search_decision(customer: &Value, query: Option<&str>) -> StagedSearchDecision {
+    match customer_search_decision(customer, query) {
+        StagedSearchDecision::Unsupported => StagedSearchDecision::Match,
+        decision => decision,
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum CustomerSearchToken {
+    Term { value: String, quoted: bool },
+    LParen,
+    RParen,
+    Minus,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum CustomerSearchExpression {
+    Term(CustomerSearchTerm),
+    Not(Box<CustomerSearchExpression>),
+    And(Vec<CustomerSearchExpression>),
+    Or(Vec<CustomerSearchExpression>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CustomerSearchTerm {
+    field: Option<String>,
+    value: String,
+}
+
+struct CustomerSearchParser {
+    tokens: Vec<CustomerSearchToken>,
+    index: usize,
+}
+
+impl CustomerSearchParser {
+    fn new(tokens: Vec<CustomerSearchToken>) -> Self {
+        Self { tokens, index: 0 }
     }
 
-    let needle = term.trim_end_matches('*').to_ascii_lowercase();
+    fn parse(&mut self) -> Option<CustomerSearchExpression> {
+        self.parse_or()
+    }
+
+    fn parse_or(&mut self) -> Option<CustomerSearchExpression> {
+        let mut expressions = vec![self.parse_and()?];
+        while self.consume_operator("OR") {
+            let Some(right) = self.parse_and() else {
+                break;
+            };
+            expressions.push(right);
+        }
+        Some(if expressions.len() == 1 {
+            expressions.remove(0)
+        } else {
+            CustomerSearchExpression::Or(expressions)
+        })
+    }
+
+    fn parse_and(&mut self) -> Option<CustomerSearchExpression> {
+        let mut expressions = Vec::new();
+        while self.index < self.tokens.len() {
+            if self.peek_rparen() || self.peek_operator("OR") {
+                break;
+            }
+            self.consume_operator("AND");
+            if self.peek_rparen() || self.peek_operator("OR") {
+                break;
+            }
+            if let Some(expression) = self.parse_unary() {
+                expressions.push(expression);
+            } else {
+                break;
+            }
+        }
+        Some(if expressions.len() == 1 {
+            expressions.remove(0)
+        } else {
+            CustomerSearchExpression::And(expressions)
+        })
+    }
+
+    fn parse_unary(&mut self) -> Option<CustomerSearchExpression> {
+        if matches!(
+            self.tokens.get(self.index),
+            Some(CustomerSearchToken::Minus)
+        ) {
+            self.index += 1;
+            return self
+                .parse_unary()
+                .map(|expression| CustomerSearchExpression::Not(Box::new(expression)));
+        }
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Option<CustomerSearchExpression> {
+        match self.tokens.get(self.index).cloned()? {
+            CustomerSearchToken::Term { value, quoted } => {
+                self.index += 1;
+                Some(CustomerSearchExpression::Term(CustomerSearchTerm::new(
+                    value, quoted,
+                )))
+            }
+            CustomerSearchToken::LParen => {
+                self.index += 1;
+                let expression = self.parse_or()?;
+                if self.peek_rparen() {
+                    self.index += 1;
+                }
+                Some(expression)
+            }
+            CustomerSearchToken::RParen | CustomerSearchToken::Minus => None,
+        }
+    }
+
+    fn peek_rparen(&self) -> bool {
+        matches!(
+            self.tokens.get(self.index),
+            Some(CustomerSearchToken::RParen)
+        )
+    }
+
+    fn peek_operator(&self, operator: &str) -> bool {
+        matches!(
+            self.tokens.get(self.index),
+            Some(CustomerSearchToken::Term { value, quoted: false })
+                if value.eq_ignore_ascii_case(operator)
+        )
+    }
+
+    fn consume_operator(&mut self, operator: &str) -> bool {
+        if self.peek_operator(operator) {
+            self.index += 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl CustomerSearchExpression {
+    fn decision(&self, customer: &Value) -> StagedSearchDecision {
+        match self {
+            CustomerSearchExpression::Term(term) => term.decision(customer),
+            CustomerSearchExpression::Not(expression) => match expression.decision(customer) {
+                StagedSearchDecision::Match => StagedSearchDecision::NoMatch,
+                StagedSearchDecision::NoMatch => StagedSearchDecision::Match,
+                StagedSearchDecision::Unsupported => StagedSearchDecision::Unsupported,
+            },
+            CustomerSearchExpression::And(expressions) => {
+                let mut saw_supported = false;
+                let mut saw_unsupported = false;
+                for expression in expressions {
+                    match expression.decision(customer) {
+                        StagedSearchDecision::Match => saw_supported = true,
+                        StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+                        StagedSearchDecision::Unsupported => saw_unsupported = true,
+                    }
+                }
+                if saw_unsupported {
+                    StagedSearchDecision::Unsupported
+                } else {
+                    StagedSearchDecision::from_bool(saw_supported)
+                }
+            }
+            CustomerSearchExpression::Or(expressions) => {
+                let mut saw_unsupported = false;
+                for expression in expressions {
+                    match expression.decision(customer) {
+                        StagedSearchDecision::Match => return StagedSearchDecision::Match,
+                        StagedSearchDecision::NoMatch => {}
+                        StagedSearchDecision::Unsupported => saw_unsupported = true,
+                    }
+                }
+                if saw_unsupported {
+                    StagedSearchDecision::Unsupported
+                } else {
+                    StagedSearchDecision::NoMatch
+                }
+            }
+        }
+    }
+}
+
+impl CustomerSearchTerm {
+    fn new(value: String, quoted: bool) -> Self {
+        if !quoted {
+            if let Some((field, value)) = value.split_once(':') {
+                if !field.is_empty() && !value.is_empty() {
+                    return Self {
+                        field: Some(field.replace('-', "_").to_ascii_lowercase()),
+                        value: value.trim_matches('"').trim_matches('\'').to_string(),
+                    };
+                }
+            }
+        }
+        Self { field: None, value }
+    }
+
+    fn decision(&self, customer: &Value) -> StagedSearchDecision {
+        let value = self.value.trim();
+        if value.is_empty() {
+            return StagedSearchDecision::Match;
+        }
+        match self.field.as_deref() {
+            Some("email") => StagedSearchDecision::from_bool(customer_search_string_matches(
+                customer_value_string(customer, "email"),
+                value,
+            )),
+            Some("first_name") | Some("firstname") => StagedSearchDecision::from_bool(
+                customer_search_string_matches(customer_value_string(customer, "firstName"), value),
+            ),
+            Some("last_name") | Some("lastname") => StagedSearchDecision::from_bool(
+                customer_search_string_matches(customer_value_string(customer, "lastName"), value),
+            ),
+            Some("id") => {
+                StagedSearchDecision::from_bool(customer_matches_search_id(customer, value))
+            }
+            Some("phone") => {
+                StagedSearchDecision::from_bool(customer_matches_phone(customer, value))
+            }
+            Some("state") => {
+                StagedSearchDecision::from_bool(customer_matches_state(customer, value))
+            }
+            Some("country") => StagedSearchDecision::from_bool(customer_address_matches_any(
+                customer,
+                value,
+                &["country", "countryCode", "countryCodeV2"],
+            )),
+            Some("province") | Some("province_code") => {
+                StagedSearchDecision::from_bool(customer_address_matches_any(
+                    customer,
+                    value,
+                    &["province", "provinceCode", "provinceCodeV2"],
+                ))
+            }
+            Some("city") => StagedSearchDecision::from_bool(customer_address_matches_any(
+                customer,
+                value,
+                &["city"],
+            )),
+            Some("tag") => {
+                StagedSearchDecision::from_bool(customer_matches_any_search_tag(customer, value))
+            }
+            Some("tag_not") => {
+                StagedSearchDecision::from_bool(!customer_matches_any_search_tag(customer, value))
+            }
+            Some("verified_email") | Some("verifiedemail") => StagedSearchDecision::from_bool(
+                customer_bool_field_matches(customer, "verifiedEmail", value),
+            ),
+            Some("created_at") | Some("createdat") => StagedSearchDecision::from_bool(
+                customer_timestamp_matches(customer_value_string(customer, "createdAt"), value),
+            ),
+            Some("updated_at") | Some("updatedat") => StagedSearchDecision::from_bool(
+                customer_timestamp_matches(customer_value_string(customer, "updatedAt"), value),
+            ),
+            Some("orders_count") | Some("orderscount") => {
+                StagedSearchDecision::from_bool(customer_number_of_orders_matches(customer, value))
+            }
+            Some(_) => StagedSearchDecision::Unsupported,
+            None => StagedSearchDecision::from_bool(customer_matches_free_text(customer, value)),
+        }
+    }
+}
+
+fn customer_search_tokens(query: &str) -> Vec<CustomerSearchToken> {
+    let mut tokens = Vec::new();
+    let chars = query.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            ch if ch.is_whitespace() => index += 1,
+            '(' => {
+                tokens.push(CustomerSearchToken::LParen);
+                index += 1;
+            }
+            ')' => {
+                tokens.push(CustomerSearchToken::RParen);
+                index += 1;
+            }
+            '-' => {
+                tokens.push(CustomerSearchToken::Minus);
+                index += 1;
+            }
+            '"' | '\'' => {
+                let quote = chars[index];
+                index += 1;
+                let mut value = String::new();
+                while index < chars.len() && chars[index] != quote {
+                    value.push(chars[index]);
+                    index += 1;
+                }
+                if index < chars.len() {
+                    index += 1;
+                }
+                tokens.push(CustomerSearchToken::Term {
+                    value,
+                    quoted: true,
+                });
+            }
+            _ => {
+                let mut value = String::new();
+                while index < chars.len()
+                    && !chars[index].is_whitespace()
+                    && chars[index] != '('
+                    && chars[index] != ')'
+                {
+                    if chars[index] == '"' || chars[index] == '\'' {
+                        let quote = chars[index];
+                        index += 1;
+                        while index < chars.len() && chars[index] != quote {
+                            value.push(chars[index]);
+                            index += 1;
+                        }
+                        if index < chars.len() {
+                            index += 1;
+                        }
+                    } else {
+                        value.push(chars[index]);
+                        index += 1;
+                    }
+                }
+                if !value.is_empty() {
+                    tokens.push(CustomerSearchToken::Term {
+                        value,
+                        quoted: false,
+                    });
+                }
+            }
+        }
+    }
+    tokens
+}
+
+fn customer_matches_free_text(customer: &Value, value: &str) -> bool {
     let haystack = format!(
-        "{} {} {}",
+        "{} {} {} {} {} {} {} {}",
         customer_value_string(customer, "email"),
         customer_value_string(customer, "displayName"),
-        customer_value_string(customer, "firstName")
+        customer_value_string(customer, "firstName"),
+        customer_value_string(customer, "lastName"),
+        customer_value_string(customer, "phone"),
+        customer_default_address_string(customer, "city"),
+        customer_default_address_string(customer, "province"),
+        customer_default_address_string(customer, "country")
     )
     .to_ascii_lowercase();
-    StagedSearchDecision::from_bool(haystack.contains(&needle))
+    customer_search_string_matches(&haystack, value)
+        || customer_matches_any_search_tag(customer, value)
+        || customer_matches_phone(customer, value)
+}
+
+fn customer_search_string_matches(haystack: &str, value: &str) -> bool {
+    let needle = value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_end_matches('*')
+        .to_ascii_lowercase();
+    !needle.is_empty() && haystack.to_ascii_lowercase().contains(&needle)
+}
+
+fn customer_default_address_string<'a>(customer: &'a Value, field: &str) -> &'a str {
+    customer
+        .get("defaultAddress")
+        .and_then(|address| address.get(field))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn customer_address_matches_any(customer: &Value, value: &str, fields: &[&str]) -> bool {
+    fields.iter().any(|field| {
+        customer_search_string_matches(customer_default_address_string(customer, field), value)
+    })
+}
+
+fn customer_matches_search_id(customer: &Value, value: &str) -> bool {
+    let id = customer_value_string(customer, "id");
+    let value = value.trim_matches('"').trim_matches('\'');
+    id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
+}
+
+fn customer_matches_phone(customer: &Value, value: &str) -> bool {
+    [
+        customer_value_string(customer, "phone"),
+        customer
+            .get("defaultPhoneNumber")
+            .and_then(|phone| phone.get("phoneNumber"))
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        customer_default_address_string(customer, "phone"),
+    ]
+    .iter()
+    .any(|phone| customer_search_string_matches(phone, value))
+}
+
+fn customer_matches_state(customer: &Value, value: &str) -> bool {
+    customer_value_string(customer, "state").eq_ignore_ascii_case(value.trim())
+        || customer_address_matches_any(
+            customer,
+            value,
+            &["province", "provinceCode", "provinceCodeV2"],
+        )
+}
+
+fn customer_matches_any_search_tag(customer: &Value, value: &str) -> bool {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .any(|needle| {
+            customer["tags"]
+                .as_array()
+                .map(|tags| {
+                    tags.iter().any(|tag| {
+                        tag.as_str()
+                            .is_some_and(|tag| customer_search_string_matches(tag, needle))
+                    })
+                })
+                .unwrap_or(false)
+        })
+}
+
+fn customer_bool_field_matches(customer: &Value, field: &str, value: &str) -> bool {
+    let expected = match value.trim().to_ascii_lowercase().as_str() {
+        "true" => true,
+        "false" => false,
+        _ => return false,
+    };
+    customer.get(field).and_then(Value::as_bool) == Some(expected)
+}
+
+fn customer_timestamp_matches(timestamp: &str, value: &str) -> bool {
+    let value = value.trim();
+    let (operator, operand) = if let Some(stripped) = value.strip_prefix(">=") {
+        (">=", stripped.trim())
+    } else if let Some(stripped) = value.strip_prefix("<=") {
+        ("<=", stripped.trim())
+    } else if let Some(stripped) = value.strip_prefix('>') {
+        (">", stripped.trim())
+    } else if let Some(stripped) = value.strip_prefix('<') {
+        ("<", stripped.trim())
+    } else {
+        (":", value)
+    };
+    if timestamp.is_empty() || operand.is_empty() {
+        return false;
+    }
+    match operator {
+        ">=" => timestamp >= operand,
+        ">" => timestamp > operand,
+        "<=" => timestamp <= operand,
+        "<" => timestamp < operand,
+        _ => timestamp.starts_with(operand),
+    }
+}
+
+fn customer_number_of_orders_matches(customer: &Value, value: &str) -> bool {
+    let Some(expected) = value.trim().parse::<i64>().ok() else {
+        return false;
+    };
+    customer.get("numberOfOrders").and_then(|value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_str().and_then(|value| value.parse::<i64>().ok()))
+    }) == Some(expected)
 }
 
 /// Surface Shopify's order-summary defaults on a freshly staged customer record:
@@ -2969,10 +3405,6 @@ fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> St
 /// Shopify rejects a credit/debit that would push an account past this hard cap.
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
-fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
 fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
     if is_credit
         && matches!(
@@ -2980,12 +3412,12 @@ fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
             Some("Customer" | "CompanyLocation")
         )
     {
-        store_credit_user_error(&["id"], "Owner does not exist", "OWNER_NOT_FOUND")
+        user_error(["id"], "Owner does not exist", Some("OWNER_NOT_FOUND"))
     } else {
-        store_credit_user_error(
-            &["id"],
+        user_error(
+            ["id"],
             "Store credit account does not exist",
-            "ACCOUNT_NOT_FOUND",
+            Some("ACCOUNT_NOT_FOUND"),
         )
     }
 }
@@ -3067,4 +3499,74 @@ pub(in crate::proxy) fn is_valid_customer_email(email: &str) -> bool {
         return false;
     }
     true
+}
+
+#[cfg(test)]
+mod customer_search_tests {
+    use super::*;
+
+    fn search_customer() -> Value {
+        json!({
+            "id": "gid://shopify/Customer/42",
+            "email": "search-customer@example.test",
+            "firstName": "Search",
+            "lastName": "Customer",
+            "displayName": "Search Customer",
+            "state": "DISABLED",
+            "verifiedEmail": true,
+            "tags": ["VIP"],
+            "defaultAddress": {
+                "city": "Toronto",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCodeV2": "CA"
+            },
+            "defaultPhoneNumber": {
+                "phoneNumber": "+16135550135"
+            },
+            "createdAt": "2026-07-01T00:00:00Z",
+            "updatedAt": "2026-07-02T00:00:00Z",
+            "numberOfOrders": "0"
+        })
+    }
+
+    #[test]
+    fn customer_search_distinguishes_supported_no_match_from_unsupported_key() {
+        let customer = search_customer();
+        assert_eq!(
+            customer_search_decision(&customer, Some("country:Canada")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            customer_search_decision(&customer, Some("country:United States")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            customer_search_decision(&customer, Some("made_up_filter:Canada")),
+            StagedSearchDecision::Unsupported
+        );
+        assert_eq!(
+            customer_overlay_search_decision(&customer, Some("made_up_filter:Canada")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            customer_overlay_search_decision(
+                &customer,
+                Some("country:United States made_up_filter:Canada")
+            ),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            customer_overlay_search_decision(
+                &customer,
+                Some("country:United States OR made_up_filter:Canada")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            customer_search_decision(&customer, Some("state:DISABLED -tag:VIP")),
+            StagedSearchDecision::NoMatch
+        );
+    }
 }

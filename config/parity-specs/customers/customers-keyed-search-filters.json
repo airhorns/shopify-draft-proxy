@@ -1,0 +1,73 @@
+{
+  "scenarioId": "customers-keyed-search-filters",
+  "operationNames": ["customerCreate", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customers-keyed-search-filters.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customers-keyed-search-create.graphql",
+    "variablesCapturePath": "$.canadianCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict replay of a Shopify-backed staged customer search scenario. The recorder creates disposable Canadian and US customers through public customerCreate, waits for Shopify's customer search index, captures country/state/default/tag grouped customers(query:) reads, and deletes both live customers during cleanup. The proxy replay earns setup state through the same customerCreate requests; no fixture state is seeded. customersCount(query:) remains covered by the dedicated customers-count-read scenario because Shopify returns warning/no-op total counts for the captured keyed count filters.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "canadian-customer-create",
+        "capturePath": "$.canadianCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.displayName",
+          "$.customerCreate.customer.state",
+          "$.customerCreate.customer.tags",
+          "$.customerCreate.customer.defaultAddress.city",
+          "$.customerCreate.customer.defaultAddress.province",
+          "$.customerCreate.customer.defaultAddress.provinceCode",
+          "$.customerCreate.customer.defaultAddress.country",
+          "$.customerCreate.customer.defaultAddress.countryCodeV2",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "us-customer-create",
+        "capturePath": "$.usCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customers-keyed-search-create.graphql",
+          "variablesCapturePath": "$.usCreate.variables"
+        },
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.displayName",
+          "$.customerCreate.customer.state",
+          "$.customerCreate.customer.tags",
+          "$.customerCreate.customer.defaultAddress.city",
+          "$.customerCreate.customer.defaultAddress.province",
+          "$.customerCreate.customer.defaultAddress.provinceCode",
+          "$.customerCreate.customer.defaultAddress.country",
+          "$.customerCreate.customer.defaultAddress.countryCodeV2",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "country-state-tag-default-search-read",
+        "capturePath": "$.searchRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customers-keyed-search-read.graphql",
+          "variablesCapturePath": "$.searchRead.variables"
+        }
+      }
+    ]
+  }
+}

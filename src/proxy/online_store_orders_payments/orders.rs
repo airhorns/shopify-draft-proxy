@@ -95,14 +95,13 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_amount =
-        payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_amount = money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
-        payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+        money_set_presentment_or_shop_amount(money_set).unwrap_or_else(|| shop_amount.clone());
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -118,10 +117,7 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
 }
 
 pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
-    payment_money_amount(money_set, "presentmentMoney")
-        .or_else(|| payment_money_amount(money_set, "shopMoney"))
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0)
+    money_set_presentment_or_shop_amount_value(money_set)
 }
 
 pub(in crate::proxy) fn add_order_money_sets(
@@ -132,23 +128,23 @@ pub(in crate::proxy) fn add_order_money_sets(
 ) -> Value {
     let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
     let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
-    let left_shop = payment_money_amount(&left, "shopMoney")
+    let left_shop = money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let right_shop = payment_money_amount(&right, "shopMoney")
+    let right_shop = money_amount(&right, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let left_presentment = payment_money_amount(&left, "presentmentMoney")
+    let left_presentment = money_amount(&left, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(left_shop);
-    let right_presentment = payment_money_amount(&right, "presentmentMoney")
+    let right_presentment = money_amount(&right, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(right_shop);
-    let shop_currency = payment_money_currency(&right, "shopMoney")
-        .or_else(|| payment_money_currency(&left, "shopMoney"))
+    let shop_currency = money_currency(&right, "shopMoney")
+        .or_else(|| money_currency(&left, "shopMoney"))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(&right, "presentmentMoney")
-        .or_else(|| payment_money_currency(&left, "presentmentMoney"))
+    let presentment_currency = money_currency(&right, "presentmentMoney")
+        .or_else(|| money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
     money_set_pair(
         &format_money_amount(left_shop + right_shop),
@@ -163,10 +159,10 @@ pub(in crate::proxy) fn zero_order_money_set_like(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -181,11 +177,11 @@ pub(in crate::proxy) fn order_customer_id(order: &Value) -> Option<String> {
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_cannot_mark_error() -> Value {
-    payment_user_error(json!(["id"]), "Order cannot be marked as paid.", None)
+    user_error_omit_code(json!(["id"]), "Order cannot be marked as paid.", None)
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
-    payment_user_error(json!(["id"]), "Order does not exist", None)
+    user_error_omit_code(json!(["id"]), "Order does not exist", None)
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
@@ -311,37 +307,17 @@ fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) ->
     if query_value.is_empty() {
         return false;
     }
-    let (operator, expected) = order_search_comparator(query_value);
+    let (operator, expected) = search_comparator(query_value);
     if expected.is_empty() {
         return false;
     }
-    let actual = order_search_datetime_value(actual, expected);
+    let actual = search_datetime_value(actual, expected);
     match operator {
         "<" => actual < expected,
         "<=" => actual <= expected,
         ">" => actual > expected,
         ">=" => actual >= expected,
         _ => actual.starts_with(expected),
-    }
-}
-
-fn order_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value)
-}
-
-fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
-    if expected.contains('T') {
-        actual
-    } else {
-        actual
-            .split_once('T')
-            .map(|(date, _)| date)
-            .unwrap_or(actual)
     }
 }
 
@@ -447,18 +423,6 @@ pub(in crate::proxy) fn order_staged_sort_key(
         StagedSortValue::String(date),
         order_gid_tail_sort_value(order),
     ]
-}
-
-pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
-pub(in crate::proxy) fn orders_plain_error(field: &[&str], message: &str) -> Value {
-    user_error_omit_code(field, message, None)
-}
-
-pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -606,29 +570,32 @@ pub(in crate::proxy) fn order_update_shipping_address_errors(
         .map(|value| value.trim().is_empty())
         .unwrap_or(true)
     {
-        errors.push(json!({
-            "field": ["shippingAddress", "lastName"],
-            "message": "Enter a last name"
-        }));
+        errors.push(user_error_omit_code(
+            ["shippingAddress", "lastName"],
+            "Enter a last name",
+            None,
+        ));
     }
     if resolved_string_field(input, "zip")
         .map(|value| value.trim().is_empty())
         .unwrap_or(true)
     {
-        errors.push(json!({
-            "field": ["shippingAddress", "zip"],
-            "message": "Enter a ZIP code"
-        }));
+        errors.push(user_error_omit_code(
+            ["shippingAddress", "zip"],
+            "Enter a ZIP code",
+            None,
+        ));
     }
     let country_code = resolved_string_field(input, "countryCode")
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
         .unwrap_or_default();
     let province_code = resolved_string_field(input, "provinceCode").unwrap_or_default();
     if let Some(message) = order_update_invalid_province_message(&country_code, &province_code) {
-        errors.push(json!({
-            "field": ["shippingAddress", "province"],
-            "message": message
-        }));
+        errors.push(user_error_omit_code(
+            ["shippingAddress", "province"],
+            &message,
+            None,
+        ));
     }
     errors
 }
@@ -638,17 +605,15 @@ pub(in crate::proxy) fn order_update_validation_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if !order_update_has_mutable_fields(input) {
-        errors.push(json!({
-            "field": Value::Null,
-            "message": "No valid update parameters have been provided"
-        }));
+        errors.push(user_error_omit_code(
+            Value::Null,
+            "No valid update parameters have been provided",
+            None,
+        ));
     }
     if let Some(phone) = resolved_string_field(input, "phone") {
         if !order_update_phone_is_valid(&phone) {
-            errors.push(json!({
-                "field": ["phone"],
-                "message": "Phone is invalid"
-            }));
+            errors.push(user_error_omit_code(["phone"], "Phone is invalid", None));
         }
     }
     if let Some(shipping_address) = resolved_object_field(input, "shippingAddress") {
@@ -815,10 +780,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
                 resolved_money_currency(&fixed).unwrap_or_else(|| currency_code.to_string());
             json!({
                 "title": resolved_string_field(&discount, "title").unwrap_or_default(),
-                "value": {
-                    "amount": format_money_amount(amount),
-                    "currencyCode": currency
-                }
+                "value": money_value(&format_money_amount(amount), &currency)
             })
         })
         .collect::<Vec<_>>();
@@ -845,6 +807,8 @@ pub(in crate::proxy) fn order_create_line_item_record(
             })
         })
         .unwrap_or(Value::Null);
+    let unit_amount_text = format_money_amount(unit_amount);
+    let presentment_amount_text = format_money_amount(presentment_amount);
     let line = json!({
         "id": shopify_gid("LineItem", index + 1),
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
@@ -867,26 +831,18 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
         "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
-        "originalUnitPriceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": line_currency
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency
-            }
-        }),
-        "priceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": currency_code
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency_code
-            }
-        }),
+        "originalUnitPriceSet": money_set_pair(
+            &unit_amount_text,
+            &line_currency,
+            &presentment_amount_text,
+            &presentment_currency
+        ),
+        "priceSet": money_set_pair(
+            &unit_amount_text,
+            currency_code,
+            &presentment_amount_text,
+            presentment_currency_code
+        ),
         "taxLines": tax_lines
     });
     (line, unit_amount * quantity as f64, tax_total)
@@ -1034,31 +990,31 @@ pub(in crate::proxy) fn order_create_validation_error(
         .as_deref()
         .is_some_and(|value| value.starts_with("2099-"))
     {
-        return Some(order_create_error(
+        return Some(user_error(
             vec![json!("order"), json!("processedAt")],
             "Processed at is invalid",
-            "PROCESSED_AT_INVALID",
+            Some("PROCESSED_AT_INVALID"),
         ));
     }
     if order.contains_key("customerId") && order.contains_key("customer") {
-        return Some(order_create_error(
+        return Some(user_error(
             vec![json!("order")],
             "Customer fields are redundant",
-            "REDUNDANT_CUSTOMER_FIELDS",
+            Some("REDUNDANT_CUSTOMER_FIELDS"),
         ));
     }
     let line_items = resolved_object_list_field(order, "lineItems");
     if line_items.is_empty() {
-        return Some(order_create_error(
+        return Some(user_error(
             vec![json!("order"), json!("lineItems")],
             "Line items must have at least one line item",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
     for (line_index, line_item) in line_items.iter().enumerate() {
         if let Some(service) = resolved_string_field(line_item, "fulfillmentService") {
             if service != "manual" && service != "gift_card" {
-                return Some(order_create_error(
+                return Some(user_error(
                     vec![
                         json!("order"),
                         json!("lineItems"),
@@ -1066,7 +1022,7 @@ pub(in crate::proxy) fn order_create_validation_error(
                         json!("fulfillmentService"),
                     ],
                     "Fulfillment service is invalid",
-                    "FULFILLMENT_SERVICE_INVALID",
+                    Some("FULFILLMENT_SERVICE_INVALID"),
                 ));
             }
         }
@@ -1075,7 +1031,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .enumerate()
         {
             if resolved_number_field(tax_line, "rate").is_none() {
-                return Some(order_create_error(
+                return Some(user_error(
                     vec![
                         json!("order"),
                         json!("lineItems"),
@@ -1085,7 +1041,7 @@ pub(in crate::proxy) fn order_create_validation_error(
                         json!("rate"),
                     ],
                     "Tax line rate is missing",
-                    "TAX_LINE_RATE_MISSING",
+                    Some("TAX_LINE_RATE_MISSING"),
                 ));
             }
         }
@@ -1099,7 +1055,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .enumerate()
         {
             if resolved_number_field(tax_line, "rate").is_none() {
-                return Some(order_create_error(
+                return Some(user_error(
                     vec![
                         json!("order"),
                         json!("shippingLines"),
@@ -1109,7 +1065,7 @@ pub(in crate::proxy) fn order_create_validation_error(
                         json!("rate"),
                     ],
                     "Tax line rate is missing",
-                    "TAX_LINE_RATE_MISSING",
+                    Some("TAX_LINE_RATE_MISSING"),
                 ));
             }
         }
@@ -1406,7 +1362,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
+                    "userErrors": [user_error_omit_code(["input", "staffMemberId"], "Staff member does not exist", None)]
                 }),
                 &field.selection,
             ));
@@ -1434,7 +1390,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_plain_error(&["id"], "Order does not exist")]
+                    "userErrors": [user_error_omit_code(["id"], "Order does not exist", None)]
                 }),
                 &field.selection,
             ));
@@ -1623,7 +1579,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+                    "userErrors": [user_error_omit_code(["id"], "Order does not exist", None)]
                 }),
                 &field.selection,
             );
@@ -1693,7 +1649,7 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let mut order = response.body["data"]["order"].clone();
@@ -1750,7 +1706,7 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return;
         }
         let customer = response.body["data"]["customer"].clone();
@@ -1775,6 +1731,18 @@ impl DraftProxy {
                     .any(|node| node["id"].as_str() == Some(fulfillment_order_id))
                     .then(|| order_id.clone())
             })
+    }
+
+    pub(in crate::proxy) fn staged_order_record_for_id(&self, order_id: &str) -> Option<Value> {
+        self.store.staged.orders.get(order_id).cloned().or_else(|| {
+            self.store
+                .staged
+                .orders
+                .values()
+                .into_iter()
+                .find(|order| order["id"].as_str() == Some(order_id))
+                .cloned()
+        })
     }
 
     pub(super) fn order_id_for_fulfillment_order(
@@ -1821,7 +1789,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment_order = response.body["data"]["fulfillmentOrder"].clone();
@@ -1851,7 +1819,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let order = response.body["data"]["order"].clone();
@@ -1886,7 +1854,7 @@ impl DraftProxy {
                 "variables": { "id": variant_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let variant = response.body["data"]["productVariant"].clone();
@@ -1925,7 +1893,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let order = response.body["data"]["order"].clone();
@@ -1950,7 +1918,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment = response.body["data"]["fulfillment"].clone();
@@ -1994,7 +1962,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment = response.body["data"]["fulfillment"].clone();
@@ -2012,7 +1980,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if (200..300).contains(&enriched.status) {
+        if response_is_success(&enriched) {
             let enriched_order = enriched.body["data"]["order"].clone();
             if enriched_order.is_object() {
                 order = enriched_order;
@@ -2305,7 +2273,7 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "order": Value::Null,
-                        "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
+                        "userErrors": [user_error_omit_code(["input", "staffMemberId"], "Staff member does not exist", None)]
                     }),
                     &field.selection,
                 ),
@@ -2391,8 +2359,8 @@ impl DraftProxy {
         {
             return Err(order_edit_error_data_response(
                 field,
-                vec![oe_user_error(
-                    &["id"],
+                vec![user_error_omit_code(
+                    ["id"],
                     "The calculated order does not exist.",
                     code,
                 )],
@@ -2424,14 +2392,19 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(&["id"], "The order does not exist.", None)],
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "The order does not exist.",
+                        None,
+                    )],
                 );
             }
         };
         if order_edit_order_is_not_editable(&order) {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error_null_field(
+                vec![user_error_omit_code(
+                    Value::Null,
                     "The order cannot be edited.",
                     None,
                 )],
@@ -2449,8 +2422,8 @@ impl DraftProxy {
         {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["base"],
+                vec![user_error_omit_code(
+                    ["base"],
                     "This order already has an order edit in progress.",
                     None,
                 )],
@@ -2499,8 +2472,8 @@ impl DraftProxy {
         if resource_id_tail(&variant_id) == "0" {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["variantId"],
+                vec![user_error_omit_code(
+                    ["variantId"],
                     "can't convert Integer[0] to a positive Integer to use as an untrusted id",
                     None,
                 )],
@@ -2510,15 +2483,19 @@ impl DraftProxy {
         if quantity == 0 {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(&["quantity"], "must be greater than 0", None)],
+                vec![user_error_omit_code(
+                    ["quantity"],
+                    "must be greater than 0",
+                    None,
+                )],
             );
         }
         if quantity < 0 {
             return order_edit_error_response(
                 field,
                 vec![
-                    oe_user_error(&["quantity"], "must be greater than 0", None),
-                    oe_user_error(&["quantity"], "must be greater than or equal to 0", None),
+                    user_error_omit_code(["quantity"], "must be greater than 0", None),
+                    user_error_omit_code(["quantity"], "must be greater than or equal to 0", None),
                 ],
             );
         }
@@ -2550,7 +2527,7 @@ impl DraftProxy {
                 let message = format!("{title} was not added because it's already on the order.");
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(&["id"], &message, None)],
+                    vec![user_error_omit_code(["id"], &message, None)],
                 );
             }
         }
@@ -2572,8 +2549,8 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(
-                        &["variantId"],
+                    vec![user_error_omit_code(
+                        ["variantId"],
                         "The variant does not exist in the shop.",
                         None,
                     )],
@@ -2641,8 +2618,8 @@ impl DraftProxy {
         if quantity < 0 {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["quantity"],
+                vec![user_error_omit_code(
+                    ["quantity"],
                     "must be greater than or equal to 0",
                     None,
                 )],
@@ -2662,8 +2639,8 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(
-                        &["lineItemId"],
+                    vec![user_error_omit_code(
+                        ["lineItemId"],
                         "The line item does not exist on the order.",
                         None,
                     )],
@@ -2719,14 +2696,14 @@ impl DraftProxy {
         if title.trim().is_empty() {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(&["title"], "can't be blank", None)],
+                vec![user_error_omit_code(["title"], "can't be blank", None)],
             );
         }
         if title.chars().count() > 255 {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["title"],
+                vec![user_error_omit_code(
+                    ["title"],
                     "is too long (maximum is 255 characters)",
                     None,
                 )],
@@ -2736,15 +2713,19 @@ impl DraftProxy {
         if quantity <= 0 {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(&["quantity"], "must be greater than 0", None)],
+                vec![user_error_omit_code(
+                    ["quantity"],
+                    "must be greater than 0",
+                    None,
+                )],
             );
         }
         let price = resolved_object_field(&field.arguments, "price").unwrap_or_default();
         if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["price", "amount"],
+                vec![user_error_omit_code(
+                    ["price", "amount"],
                     &format!("Currency must be {currency}."),
                     None,
                 )],
@@ -2754,8 +2735,8 @@ impl DraftProxy {
         if price_cents < 0 {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["price", "amount"],
+                vec![user_error_omit_code(
+                    ["price", "amount"],
                     "must be greater than or equal to 0",
                     None,
                 )],
@@ -2827,8 +2808,8 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(
-                        &["id"],
+                    vec![user_error_omit_code(
+                        ["id"],
                         "The line item does not exist on the order.",
                         None,
                     )],
@@ -2964,8 +2945,8 @@ impl DraftProxy {
         if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(
-                    &["shippingLine", "price"],
+                vec![user_error_omit_code(
+                    ["shippingLine", "price"],
                     &format!("The price must be in {currency}."),
                     Some("INVALID"),
                 )],
@@ -3033,8 +3014,8 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                         field,
-                            vec![oe_user_error(
-                                &["shippingLineId"],
+                            vec![user_error_omit_code(
+                            ["shippingLineId"],
                                 "The shipping line can't be updated because it doesn't exist or wasn't added during this edit.",
                                 Some("INVALID"),
                             )],
@@ -3048,8 +3029,8 @@ impl DraftProxy {
             if resolved_money_currency(price).as_deref() != Some(currency.as_str()) {
                 return order_edit_error_response(
                     field,
-                    vec![oe_user_error(
-                        &["shippingLine", "price"],
+                    vec![user_error_omit_code(
+                        ["shippingLine", "price"],
                         &format!("The price must be in {currency}."),
                         Some("INVALID"),
                     )],
@@ -3112,8 +3093,8 @@ impl DraftProxy {
             None => {
                 return order_edit_error_response(
                         field,
-                            vec![oe_user_error(
-                                &["shippingLineId"],
+                            vec![user_error_omit_code(
+                            ["shippingLineId"],
                                 "The shipping line can't be removed because it doesn't exist or has already been removed.",
                                 Some("INVALID"),
                             )],
@@ -3220,7 +3201,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "deletedId": Value::Null,
-                    "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
+                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
                 }),
                 &field.selection,
             ));

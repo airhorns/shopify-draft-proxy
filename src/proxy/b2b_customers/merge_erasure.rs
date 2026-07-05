@@ -68,17 +68,13 @@ impl DraftProxy {
         request_erasure: bool,
     ) -> (Value, &'static str, Vec<String>) {
         if !self.customer_exists_for_mutation(request, customer_id) {
-            return (
-                customer_data_erasure_payload_json(
-                    None,
-                    vec![customer_data_erasure_user_error(
-                        "Customer does not exist",
-                        "DOES_NOT_EXIST",
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(customer_data_erasure_payload_json(
+                None,
+                vec![customer_data_erasure_user_error(
+                    "Customer does not exist",
+                    "DOES_NOT_EXIST",
+                )],
+            ));
         }
         if request_erasure {
             self.store.staged.customer_data_erasure_requests.insert(
@@ -99,17 +95,13 @@ impl DraftProxy {
             .and_then(|request| request["status"].as_str())
             == Some("REQUESTED");
         if !is_pending {
-            return (
-                customer_data_erasure_payload_json(
-                    None,
-                    vec![customer_data_erasure_user_error(
-                        "Customer's data is not scheduled for erasure",
-                        "NOT_BEING_ERASED",
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(customer_data_erasure_payload_json(
+                None,
+                vec![customer_data_erasure_user_error(
+                    "Customer's data is not scheduled for erasure",
+                    "NOT_BEING_ERASED",
+                )],
+            ));
         }
         self.store.staged.customer_data_erasure_requests.insert(
             customer_id.to_string(),
@@ -133,10 +125,10 @@ impl DraftProxy {
                 customer_merge_payload_json(
                     None,
                     None,
-                    vec![customer_merge_user_error(
+                    vec![user_error(
                         Value::Null,
                         "Both customerOneId and customerTwoId are required",
-                        "INVALID_CUSTOMER_ID",
+                        Some("INVALID_CUSTOMER_ID"),
                     )],
                 ),
                 Vec::new(),
@@ -160,10 +152,10 @@ impl DraftProxy {
                 customer_merge_payload_json(
                     None,
                     None,
-                    vec![customer_merge_user_error(
+                    vec![user_error(
                         Value::Null,
                         "Customers IDs should not match",
-                        "INVALID_CUSTOMER_ID",
+                        Some("INVALID_CUSTOMER_ID"),
                     )],
                 ),
                 Vec::new(),
@@ -266,10 +258,10 @@ impl DraftProxy {
         if self.customer_exists(id) {
             return None;
         }
-        Some(customer_merge_user_error(
+        Some(user_error(
             json!([field]),
             &format!("Customer does not exist with ID {}", resource_id_tail(id)),
-            "INVALID_CUSTOMER_ID",
+            Some("INVALID_CUSTOMER_ID"),
         ))
     }
 
@@ -289,15 +281,15 @@ impl DraftProxy {
             .flat_map(customer_tags)
             .collect::<BTreeSet<_>>();
         if combined_tags.len() > 250 {
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerOneId"]),
                 "Customers must have 250 tags or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerTwoId"]),
                 "Customers must have 250 tags or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
         }
         let combined_note_len = one
@@ -311,15 +303,15 @@ impl DraftProxy {
                 .chars()
                 .count();
         if combined_note_len > 5000 {
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerOneId"]),
                 "Customer notes must be 5,000 characters or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerTwoId"]),
                 "Customer notes must be 5,000 characters or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
         }
         for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
@@ -332,10 +324,10 @@ impl DraftProxy {
                     .and_then(|customer| customer["displayName"].as_str())
                     .filter(|name| !name.is_empty())
                     .unwrap_or("Customer");
-                errors.push(customer_merge_user_error(
+                errors.push(user_error(
                     json!([field_name]),
                     &format!("{name} has gift cards and can\u{2019}t be merged."),
-                    "INVALID_CUSTOMER",
+                    Some("INVALID_CUSTOMER"),
                 ));
             }
         }
@@ -384,16 +376,6 @@ pub(super) fn customer_merge_job_from_request(request: &Value) -> Value {
         "id": request["jobId"].clone(),
         "done": true,
         "query": { "__typename": "QueryRoot" }
-    })
-}
-
-fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "field": field.clone(),
-        "message": message,
-        "code": code,
-        "errorFields": field,
-        "block_type": code
     })
 }
 
