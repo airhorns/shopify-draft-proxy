@@ -1333,17 +1333,12 @@ fn app_purchase_one_time_missing_return_url_error(
         .map(|field| field.response_key.clone())
         .unwrap_or_else(|| "appPurchaseOneTimeCreate".to_string());
 
-    json!({
-        "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
-        "locations": [{ "line": location.line, "column": location.column }],
-        "path": [operation_path, response_key],
-        "extensions": {
-            "code": "missingRequiredArguments",
-            "className": "Field",
-            "name": "appPurchaseOneTimeCreate",
-            "arguments": "returnUrl"
-        }
-    })
+    missing_required_arguments_error(
+        "appPurchaseOneTimeCreate",
+        "returnUrl",
+        location,
+        vec![json!(operation_path), json!(response_key)],
+    )
 }
 
 fn delegate_expires_after_parent(request: &Request, expires_in: i64, created_at: &str) -> bool {
