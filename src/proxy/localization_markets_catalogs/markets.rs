@@ -66,10 +66,10 @@ impl DraftProxy {
                     )
                 }
                 "marketsResolvedValues" => self.markets_resolved_values_value(field),
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &connection_json_with_empty_edges(Vec::new()),
-                    &field.selection,
-                ),
+                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
+                "marketLocalizableResourcesByIds" => {
+                    self.market_localizable_resources_by_ids_connection(field)
+                }
                 // The `markets` plural connection projects the staged markets store.
                 // Hydration from upstream happens in the LiveHybrid fetch path before
                 // this handler is reached, so here we only serve what is already
@@ -958,9 +958,10 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues"
-            | "marketLocalizableResources"
-            | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
+            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
+            "marketLocalizableResources" | "marketLocalizableResourcesByIds" => {
+                !self.has_market_localizable_resource_state()
+            }
             _ => false,
         }
     }
@@ -1007,7 +1008,12 @@ impl DraftProxy {
         // Catalogs: top-level plus nested under each market.
         let mut catalog_records = markets_collect_records(data, "catalogs", "catalog");
         for market in &market_records {
-            catalog_records.extend(markets_connection_nodes(market.get("catalogs")));
+            catalog_records.extend(
+                market
+                    .get("catalogs")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
@@ -1029,14 +1035,19 @@ impl DraftProxy {
         // Web presences: top-level plus nested under each market.
         let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
         for market in &market_records {
-            web_presence_records.extend(markets_connection_nodes(market.get("webPresences")));
+            web_presence_records.extend(
+                market
+                    .get("webPresences")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         web_presence_records.extend(
             hydrate_nodes
                 .iter()
                 .filter(|node| {
                     node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
-                        || record_gid(node, "gid://shopify/MarketWebPresence/").is_some()
+                        || record_gid(node, "MarketWebPresence").is_some()
                 })
                 .cloned(),
         );
@@ -1080,9 +1091,11 @@ impl DraftProxy {
             "marketLocalizableResources",
             "marketLocalizableResource",
         );
-        localizable_records.extend(markets_connection_nodes(
-            data.get("marketLocalizableResourcesByIds"),
-        ));
+        localizable_records.extend(
+            data.get("marketLocalizableResourcesByIds")
+                .map(connection_nodes)
+                .unwrap_or_default(),
+        );
         for record in &localizable_records {
             self.stage_observed_market_localizable_resource(record);
         }

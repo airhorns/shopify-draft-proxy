@@ -272,10 +272,7 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
 }
 
 fn value_gid_tail_sort_value(value: &Value) -> StagedSortValue {
-    let tail = resource_id_tail(value_string(value, "id"));
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(value.get("id").and_then(Value::as_str))
 }
 
 fn catalog_gid_tail_sort_value(catalog: &Value) -> StagedSortValue {
@@ -738,30 +735,11 @@ fn markets_variables_have_local_id(
     })
 }
 
-fn markets_connection_nodes(value: Option<&Value>) -> Vec<Value> {
-    let Some(value) = value else {
-        return Vec::new();
-    };
-    let mut nodes = value
-        .get("nodes")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if nodes.is_empty() {
-        nodes = value
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned())
-            .filter(|node| node.is_object())
-            .collect();
-    }
-    nodes
-}
-
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
-    let mut records = markets_connection_nodes(data.get(connection_key));
+    let mut records = data
+        .get(connection_key)
+        .map(connection_nodes)
+        .unwrap_or_default();
     if let Some(record) = data.get(singular_key).filter(|value| value.is_object()) {
         records.push(record.clone());
     }

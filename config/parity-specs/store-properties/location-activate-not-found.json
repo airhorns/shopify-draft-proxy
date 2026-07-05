@@ -1,0 +1,38 @@
+{
+  "scenarioId": "location-activate-not-found",
+  "operationNames": ["locationActivate", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-not-found.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-activate-not-found.graphql",
+    "variablesCapturePath": "$.workflow.activateUnknownLocation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-activate-unknown-id-not-found",
+        "capturePath": "$.workflow.activateUnknownLocation.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate"
+      },
+      {
+        "name": "location-read-after-unknown-activate",
+        "capturePath": "$.workflow.readAfterUnknownActivate.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-not-found-read.graphql",
+          "variablesCapturePath": "$.workflow.readAfterUnknownActivate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture for locationActivate against an absent Location GID. Replay hydrates the missing location through the exact StorePropertiesLocationHydrate cassette, then verifies the local handler returns a null location with LOCATION_NOT_FOUND and leaves downstream location(id:) reads null."
+}

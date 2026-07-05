@@ -7,20 +7,7 @@ pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> 
             &connection_json(Vec::new()),
             &field.selection,
         )),
-        "eventsCount" => Some(event_count_empty_json(&field.selection)),
+        "eventsCount" => Some(selected_count_json(0, &field.selection)),
         _ => Some(Value::Null),
     })
-}
-
-pub(in crate::proxy) fn event_count_empty_json(selections: &[SelectedField]) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "count" => json!(0),
-            "precision" => json!("EXACT"),
-            _ => Value::Null,
-        };
-        fields.insert(selection.response_key.clone(), value);
-    }
-    Value::Object(fields)
 }

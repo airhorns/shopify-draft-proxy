@@ -1,0 +1,480 @@
+{
+  "scenarioId": "b2b-company-location-order-aggregates",
+  "capturedAt": "2026-07-05T07:19:09.009Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Captured from live Shopify Admin GraphQL. The scenario creates a disposable B2B company/location/contact, completes one B2B draft order as paid, creates one CompanyLocationCatalog, reads aggregate/relation fields after indexing, then records best-effort cleanup attempts.",
+  "operations": {
+    "companyCreate": {
+      "query": "mutation B2BCompanyLocationOrderAggregatesCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          customer {\n            id\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B aggregate buyer 20260705071905",
+            "externalId": "b2b-aggregate-buyer-20260705071905",
+            "note": "B2B aggregate buyer 20260705071905"
+          },
+          "companyContact": {
+            "firstName": "Aggregate",
+            "lastName": "Buyer",
+            "email": "b2b-aggregate-buyer-20260705071905@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "B2B aggregate buyer 20260705071905 HQ",
+            "phone": "+16135550145",
+            "shippingAddress": {
+              "address1": "145 Aggregate Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companyCreate": {
+              "company": {
+                "id": "gid://shopify/Company/5731615026",
+                "name": "B2B aggregate buyer 20260705071905",
+                "mainContact": {
+                  "id": "gid://shopify/CompanyContact/10416554290",
+                  "customer": {
+                    "id": "gid://shopify/Customer/10900235288882"
+                  }
+                },
+                "locations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyLocation/8602353970",
+                      "name": "B2B aggregate buyer 20260705071905 HQ"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "draftOrderCreate": {
+      "query": "mutation B2BCompanyLocationOrderAggregatesDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        status\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5731615026",
+              "companyContactId": "gid://shopify/CompanyContact/10416554290",
+              "companyLocationId": "gid://shopify/CompanyLocation/8602353970"
+            }
+          },
+          "email": "b2b-aggregate-draft-20260705071905@example.com",
+          "note": "B2B company/location aggregate order 20260705071905",
+          "tags": ["b2b-company-location-order-aggregates", "b2b-aggregate-20260705071905"],
+          "visibleToCustomer": false,
+          "lineItems": [
+            {
+              "title": "B2B aggregate item 20260705071905",
+              "quantity": 1,
+              "originalUnitPrice": "25.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1276035989810",
+                "status": "OPEN",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "draftOrderComplete": {
+      "query": "mutation B2BCompanyLocationOrderAggregatesDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        status\n        order {\n          id\n          name\n          currentTotalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          totalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          displayFinancialStatus\n          totalReceivedSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          purchasingEntity {\n            ... on PurchasingCompany {\n              company {\n                id\n              }\n              contact {\n                id\n              }\n              location {\n                id\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1276035989810",
+        "paymentPending": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1276035989810",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8892138160434",
+                  "name": "#1754",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "displayFinancialStatus": "PAID",
+                  "totalReceivedSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "purchasingEntity": {
+                    "company": {
+                      "id": "gid://shopify/Company/5731615026"
+                    },
+                    "contact": {
+                      "id": "gid://shopify/CompanyContact/10416554290"
+                    },
+                    "location": {
+                      "id": "gid://shopify/CompanyLocation/8602353970"
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "catalogCreate": {
+      "query": "mutation B2BCompanyLocationOrderAggregatesCatalogCreate($input: CatalogCreateInput!) {\n    catalogCreate(input: $input) {\n      catalog {\n        __typename\n        id\n        title\n        status\n        ... on CompanyLocationCatalog {\n          companyLocations(first: 5) {\n            nodes {\n              id\n              name\n            }\n          }\n        }\n      }\n      userErrors {\n        __typename\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "title": "B2B aggregate catalog 20260705071905",
+          "status": "ACTIVE",
+          "context": {
+            "companyLocationIds": ["gid://shopify/CompanyLocation/8602353970"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "__typename": "CompanyLocationCatalog",
+                "id": "gid://shopify/CompanyLocationCatalog/154263650610",
+                "title": "B2B aggregate catalog 20260705071905",
+                "status": "ACTIVE",
+                "companyLocations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyLocation/8602353970",
+                      "name": "B2B aggregate buyer 20260705071905 HQ"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "aggregateRead": {
+      "query": "query B2BCompanyLocationOrderAggregatesRead($companyId: ID!, $locationId: ID!) {\n    company(id: $companyId) {\n      id\n      totalSpent {\n        amount\n        currencyCode\n      }\n      spend: totalSpent {\n        value: amount\n        currencyCode\n      }\n      ordersCount {\n        count\n        precision\n      }\n      orderSummary: ordersCount {\n        total: count\n        precision\n      }\n      lifetimeDuration\n    }\n    companyLocation(id: $locationId) {\n      id\n      totalSpent {\n        amount\n        currencyCode\n      }\n      locationSpend: totalSpent {\n        value: amount\n        currencyCode\n      }\n      currency\n      ordersCount {\n        count\n        precision\n      }\n      orderSummary: ordersCount {\n        total: count\n        precision\n      }\n      catalogs(first: 5) {\n        nodes {\n          __typename\n          id\n          title\n        }\n      }\n    }\n    companyNode: node(id: $companyId) {\n      __typename\n      ... on Company {\n        totalSpent {\n          amount\n          currencyCode\n        }\n        ordersCount {\n          count\n          precision\n        }\n        lifetimeDuration\n      }\n    }\n    locationNode: node(id: $locationId) {\n      __typename\n      ... on CompanyLocation {\n        totalSpent {\n          amount\n          currencyCode\n        }\n        currency\n        ordersCount {\n          count\n          precision\n        }\n        catalogs(first: 5) {\n          nodes {\n            __typename\n            id\n            title\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "companyId": "gid://shopify/Company/5731615026",
+        "locationId": "gid://shopify/CompanyLocation/8602353970"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "company": {
+              "id": "gid://shopify/Company/5731615026",
+              "totalSpent": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              },
+              "spend": {
+                "value": "25.0",
+                "currencyCode": "CAD"
+              },
+              "ordersCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "orderSummary": {
+                "total": 1,
+                "precision": "EXACT"
+              },
+              "lifetimeDuration": "less than 5 seconds"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8602353970",
+              "totalSpent": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              },
+              "locationSpend": {
+                "value": "25.0",
+                "currencyCode": "CAD"
+              },
+              "currency": "CAD",
+              "ordersCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "orderSummary": {
+                "total": 1,
+                "precision": "EXACT"
+              },
+              "catalogs": {
+                "nodes": [
+                  {
+                    "__typename": "CompanyLocationCatalog",
+                    "id": "gid://shopify/CompanyLocationCatalog/154263650610",
+                    "title": "B2B aggregate catalog 20260705071905"
+                  }
+                ]
+              }
+            },
+            "companyNode": {
+              "__typename": "Company",
+              "totalSpent": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              },
+              "ordersCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "lifetimeDuration": "less than 5 seconds"
+            },
+            "locationNode": {
+              "__typename": "CompanyLocation",
+              "totalSpent": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              },
+              "currency": "CAD",
+              "ordersCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "catalogs": {
+                "nodes": [
+                  {
+                    "__typename": "CompanyLocationCatalog",
+                    "id": "gid://shopify/CompanyLocationCatalog/154263650610",
+                    "title": "B2B aggregate catalog 20260705071905"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation B2BCompanyLocationOrderAggregatesOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8892138160434",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/234d8a60-135c-4321-ae14-9f16874b636b",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation B2BCompanyLocationOrderAggregatesOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8892138160434"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8892138160434",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation B2BCompanyLocationOrderAggregatesCatalogDelete($id: ID!) {\n    catalogDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/CompanyLocationCatalog/154263650610"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/CompanyLocationCatalog/154263650610",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation B2BCompanyLocationOrderAggregatesCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Company/5731615026"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companyDelete": {
+              "deletedCompanyId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Failed to delete the company.",
+                  "code": "FAILED_TO_DELETE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

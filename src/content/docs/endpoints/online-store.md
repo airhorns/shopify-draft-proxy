@@ -44,11 +44,13 @@ Search/filter support covers the local subset that matters for the captured cont
 
 Nested content behavior:
 
-- `Blog.articles` and `Blog.articlesCount` are derived from effective local articles with that blog as parent
+- `Blog.articles` and `Blog.articlesCount` are derived from effective local articles with that blog as parent. `Blog.articles` uses the shared staged connection path for `first`, `last` with `before`, `after`, `before`, `reverse`, selected `nodes`/`edges`, and computed `pageInfo`; local rows therefore page the same staged article graph exposed by top-level article reads.
 - `Article.blog` resolves through the local blog graph
-- `Article.comments` and `Article.commentsCount` are derived from effective local comments with that article as parent
+- `Article.comments` and `Article.commentsCount` are derived from effective local comments with that article as parent. `Article.comments` uses the same staged connection path for `first`, `last` with `before`, `after`, `before`, `reverse`, selected `nodes`/`edges`, computed `pageInfo`, and supported local `query` filters such as captured comment status filters.
 - `Comment.article` resolves through the local article graph
 - `Article.author`, `articleAuthors`, and `articleTags` are derived from local article data
+
+Captured Admin GraphQL 2025-01 schema evidence rejects `Blog.articles(sortKey:)`, `Blog.articles(query:)`, and `Article.comments(sortKey:)`, and also rejects bare nested `last` without `before`. Those rejected argument shapes remain schema boundaries rather than local lifecycle support claims.
 
 Top-level `articles` no longer applies a published-only default when `query` is omitted, so staged unpublished content remains visible in unfiltered local catalog reads as well as through parent blog and detail relationships. Explicit `published_status` query filters still narrow the status slice.
 

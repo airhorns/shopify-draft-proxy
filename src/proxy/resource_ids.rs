@@ -1,9 +1,10 @@
-use super::DraftProxy;
+use super::{DraftProxy, StagedSortValue};
 
 pub(in crate::proxy) const SYNTHETIC_MARKER: &str = "shopify-draft-proxy=synthetic";
+const SHOPIFY_GID_PREFIX: &str = "gid://shopify/";
 
 pub(in crate::proxy) fn shopify_gid(resource_type: &str, id: impl std::fmt::Display) -> String {
-    format!("gid://shopify/{resource_type}/{id}")
+    format!("{SHOPIFY_GID_PREFIX}{resource_type}/{id}")
 }
 
 pub(in crate::proxy) fn synthetic_shopify_gid(
@@ -14,7 +15,11 @@ pub(in crate::proxy) fn synthetic_shopify_gid(
 }
 
 pub(in crate::proxy) fn is_synthetic_gid(id: &str) -> bool {
-    id.starts_with("gid://shopify/") && id.contains(SYNTHETIC_MARKER)
+    has_shopify_gid_prefix(id) && id.contains(SYNTHETIC_MARKER)
+}
+
+pub(in crate::proxy) fn has_shopify_gid_prefix(id: &str) -> bool {
+    id.starts_with(SHOPIFY_GID_PREFIX)
 }
 
 pub(in crate::proxy) fn resource_id_path_tail(id: &str) -> &str {
@@ -32,19 +37,34 @@ pub(in crate::proxy) fn shopify_gid_tail_for_type<'a>(
     id: &'a str,
     resource_type: &str,
 ) -> Option<&'a str> {
-    let rest = id.strip_prefix("gid://shopify/")?;
-    let (candidate_type, tail) = rest.split_once('/')?;
-    (candidate_type == resource_type && !tail.is_empty()).then_some(tail)
+    typed_shopify_gid_tail(id, resource_type).filter(|tail| !tail.is_empty())
 }
 
 pub(in crate::proxy) fn is_shopify_gid_of_type(id: &str, resource_type: &str) -> bool {
-    shopify_gid_tail_for_type(id, resource_type).is_some()
+    typed_shopify_gid_tail(id, resource_type).is_some()
 }
 
 pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
-    let rest = id.strip_prefix("gid://shopify/")?;
+    let rest = id.strip_prefix(SHOPIFY_GID_PREFIX)?;
     let (resource_type, resource_id) = rest.split_once('/')?;
     (!resource_type.is_empty() && !resource_id.is_empty()).then_some(resource_type)
+}
+
+fn typed_shopify_gid_tail<'a>(id: &'a str, resource_type: &str) -> Option<&'a str> {
+    let rest = id.strip_prefix(SHOPIFY_GID_PREFIX)?;
+    let (candidate_type, tail) = rest.split_once('/')?;
+    (candidate_type == resource_type).then_some(tail)
+}
+
+pub(in crate::proxy) fn resource_id_tail_sort_value(id: Option<&str>) -> StagedSortValue {
+    let tail = id.map(resource_id_tail).unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+pub(in crate::proxy) fn resource_id_matches_gid_or_tail(id: &str, value: &str) -> bool {
+    id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
 }
 
 pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> String {
@@ -122,6 +142,40 @@ mod tests {
             "gid://shopify/Product/42",
             "Product"
         ));
+        assert!(is_shopify_gid_of_type("gid://shopify/Product/", "Product"));
+        assert_eq!(
+            shopify_gid_tail_for_type("gid://shopify/Product/", "Product"),
+            None
+        );
+        assert!(has_shopify_gid_prefix("gid://shopify/"));
+    }
+
+    #[test]
+    fn compares_ids_against_full_gid_tail_and_path_tail() {
+        let synthetic = "gid://shopify/Product/42?shopify-draft-proxy=synthetic";
+        assert!(resource_id_matches_gid_or_tail(synthetic, synthetic));
+        assert!(resource_id_matches_gid_or_tail(synthetic, "42"));
+        assert!(resource_id_matches_gid_or_tail(
+            synthetic,
+            "42?shopify-draft-proxy=synthetic"
+        ));
+        assert!(!resource_id_matches_gid_or_tail(synthetic, "43"));
+    }
+
+    #[test]
+    fn sorts_gid_tails_as_numeric_then_lowercase_string() {
+        assert_eq!(
+            resource_id_tail_sort_value(Some("gid://shopify/Product/42")),
+            StagedSortValue::I64(42)
+        );
+        assert_eq!(
+            resource_id_tail_sort_value(Some("gid://shopify/Product/abc")),
+            StagedSortValue::String("abc".to_string())
+        );
+        assert_eq!(
+            resource_id_tail_sort_value(Some("gid://shopify/Product/ABC")),
+            StagedSortValue::String("abc".to_string())
+        );
     }
 
     #[test]

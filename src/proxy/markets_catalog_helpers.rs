@@ -433,21 +433,16 @@ pub(in crate::proxy) fn fixed_price_by_product_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "PriceListFixedPricesByProductBulkUpdateUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "__typename": "PriceListPriceUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("PriceListPriceUserError", field, message, Some(code))
 }
 
 // ----------------------------------------------------------------------------
@@ -474,6 +469,134 @@ fn price_edge_cursor(edge: &Value) -> String {
 
 pub(in crate::proxy) fn fixed_price_edge_variant_id(edge: &Value) -> Option<String> {
     edge["node"]["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_rule_node_variant_id(node: &Value) -> Option<String> {
+    node["productVariant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_rule_edges(price_list: &Value) -> Vec<Value> {
+    let edges = price_list["quantityRules"]["edges"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if !edges.is_empty() {
+        return edges;
+    }
+    price_list["quantityRules"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|node| {
+            json!({
+                "cursor": quantity_rule_node_variant_id(node).unwrap_or_default(),
+                "node": node,
+            })
+        })
+        .collect()
+}
+
+fn quantity_rule_edge_cursor(edge: &Value) -> String {
+    edge["cursor"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| edge.get("node").and_then(quantity_rule_node_variant_id))
+        .unwrap_or_default()
+}
+
+fn quantity_rule_nodes(price_list: &Value) -> Vec<Value> {
+    let edge_nodes = quantity_rule_edges(price_list)
+        .into_iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    if !edge_nodes.is_empty() {
+        return edge_nodes;
+    }
+    price_list["quantityRules"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn quantity_rule_connection_from_nodes(nodes: Vec<Value>) -> Value {
+    let cursors = nodes
+        .iter()
+        .filter_map(quantity_rule_node_variant_id)
+        .collect::<Vec<_>>();
+    connection_json_with_cursor(
+        nodes,
+        |_, node| quantity_rule_node_variant_id(node).unwrap_or_default(),
+        connection_page_info(
+            false,
+            false,
+            cursors.first().cloned(),
+            cursors.last().cloned(),
+        ),
+    )
+}
+
+fn quantity_rule_node_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "minimum": resolved_int_field(input, "minimum").unwrap_or(1),
+        "maximum": resolved_int_field(input, "maximum"),
+        "increment": resolved_int_field(input, "increment").unwrap_or(1),
+        "isDefault": false,
+        "originType": "FIXED",
+        "productVariant": {"id": resolved_string_field(input, "variantId").unwrap_or_default()}
+    })
+}
+
+pub(in crate::proxy) fn upsert_quantity_rule_nodes(
+    price_list: &mut Value,
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) {
+    let input_variant_ids = inputs
+        .iter()
+        .filter_map(|input| resolved_string_field(input, "variantId"))
+        .collect::<BTreeSet<_>>();
+    let mut retained = quantity_rule_nodes(price_list)
+        .into_iter()
+        .filter(|node| {
+            quantity_rule_node_variant_id(node)
+                .map(|variant_id| !input_variant_ids.contains(&variant_id))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    let mut nodes = inputs
+        .iter()
+        .rev()
+        .filter_map(|input| {
+            let variant_id = resolved_string_field(input, "variantId")?;
+            input_variant_ids
+                .contains(&variant_id)
+                .then(|| quantity_rule_node_from_input(input))
+        })
+        .collect::<Vec<_>>();
+    nodes.reverse();
+    nodes.append(&mut retained);
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert(
+            "quantityRules".to_string(),
+            quantity_rule_connection_from_nodes(nodes),
+        );
+    }
+}
+
+pub(in crate::proxy) fn delete_quantity_rule_nodes(price_list: &mut Value, variant_ids: &[String]) {
+    let nodes = quantity_rule_nodes(price_list)
+        .into_iter()
+        .filter(|node| {
+            quantity_rule_node_variant_id(node)
+                .map(|variant_id| !variant_ids.contains(&variant_id))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert(
+            "quantityRules".to_string(),
+            quantity_rule_connection_from_nodes(nodes),
+        );
+    }
 }
 
 fn price_edge_product_id(edge: &Value) -> Option<String> {
@@ -551,6 +674,27 @@ pub(in crate::proxy) fn selected_price_list_prices(
     )
 }
 
+pub(in crate::proxy) fn selected_price_list_quantity_rules(
+    price_list: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let matched = quantity_rule_edges(price_list);
+    let (edges, page_info) = connection_window(&matched, arguments, quantity_rule_edge_cursor);
+    let nodes = edges
+        .iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    selected_json(
+        &json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": page_info
+        }),
+        selection,
+    )
+}
+
 pub(in crate::proxy) fn selected_price_list_json(
     price_list: &Value,
     selection: &[SelectedField],
@@ -564,6 +708,12 @@ pub(in crate::proxy) fn selected_price_list_json(
         }
         let value = if field.name == "prices" {
             Some(selected_price_list_prices(
+                price_list,
+                &field.arguments,
+                &field.selection,
+            ))
+        } else if field.name == "quantityRules" {
+            Some(selected_price_list_quantity_rules(
                 price_list,
                 &field.arguments,
                 &field.selection,
@@ -765,6 +915,192 @@ fn rebuild_price_list_prices(price_list: &mut Value, edges: Vec<Value>) {
         object.insert("fixedPricesCount".to_string(), json!(fixed_count));
         object.insert("prices".to_string(), price_connection_from_edges(&edges));
     }
+}
+
+fn quantity_price_break_nodes(edge: &Value) -> Vec<Value> {
+    let edge_nodes = edge["node"]["quantityPriceBreaks"]["edges"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    if !edge_nodes.is_empty() {
+        return edge_nodes;
+    }
+    edge["node"]["quantityPriceBreaks"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn quantity_price_break_node_id(node: &Value) -> Option<String> {
+    node["id"].as_str().map(str::to_string)
+}
+
+fn quantity_price_break_node_variant_id(node: &Value) -> Option<String> {
+    node["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_price_break_node_minimum(node: &Value) -> Option<i64> {
+    node["minimumQuantity"].as_i64()
+}
+
+pub(in crate::proxy) fn quantity_price_break_id_for_variant_minimum(
+    price_list: &Value,
+    variant_id: &str,
+    minimum_quantity: i64,
+) -> Option<String> {
+    price_edges(price_list).into_iter().find_map(|edge| {
+        quantity_price_break_nodes(&edge)
+            .into_iter()
+            .find_map(|node| {
+                let matches_variant =
+                    quantity_price_break_node_variant_id(&node).as_deref() == Some(variant_id);
+                let matches_minimum =
+                    quantity_price_break_node_minimum(&node) == Some(minimum_quantity);
+                (matches_variant && matches_minimum)
+                    .then(|| quantity_price_break_node_id(&node))
+                    .flatten()
+            })
+    })
+}
+
+fn quantity_price_break_connection_from_nodes(nodes: Vec<Value>) -> Value {
+    let cursors = nodes
+        .iter()
+        .filter_map(quantity_price_break_node_id)
+        .collect::<Vec<_>>();
+    connection_json_with_cursor(
+        nodes,
+        |index, node| {
+            quantity_price_break_node_id(node).unwrap_or_else(|| {
+                format!(
+                    "{}:{}",
+                    quantity_price_break_node_variant_id(node).unwrap_or_default(),
+                    index
+                )
+            })
+        },
+        connection_page_info(
+            false,
+            false,
+            cursors.first().cloned(),
+            cursors.last().cloned(),
+        ),
+    )
+}
+
+fn rebuild_quantity_price_breaks(edge: &mut Value, nodes: Vec<Value>) {
+    if let Some(node) = edge.get_mut("node").and_then(Value::as_object_mut) {
+        node.insert(
+            "quantityPriceBreaks".to_string(),
+            quantity_price_break_connection_from_nodes(nodes),
+        );
+    }
+}
+
+pub(in crate::proxy) fn delete_quantity_price_break_nodes(
+    price_list: &mut Value,
+    break_ids: &[String],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let nodes = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                quantity_price_break_node_id(node)
+                    .map(|id| !break_ids.contains(&id))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
+}
+
+pub(in crate::proxy) fn delete_quantity_price_break_nodes_for_variants(
+    price_list: &mut Value,
+    variant_ids: &[String],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let nodes = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                quantity_price_break_node_variant_id(node)
+                    .or_else(|| fixed_price_edge_variant_id(edge))
+                    .map(|variant_id| !variant_ids.contains(&variant_id))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
+}
+
+pub(in crate::proxy) fn quantity_price_break_node_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    id: String,
+    currency: &str,
+) -> Value {
+    let resolved = ResolvedValue::Object(input.clone());
+    let amount = fixed_price_input_amount(&resolved, "price").unwrap_or_else(|| "0.0".to_string());
+    let currency_code = fixed_price_input_currency(&resolved, "price")
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| currency.to_string());
+    let variant_id = resolved_string_field(input, "variantId").unwrap_or_default();
+    json!({
+        "__typename": "QuantityPriceBreak",
+        "id": id,
+        "minimumQuantity": resolved_int_field(input, "minimumQuantity").unwrap_or(1),
+        "price": money_value(&amount, &currency_code),
+        "variant": {"id": variant_id}
+    })
+}
+
+pub(in crate::proxy) fn upsert_quantity_price_break_nodes(
+    price_list: &mut Value,
+    inputs: &[(BTreeMap<String, ResolvedValue>, String)],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let Some(variant_id) = fixed_price_edge_variant_id(edge) else {
+            continue;
+        };
+        let currency = price_list_currency(price_list);
+        let new_nodes = inputs
+            .iter()
+            .filter(|(input, _)| {
+                resolved_string_field(input, "variantId").as_deref() == Some(variant_id.as_str())
+            })
+            .map(|(input, id)| quantity_price_break_node_from_input(input, id.clone(), &currency))
+            .collect::<Vec<_>>();
+        if new_nodes.is_empty() {
+            continue;
+        }
+        let replacement_keys = new_nodes
+            .iter()
+            .filter_map(|node| {
+                Some((
+                    quantity_price_break_node_variant_id(node)?,
+                    quantity_price_break_node_minimum(node)?,
+                ))
+            })
+            .collect::<BTreeSet<_>>();
+        let mut retained = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                let key = quantity_price_break_node_variant_id(node)
+                    .zip(quantity_price_break_node_minimum(node));
+                key.map(|key| !replacement_keys.contains(&key))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        let mut nodes = new_nodes;
+        nodes.append(&mut retained);
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
 }
 
 /// Dedupe inputs by `variantId`, keeping the last occurrence.
@@ -1457,8 +1793,8 @@ pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
 
 pub(in crate::proxy) fn market_localization_error(
     field: Vec<&str>,
-    code: &str,
     message: &str,
+    code: &str,
 ) -> Value {
     user_error_typed("TranslationUserError", field, message, Some(code))
 }
