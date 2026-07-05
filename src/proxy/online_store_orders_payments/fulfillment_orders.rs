@@ -26,17 +26,27 @@ pub(in crate::proxy) fn fulfillment_order_supported_actions(include_split: bool)
     Value::Array(actions)
 }
 
-pub(in crate::proxy) fn fulfillment_order_assigned_location() -> Value {
-    json!({
-        "name": "Shop location",
+pub(in crate::proxy) fn fulfillment_order_assigned_location_from_location(
+    location: &Value,
+) -> Option<Value> {
+    let id = location.get("id").and_then(Value::as_str)?;
+    let name = location
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Some(json!({
+        "name": name,
         "location": {
-            "id": synthetic_shopify_gid("Location", 1),
-            "name": "Shop location"
+            "id": id,
+            "name": name
         }
-    })
+    }))
 }
 
-pub(in crate::proxy) fn normalize_fulfillment_order_record(order: &mut Value) {
+pub(in crate::proxy) fn normalize_fulfillment_order_record(
+    order: &mut Value,
+    assigned_location: Option<&Value>,
+) {
     if order.get("updatedAt").is_none() {
         order["updatedAt"] = json!("2026-05-11T10:00:00Z");
     }
@@ -50,7 +60,9 @@ pub(in crate::proxy) fn normalize_fulfillment_order_record(order: &mut Value) {
         order["supportedActions"] = fulfillment_order_supported_actions(true);
     }
     if order.get("assignedLocation").is_none() {
-        order["assignedLocation"] = fulfillment_order_assigned_location();
+        if let Some(assigned_location) = assigned_location {
+            order["assignedLocation"] = assigned_location.clone();
+        }
     }
     if order.get("fulfillmentHolds").is_none() {
         order["fulfillmentHolds"] = json!([]);
@@ -63,10 +75,13 @@ pub(in crate::proxy) fn normalize_fulfillment_order_record(order: &mut Value) {
     }
 }
 
-pub(in crate::proxy) fn normalize_order_fulfillment_orders(order: &mut Value) {
+pub(in crate::proxy) fn normalize_order_fulfillment_orders(
+    order: &mut Value,
+    assigned_location: Option<&Value>,
+) {
     if let Some(nodes) = fulfillment_order_nodes_mut(order) {
         for node in nodes {
-            normalize_fulfillment_order_record(node);
+            normalize_fulfillment_order_record(node, assigned_location);
         }
     }
 }
@@ -570,6 +585,53 @@ pub(in crate::proxy) fn apply_fulfillment_event_to_fulfillment(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn default_fulfillment_assigned_location(&self) -> Option<Value> {
+        self.default_fulfillment_location()
+            .and_then(|location| fulfillment_order_assigned_location_from_location(&location))
+    }
+
+    fn default_fulfillment_location(&self) -> Option<Value> {
+        let mut seen = BTreeSet::new();
+        for id in &self.store.staged.observed_shipping_location_order {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            if let Some(location) = self
+                .location_for_read(id)
+                .filter(Self::location_can_assign_fulfillment_order)
+            {
+                return Some(location);
+            }
+        }
+        for id in &self.store.staged.locations.order {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            if let Some(location) = self
+                .location_for_read(id)
+                .filter(Self::location_can_assign_fulfillment_order)
+            {
+                return Some(location);
+            }
+        }
+        None
+    }
+
+    fn location_can_assign_fulfillment_order(location: &Value) -> bool {
+        location
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+            && location
+                .get("isActive")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+            && location
+                .get("fulfillsOnlineOrders")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+    }
+
     pub(in crate::proxy) fn fulfillment_order_local_mutation_data(
         &mut self,
         request: &Request,
@@ -674,7 +736,8 @@ impl DraftProxy {
         let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
             return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
         };
-        normalize_order_fulfillment_orders(&mut order);
+        let assigned_location = self.default_fulfillment_assigned_location();
+        normalize_order_fulfillment_orders(&mut order, assigned_location.as_ref());
         let Some(original_index) = order["fulfillmentOrders"]["nodes"]
             .as_array()
             .into_iter()
@@ -747,7 +810,7 @@ impl DraftProxy {
         if !submitted_lines.is_empty() {
             original["lineItems"] = order_connection(submitted_lines);
         }
-        normalize_fulfillment_order_record(&mut original);
+        normalize_fulfillment_order_record(&mut original, assigned_location.as_ref());
         order["fulfillmentOrders"]["nodes"][original_index] = original.clone();
         self.store
             .staged
@@ -810,7 +873,8 @@ impl DraftProxy {
         let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
             return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
         };
-        normalize_order_fulfillment_orders(&mut order);
+        let assigned_location = self.default_fulfillment_assigned_location();
+        normalize_order_fulfillment_orders(&mut order, assigned_location.as_ref());
         let Some(fulfillment_order) = Self::locate_fulfillment_order_mut(&mut order, &id) else {
             return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
         };
@@ -949,11 +1013,12 @@ impl DraftProxy {
 
         let mut split_results = Vec::new();
         let mut staged_ids = Vec::new();
+        let assigned_location = self.default_fulfillment_assigned_location();
         for (order_id, fulfillment_order_id, line_inputs) in planned {
             let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
-            normalize_order_fulfillment_orders(&mut order);
+            normalize_order_fulfillment_orders(&mut order, assigned_location.as_ref());
             let Some(nodes) = fulfillment_order_nodes_mut(&mut order) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
@@ -1015,7 +1080,7 @@ impl DraftProxy {
             remaining["requestStatus"] = json!("UNSUBMITTED");
             remaining["lineItems"] = order_connection(remaining_lines);
             remaining["updatedAt"] = json!("2026-05-11T10:00:00Z");
-            normalize_fulfillment_order_record(&mut remaining);
+            normalize_fulfillment_order_record(&mut remaining, assigned_location.as_ref());
             set_fulfillment_order_status_from_lines(&mut remaining);
 
             nodes[index] = original.clone();
@@ -1110,6 +1175,7 @@ impl DraftProxy {
             resolved_object_list_field(&field.arguments, "fulfillmentOrderMergeInputs");
         let mut merge_results = Vec::new();
         let mut staged_ids = Vec::new();
+        let assigned_location = self.default_fulfillment_assigned_location();
 
         for (input_index, merge_input) in merge_inputs.into_iter().enumerate() {
             let intents = resolved_object_list_field(&merge_input, "mergeIntents");
@@ -1124,7 +1190,7 @@ impl DraftProxy {
             let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
-            normalize_order_fulfillment_orders(&mut order);
+            normalize_order_fulfillment_orders(&mut order, assigned_location.as_ref());
             let Some(nodes) = fulfillment_order_nodes_mut(&mut order) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
@@ -1310,7 +1376,11 @@ impl DraftProxy {
         if let Some(object) = fulfillment_order_record.as_object_mut() {
             object.remove("order");
         }
-        normalize_fulfillment_order_record(&mut fulfillment_order_record);
+        let assigned_location = self.default_fulfillment_assigned_location();
+        normalize_fulfillment_order_record(
+            &mut fulfillment_order_record,
+            assigned_location.as_ref(),
+        );
 
         let nodes = fulfillment_order_nodes_mut(&mut order)?;
         if let Some(index) = nodes

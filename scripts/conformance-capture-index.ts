@@ -8129,6 +8129,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-create-fulfillment-assigned-location',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-create-fulfillment-assigned-location-conformance.ts',
+    purpose:
+      'orderCreate fulfillment-order assignedLocation derives from an observed real store location in mutation and downstream order read payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'read_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-create-fulfillment-assigned-location.json`,
+      'config/parity-specs/orders/orderCreate-fulfillment-assigned-location.json',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location-locations.graphql',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location.graphql',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location-read.graphql',
+    ],
+    cleanupBehavior:
+      'Reads delivery-profile locations, creates one disposable shippable test order, reads it back, then records best-effort orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-update-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
@@ -11777,7 +11796,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
     purpose:
-      'bulkOperationRunMutation immediate CREATED response for valid uploaded JSONL plus no-such-file null-operation branch.',
+      'bulkOperationRunMutation immediate CREATED response, completed import counters, downstream read-after-import, and no-such-file null-operation branch.',
     requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-run-mutation-created-status.json`,
