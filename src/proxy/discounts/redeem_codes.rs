@@ -34,11 +34,11 @@ pub(super) fn discount_redeem_code_bulk_creation(
         "codesCount": codes.len(),
         "importedCount": imported_count,
         "failedCount": failed_count,
-        "codes": {
-            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)).collect::<Vec<_>>(),
-            "edges": [],
-            "pageInfo": empty_page_info()
-        }
+        "codes": connection_json_with_empty_edges(
+            codes.iter().enumerate().map(|(index, code)| {
+                discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)
+            }).collect::<Vec<_>>()
+        )
     })
 }
 
