@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T16:07:44.163Z",
+  "capturedAt": "2026-07-05T05:23:53.797Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
@@ -8,7 +8,7 @@
       "query": "mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "email": "hermes-delete-control-1782835662372@example.com",
+          "email": "hermes-delete-control-1783229032217@example.com",
           "firstName": "Control",
           "lastName": "Delete"
         }
@@ -17,8 +17,8 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10870524870962",
-              "email": "hermes-delete-control-1782835662372@example.com",
+              "id": "gid://shopify/Customer/10900113981746",
+              "email": "hermes-delete-control-1783229032217@example.com",
               "displayName": "Control Delete"
             },
             "userErrors": []
@@ -43,8 +43,8 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10870524870962",
-            "email": "hermes-delete-control-1782835662372@example.com",
+            "id": "gid://shopify/Customer/10900113981746",
+            "email": "hermes-delete-control-1783229032217@example.com",
             "displayName": "Control Delete"
           },
           "userErrors": []
@@ -65,7 +65,7 @@
     "customerDelete": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10870524870962",
+          "deletedCustomerId": "gid://shopify/Customer/10900113981746",
           "userErrors": []
         }
       },

@@ -4242,7 +4242,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let create_query = r#"
         mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id email displayName }
+            customer { id email displayName canDelete }
             userErrors { field message }
           }
         }
@@ -4265,6 +4265,10 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["canDelete"],
+        json!(true)
+    );
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -4306,7 +4310,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         r#"
         query CustomerDeleteOrderPreconditionRead($id: ID!) {
           customer(id: $id) {
-            id email displayName
+            id email displayName canDelete
             orders(first: 5) { nodes { id customer { id email displayName } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           }
         }
@@ -4314,8 +4318,65 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         json!({ "id": customer_id }),
     ));
     assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
+    assert_eq!(read.body["data"]["customer"]["canDelete"], json!(false));
     assert_eq!(
         read.body["data"]["customer"]["orders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let seeded_customer_id = "gid://shopify/Customer/seeded-order-history";
+    restore_state_with(&mut proxy, |state| {
+        state["stagedState"]["customers"][seeded_customer_id] = json!({
+            "id": seeded_customer_id,
+            "email": "seeded-order-history@example.test",
+            "displayName": "Seeded Order History",
+            "canDelete": true,
+            "numberOfOrders": "2",
+            "orders": {
+                "edges": [
+                    {
+                        "cursor": "opaque-seeded-order-cursor",
+                        "node": {
+                            "id": "gid://shopify/Order/seeded-order",
+                            "customer": { "id": seeded_customer_id }
+                        }
+                    }
+                ],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-seeded-order-cursor",
+                    "endCursor": "opaque-seeded-order-cursor"
+                }
+            }
+        });
+    });
+
+    let seeded_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SeededOrderHistoryCustomerCanDelete($id: ID!) {
+          customer(id: $id) {
+            id
+            canDelete
+            orders(first: 5) {
+              edges { cursor node { id customer { id } } }
+              pageInfo { startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": seeded_customer_id }),
+    ));
+
+    assert_eq!(
+        seeded_read.body["data"]["customer"]["canDelete"],
+        json!(false)
+    );
+    assert_eq!(
+        seeded_read.body["data"]["customer"]["orders"]["edges"]
             .as_array()
             .unwrap()
             .len(),

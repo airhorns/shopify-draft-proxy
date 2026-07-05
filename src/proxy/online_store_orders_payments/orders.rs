@@ -2133,7 +2133,9 @@ impl DraftProxy {
                     // contact email). Mirror that record so reads of
                     // order.customer reflect the customer, not the order email.
                     if let Some(customer) = self.store.staged.customers.get(&id) {
-                        customer.clone()
+                        let mut customer = customer.clone();
+                        customer["canDelete"] = json!(false);
+                        customer
                     } else {
                         json!({
                             "id": id,
@@ -3769,7 +3771,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let Some(customer) = customer else {
+        let Some(mut customer) = customer else {
             return selected_json(
                 &json!({
                     "order": Value::Null,
@@ -3793,6 +3795,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        customer["canDelete"] = json!(false);
         order["customer"] = customer;
         if from_customer_map {
             self.store
