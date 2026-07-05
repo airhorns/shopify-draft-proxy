@@ -1887,13 +1887,6 @@ fn line_items_price_set_values(
     ]
 }
 
-fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
-    selections.iter().any(|selection| {
-        names.contains(&selection.name.as_str())
-            || selection_contains_any(&selection.selection, names)
-    })
-}
-
 fn selected_field_contains_only_any(
     selection: &SelectedField,
     names: &[&str],

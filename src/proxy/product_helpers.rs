@@ -299,14 +299,6 @@ fn publishable_node_json(
     })
 }
 
-fn product_publishable_node_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Product")),
-        "id" => Some(json!(product.id)),
-        _ => None,
-    })
-}
-
 fn product_publication_connection_node_json(
     product: &ProductRecord,
     entry: &ProductPublicationEntry,
@@ -324,7 +316,11 @@ fn product_publication_connection_node_json(
                 .map(|value| json!(value))
                 .unwrap_or(Value::Null),
         ),
-        "product" => Some(product_publishable_node_json(product, &selection.selection)),
+        "product" => Some(publishable_node_json(
+            &product.id,
+            "Product",
+            &selection.selection,
+        )),
         _ => None,
     })
 }
@@ -351,7 +347,11 @@ fn resource_publication_connection_node_json(
                 .map(|value| json!(value))
                 .unwrap_or(Value::Null),
         ),
-        "publishable" => Some(product_publishable_node_json(product, &selection.selection)),
+        "publishable" => Some(publishable_node_json(
+            &product.id,
+            "Product",
+            &selection.selection,
+        )),
         _ => None,
     })
 }
@@ -3304,9 +3304,8 @@ pub(in crate::proxy) fn product_create_user_errors_response(
     shop: &Value,
     errors: Vec<Value>,
 ) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| ("productCreate".to_string(), Vec::new()));
+    let (response_key, payload_selection) =
+        primary_root_response_selection(query, &BTreeMap::new(), || "productCreate".to_string());
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
@@ -3873,9 +3872,10 @@ fn product_missing_product_response(
     null_payload_field: &str,
     shop: Option<&Value>,
 ) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| (default_response_key.to_string(), Vec::new()));
+    let (response_key, payload_selection) =
+        primary_root_response_selection(query, &BTreeMap::new(), || {
+            default_response_key.to_string()
+        });
     let user_errors = [user_error(
         ["id"],
         "Product does not exist",

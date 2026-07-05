@@ -5,9 +5,10 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     variables: &BTreeMap<String, ResolvedValue>,
     store: &Store,
 ) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, variables)
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
+    let (response_key, payload_selection) =
+        primary_root_response_selection(query, variables, || {
+            "quantityPricingByVariantUpdate".to_string()
+        });
     let input = resolved_object_field(variables, "input").unwrap_or_default();
     let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
     let mut product_variant_ids = quantity_pricing_variant_ids_from_input(&input);

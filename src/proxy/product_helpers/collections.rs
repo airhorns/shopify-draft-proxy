@@ -337,14 +337,7 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
 }
 
 fn merge_observed_collection_into_local(local: &Value, observed: &Value) -> Value {
-    let (Some(local), Some(observed)) = (local.as_object(), observed.as_object()) else {
-        return local.clone();
-    };
-    let mut merged = observed.clone();
-    for (key, value) in local {
-        merged.insert(key.clone(), value.clone());
-    }
-    Value::Object(merged)
+    shallow_merged_object(observed.clone(), local.clone())
 }
 
 impl DraftProxy {
@@ -1392,14 +1385,6 @@ impl DraftProxy {
         }
     }
 
-    fn collection_payload_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<RootFieldSelection> {
-        primary_root_field(query, variables).or_else(|| primary_root_field(query, &BTreeMap::new()))
-    }
-
     fn collection_create(
         &mut self,
         query: &str,
@@ -1960,10 +1945,8 @@ impl DraftProxy {
         job: Option<&Value>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let (response_key, payload_selection) = self
-            .collection_payload_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || root_field.to_string());
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
@@ -1986,10 +1969,8 @@ impl DraftProxy {
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let (response_key, payload_selection) = self
-            .collection_payload_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "collectionDelete".to_string());
         let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {

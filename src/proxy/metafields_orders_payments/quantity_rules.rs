@@ -6,9 +6,8 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     variables: &BTreeMap<String, ResolvedValue>,
     store: &Store,
 ) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, variables)
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+    let (response_key, payload_selection) =
+        primary_root_response_selection(query, variables, || root_field.to_string());
     let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
         let variant_ids = list_string_field(variables, "variantIds");

@@ -381,9 +381,7 @@ impl DraftProxy {
                         .unwrap_or(Value::Null),
                 )
             }
-            _ => selected_json(customer, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(customer, field),
         })
     }
 
@@ -749,9 +747,7 @@ impl DraftProxy {
                     })
                     .unwrap_or(Value::Null),
             ),
-            _ => selected_json(&payload, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(&payload, field),
         })
     }
 
@@ -764,9 +760,7 @@ impl DraftProxy {
             "account" => transaction
                 .get("account")
                 .map(|account| self.selected_store_credit_account(account, &field.selection)),
-            _ => selected_json(transaction, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(transaction, field),
         })
     }
 
@@ -793,9 +787,7 @@ impl DraftProxy {
                     value_id_cursor,
                 ))
             }
-            _ => selected_json(account, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(account, field),
         })
     }
 
@@ -1009,9 +1001,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("orderCreate".to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "orderCreate".to_string());
         let order_input = resolved_object_field(variables, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
         let customer = self
@@ -1099,9 +1090,7 @@ impl DraftProxy {
                     .unwrap_or_default();
                 Some(self.customer_with_order_connection(id, customer, &field.selection))
             }
-            _ => selected_json(payload, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(payload, field),
         })
     }
 
@@ -4853,9 +4842,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| ("customerMerge".to_string(), Vec::new(), BTreeMap::new()));
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "customerMerge".to_string());
         let one_id = resolved_string_field(&arguments, "customerOneId")
             .or_else(|| resolved_string_field(variables, "customerOneId"))
             .unwrap_or_default();
@@ -4892,9 +4880,8 @@ impl DraftProxy {
         root_field: &str,
         request_erasure: bool,
     ) -> Response {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new(), BTreeMap::new()));
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || root_field.to_string());
         let customer_id = resolved_string_field(&arguments, "customerId")
             .or_else(|| resolved_string_field(variables, "customerId"))
             .unwrap_or_default();

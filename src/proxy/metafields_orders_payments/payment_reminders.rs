@@ -18,7 +18,7 @@ impl DraftProxy {
             .iter()
             .find(|field| field.name == "paymentReminderSend")?;
 
-        if payment_reminder_selection_contains(&field.selection, "customerPaymentMethod") {
+        if selection_contains_any(&field.selection, &["customerPaymentMethod"]) {
             return Some(payment_reminder_invalid_selection_error(
                 query,
                 &document.operation_path,
@@ -249,16 +249,6 @@ impl DraftProxy {
         }
         payment_reminder_success_payload()
     }
-}
-
-pub(in crate::proxy) fn payment_reminder_selection_contains(
-    selections: &[SelectedField],
-    field_name: &str,
-) -> bool {
-    selections.iter().any(|selection| {
-        selection.name == field_name
-            || payment_reminder_selection_contains(&selection.selection, field_name)
-    })
 }
 
 pub(in crate::proxy) fn payment_reminder_invalid_gid_error(
