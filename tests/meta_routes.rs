@@ -69,6 +69,14 @@ fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
 
+fn event_action_subject(event: &Value) -> (String, String, String) {
+    (
+        event["action"].as_str().unwrap().to_string(),
+        event["subjectType"].as_str().unwrap().to_string(),
+        event["subjectId"].as_str().unwrap().to_string(),
+    )
+}
+
 fn base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
@@ -769,6 +777,44 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     assert_eq!(state.body["stagedState"]["collections"], json!({}));
     assert_eq!(state.body["stagedState"]["deletedCollectionIds"], json!([]));
     assert_eq!(state.body["stagedState"]["collectionJobs"], json!({}));
+    assert_eq!(state.body["baseState"]["events"], json!({}));
+    assert_eq!(state.body["baseState"]["eventOrder"], json!([]));
+    assert_eq!(state.body["stagedState"]["deletedEventIds"], json!([]));
+    let staged_events = state.body["stagedState"]["events"]
+        .as_object()
+        .expect("staged events should be exposed as an object");
+    assert_eq!(staged_events.len(), 3);
+    assert_eq!(
+        state.body["stagedState"]["eventOrder"]
+            .as_array()
+            .expect("event order should be an array")
+            .len(),
+        3
+    );
+    let mut event_subjects = staged_events
+        .values()
+        .map(event_action_subject)
+        .collect::<Vec<_>>();
+    event_subjects.sort();
+    let mut expected_event_subjects = vec![
+        (
+            "create".to_string(),
+            "PRODUCT".to_string(),
+            "gid://shopify/Product/1?shopify-draft-proxy=synthetic".to_string(),
+        ),
+        (
+            "create".to_string(),
+            "PRODUCT_VARIANT".to_string(),
+            "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic".to_string(),
+        ),
+        (
+            "destroy".to_string(),
+            "PRODUCT".to_string(),
+            "gid://shopify/Product/base".to_string(),
+        ),
+    ];
+    expected_event_subjects.sort();
+    assert_eq!(event_subjects, expected_event_subjects);
     let mut state_body = state.body.clone();
     state_body["stagedState"]
         .as_object_mut()
@@ -782,6 +828,26 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .as_object_mut()
         .expect("stagedState is object")
         .remove("collectionJobs");
+    state_body["baseState"]
+        .as_object_mut()
+        .expect("baseState is object")
+        .remove("events");
+    state_body["baseState"]
+        .as_object_mut()
+        .expect("baseState is object")
+        .remove("eventOrder");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("events");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("eventOrder");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("deletedEventIds");
     let mut expected: Value = serde_json::from_str(
         r##"
             {
@@ -1055,11 +1121,11 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "reverseFulfillmentOrders": {},
                     "revokedAppAccessScopes": {},
                     "savedSearchOrder": [
-                        "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"
+                        "gid://shopify/SavedSearch/7?shopify-draft-proxy=synthetic"
                     ],
                     "savedSearches": {
-                        "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic": {
-                            "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
+                        "gid://shopify/SavedSearch/7?shopify-draft-proxy=synthetic": {
+                            "id": "gid://shopify/SavedSearch/7?shopify-draft-proxy=synthetic",
                             "name": "Promo products",
                             "query": "tag:promo",
                             "resourceType": "PRODUCT"
@@ -1114,14 +1180,15 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         200
     );
     let create_saved_search_query = "mutation { savedSearchCreate(input: { name: \"Promo products\", query: \"tag:promo\", resourceType: PRODUCT }) { savedSearch { id } } }";
-    assert_eq!(
-        proxy
-            .process_request(graphql_request(
-                &json!({ "query": create_saved_search_query }).to_string()
-            ))
-            .status,
-        200
-    );
+    let create_saved_search = proxy.process_request(graphql_request(
+        &json!({ "query": create_saved_search_query }).to_string(),
+    ));
+    assert_eq!(create_saved_search.status, 200);
+    let saved_search_id = create_saved_search.body["data"]["savedSearchCreate"]["savedSearch"]
+        ["id"]
+        .as_str()
+        .expect("saved search id should be returned")
+        .to_string();
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -1165,6 +1232,33 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         })
     );
 
+    let restored_events_read = restored.process_request(graphql_request(
+        &json!({ "query": "{ events(first: 10, sortKey: ID) { nodes { action ... on BasicEvent { subjectId subjectType } } } }" }).to_string(),
+    ));
+    assert_eq!(restored_events_read.status, 200);
+    let restored_event_nodes = restored_events_read.body["data"]["events"]["nodes"]
+        .as_array()
+        .expect("restored event nodes should be present");
+    let mut restored_event_subjects = restored_event_nodes
+        .iter()
+        .map(event_action_subject)
+        .collect::<Vec<_>>();
+    restored_event_subjects.sort();
+    let mut expected_restored_event_subjects = vec![
+        (
+            "create".to_string(),
+            "PRODUCT".to_string(),
+            "gid://shopify/Product/1?shopify-draft-proxy=synthetic".to_string(),
+        ),
+        (
+            "create".to_string(),
+            "PRODUCT_VARIANT".to_string(),
+            "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic".to_string(),
+        ),
+    ];
+    expected_restored_event_subjects.sort();
+    assert_eq!(restored_event_subjects, expected_restored_event_subjects);
+
     let restored_saved_search_read = restored.process_request(graphql_request(
         &json!({ "query": "{ productSavedSearches(query: \"Promo\") { nodes { id name query resourceType } } }" }).to_string(),
     ));
@@ -1175,7 +1269,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
             "data": {
                 "productSavedSearches": {
                     "nodes": [{
-                        "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
+                        "id": saved_search_id,
                         "name": "Promo products",
                         "query": "tag:promo",
                         "resourceType": "PRODUCT"
@@ -1193,7 +1287,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     ));
     assert_eq!(
         next_create.body["data"]["productCreate"]["product"]["id"],
-        json!("gid://shopify/Product/5?shopify-draft-proxy=synthetic")
+        json!("gid://shopify/Product/7?shopify-draft-proxy=synthetic")
     );
 }
 

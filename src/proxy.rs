@@ -247,6 +247,7 @@ struct Store {
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
+    events: OrderedRecords<Value>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     gift_cards: BTreeMap<String, Value>,
@@ -265,6 +266,7 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    events: StagedRecords<Value>,
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
@@ -732,6 +734,7 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            events: StagedRecords::default(),
             product_feeds: StagedRecords::default(),
             selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
@@ -1274,6 +1277,30 @@ impl Store {
 
     fn product_count(&self) -> usize {
         effective_count(&self.base.products, &self.staged.products)
+    }
+
+    fn event_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.events, &self.staged.events, id)
+    }
+
+    fn events(&self) -> Vec<Value> {
+        effective_records(&self.base.events, &self.staged.events)
+    }
+
+    fn event_count(&self) -> usize {
+        effective_count(&self.base.events, &self.staged.events)
+    }
+
+    fn stage_event(&mut self, event: Value) {
+        if let Some(id) = event.get("id").and_then(Value::as_str) {
+            self.staged.events.stage(id.to_string(), event);
+        }
+    }
+
+    fn observe_event(&mut self, event: Value) {
+        if let Some(id) = event.get("id").and_then(Value::as_str) {
+            self.base.events.insert(id.to_string(), event);
+        }
     }
 
     fn has_product_state(&self) -> bool {
@@ -1975,6 +2002,7 @@ mod connection;
 mod core;
 mod discounts;
 mod dispatch;
+mod events;
 mod functions;
 mod json_helpers;
 mod localization_markets_catalogs;

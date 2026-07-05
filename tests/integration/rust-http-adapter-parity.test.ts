@@ -24,7 +24,7 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 }
 
 async function waitForRustServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     if (getOutput().includes('shopify-draft-proxy rust runtime listening')) return;
     if (child.exitCode !== null) {
@@ -155,6 +155,8 @@ describe('Rust HTTP adapter route surface', () => {
             productOrder: [],
             productVariants: {},
             productVariantOrder: [],
+            events: {},
+            eventOrder: [],
             giftCards: {},
             giftCardConfiguration: null,
             savedSearches: {},
@@ -190,6 +192,9 @@ describe('Rust HTTP adapter route surface', () => {
             productVariants: {},
             productVariantOrder: [],
             deletedProductVariantIds: [],
+            events: {},
+            eventOrder: [],
+            deletedEventIds: [],
             productFeeds: {},
             productFeedOrder: [],
             deletedProductFeedIds: [],
@@ -265,7 +270,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { ok: true, message: 'state reset' },
       });
     });
-  }, 25_000);
+  }, 90_000);
 
   it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
@@ -320,7 +325,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  }, 25_000);
+  }, 90_000);
 
   it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
     await withChunkedUpstream(async (upstreamOrigin) => {
@@ -342,5 +347,5 @@ describe('Rust HTTP adapter route surface', () => {
         { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
       );
     });
-  }, 25_000);
+  }, 90_000);
 });

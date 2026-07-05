@@ -207,6 +207,8 @@ impl DraftProxy {
                 "productOrder": self.store.base.products.order,
                 "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
                 "productVariantOrder": self.store.base.product_variants.order,
+                "events": self.store.base.events.records.clone(),
+                "eventOrder": self.store.base.events.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
                 "savedSearchOrder": self.store.base.saved_searches.order,
                 "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
@@ -227,6 +229,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "events": self.store.staged.events.records.clone(),
+                "eventOrder": self.store.staged.events.order,
+                "deletedEventIds": self.store.staged.events.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "productFeeds": self.store.staged.product_feeds.records.clone(),
                 "productFeedOrder": self.store.staged.product_feeds.order,
                 "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -836,6 +841,13 @@ impl DraftProxy {
             product_variant_state_map_from_json(&state["baseState"]["productVariants"]),
             string_array_from_json(&state["baseState"]["productVariantOrder"]),
         );
+        self.store.base.events.replace_with_order(
+            value_map_from_json(state["baseState"].get("events")),
+            state["baseState"]
+                .get("eventOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
@@ -844,6 +856,13 @@ impl DraftProxy {
             product_variant_state_map_from_json(&state["stagedState"]["productVariants"]),
             string_array_from_json(&state["stagedState"]["productVariantOrder"]),
         );
+        self.store.staged.events.replace_with_order(
+            value_map_from_json(state["stagedState"].get("events")),
+            state["stagedState"]
+                .get("eventOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.products.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedProductIds"])
                 .into_iter()
@@ -851,6 +870,14 @@ impl DraftProxy {
         );
         self.store.staged.product_variants.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedProductVariantIds"])
+                .into_iter()
+                .collect(),
+        );
+        self.store.staged.events.replace_tombstones(
+            state["stagedState"]
+                .get("deletedEventIds")
+                .map(string_array_from_json)
+                .unwrap_or_default()
                 .into_iter()
                 .collect(),
         );

@@ -641,6 +641,10 @@ impl DraftProxy {
         self.stage_owner_metafields_from_input(&id, &input);
 
         self.store.stage_product(product.clone());
+        self.stage_basic_event("create", &product.id, "");
+        for variant_id in staged_ids.iter().skip(1) {
+            self.stage_basic_event("create", variant_id, "");
+        }
 
         // Register collection membership so downstream `collection` reads expose hasProduct,
         // productsCount, and the product in their member list.
@@ -936,6 +940,7 @@ impl DraftProxy {
             extra_fields: existing.extra_fields,
         };
         self.store.stage_product(product.clone());
+        self.stage_basic_event("update", &product.id, "");
 
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "productUpdate".to_string());
@@ -1391,10 +1396,12 @@ impl DraftProxy {
                 .is_some_and(Self::is_standalone_default_variant);
 
         self.store.stage_product_variant(variant.clone());
+        self.stage_basic_event("create", &variant.id, "");
 
         if replace_default {
             for existing in &existing_variants {
                 self.store.delete_product_variant(&existing.id);
+                self.stage_basic_event("destroy", &existing.id, "");
             }
             let final_variants = self.store.product_variants_for_product(&variant.product_id);
             self.recompute_product_options_from_variants(&variant.product_id, &final_variants);
@@ -1444,6 +1451,7 @@ impl DraftProxy {
         let mut variant = existing;
         apply_product_variant_input(&mut variant, &input);
         self.store.stage_product_variant(variant.clone());
+        self.stage_basic_event("update", &variant.id, "");
         let product = self.store.product_by_id(&variant.product_id).cloned();
 
         MutationOutcome::staged(
@@ -1480,6 +1488,7 @@ impl DraftProxy {
             ));
         };
         self.store.delete_product_variant(&id);
+        self.stage_basic_event("destroy", &id, "");
         MutationOutcome::staged(
             self.product_variant_delete_response(query, Some(&id), Vec::new()),
             LogDraft::staged(
@@ -1738,6 +1747,7 @@ impl DraftProxy {
         }
         for variant in &created_variants {
             self.store.stage_product_variant(variant.clone());
+            self.stage_basic_event("create", &variant.id, "");
         }
         for (variant, input) in created_variants.iter().zip(variants_input.iter()) {
             self.stage_input_variant_metafields(&variant.id, input);
@@ -1932,6 +1942,7 @@ impl DraftProxy {
 
         for variant in &updated_variants {
             self.store.stage_product_variant(variant.clone());
+            self.stage_basic_event("update", &variant.id, "");
         }
         for (variant, input_index) in updated_variants
             .iter()
@@ -2031,6 +2042,7 @@ impl DraftProxy {
 
         for variant_id in &variant_ids {
             self.store.delete_product_variant(variant_id);
+            self.stage_basic_event("destroy", variant_id, "");
         }
         MutationOutcome::staged(
             self.product_variants_bulk_response(
@@ -2716,6 +2728,12 @@ impl DraftProxy {
 
         self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
         let shop = self.store.effective_shop();
+        let deleted_variant_ids = self
+            .store
+            .product_variants_for_product(&id)
+            .into_iter()
+            .map(|variant| variant.id)
+            .collect::<Vec<_>>();
         if is_async_delete {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
             self.store
@@ -2723,6 +2741,10 @@ impl DraftProxy {
                 .product_delete_operations
                 .insert(operation_id.clone(), id.clone());
             self.store.delete_product(&id);
+            self.stage_basic_event("destroy", &id, "");
+            for variant_id in &deleted_variant_ids {
+                self.stage_basic_event("destroy", variant_id, "");
+            }
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {
@@ -2734,6 +2756,10 @@ impl DraftProxy {
         }
 
         self.store.delete_product(&id);
+        self.stage_basic_event("destroy", &id, "");
+        for variant_id in &deleted_variant_ids {
+            self.stage_basic_event("destroy", variant_id, "");
+        }
 
         MutationOutcome::staged(
             ok_json(json!({
@@ -2823,6 +2849,7 @@ impl DraftProxy {
         product.status = status;
         product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
+        self.stage_basic_event("update", &product.id, "");
 
         let product_selection =
             selected_child_selection(&field.selection, "product").unwrap_or_default();
