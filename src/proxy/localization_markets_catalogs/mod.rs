@@ -257,17 +257,6 @@ impl PriceListFieldOutcome {
         ))
     }
 
-    fn price_list_with_user_errors(
-        field: &RootFieldSelection,
-        price_list: Value,
-        user_errors: Vec<Value>,
-    ) -> Self {
-        Self::payload(selected_json(
-            &json!({"priceList": price_list, "userErrors": user_errors}),
-            &field.selection,
-        ))
-    }
-
     fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
         Self {
             value: Value::Null,
