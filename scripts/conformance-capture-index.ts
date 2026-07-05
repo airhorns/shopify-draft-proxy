@@ -7938,6 +7938,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-commit-derived-statuses',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-commit-derived-statuses-conformance.ts',
+    purpose:
+      'orderEditCommit displayFinancialStatus, displayFulfillmentStatus, totalOutstandingSet, totalPriceSet, and currentTotalPriceSet after adding an unpaid custom item to a paid draft-completed order.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-commit-derived-statuses.json`,
+      'config/parity-specs/orders/orderEditCommit-derived-statuses.json',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-addCustomItem.graphql',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-begin.graphql',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-commit.graphql',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-draftComplete.graphql',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-draftCreate.graphql',
+      'config/parity-requests/orders/orderEditCommit-derived-statuses-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order, completes it as paid, commits one custom-item order edit, then cancels the completed order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-lifecycle-noop',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.mts',
