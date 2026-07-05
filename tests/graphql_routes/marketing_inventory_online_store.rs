@@ -588,7 +588,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -613,7 +613,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -639,6 +639,14 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         json!([])
     );
     assert_eq!(create_zulu.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(
+        create_alpha.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
+    assert_eq!(
+        create_zulu.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
 
     let alpha_id = create_alpha.body["data"]["created"]["marketingActivity"]["id"]
         .as_str()
@@ -726,7 +734,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
             "idRangeQuery": "id:>1",
             "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
             "appIdQuery": "app_id:42",
-            "appNameQuery": "app_name:42",
+            "appNameQuery": "app_name:shopify-draft-proxy",
             "unknownFieldQuery": "unknown_field:\"Alpha launch\""
         }),
     ));
@@ -1274,7 +1282,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         &json!({
             "id": activity_id,
             "remoteId": "social-remote-1",
-            "app": { "id": "gid://shopify/App/347082227713", "title": "347082227713" },
+            "app": { "id": "gid://shopify/App/347082227713", "title": "shopify-draft-proxy" },
             "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
             "marketingEvent": {
                 "id": created["marketingEvent"]["id"],
@@ -1290,6 +1298,97 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         created["marketingEvent"]["id"],
         json!(assumed_event_id),
         "marketing event ids must be allocated independently from activity ids"
+    );
+}
+
+#[test]
+fn marketing_external_activity_app_title_uses_installed_app_model() {
+    let mut proxy = snapshot_proxy();
+    let app_id = "gid://shopify/App/347082227713";
+
+    let mut observe_app = json_graphql_request(
+        r#"
+        query ObserveMarketingApp {
+          currentAppInstallation {
+            app { id title handle }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-title".to_string(),
+        "Hermes Marketing".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        "hermes-marketing".to_string(),
+    );
+    let observed_app = proxy.process_request(observe_app);
+    assert_eq!(
+        observed_app.body["data"]["currentAppInstallation"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing", "handle": "hermes-marketing" })
+    );
+
+    let mut create = json_graphql_request(
+        r#"
+        mutation CreateMarketingActivityForInstalledApp {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Installed app campaign",
+            remoteId: "installed-app-campaign",
+            status: ACTIVE,
+            tactic: NEWSLETTER,
+            marketingChannelType: EMAIL,
+            remoteUrl: "https://example.com/installed-app-campaign",
+            utm: { campaign: "installed-app-campaign", source: "email", medium: "newsletter" }
+          }) {
+            marketingActivity { id app { id title } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create);
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
+    );
+
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .expect("created activity id")
+        .to_string();
+    let mut read = json_graphql_request(
+        r#"
+        query ReadMarketingActivityApp($id: ID!) {
+          marketingActivity(id: $id) {
+            app { id title }
+          }
+        }
+        "#,
+        json!({ "id": activity_id }),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
     );
 }
 
