@@ -461,19 +461,15 @@ fn request_header_truthy(request: &Request, header: &str) -> bool {
 }
 
 fn tax_app_configure_access_denied_error(field: &RootFieldSelection) -> Value {
-    json!({
-        "message": format!(
+    top_level_access_denied_error_envelope(
+        format!(
             "Access denied for {} field. Required access: {TAX_APP_CONFIGURE_REQUIRED_ACCESS}",
             field.name
         ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": TAX_APP_CONFIGURE_REQUIRED_ACCESS
-        },
-        "path": [field.response_key.clone()]
-    })
+        Some(field.location),
+        vec![json!(field.response_key.clone())],
+        Some(TAX_APP_CONFIGURE_REQUIRED_ACCESS),
+    )
 }
 
 fn normalized_function_metadata(function: Value) -> Option<Value> {

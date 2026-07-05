@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::ParsedDocument;
 use crate::graphql::RawArgumentValue;
 
 mod collections;
@@ -4007,24 +4008,39 @@ pub(in crate::proxy) fn product_delete_required_id_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Response> {
-    let field = root_fields(query, variables)
-        .unwrap_or_default()
-        .into_iter()
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
         .find(|field| field.name == "productDelete")?;
-    let input = field
-        .raw_arguments
-        .get("input")
-        .or_else(|| field.raw_arguments.get("product"))?;
+    let input_argument_name = if field.raw_arguments.contains_key("input") {
+        "input"
+    } else {
+        "product"
+    };
+    let input = field.raw_arguments.get(input_argument_name)?;
+    let inline_location =
+        inline_argument_value_location(query, field, input_argument_name).unwrap_or(field.location);
 
     match input {
         RawArgumentValue::Object(input) => match input.get("id") {
-            None => Some(product_delete_inline_missing_id_error()),
-            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error()),
+            None => Some(product_delete_inline_missing_id_error(
+                &document.operation_path,
+                field,
+                input_argument_name,
+                inline_location,
+            )),
+            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error(
+                &document.operation_path,
+                field,
+                input_argument_name,
+                inline_location,
+            )),
             _ => None,
         },
-        RawArgumentValue::Variable { name, value: None } => {
-            Some(product_delete_variable_required_id_error(Value::Null, name))
-        }
+        RawArgumentValue::Variable { name, value: None } => Some(
+            product_delete_variable_required_id_error(Value::Null, name, &document, field),
+        ),
         RawArgumentValue::Variable {
             name,
             value: Some(ResolvedValue::Object(input)),
@@ -4032,10 +4048,14 @@ pub(in crate::proxy) fn product_delete_required_id_error(
             None => Some(product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
+                &document,
+                field,
             )),
             Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
+                &document,
+                field,
             )),
             _ => None,
         },
@@ -4077,46 +4097,56 @@ fn product_missing_product_response(
     }))
 }
 
-pub(in crate::proxy) fn product_delete_inline_missing_id_error() -> Response {
+pub(in crate::proxy) fn product_delete_inline_missing_id_error(
+    operation_path: &str,
+    field: &RootFieldSelection,
+    input_argument_name: &str,
+    location: SourceLocation,
+) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
-            "locations": [{"line": 3, "column": 26}],
-            "path": ["mutation", "productDelete", "input", "id"],
-            "extensions": {
-                "code": "missingRequiredInputObjectAttribute",
-                "argumentName": "id",
-                "argumentType": "ID!",
-                "inputObjectType": "ProductDeleteInput"
-            }
-        }]
+        "errors": [missing_required_input_object_attribute_error_envelope(
+            "ProductDeleteInput",
+            "id",
+            "ID!",
+            location,
+            json!([operation_path, field.response_key.clone(), input_argument_name, "id"]),
+        )]
     }))
 }
 
-pub(in crate::proxy) fn product_delete_inline_null_id_error() -> Response {
+pub(in crate::proxy) fn product_delete_inline_null_id_error(
+    operation_path: &str,
+    field: &RootFieldSelection,
+    input_argument_name: &str,
+    location: SourceLocation,
+) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
-            "locations": [{"line": 3, "column": 26}],
-            "path": ["mutation", "productDelete", "input", "id"],
-            "extensions": {
-                "code": "argumentLiteralsIncompatible",
-                "typeName": "InputObject",
-                "argumentName": "id"
-            }
-        }]
+        "errors": [argument_literals_incompatible_error_envelope(
+            "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.".to_string(),
+            Some(location),
+            Some(json!([operation_path, field.response_key.clone(), input_argument_name, "id"])),
+            Some("InputObject"),
+            Some("id"),
+        )]
     }))
 }
 
 pub(in crate::proxy) fn product_delete_variable_required_id_error(
     value: Value,
     variable_name: &str,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
 ) -> Response {
-    let message = format!("Variable ${variable_name} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)");
+    let (variable_type, location) = document
+        .variable_definitions
+        .get(variable_name)
+        .map(|definition| (definition.type_display.as_str(), definition.location))
+        .unwrap_or(("ProductDeleteInput!", field.location));
+    let message = format!("Variable ${variable_name} of type {variable_type} was provided invalid value for id (Expected value to not be null)");
     ok_json(json!({
         "errors": [invalid_variable_error_envelope(
             message,
-            SourceLocation { line: 2, column: 37 },
+            location,
             value,
             json!([{ "path": ["id"], "explanation": "Expected value to not be null" }]),
         )]

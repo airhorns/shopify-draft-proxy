@@ -50,7 +50,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let invalid_literal = proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInvalidEnumLiteral {
-          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [FAKE_TAX_EXEMPTION]) {
             companyLocation { id taxSettings { taxExemptions } }
             userErrors { field message code }
           }
@@ -65,7 +65,8 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     );
     assert!(invalid_literal.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+        .is_some_and(|message| message.contains("FAKE_TAX_EXEMPTION")
+            && !message.contains("NOT_A_REAL_EXEMPTION")
             && message.contains("CA_STATUS_CARD_EXEMPTION")));
     assert!(invalid_literal.body["data"].is_null());
 

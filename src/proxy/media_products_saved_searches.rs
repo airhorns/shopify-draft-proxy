@@ -2794,8 +2794,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        let Some(field) = fields
+        let Some(document) = parsed_document(query, variables) else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productChangeStatus root field found",
+            ));
+        };
+        let Some(field) = document
+            .root_fields
             .iter()
             .find(|field| field.name == "productChangeStatus")
         else {
@@ -2806,16 +2812,17 @@ impl DraftProxy {
         };
         if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-                    "locations": [{"line": 3, "column": 3}],
-                    "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "Field",
-                        "argumentName": "productId"
-                    }
-                }]
+                "errors": [argument_literals_incompatible_error_envelope(
+                    "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.".to_string(),
+                    Some(field.location),
+                    Some(json!([
+                        document.operation_path.as_str(),
+                        field.response_key.clone(),
+                        "productId"
+                    ])),
+                    Some("Field"),
+                    Some("productId"),
+                )]
             })));
         }
         let Some(ResolvedValue::String(id)) = field.arguments.get("productId") else {

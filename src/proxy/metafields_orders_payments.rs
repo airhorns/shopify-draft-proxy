@@ -714,23 +714,17 @@ pub(in crate::proxy) fn metafields_set_coercion_error(
     let message = format!(
         "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, &variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": value,
-            "problems": problems_json,
-        }),
-    );
-    Some(ok_json(json!({ "errors": [Value::Object(error)] })))
+    let location = graphql_variable_definition_location(query, &variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    Some(ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            Value::Array(value),
+            Value::Array(problems_json),
+        )]
+    })))
 }
 
 /// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
