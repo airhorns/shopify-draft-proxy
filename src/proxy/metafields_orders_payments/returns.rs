@@ -981,9 +981,7 @@ impl DraftProxy {
                 &field.arguments,
                 &field.selection,
             )),
-            _ => selected_json(&order, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(&order, field),
         })
     }
 

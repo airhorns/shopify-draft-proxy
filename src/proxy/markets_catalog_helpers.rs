@@ -564,9 +564,7 @@ pub(in crate::proxy) fn selected_price_list_json(
                 &field.selection,
             ))
         } else {
-            selected_json(price_list, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|projected| projected.get(&field.response_key).cloned())
+            selected_field_json(price_list, field)
         };
         if let Some(value) = value {
             record.insert(field.response_key.clone(), value);

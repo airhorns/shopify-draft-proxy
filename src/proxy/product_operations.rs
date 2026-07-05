@@ -6,17 +6,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let root_field = primary_root_field(query, variables);
-        let (response_key, payload_selection, arguments) = root_field
-            .as_ref()
-            .map(|field| {
-                (
-                    field.response_key.clone(),
-                    field.selection.clone(),
-                    field.arguments.clone(),
-                )
-            })
-            .unwrap_or_else(|| ("productSet".into(), Vec::new(), BTreeMap::new()));
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "productSet".into());
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let operation_selection =
@@ -395,7 +386,9 @@ impl DraftProxy {
         }
         let (response_key, payload_selection, arguments) = field
             .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| ("productDuplicate".into(), Vec::new(), BTreeMap::new()));
+            .unwrap_or_else(|| {
+                primary_root_response_parts(query, variables, || "productDuplicate".into())
+            });
         let new_product_selection =
             selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
         let operation_selection =
@@ -509,9 +502,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| (root_field.into(), Vec::new(), BTreeMap::new()));
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || root_field.into());
         let operation_selection =
             selected_child_selection(&payload_selection, "productBundleOperation")
                 .unwrap_or_default();

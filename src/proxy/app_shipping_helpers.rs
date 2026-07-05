@@ -758,10 +758,7 @@ pub(in crate::proxy) fn delivery_profile_payload_json(
             } else {
                 delivery_profile_selected_json(&profile, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -779,25 +776,10 @@ pub(in crate::proxy) fn delivery_profile_remove_payload_json(
             } else {
                 selected_json(&job, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
-}
-
-pub(in crate::proxy) fn delivery_profile_user_errors_json(
-    user_errors: Vec<Value>,
-    selection: &[SelectedField],
-) -> Value {
-    Value::Array(
-        user_errors
-            .into_iter()
-            .map(|error| selected_json(&error, selection))
-            .collect(),
-    )
 }
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
@@ -1527,7 +1509,7 @@ pub(in crate::proxy) fn fulfillment_service_payload_json(
             } else {
                 selected_json(&service, service_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -1556,7 +1538,7 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })

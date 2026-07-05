@@ -657,9 +657,8 @@ impl DraftProxy {
         variants: Vec<ProductVariantRecord>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
         let payload = product_option_payload_json(
             &payload_selection,
             product,
@@ -680,9 +679,10 @@ impl DraftProxy {
         deleted_options_ids: Vec<String>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("productOptionsDelete".to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productOptionsDelete".to_string()
+            });
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
