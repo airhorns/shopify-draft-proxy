@@ -1073,9 +1073,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productCreate-category-parity.json`,
+      `${CAPTURE_ROOT}productCreate-category-non-sentinel-parity.json`,
       `${CAPTURE_ROOT}productCreate-requires-selling-plan-parity.json`,
       `${CAPTURE_ROOT}productCreate-collections-to-join-parity.json`,
       'config/parity-specs/products/productCreate-category-parity.json',
+      'config/parity-specs/products/productCreate-category-non-sentinel-parity.json',
       'config/parity-specs/products/productCreate-requires-selling-plan-parity.json',
       'config/parity-specs/products/productCreate-collections-to-join-parity.json',
       'config/parity-requests/products/productCreate-category-parity.graphql',
