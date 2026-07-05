@@ -448,7 +448,7 @@ fn tax_app_configure_has_authority(request: &Request) -> bool {
 }
 
 fn request_has_access_scope(request: &Request, expected: &str) -> bool {
-    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some_and(|scopes| {
+    request_header(request, ACCESS_SCOPES_HEADER).is_some_and(|scopes| {
         scopes
             .split(',')
             .map(str::trim)
@@ -561,7 +561,7 @@ fn function_matches_canonical_api_type(function: &Value, api_type: &str) -> bool
 fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
     let Some(caller_api_client_id) = request
         .headers
-        .get("x-shopify-draft-proxy-api-client-id")
+        .get(API_CLIENT_ID_HEADER)
         .filter(|value| !value.is_empty())
     else {
         return true;
