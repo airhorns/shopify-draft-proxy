@@ -139,6 +139,197 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
+#[test]
+fn product_variant_count_and_compare_at_range_follow_effective_variants() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductForVariantCount($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Derived compare-at range product",
+                "productOptions": [
+                    { "name": "Color", "values": [{ "name": "Red" }] }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let initial_variant_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateInitialCompareAt($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            product { id totalVariants }
+            productVariants { id compareAtPrice }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": initial_variant_id, "price": "10.00", "compareAtPrice": "15.00" }]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let bulk_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMoreCompareAtVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { id totalVariants }
+            productVariants { id compareAtPrice }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                {
+                    "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                    "price": "5.00",
+                    "compareAtPrice": "9.00"
+                },
+                {
+                    "optionValues": [{ "optionName": "Color", "name": "Green" }],
+                    "price": "20.00",
+                    "compareAtPrice": "30.00"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(bulk_create.status, 200);
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    let blue_variant_id = bulk_create.body["data"]["productVariantsBulkCreate"]["productVariants"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantCountAndCompareAtRange($id: ID!) {
+          product(id: $id) {
+            totalVariants
+            vc: variantsCount { c: count p: precision }
+            compareRange: compareAtPriceRange {
+              min: minVariantCompareAtPrice { amt: amount cur: currencyCode }
+              max: maxVariantCompareAtPrice { amt: amount cur: currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "totalVariants": 3,
+            "vc": { "c": 3, "p": "EXACT" },
+            "compareRange": {
+                "min": { "amt": "9.0", "cur": "USD" },
+                "max": { "amt": "30.0", "cur": "USD" }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCompareAtVariant($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product {
+              totalVariants
+              variantsCount { count precision }
+              compareAtPriceRange {
+                minVariantCompareAtPrice { amount currencyCode }
+                maxVariantCompareAtPrice { amount currencyCode }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantsIds": [blue_variant_id] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["product"],
+        json!({
+            "totalVariants": 2,
+            "variantsCount": { "count": 2, "precision": "EXACT" },
+            "compareAtPriceRange": {
+                "minVariantCompareAtPrice": { "amount": "15.0", "currencyCode": "USD" },
+                "maxVariantCompareAtPrice": { "amount": "30.0", "currencyCode": "USD" }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_variant_count_and_compare_at_range_handle_products_without_variants() {
+    let product_id = "gid://shopify/Product/variant-count-empty";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductWithoutVariants($id: ID!) {
+          product(id: $id) {
+            variantsCount { count precision }
+            compareAtPriceRange {
+              minVariantCompareAtPrice { amount currencyCode }
+              maxVariantCompareAtPrice { amount currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "variantsCount": { "count": 0, "precision": "EXACT" },
+            "compareAtPriceRange": null
+        })
+    );
+}
+
 fn create_product_for_relationship_test(
     proxy: &mut DraftProxy,
     title: &str,
@@ -7403,6 +7594,212 @@ fn publishable_current_channel_payload_reflects_staged_membership() {
                 "resourcePublications": { "nodes": [] }
             },
             "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn product_read_resolves_published_on_current_publication_from_current_channel() {
+    let current_product_id = "gid://shopify/Product/current-channel-product-read";
+    let default_only_product_id = "gid://shopify/Product/default-publication-only";
+    let mut default_only_product = ProductRecord {
+        id: default_only_product_id.to_string(),
+        title: "Default publication only product".to_string(),
+        handle: "default-publication-only-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    default_only_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/1" }]),
+    );
+    let forwarded = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![
+            ProductRecord {
+                id: current_product_id.to_string(),
+                title: "Current channel product read".to_string(),
+                handle: "current-channel-product-read".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+            default_only_product,
+        ])
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "publication": {
+                                "id": "gid://shopify/Publication/current-channel"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishCurrentForProductRead($id: ID!) {
+          publishablePublishToCurrentChannel(id: $id) {
+            publishable { ... on Product { id publishedOnCurrentPublication } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": current_product_id }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublishToCurrentChannel"],
+        json!({
+            "publishable": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["currentChannelPublicationId"],
+        json!("gid://shopify/Publication/current-channel")
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["currentChannelPublicationResolved"],
+        json!(true)
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["resourcePublications"][current_product_id],
+        json!(["gid://shopify/Publication/current-channel"])
+    );
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_state = state_snapshot(&proxy);
+    assert_eq!(
+        restored_state["stagedState"]["currentChannelPublicationId"],
+        json!("gid://shopify/Publication/current-channel")
+    );
+    assert_eq!(
+        restored_state["stagedState"]["currentChannelPublicationResolved"],
+        json!(true)
+    );
+    assert_eq!(
+        restored_state["stagedState"]["resourcePublications"][current_product_id],
+        json!(["gid://shopify/Publication/current-channel"])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationRead($currentId: ID!, $defaultOnlyId: ID!) {
+          current: product(id: $currentId) {
+            id
+            publishedOnCurrentPublication
+          }
+          defaultOnly: product(id: $defaultOnlyId) {
+            id
+            publishedOnCurrentPublication
+          }
+          currentNode: node(id: $currentId) {
+            ... on Product {
+              id
+              publishedOnCurrentPublication
+            }
+          }
+        }
+        "#,
+        json!({
+            "currentId": current_product_id,
+            "defaultOnlyId": default_only_product_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "current": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "defaultOnly": {
+                "id": default_only_product_id,
+                "publishedOnCurrentPublication": false
+            },
+            "currentNode": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            }
+        })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let fallback_product_id = "gid://shopify/Product/default-publication-fallback";
+    let mut fallback_product = ProductRecord {
+        id: fallback_product_id.to_string(),
+        title: "Default publication fallback product".to_string(),
+        handle: "default-publication-fallback-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    fallback_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/1" }]),
+    );
+    let mut fallback_proxy = snapshot_proxy().with_base_products(vec![fallback_product]);
+    let fallback_dump =
+        fallback_proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(fallback_dump.status, 200);
+    let mut fallback_state = fallback_dump.body;
+    fallback_state["state"]["baseState"]["publicationIds"] = json!(["gid://shopify/Publication/1"]);
+    fallback_state["state"]["baseState"]["publicationCount"] = json!(1);
+    let fallback_restore = fallback_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &fallback_state.to_string(),
+    ));
+    assert_eq!(fallback_restore.status, 200);
+
+    let fallback_read = fallback_proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationDefaultFallback($id: ID!) {
+          product(id: $id) {
+            id
+            publishedOnCurrentPublication
+          }
+          node(id: $id) {
+            ... on Product {
+              id
+              publishedOnCurrentPublication
+            }
+          }
+        }
+        "#,
+        json!({ "id": fallback_product_id }),
+    ));
+    assert_eq!(fallback_read.status, 200);
+    assert_eq!(
+        fallback_read.body["data"],
+        json!({
+            "product": {
+                "id": fallback_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "node": {
+                "id": fallback_product_id,
+                "publishedOnCurrentPublication": true
+            }
         })
     );
 }

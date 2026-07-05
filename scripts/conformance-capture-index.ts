@@ -771,6 +771,37 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-company-location-order-aggregates',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-b2b-company-location-order-aggregates-conformance.ts',
+    purpose:
+      'B2B Company and CompanyLocation totalSpent/ordersCount/lifetimeDuration/currency/catalog aggregate reads after a completed B2B draft order and company-location catalogCreate.',
+    requiredAuthScopes: [
+      'read_companies',
+      'write_companies',
+      'write_draft_orders',
+      'read_orders',
+      'write_orders',
+      'read_markets',
+      'write_markets',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-company-location-order-aggregates.json`,
+      'config/parity-specs/b2b/b2b-company-location-order-aggregates.json',
+      'config/parity-requests/b2b/b2b-company-location-order-aggregates-company-create.graphql',
+      'config/parity-requests/b2b/b2b-company-location-order-aggregates-draft-order-create.graphql',
+      'config/parity-requests/b2b/b2b-company-location-order-aggregates-draft-order-complete.graphql',
+      'config/parity-requests/b2b/b2b-company-location-order-aggregates-catalog-create.graphql',
+      'config/parity-requests/b2b/b2b-company-location-order-aggregates-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable B2B company/location/contact, one completed paid B2B draft order, and one CompanyLocationCatalog; records aggregate readback after indexing, then cancels/deletes the completed order, deletes the catalog, and attempts company deletion.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
+    notes:
+      'The live 2025-01/2026-04 CompanyLocation schema exposes catalogs, currency, ordersCount, and totalSpent; orderCount and market remain local runtime compatibility coverage because the live conformance schema does not expose those fields.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-no-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
@@ -1490,18 +1521,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-publishable-resource-existence-current-channel-conformance.ts',
     purpose:
-      'Generic/current-channel publishable top-level id resource-existence validation plus current-channel resourcePublications payload projection after publish/unpublish.',
+      'Generic/current-channel publishable top-level id resource-existence validation plus current-channel resourcePublications payload projection and downstream product readback after publish/unpublish.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_publications', 'write_publications'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-current-channel-non-sentinel-membership.json',
       'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
+      'config/parity-requests/store-properties/publishable-current-channel-product-read.graphql',
       'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
       'config/parity-requests/store-properties/current-app-publication-hydrate.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable active product, records missing-id and current-channel membership branches, captures hydrate cassettes while the product exists, then deletes the product.',
+      'Creates one disposable active product, records missing-id and current-channel membership/readback branches, captures hydrate cassettes while the product exists, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2284,6 +2316,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventoryAdjust-then-hasOutOfStockVariants-parity.json',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-create.graphql',
+      'config/parity-requests/products/productCreate-then-bulkCreate-derived-delete.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql',
       'config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-adjust.graphql',
@@ -2361,6 +2394,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-location-levels-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-location-levels-overlay-windowing-conformance.ts',
+    purpose:
+      'Location.inventoryLevels read-after-write overlay, inventory item query filtering, and cursor windowing over disposable product-backed inventory levels.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-location-levels-overlay-windowing.json`,
+      'config/parity-specs/products/inventory-location-levels-overlay-windowing.json',
+      'config/parity-requests/products/inventory-location-levels-set.graphql',
+      'config/parity-requests/products/inventory-location-levels-adjust.graphql',
+      'config/parity-requests/products/inventory-location-levels-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-item-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-window.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable location and one disposable two-variant product, sets and adjusts location inventory, records location-level reads and cursor windows, then deletes the product and deactivates/deletes the location best-effort.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

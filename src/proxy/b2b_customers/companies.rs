@@ -369,6 +369,12 @@ enum B2bLocationNameFallback {
     ShippingAddressThenCompanyName,
 }
 
+struct B2bOrderAggregate {
+    count: usize,
+    total: f64,
+    currency_code: String,
+}
+
 type B2bCompanyPayloadHandler =
     fn(&mut DraftProxy, &RootFieldSelection) -> (Value, &'static str, Vec<String>);
 type B2bPassthroughCascadeArgs<'a> = (
@@ -394,6 +400,28 @@ impl B2bCompanyLocationDeleteBlocker {
             Self::StoreCredit => "CompanyLocation has non-zero store credit balance",
         };
         format!("Failed to delete CompanyLocation {location_tail}: {reason}")
+    }
+}
+
+impl B2bOrderAggregate {
+    fn new(currency_code: String) -> Self {
+        Self {
+            count: 0,
+            total: 0.0,
+            currency_code,
+        }
+    }
+
+    fn add_order(&mut self, order: &Value) {
+        self.count += 1;
+        if let Some((amount, currency_code)) = b2b_order_total_money(order) {
+            self.total += amount;
+            self.currency_code = currency_code;
+        }
+    }
+
+    fn total_spent(&self) -> Value {
+        money_value(&format_money_amount(self.total), &self.currency_code)
     }
 }
 
@@ -636,14 +664,17 @@ impl DraftProxy {
         if let Some(assignment) = staged.b2b_role_assignments.get(id).cloned() {
             return Some(self.b2b_role_assignment_selected_json(&assignment, selection));
         }
-        if let Some(node) = staged
-            .b2b_locations
-            .get(id)
-            .or_else(|| staged.b2b_companies.get(id))
-            .or_else(|| staged.b2b_contacts.get(id))
-            .or_else(|| staged.b2b_contact_roles.get(id))
-        {
-            return Some(selected_json(node, selection));
+        if let Some(location) = staged.b2b_locations.get(id) {
+            return Some(self.b2b_company_location_selected_json(location, selection));
+        }
+        if let Some(company) = staged.b2b_companies.get(id) {
+            return Some(self.b2b_company_selected_json(company, selection));
+        }
+        if let Some(contact) = staged.b2b_contacts.get(id) {
+            return Some(self.b2b_company_contact_selected_json(contact, selection));
+        }
+        if let Some(role) = staged.b2b_contact_roles.get(id) {
+            return Some(selected_json(role, selection));
         }
         // CompanyAddress entities are not stored in their own map — they live
         // nested on each staged location's billing/shipping slot — so a node read
@@ -684,6 +715,8 @@ impl DraftProxy {
                         | "companyContact"
                         | "companyLocation"
                         | "companyLocations"
+                        | "node"
+                        | "nodes"
                 )
             }),
             OperationType::Subscription => false,
@@ -777,6 +810,25 @@ impl DraftProxy {
                         "companyLocations" => self.b2b_company_locations_connection(field),
                         "companies" => self.b2b_companies_connection(field),
                         "companiesCount" => self.b2b_companies_count(field),
+                        "node" => {
+                            let id =
+                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                            self.b2b_node_value_by_id(&id, &field.selection)
+                                .unwrap_or(Value::Null)
+                        }
+                        "nodes" => Value::Array(
+                            field
+                                .arguments
+                                .get("ids")
+                                .map(resolved_string_list)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|id| {
+                                    self.b2b_node_value_by_id(&id, &field.selection)
+                                        .unwrap_or(Value::Null)
+                                })
+                                .collect(),
+                        ),
                         _ => {
                             declined = true;
                             return None;
@@ -1414,6 +1466,15 @@ impl DraftProxy {
             location["billingSameAsShipping"] = json!(true);
         } else if resolved_bool_field(&input, "billingSameAsShipping") == Some(false) {
             location["billingSameAsShipping"] = json!(false);
+        }
+        if input.contains_key("shippingAddress")
+            || input.contains_key("billingAddress")
+            || input.contains_key("billingSameAsShipping")
+        {
+            location["currency"] = json!(b2b_company_location_currency_code(
+                &location,
+                &self.store.shop_currency_code(),
+            ));
         }
         if let Some(buyer_experience) =
             resolved_object_field(&input, "buyerExperienceConfiguration")
@@ -2890,7 +2951,119 @@ impl DraftProxy {
         )
     }
 
+    fn b2b_company_order_aggregate(&self, company_id: &str) -> B2bOrderAggregate {
+        let company_location_ids = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .map(|company| b2b_json_id_list(company, "locationIds"))
+            .unwrap_or_default();
+        let default_currency = company_location_ids
+            .iter()
+            .find_map(|location_id| {
+                self.store
+                    .staged
+                    .b2b_locations
+                    .get(location_id)
+                    .map(|location| {
+                        b2b_company_location_currency_code(
+                            location,
+                            &self.store.shop_currency_code(),
+                        )
+                    })
+            })
+            .unwrap_or_else(|| self.store.shop_currency_code());
+        self.b2b_order_aggregate(default_currency, |order| {
+            b2b_record_references_company(order, company_id)
+                || company_location_ids
+                    .iter()
+                    .any(|location_id| b2b_record_references_company_location(order, location_id))
+        })
+    }
+
+    fn b2b_company_location_order_aggregate(&self, location_id: &str) -> B2bOrderAggregate {
+        let default_currency = self
+            .store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .map(|location| {
+                b2b_company_location_currency_code(location, &self.store.shop_currency_code())
+            })
+            .unwrap_or_else(|| self.store.shop_currency_code());
+        self.b2b_order_aggregate(default_currency, |order| {
+            b2b_record_references_company_location(order, location_id)
+        })
+    }
+
+    fn b2b_order_aggregate<Matches>(
+        &self,
+        default_currency_code: String,
+        matches: Matches,
+    ) -> B2bOrderAggregate
+    where
+        Matches: Fn(&Value) -> bool,
+    {
+        let mut aggregate = B2bOrderAggregate::new(default_currency_code);
+        let mut seen_order_ids = BTreeSet::new();
+        for (order_id, order) in self.store.staged.orders.iter() {
+            if matches(order) {
+                seen_order_ids.insert(order_id.clone());
+                aggregate.add_order(order);
+            }
+        }
+        for (order_id, order) in &self.store.staged.order_customer_orders {
+            if !seen_order_ids.contains(order_id) && matches(order) {
+                aggregate.add_order(order);
+            }
+        }
+        aggregate
+    }
+
+    fn b2b_company_location_catalogs_connection(
+        &self,
+        location_id: &str,
+        selection: &SelectedField,
+    ) -> Value {
+        let catalogs = self
+            .store
+            .staged
+            .catalogs
+            .values()
+            .filter(|catalog| {
+                catalog_company_location_ids(catalog)
+                    .iter()
+                    .any(|id| id == location_id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &catalogs,
+            &selection.arguments,
+            &selection.selection,
+            selected_json,
+            value_id_cursor,
+        )
+    }
+
+    fn b2b_company_location_market_selected_json(
+        &self,
+        location_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        self.store
+            .staged
+            .markets
+            .values()
+            .find(|market| b2b_value_contains_company_location_id(market, location_id))
+            .map(|market| selected_json(market, selections))
+            .unwrap_or(Value::Null)
+    }
+
     fn b2b_company_selected_json(&self, company: &Value, selections: &[SelectedField]) -> Value {
+        let company_id = company["id"].as_str().unwrap_or_default();
+        let order_aggregate = self.b2b_company_order_aggregate(company_id);
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "locations" => Some(self.b2b_selected_id_connection_json(
                 company,
@@ -2922,6 +3095,23 @@ impl DraftProxy {
             "locationsCount" => {
                 let count = b2b_json_id_list(company, "locationIds").len();
                 Some(selected_count_json(count, &selection.selection))
+            }
+            "totalSpent" => Some(selected_json(
+                &order_aggregate.total_spent(),
+                &selection.selection,
+            )),
+            "ordersCount" => Some(selected_count_json(
+                order_aggregate.count,
+                &selection.selection,
+            )),
+            "lifetimeDuration" => {
+                Some(company.get("lifetimeDuration").cloned().unwrap_or_else(|| {
+                    if order_aggregate.count > 0 {
+                        json!("less than 5 seconds")
+                    } else {
+                        Value::Null
+                    }
+                }))
             }
             "mainContact" => Some(self.b2b_selected_reference_json(
                 company,
@@ -2999,6 +3189,8 @@ impl DraftProxy {
         location: &Value,
         selections: &[SelectedField],
     ) -> Value {
+        let location_id = location["id"].as_str().unwrap_or_default();
+        let order_aggregate = self.b2b_company_location_order_aggregate(location_id);
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "company" => Some(self.b2b_selected_reference_json(
                 location,
@@ -3025,6 +3217,24 @@ impl DraftProxy {
                     proxy.b2b_staff_assignment_selected_json(assignment, fields)
                 },
             )),
+            "totalSpent" => Some(selected_json(
+                &order_aggregate.total_spent(),
+                &selection.selection,
+            )),
+            "currency" => Some(json!(location["currency"]
+                .as_str()
+                .unwrap_or(order_aggregate.currency_code.as_str()))),
+            "ordersCount" => Some(selected_count_json(
+                order_aggregate.count,
+                &selection.selection,
+            )),
+            "orderCount" => Some(json!(order_aggregate.count)),
+            "market" => Some(
+                self.b2b_company_location_market_selected_json(location_id, &selection.selection),
+            ),
+            "catalogs" => {
+                Some(self.b2b_company_location_catalogs_connection(location_id, selection))
+            }
             _ => location
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),
@@ -3137,10 +3347,13 @@ impl DraftProxy {
             &resolved_object_field(input, "buyerExperienceConfiguration").unwrap_or_default(),
         );
         let phone_country_code = self.b2b_location_phone_country_code(input, None);
+        let currency =
+            b2b_company_location_input_currency_code(input, &self.store.shop_currency_code());
         let location = json!({
             "id": id,
             "name": name,
             "companyId": company_id,
+            "currency": currency,
             "externalId": resolved_string_field(input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
             "locale": resolved_string_field(input, "locale").unwrap_or_else(|| self.localization_primary_locale()),
@@ -3163,6 +3376,18 @@ impl DraftProxy {
             "staffAssignmentIds": []
         });
         (location, staged_ids)
+    }
+
+    pub(in crate::proxy) fn b2b_order_input_currency_default(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
+        b2b_order_input_company_location_id(input)
+            .and_then(|location_id| self.store.staged.b2b_locations.get(&location_id))
+            .map(|location| {
+                b2b_company_location_currency_code(location, &self.store.shop_currency_code())
+            })
+            .unwrap_or_else(|| self.store.shop_currency_code())
     }
 
     fn b2b_stage_location(&mut self, company: &mut Value, location: Value, location_id: &str) {
@@ -4229,12 +4454,41 @@ fn b2b_location_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> O
         })
 }
 
+fn b2b_company_location_input_currency_code(
+    input: &BTreeMap<String, ResolvedValue>,
+    default_currency_code: &str,
+) -> String {
+    b2b_location_input_country_code(input)
+        .as_deref()
+        .and_then(b2b_country_currency_code)
+        .unwrap_or(default_currency_code)
+        .to_string()
+}
+
 fn b2b_address_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(input, "countryCode")
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
         .and_then(|code| {
             b2b_country_catalog_by_code(&code).map(|(country_code, _)| country_code.to_string())
         })
+}
+
+fn b2b_company_location_currency_code(location: &Value, default_currency_code: &str) -> String {
+    location
+        .get("currency")
+        .and_then(Value::as_str)
+        .or_else(|| b2b_location_record_country_code(location).and_then(b2b_country_currency_code))
+        .unwrap_or(default_currency_code)
+        .to_string()
+}
+
+fn b2b_country_currency_code(country_code: &str) -> Option<&'static str> {
+    match b2b_country_catalog_by_code(country_code)?.0 {
+        "CA" => Some("CAD"),
+        "SG" => Some("SGD"),
+        "US" => Some("USD"),
+        _ => None,
+    }
 }
 
 fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
@@ -4263,6 +4517,14 @@ fn b2b_customer_record_country_code(customer: &Value) -> Option<&str> {
                 .and_then(Value::as_array)
                 .and_then(|nodes| nodes.iter().find_map(value_country_code))
         })
+}
+
+fn b2b_order_input_company_location_id(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(input, "companyLocationId").or_else(|| {
+        resolved_object_field(input, "purchasingEntity")
+            .and_then(|entity| resolved_object_field(&entity, "purchasingCompany"))
+            .and_then(|company| resolved_string_field(&company, "companyLocationId"))
+    })
 }
 
 fn b2b_company_address_json(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -4468,6 +4730,9 @@ fn b2b_record_references<F>(record: &Value, id: &str, contains_id: F) -> bool
 where
     F: Fn(&Value, &str) -> bool,
 {
+    if contains_id(record, id) {
+        return true;
+    }
     if let Some(entity) = record.get("purchasingEntity") {
         if contains_id(entity, id) {
             return true;
@@ -4487,6 +4752,22 @@ where
         }
     }
     false
+}
+
+fn b2b_order_total_money(order: &Value) -> Option<(f64, String)> {
+    [
+        "currentTotalPriceSet",
+        "totalPriceSet",
+        "totalReceivedSet",
+        "subtotalPriceSet",
+    ]
+    .into_iter()
+    .find_map(|field| {
+        let money = &order[field];
+        let amount = money_set_amount(money)?;
+        let currency = money_set_shop_currency(money)?;
+        Some((amount, currency))
+    })
 }
 
 /// Recursively searches a value for a reference to a company id, matching a

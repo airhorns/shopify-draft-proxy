@@ -775,9 +775,7 @@ impl DraftProxy {
     fn stage_observed_owner_metafields(&mut self, owner_id: &str, node: &Value) {
         let mut records = node
             .get("metafields")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
-            .cloned()
+            .map(connection_nodes)
             .unwrap_or_default();
         if let Some(page_info) = node
             .get("metafields")
@@ -928,7 +926,7 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base = product_json_with_variants_and_currency(
+                let base = self.product_json_with_variants_and_currency_context(
                     product,
                     &variants,
                     selections,
