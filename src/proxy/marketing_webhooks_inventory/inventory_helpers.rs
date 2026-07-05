@@ -5450,12 +5450,8 @@ fn inventory_unquoted_query_value(raw: &str) -> String {
 }
 
 fn inventory_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.trim().strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value.trim())
+    let value = value.trim();
+    comparison_operator_prefix(value, &[">=", "<=", ">", "<", "="]).unwrap_or(("=", value))
 }
 
 fn inventory_search_string_matches(actual: &str, expected: &str) -> bool {
