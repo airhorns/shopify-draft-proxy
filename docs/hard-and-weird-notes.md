@@ -629,6 +629,14 @@ Practical rule:
 
 - model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
 
+### Current: BulkOperation search warnings can still match all jobs
+
+A 2026-04 live probe on `harry-test-heelo.myshopify.com` showed that `bulkOperations(query:)` accepts case-insensitive `status:` values and date-only `created_at` comparator terms such as `created_at:>2000-01-01`. Unknown fielded terms such as `made_up:whatever` did not fail closed: Shopify returned the usual job list plus `extensions.search[].warnings[{ code: "invalid_field" }]`.
+
+Practical rule:
+
+- model supported `status:` and `created_at:` filters normally, but keep unsupported fielded terms as warning-backed match-all terms instead of silently matching everything with no `extensions.search` warning
+
 ## Current: Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
