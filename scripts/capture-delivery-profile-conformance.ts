@@ -796,7 +796,6 @@ await writeFile(
         'The capture records deliveryProfiles before and after creating one disposable delivery profile so parity can replay the upstream default/base catalog and compare the downstream merged catalog read.',
         'The capture creates one disposable delivery profile, records the post-create deliveryProfiles catalog with the merchant default still present, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.',
         'The capture preserves both pre/post-create catalog readbacks and read-after-update country/method-description evidence from adjacent real disposable-profile captures.',
-
       ],
       upstreamCalls: [
         {

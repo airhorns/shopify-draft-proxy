@@ -6,6 +6,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
+        let root_field = primary_root_field(query, variables);
         let (response_key, payload_selection, arguments) =
             primary_root_response_parts(query, variables, || "productSet".into());
         let product_selection =

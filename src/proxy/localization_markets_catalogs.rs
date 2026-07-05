@@ -578,7 +578,7 @@ fn selected_market_localization_error(
     selected_payload_user_error(
         selection,
         "marketLocalizations",
-        market_localization_error(path, code, message),
+        market_localization_error(path, message, code),
     )
 }
 

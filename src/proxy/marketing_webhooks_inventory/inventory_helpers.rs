@@ -789,6 +789,22 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     errors
 }
 
+fn inventory_shipment_user_error(field_path: Vec<&str>, message: &str, code: &str) -> Value {
+    user_error(field_path, message, Some(code))
+}
+
+fn inventory_deactivate_user_error(message: &str) -> Value {
+    user_error_omit_code(Value::Null, message, None)
+}
+
+fn inventory_activate_user_error(field: impl Into<UserErrorField>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+
+fn inventory_item_update_field_path(parts: &[&str]) -> Vec<String> {
+    parts.iter().map(|part| (*part).to_string()).collect()
+}
+
 fn is_valid_country_code(country_code: &str) -> bool {
     INVENTORY_VALID_COUNTRY_CODES.contains(&country_code)
 }

@@ -13799,7 +13799,6 @@ fn online_store_content_back_references_project_full_parent_records() {
     assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
-
 #[test]
 fn online_store_articles_published_status_query_controls_visibility() {
     let mut proxy = snapshot_proxy();

@@ -9,9 +9,7 @@
   "probes": [
     {
       "name": "bulkProductResourceFeedbackCreate-access-denied",
-      "operationNames": [
-        "bulkProductResourceFeedbackCreate"
-      ],
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
       "query": "#graphql\n  mutation BulkProductResourceFeedbackAccessBlocker($feedbackInput: [ProductResourceFeedbackInput!]!) {\n    bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) {\n      feedback {\n        productId\n        state\n        messages\n        feedbackGeneratedAt\n        productUpdatedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "feedbackInput": [
@@ -20,9 +18,7 @@
             "state": "REQUIRES_ACTION",
             "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
             "productUpdatedAt": "2024-01-01T00:00:00Z",
-            "messages": [
-              "missing"
-            ]
+            "messages": ["missing"]
           }
         ]
       },
@@ -42,9 +38,7 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
             },
-            "path": [
-              "bulkProductResourceFeedbackCreate"
-            ]
+            "path": ["bulkProductResourceFeedbackCreate"]
           }
         ],
         "data": {
@@ -65,17 +59,13 @@
     },
     {
       "name": "shopResourceFeedbackCreate-access-denied",
-      "operationNames": [
-        "shopResourceFeedbackCreate"
-      ],
+      "operationNames": ["shopResourceFeedbackCreate"],
       "query": "#graphql\n  mutation ShopResourceFeedbackAccessBlocker($input: ResourceFeedbackCreateInput!) {\n    shopResourceFeedbackCreate(input: $input) {\n      feedback {\n        state\n        messages {\n          message\n        }\n        feedbackGeneratedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
           "state": "ACCEPTED",
           "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
-          "messages": [
-            "ready"
-          ]
+          "messages": ["ready"]
         }
       },
       "status": 200,
@@ -94,9 +84,7 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
             },
-            "path": [
-              "shopResourceFeedbackCreate"
-            ]
+            "path": ["shopResourceFeedbackCreate"]
           }
         ],
         "data": {

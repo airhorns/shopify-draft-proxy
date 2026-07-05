@@ -305,35 +305,6 @@ fn backup_region_update_access_denied_body(response_key: &str, location: SourceL
     })
 }
 
-fn backup_region_country_code_coercion_error(
-    message: &str,
-    operation_path: &str,
-    code: &str,
-    location: SourceLocation,
-) -> Value {
-    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
-    if code == "missingRequiredInputObjectAttribute" {
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
-        extensions.insert(
-            "inputObjectType".to_string(),
-            json!("BackupRegionUpdateInput"),
-        );
-    } else {
-        extensions.insert("typeName".to_string(), json!("InputObject"));
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-    }
-
-    json!({
-        "errors": [{
-            "message": message,
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
-            "extensions": extensions
-        }]
-    })
-}
-
 fn backup_region_scopes_include_markets(scopes: &[String]) -> bool {
     scopes.iter().any(|scope| scope == "read_markets")
         && scopes.iter().any(|scope| scope == "write_markets")

@@ -497,6 +497,9 @@ fn extend_product_input_schema(schema: &mut AdminInputSchema, api_version: &str)
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductDeleteInput") {
         schema.insert_strict_input_object(name, fields);
     }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductFeedInput") {
+        schema.insert_strict_input_object(name, fields);
+    }
     schema.mutation_fields.insert(
         "productDelete".to_string(),
         BTreeMap::from([

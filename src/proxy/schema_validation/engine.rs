@@ -95,6 +95,12 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             }
         }
     }
+    for error in product_feed_required_input_errors(&document) {
+        errors.retain(|existing| !product_feed_required_input_error_replaces(existing, &error));
+        if !errors.iter().any(|existing| existing == &error) {
+            errors.push(error);
+        }
+    }
     errors.extend(product_media_variable_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
     errors
@@ -123,6 +129,88 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     }
 
     product_create_argument_arity_response(&document, api_version)
+}
+
+pub(in crate::proxy) fn graphql_locations(location: SourceLocation) -> Value {
+    json!([{ "line": location.line, "column": location.column }])
+}
+
+pub(in crate::proxy) fn source_location_for_query_substring(
+    query: &str,
+    needle: &str,
+) -> Option<SourceLocation> {
+    source_location_for_byte_offset(query, query.find(needle)?)
+}
+
+pub(in crate::proxy) fn top_level_access_denied_error_envelope(
+    message: String,
+    location: Option<SourceLocation>,
+    path: Vec<Value>,
+    required_access: Option<&str>,
+) -> Value {
+    let mut error = json!({
+        "message": message,
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+        },
+        "path": path,
+    });
+    if let Some(location) = location {
+        error["locations"] = graphql_locations(location);
+    }
+    if let Some(required_access) = required_access {
+        error["extensions"]["requiredAccess"] = json!(required_access);
+    }
+    error
+}
+
+pub(in crate::proxy) fn argument_literals_incompatible_error_envelope(
+    message: String,
+    location: Option<SourceLocation>,
+    path: Option<Value>,
+    type_name: Option<&str>,
+    argument_name: Option<&str>,
+) -> Value {
+    let mut error = json!({
+        "message": message,
+        "extensions": { "code": "argumentLiteralsIncompatible" }
+    });
+    if let Some(location) = location {
+        error["locations"] = graphql_locations(location);
+    }
+    if let Some(path) = path {
+        error["path"] = path;
+    }
+    if let Some(type_name) = type_name {
+        error["extensions"]["typeName"] = json!(type_name);
+    }
+    if let Some(argument_name) = argument_name {
+        error["extensions"]["argumentName"] = json!(argument_name);
+    }
+    error
+}
+
+pub(in crate::proxy) fn missing_required_input_object_attribute_error_envelope(
+    input_object_type: &str,
+    argument_name: &str,
+    argument_type: &str,
+    location: SourceLocation,
+    path: Value,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_object_type}' is required. Expected type {argument_type}"
+        ),
+        "locations": graphql_locations(location),
+        "path": path,
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": argument_name,
+            "argumentType": argument_type,
+            "inputObjectType": input_object_type
+        }
+    })
 }
 
 fn parse_error(query: &str) -> Value {
@@ -239,6 +327,9 @@ fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Ve
         .filter(|field| field.selection.is_empty())
         .filter_map(|field| {
             let output_type = output_schema.query_root_fields.get(&field.name)?;
+            if !output_type.composite {
+                return None;
+            }
             Some(json!({
                 "message": format!(
                     "Field must have selections (field '{}' returns {} but has no selections. Did you mean '{} {{ ... }}'?)",
@@ -740,6 +831,74 @@ fn variable_problem_path_display(path: &[Value]) -> Option<String> {
             .collect::<Vec<_>>()
             .join("."),
     )
+}
+
+fn product_feed_required_input_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if field.name != "productFeedCreate" {
+            continue;
+        }
+        if let Some(RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(input)),
+        }) = field.raw_arguments.get("input")
+        {
+            let mut problems = Vec::new();
+            for (argument_name, _) in product_feed_required_input_fields() {
+                if input
+                    .get(argument_name)
+                    .is_none_or(|value| matches!(value, ResolvedValue::Null))
+                {
+                    problems.push(variable_problem_value_path(
+                        &[json!(argument_name)],
+                        "Expected value to not be null",
+                    ));
+                }
+            }
+            if !problems.is_empty() {
+                let (variable_type, location) = resolve_variable_definition_type(
+                    document,
+                    name,
+                    "ProductFeedInput",
+                    field.location,
+                );
+                errors.push(invalid_variable_error(
+                    VariableValidationContext {
+                        variable_name: name,
+                        variable_type: &variable_type,
+                        location,
+                    },
+                    &ResolvedValue::Object(input.clone()),
+                    problems,
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn product_feed_required_input_fields() -> [(&'static str, SchemaTypeRef); 2] {
+    [
+        ("language", non_null("LanguageCode")),
+        ("country", non_null("CountryCode")),
+    ]
+}
+
+fn product_feed_required_input_error_replaces(existing: &Value, replacement: &Value) -> bool {
+    existing.pointer("/extensions/code").and_then(Value::as_str) == Some("INVALID_VARIABLE")
+        && replacement
+            .pointer("/extensions/code")
+            .and_then(Value::as_str)
+            == Some("INVALID_VARIABLE")
+        && existing
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
+        && replacement
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
 }
 
 /// The product media mutations are not modelled in the declarative input
@@ -1844,7 +2003,7 @@ pub(in crate::proxy) fn inline_argument_value_location(
     source_location_for_byte_offset(query, value_offset_after(query, after_name)?)
 }
 
-fn inline_argument_list_item_object_location(
+pub(in crate::proxy) fn inline_argument_list_item_object_location(
     query: &str,
     field: &RootFieldSelection,
     argument_name: &str,

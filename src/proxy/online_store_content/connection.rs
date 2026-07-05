@@ -24,32 +24,40 @@ impl DraftProxy {
         kind: OnlineStoreKind,
         field: &RootFieldSelection,
     ) -> Value {
-        let query = resolved_string_field(&field.arguments, "query");
-        let sort_key = resolved_string_field(&field.arguments, "sortKey");
-        let mut records = self
-            .online_store_records(kind)
-            .into_iter()
-            .filter(|record| {
-                online_store_search_decision(kind, record, query.as_deref())
-                    == StagedSearchDecision::Match
-            })
-            .collect::<Vec<_>>();
-
-        if let Some(sort_key) = sort_key.as_deref() {
-            records.sort_by(|left, right| {
-                online_store_sort_key(kind, left, sort_key)
-                    .cmp(&online_store_sort_key(kind, right, sort_key))
-            });
-        }
-
-        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-
-        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
-        selected_json(
-            &connection_json_with_cursor(records, |_, node| value_id_cursor(node), page_info),
+        self.online_store_connection_from_records(
+            kind,
+            self.online_store_records(kind),
+            &field.arguments,
             &field.selection,
+        )
+    }
+
+    pub(super) fn online_store_connection_from_records(
+        &self,
+        kind: OnlineStoreKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
+        let result = staged_connection_query(
+            indexed_records,
+            arguments,
+            |(_, record), query| online_store_search_decision(kind, record, query),
+            |(index, record), sort_key| {
+                sort_key
+                    .map(|sort_key| online_store_sort_key(kind, record, sort_key))
+                    .unwrap_or_else(|| vec![StagedSortValue::I64(*index as i64)])
+            },
+            |(_, record)| value_id_cursor(record),
+        );
+
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            |(_, record), selection| self.online_store_selected_record(kind, record, selection),
+            |(_, record)| value_id_cursor(record),
+            result.page_info,
         )
     }
 

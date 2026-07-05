@@ -146,6 +146,13 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     })
 }
 
+pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
+    message: &str,
+    code: &str,
+) -> Value {
+    user_error(Value::Null, message, Some(code))
+}
+
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
@@ -1840,7 +1847,6 @@ pub(in crate::proxy) fn slugify_handle(title: &str) -> String {
     handle.trim_end_matches('-').to_string()
 }
 
-impl DraftProxy {
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
     request_header(request, API_CLIENT_ID_HEADER)
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())

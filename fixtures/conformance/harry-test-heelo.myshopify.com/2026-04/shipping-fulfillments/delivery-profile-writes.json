@@ -23,10 +23,7 @@
               "profile": null,
               "userErrors": [
                 {
-                  "field": [
-                    "profile",
-                    "name"
-                  ],
+                  "field": ["profile", "name"],
                   "message": "Add a profile name"
                 }
               ]
@@ -95,9 +92,7 @@
           "name": "Delivery profile lifecycle 1783229874895",
           "locationGroupsToCreate": [
             {
-              "locations": [
-                "gid://shopify/Location/106318430514"
-              ],
+              "locations": ["gid://shopify/Location/106318430514"],
               "zonesToCreate": [
                 {
                   "name": "Domestic",
@@ -376,15 +371,11 @@
         "id": "gid://shopify/DeliveryProfile/132687495474",
         "profile": {
           "name": "Delivery profile lifecycle updated",
-          "conditionsToDelete": [
-            "gid://shopify/DeliveryCondition/309035270450?operator=greater_than_or_equal_to"
-          ],
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/309035270450?operator=greater_than_or_equal_to"],
           "locationGroupsToUpdate": [
             {
               "id": "gid://shopify/DeliveryLocationGroup/134394806578",
-              "locationsToAdd": [
-                "gid://shopify/Location/106318463282"
-              ],
+              "locationsToAdd": ["gid://shopify/Location/106318463282"],
               "zonesToUpdate": [
                 {
                   "id": "gid://shopify/DeliveryZone/585454813490",

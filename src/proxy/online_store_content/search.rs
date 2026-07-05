@@ -129,6 +129,33 @@ fn online_store_search_token_decision(
     }
 }
 
+fn online_store_search_visibility_decision(
+    kind: OnlineStoreKind,
+    record: &Value,
+    query: Option<&str>,
+) -> bool {
+    if kind != OnlineStoreKind::Article {
+        return true;
+    }
+    let Some(query) = query else {
+        return true;
+    };
+    if query.trim().is_empty() {
+        return true;
+    }
+    let tokens = online_store_query_tokens(query);
+    if tokens
+        .iter()
+        .any(|token| token.field.as_deref() == Some("published_status"))
+    {
+        return true;
+    }
+    record
+        .get("isPublished")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn online_store_field_search_decision(
     kind: OnlineStoreKind,
     record: &Value,

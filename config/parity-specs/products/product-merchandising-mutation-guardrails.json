@@ -12,17 +12,12 @@
     "shopResourceFeedbackCreate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-merchandising-mutation-probes.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feedback-mutation-access-blockers.json"
   ],
-  "runtimeTestFiles": [
-    "tests/integration/product-merchandising-feedback-flow.test.ts"
-  ],
+  "runtimeTestFiles": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-merchandising-product-feed-delete.graphql",
     "variablesCapturePath": "$.probes[1].variables"
@@ -86,10 +81,7 @@
         "name": "product-feedback-invalid-state-schema-error",
         "capturePath": "$.probes[7].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].extensions"
-        ],
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql"
         }
@@ -98,10 +90,7 @@
         "name": "shop-feedback-invalid-state-schema-error",
         "capturePath": "$.probes[8].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].extensions"
-        ],
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/shop-feedback-invalid-state.graphql"
         }
@@ -110,10 +99,7 @@
         "name": "product-feedback-foobar-state-schema-error",
         "capturePath": "$.probes[9].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].extensions"
-        ],
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-feedback-foobar-state.graphql"
         }
@@ -122,10 +108,7 @@
         "name": "shop-feedback-foobar-state-schema-error",
         "capturePath": "$.probes[10].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].extensions"
-        ],
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/shop-feedback-foobar-state.graphql"
         }
@@ -134,10 +117,7 @@
         "name": "product-feed-create-missing-country-language-schema-error",
         "capturePath": "$.probes[9].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].extensions"
-        ],
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-merchandising-product-feed-create.graphql",
           "variablesCapturePath": "$.probes[9].variables"

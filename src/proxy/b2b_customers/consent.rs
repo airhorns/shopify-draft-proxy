@@ -678,7 +678,6 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
     None
 }
 
-
 fn tax_exemption_invalid_literal_message(
     argument_name: &str,
     field_name: &str,
