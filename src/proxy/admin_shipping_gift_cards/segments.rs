@@ -2,6 +2,49 @@ use super::*;
 use crate::graphql::ParsedDocument;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        self.store.staged.segment_catalog.is_empty()
+            && fields
+                .iter()
+                .any(|field| segment_catalog_root(field.name.as_str()))
+    }
+
+    pub(in crate::proxy) fn merge_upstream_segment_catalog_data(
+        &self,
+        data: &mut Value,
+        errors: &mut Vec<Value>,
+        fields: &[RootFieldSelection],
+        upstream_body: &Value,
+    ) {
+        let Some(data_object) = data.as_object_mut() else {
+            return;
+        };
+        let catalog_response_keys = fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>();
+        for field in fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+        {
+            if let Some(value) = upstream_body["data"].get(&field.response_key) {
+                data_object.insert(field.response_key.clone(), value.clone());
+            }
+        }
+        if let Some(upstream_errors) = upstream_body["errors"].as_array() {
+            errors.extend(upstream_errors.iter().filter_map(|error| {
+                let response_key = error["path"].as_array()?.first()?.as_str()?;
+                catalog_response_keys
+                    .contains(&response_key)
+                    .then(|| error.clone())
+            }));
+        }
+    }
+
     pub(in crate::proxy) fn segment_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -50,15 +93,16 @@ impl DraftProxy {
                     Some(count) => selected_json(count, &field.selection),
                     None => selected_count_json(self.store.staged.segments.len(), &field.selection),
                 },
-                "segmentFilters"
-                | "segmentFilterSuggestions"
-                | "segmentValueSuggestions"
-                | "segmentMigrations" => match self.store.staged.segment_catalog.get(&field.name) {
-                    Some(connection) => {
-                        project_seeded_connection(connection, &field.arguments, &field.selection)
+                name if segment_catalog_root(name) => {
+                    match self.store.staged.segment_catalog.get(&field.name) {
+                        Some(connection) => project_seeded_connection(
+                            connection,
+                            &field.arguments,
+                            &field.selection,
+                        ),
+                        None => return None,
                     }
-                    None => return None,
-                },
+                }
                 _ => return None,
             })
         });
@@ -409,6 +453,16 @@ impl DraftProxy {
             }
         }))
     }
+}
+
+fn segment_catalog_root(name: &str) -> bool {
+    matches!(
+        name,
+        "segmentFilters"
+            | "segmentFilterSuggestions"
+            | "segmentValueSuggestions"
+            | "segmentMigrations"
+    )
 }
 
 fn segment_user_error(field: Value, message: &str) -> Value {

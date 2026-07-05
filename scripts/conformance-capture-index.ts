@@ -5901,7 +5901,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-activity-connection-window-conformance.mts',
     purpose:
-      'External marketing activity and event connection sortKey, reverse, cursor windowing, pageInfo, and documented query-field behavior for disposable staged-like records.',
+      'External marketing activity and event connection sortKey, reverse, cursor windowing, pageInfo, documented query-field behavior, and boolean OR/AND query operators for disposable staged-like records.',
     requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}marketing-activity-connection-window.json`,
@@ -6143,6 +6143,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment so the knownSegment detail read resolves, then deletes it after the baseline read.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-staged-catalog-roots',
+    scriptPath: 'scripts/capture-segment-staged-catalog-roots-conformance.ts',
+    purpose:
+      'Segment catalog/filter/suggestion/migration roots remain available in a mixed read after segmentCreate has staged a segment lifecycle.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-staged-catalog-roots.json`,
+      'config/parity-specs/segments/segment-staged-catalog-roots.json',
+      'config/parity-requests/segments/segment-staged-catalog-create.graphql',
+      'config/parity-requests/segments/segment-staged-catalog-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment, records a mixed segments/catalog read, then deletes the disposable segment.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

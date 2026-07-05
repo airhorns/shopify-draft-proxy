@@ -2260,7 +2260,21 @@ impl DraftProxy {
                     // locally below.
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let (data, errors) = self.segment_read_data(&fields);
+                    let upstream_catalog_response = self
+                        .segment_read_needs_upstream_catalog(&fields)
+                        .then(|| (self.upstream_transport)(request.clone()));
+                    let (mut data, mut errors) = self.segment_read_data(&fields);
+                    if let Some(response) = upstream_catalog_response {
+                        if response.status != 200 {
+                            return response;
+                        }
+                        self.merge_upstream_segment_catalog_data(
+                            &mut data,
+                            &mut errors,
+                            &fields,
+                            &response.body,
+                        );
+                    }
                     if errors.is_empty() {
                         ok_json(json!({ "data": data }))
                     } else {

@@ -808,6 +808,93 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
 }
 
 #[test]
+fn marketing_activity_queries_treat_boolean_operators_as_logic() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title status }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let active = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Active newsletter",
+            "remoteId": "active-newsletter",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/active",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "active", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    let paused = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Paused newsletter",
+            "remoteId": "paused-newsletter",
+            "status": "PAUSED",
+            "remoteUrl": "https://example.com/paused",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "paused", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    assert_eq!(active.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(paused.body["data"]["created"]["userErrors"], json!([]));
+    let active_id = active.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let paused_id = paused.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityBooleanSearch(
+          $orQuery: String!
+          $andQuery: String!
+          $exclusiveAndQuery: String!
+        ) {
+          statusOr: marketingActivities(first: 5, sortKey: ID, query: $orQuery) {
+            nodes { id title status }
+          }
+          statusAnd: marketingActivities(first: 5, sortKey: ID, query: $andQuery) {
+            nodes { id title status }
+          }
+          exclusiveAnd: marketingActivities(first: 5, sortKey: ID, query: $exclusiveAndQuery) {
+            nodes { id title status }
+          }
+        }
+        "#,
+        json!({
+            "orQuery": "status:ACTIVE OR status:PAUSED",
+            "andQuery": "status:ACTIVE AND title:\"Active newsletter\"",
+            "exclusiveAndQuery": "status:ACTIVE AND status:PAUSED"
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["statusOr"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" },
+            { "id": paused_id, "title": "Paused newsletter", "status": "PAUSED" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["statusAnd"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" }
+        ])
+    );
+    assert_eq!(read.body["data"]["exclusiveAnd"]["nodes"], json!([]));
+}
+
+#[test]
 fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_back() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
