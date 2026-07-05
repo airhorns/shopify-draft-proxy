@@ -558,9 +558,40 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let country = resolved_string_field(&input, "country").unwrap_or_else(|| "US".to_string());
-        let language =
-            resolved_string_field(&input, "language").unwrap_or_else(|| "EN".to_string());
+        let Some(country) = resolved_string_field(&input, "country") else {
+            self.record_mutation_log_with_status(
+                request,
+                query,
+                variables,
+                "productFeedCreate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [user_error(["country"], "Country is invalid", Some("INVALID"))]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(language) = resolved_string_field(&input, "language") else {
+            self.record_mutation_log_with_status(
+                request,
+                query,
+                variables,
+                "productFeedCreate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [user_error(["language"], "Language is invalid", Some("INVALID"))]
+                }),
+                &field.selection,
+            );
+        };
         // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
         // values outside those enums at the resolver with a field-scoped INVALID userError.
         if !is_valid_product_feed_country(&country) {
@@ -931,7 +962,7 @@ impl DraftProxy {
                 ["productsAdded"],
                 &format!(
                     "The product with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_child_ids).unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_id_list(&missing_child_ids)
                 ),
                 Some("PRODUCT_NOT_FOUND"),
             ));
@@ -1141,8 +1172,7 @@ impl DraftProxy {
                 ["input"],
                 &format!(
                     "The product variants with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_variant_ids)
-                        .unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_id_list(&missing_variant_ids)
                 ),
                 Some("PRODUCT_VARIANTS_NOT_FOUND"),
             ));
@@ -1520,6 +1550,16 @@ fn push_missing_variant_id(missing_ids: &mut Vec<String>, id: String) {
     if !missing_ids.contains(&id) {
         missing_ids.push(id);
     }
+}
+
+fn shopify_error_id_list(ids: &[String]) -> String {
+    format!(
+        "[{}]",
+        ids.iter()
+            .map(|id| format!("\"{id}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 fn selected_options_match(

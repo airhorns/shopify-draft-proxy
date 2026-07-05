@@ -4632,6 +4632,105 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
 fn product_feed_delete_removes_staged_feed_from_reads_and_node() {
     let mut proxy = snapshot_proxy();
 
+    let missing_required = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductFeedCreateVariableMissing($input: ProductFeedInput) {
+          productFeedCreate(input: $input) {
+            productFeed { id country language }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    assert_eq!(missing_required.status, 200);
+    assert_eq!(missing_required.body.get("data"), None);
+    assert_eq!(
+        missing_required.body["errors"]
+            .as_array()
+            .expect("variable missing input should return GraphQL errors")
+            .len(),
+        1
+    );
+    assert_eq!(
+        missing_required.body["errors"][0]["message"],
+        json!("Variable $input of type ProductFeedInput was provided invalid value for language (Expected value to not be null), country (Expected value to not be null)")
+    );
+    assert_eq!(
+        missing_required.body["errors"][0]["extensions"],
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": {},
+            "problems": [
+                { "path": ["language"], "explanation": "Expected value to not be null" },
+                { "path": ["country"], "explanation": "Expected value to not be null" }
+            ]
+        })
+    );
+
+    let inline_missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductFeedCreateInlineMissing {
+          productFeedCreate(input: {}) {
+            productFeed { id country language }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(inline_missing.status, 200);
+    assert_eq!(inline_missing.body.get("data"), None);
+    let inline_errors = inline_missing.body["errors"]
+        .as_array()
+        .expect("inline missing input should return GraphQL errors");
+    assert_eq!(inline_errors.len(), 2);
+    assert_eq!(
+        inline_errors[0]["message"],
+        json!("Argument 'country' on InputObject 'ProductFeedInput' is required. Expected type CountryCode!")
+    );
+    assert_eq!(
+        inline_errors[0]["path"],
+        json!([
+            "mutation ProductFeedCreateInlineMissing",
+            "productFeedCreate",
+            "input",
+            "country"
+        ])
+    );
+    assert_eq!(
+        inline_errors[0]["extensions"],
+        json!({
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "country",
+            "argumentType": "CountryCode!",
+            "inputObjectType": "ProductFeedInput"
+        })
+    );
+    assert_eq!(
+        inline_errors[1]["message"],
+        json!("Argument 'language' on InputObject 'ProductFeedInput' is required. Expected type LanguageCode!")
+    );
+    assert_eq!(
+        inline_errors[1]["path"],
+        json!([
+            "mutation ProductFeedCreateInlineMissing",
+            "productFeedCreate",
+            "input",
+            "language"
+        ])
+    );
+    assert_eq!(
+        inline_errors[1]["extensions"],
+        json!({
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "language",
+            "argumentType": "LanguageCode!",
+            "inputObjectType": "ProductFeedInput"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateFeedForDelete($input: ProductFeedInput) {
