@@ -151,7 +151,10 @@
                 "fromCapturePath": "$.setup[6].variables.input.note"
               },
               "recipientAttributes": {
-                "id": "gid://shopify/Customer/no-contact-recipient",
+                "id": {
+                  "fromProxyResponse": "create no-contact customer userErrors",
+                  "path": "$.data.customerCreate.customer.id"
+                },
                 "preferredName": {
                   "fromCapturePath": "$.setup[6].variables.input.recipientAttributes.preferredName"
                 },

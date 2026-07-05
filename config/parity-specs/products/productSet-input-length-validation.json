@@ -1,0 +1,53 @@
+{
+  "scenarioId": "productSet-input-length-validation",
+  "operationNames": ["productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-input-length-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productSet-input-length-validation.graphql",
+    "variablesCapturePath": "$.scenarios.tooLongTitle.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 capture for productSet 256-character title/handle/vendor/productType validation. Rejected inputs return null product/productSetOperation, Shopify-shaped userErrors, and no staged product.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "too-long-title-data",
+        "capturePath": "$.scenarios.tooLongTitle.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "too-long-handle-data",
+        "capturePath": "$.scenarios.tooLongHandle.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-input-length-validation.graphql",
+          "variablesCapturePath": "$.scenarios.tooLongHandle.variables"
+        }
+      },
+      {
+        "name": "too-long-vendor-data",
+        "capturePath": "$.scenarios.tooLongVendor.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-input-length-validation.graphql",
+          "variablesCapturePath": "$.scenarios.tooLongVendor.variables"
+        }
+      },
+      {
+        "name": "too-long-product-type-data",
+        "capturePath": "$.scenarios.tooLongProductType.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-input-length-validation.graphql",
+          "variablesCapturePath": "$.scenarios.tooLongProductType.variables"
+        }
+      }
+    ]
+  }
+}

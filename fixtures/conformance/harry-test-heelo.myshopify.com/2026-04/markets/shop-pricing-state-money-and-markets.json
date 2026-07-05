@@ -1,0 +1,457 @@
+{
+  "metadata": {
+    "scenario": "Shop pricing state drives money fields and market price inclusivity",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-07-04T10:59:31.131Z",
+    "expectedShopCurrency": "CAD",
+    "buyerCountryCode": "BR",
+    "expectedResolvedPriceInclusivity": {
+      "dutiesIncluded": false,
+      "taxesIncluded": true
+    }
+  },
+  "operations": {
+    "shopPricingHydrate": {
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "query": "mutation ShopPricingStateProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      priceRangeV2 {\n        minVariantPrice {\n          amount\n          currencyCode\n        }\n        maxVariantPrice {\n          amount\n          currencyCode\n        }\n      }\n      priceRange {\n        minVariantPrice {\n          amount\n          currencyCode\n        }\n        maxVariantPrice {\n          amount\n          currencyCode\n        }\n      }\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          price\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Draft Proxy Pricing State 20260704105928",
+          "status": "DRAFT",
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Red"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10231447060786",
+                "title": "Draft Proxy Pricing State 20260704105928",
+                "priceRangeV2": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51423442731314",
+                      "title": "Red",
+                      "price": "0.00"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "sellingPlanGroupCreate": {
+      "query": "mutation ShopPricingStateSellingPlanGroupCreate(\n  $input: SellingPlanGroupInput!\n  $resources: SellingPlanGroupResourceInput!\n) {\n  sellingPlanGroupCreate(input: $input, resources: $resources) {\n    sellingPlanGroup {\n      id\n      productsCount {\n        count\n        precision\n      }\n      products(first: 5) {\n        nodes {\n          id\n          title\n          priceRangeV2 {\n            minVariantPrice {\n              amount\n              currencyCode\n            }\n            maxVariantPrice {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      sellingPlans(first: 10) {\n        nodes {\n          id\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Pricing state group 20260704105928",
+          "options": ["Delivery frequency", "Billing cadence"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly fixed",
+              "options": ["Monthly fixed", "Monthly billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "FIXED_AMOUNT",
+                    "adjustmentValue": {
+                      "fixedValue": "5.0"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Annual fixed",
+              "options": ["Annual fixed", "Annual billing"],
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "YEAR",
+                  "intervalCount": 1
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "YEAR",
+                  "intervalCount": 1
+                }
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "FIXED_AMOUNT",
+                    "adjustmentValue": {
+                      "fixedValue": "8.0"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {
+          "productIds": ["gid://shopify/Product/10231447060786"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "sellingPlanGroupCreate": {
+              "sellingPlanGroup": {
+                "id": "gid://shopify/SellingPlanGroup/3127279922",
+                "productsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                },
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/10231447060786",
+                      "title": "Draft Proxy Pricing State 20260704105928",
+                      "priceRangeV2": {
+                        "minVariantPrice": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        },
+                        "maxVariantPrice": {
+                          "amount": "0.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "sellingPlans": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/SellingPlan/7288815922",
+                      "pricingPolicies": [
+                        {
+                          "__typename": "SellingPlanFixedPricingPolicy",
+                          "adjustmentType": "FIXED_AMOUNT",
+                          "adjustmentValue": {
+                            "__typename": "MoneyV2",
+                            "amount": "5.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/SellingPlan/7288848690",
+                      "pricingPolicies": [
+                        {
+                          "__typename": "SellingPlanFixedPricingPolicy",
+                          "adjustmentType": "FIXED_AMOUNT",
+                          "adjustmentValue": {
+                            "__typename": "MoneyV2",
+                            "amount": "8.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 33,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "marketCreate": {
+      "query": "mutation ShopPricingStateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      type\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Pricing State Brazil 20260704105928",
+          "status": "ACTIVE",
+          "conditions": {
+            "regionsCondition": {
+              "regions": [
+                {
+                  "countryCode": "BR"
+                }
+              ]
+            }
+          },
+          "currencySettings": {
+            "localCurrencies": true
+          },
+          "priceInclusions": {
+            "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+            "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98777006386",
+                "name": "Pricing State Brazil 20260704105928",
+                "status": "ACTIVE",
+                "type": "REGION",
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "CAD",
+                    "currencyName": "Canadian Dollar"
+                  },
+                  "localCurrencies": true,
+                  "roundingEnabled": false
+                },
+                "priceInclusions": {
+                  "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+                  "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "marketsResolvedValues": {
+      "query": "query ShopPricingStateMarketsResolvedValues($buyerSignal: BuyerSignalInput!) {\n  marketsResolvedValues(buyerSignal: $buyerSignal) {\n    currencyCode\n    priceInclusivity {\n      dutiesIncluded\n      taxesIncluded\n    }\n  }\n}\n",
+      "variables": {
+        "buyerSignal": {
+          "countryCode": "BR"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketsResolvedValues": {
+              "currencyCode": "CAD",
+              "priceInclusivity": {
+                "dutiesIncluded": false,
+                "taxesIncluded": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "sellingPlanGroupDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3127279922",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketDelete": {
+            "deletedId": "gid://shopify/Market/98777006386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231447060786",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

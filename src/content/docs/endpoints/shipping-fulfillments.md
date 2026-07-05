@@ -172,14 +172,17 @@ hydrated local orders. Request-status transitions, merchant request records,
 split-off remaining fulfillment orders, and merged line-item quantities are
 written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
-`Order.fulfillmentOrders` reads. These slices operate on local order-backed
-fulfillment records and are not a general fulfillment-service execution engine.
-`fulfillmentOrdersSetFulfillmentDeadline` stages `fulfillBy` for every
-requested fulfillment order that exists in local or hydrated order state,
-including `CLOSED` and `CANCELLED` fulfillment orders. When none of the
-requested IDs resolve, it returns `success: false` with a single user error:
-`field: null`, message `Fulfillment orders could not be found.`, and
-`code: null`.
+`Order.fulfillmentOrders` reads. Locally created order fulfillment orders derive
+their initial `assignedLocation` from the first active observed/staged shop
+location that fulfills online orders; the runtime does not fabricate
+`gid://shopify/Location/1` when no such location is known. These slices operate
+on local order-backed fulfillment records and are not a general
+fulfillment-service execution engine. `fulfillmentOrdersSetFulfillmentDeadline`
+stages `fulfillBy` for every requested fulfillment order that exists in local or
+hydrated order state, including `CLOSED` and `CANCELLED` fulfillment orders.
+When none of the requested IDs resolve, it returns `success: false` with a single
+user error: `field: null`, message
+`Fulfillment orders could not be found.`, and `code: null`.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
@@ -219,14 +222,16 @@ settings on active locations and rejects unknown or inactive locations with
 `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
 LiveHybrid reads hydrate the existing shipping locations.
 
-Shipping package slices stage changes on package records already present in
-local state or hydrated from Shopify in LiveHybrid mode, and they retain the
-original raw GraphQL request for commit replay. Unknown package IDs return the
-captured top-level `RESOURCE_NOT_FOUND` envelope. Setting a package as default
-clears every other known staged package default instead of relying on a fixed
-ID list. Shipping packages have no direct Admin GraphQL package read root in the
-captured schema, so successful staging is verified through local state/log
-behavior and targeted validation.
+Shipping package slices stage changes on package records already present in the
+local staged/observed store or hydrated from Shopify in LiveHybrid mode, and
+they retain the original raw GraphQL request for commit replay. The runtime does
+not seed canned package dimensions, weights, or names: absent or locally deleted
+package IDs return Shopify's top-level `RESOURCE_NOT_FOUND` envelope, while
+observed or hydrated package records preserve their real fields across partial
+updates. Making a package default clears the default flag across every known
+package record instead of relying on a fixed ID list. Shipping packages have no
+direct Admin GraphQL package read root in the captured schema, so successful
+staging is verified through local state/log behavior and targeted validation.
 
 Reverse delivery, reverse fulfillment disposal, and order-edit shipping-line
 roots are modeled through the orders and returns local graph when covered by

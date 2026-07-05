@@ -2853,6 +2853,17 @@ Observed current-version surface:
 - schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- A disposable 2026-04 `marketCreate` probe on `harry-test-heelo.myshopify.com`
+  created an active Brazil region market with
+  `currencySettings: { localCurrencies: true }`, no `baseCurrency`, and
+  explicit `priceInclusions` of `INCLUDES_TAXES_IN_PRICE` plus
+  `INCLUDE_DUTIES_IN_PRICE`. The created Market record defaulted
+  `currencySettings.baseCurrency.currencyCode` to the CAD shop currency and
+  stored both inclusion strategies, but
+  `marketsResolvedValues(buyerSignal: { countryCode: BR })` resolved
+  `priceInclusivity` as `{ dutiesIncluded: false, taxesIncluded: true }`.
+  Public `Shop` does not expose `dutiesIncluded`, so local resolved-values
+  duties should not be inferred directly from the Market duty strategy.
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
 - `Market.conditions.regionsCondition.regions.nodes` is a `MarketRegion` interface connection in public Admin GraphQL 2026-04. Selecting `code` directly on the interface returns an `undefinedField` schema error; select `id`, `name`, and `__typename` on the interface and `code` through `... on MarketRegionCountry`. A live `marketCreate` / `market(id:)` capture for a Canada region returned `__typename: "MarketRegionCountry"`, `name: "Canada"`, `code: "CA"`, and an opaque `gid://shopify/MarketRegionCountry/...` id on both payload and read-after-write.
 - A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
@@ -3472,7 +3483,7 @@ Practical rule:
 
 Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
 
-The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. A structurally invalid Customer GID such as `gid://shopify/Customer/no-contact-recipient` does not enter the recipient userError path at all; Admin GraphQL returns a top-level `RESOURCE_NOT_FOUND` error with message `Invalid id: <gid>` and a null root payload. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
 
 Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 

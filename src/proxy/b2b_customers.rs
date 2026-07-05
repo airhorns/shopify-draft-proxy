@@ -43,6 +43,20 @@ impl DraftProxy {
         root_fields: &[String],
         root_field: &str,
     ) -> Response {
+        if operation_type == OperationType::Query
+            && self.has_staged_url_redirects()
+            && root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "urlRedirect" | "urlRedirects" | "urlRedirectsCount"
+                )
+            })
+        {
+            let Some(fields) = crate::graphql::root_fields(query, variables) else {
+                return json_error(400, "Could not parse GraphQL operation");
+            };
+            return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
+        }
         match operation_type {
             OperationType::Mutation
                 if self.config.unsupported_mutation_mode
@@ -322,10 +336,13 @@ impl DraftProxy {
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
             "orders" => Some(match mapped_orders {
-                Some(orders) => selected_connection_json_with_args(
+                Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
                     &field.arguments,
                     &field.selection,
+                    order_search_decision,
+                    order_staged_sort_key,
+                    selected_json,
                     order_connection_cursor,
                 ),
                 None if connection_has_nodes(&customer["orders"]) => project_seeded_connection(
@@ -340,6 +357,7 @@ impl DraftProxy {
                     order_connection_cursor,
                 ),
             }),
+            "addressesV2" => Some(selected_customer_addresses_connection(customer, field)),
             // The `storeCreditAccounts` connection is resolved from the staged
             // store-credit accounts indexed by owner, so a customer read reflects
             // credit/debit mutations (and locally minted accounts) immediately.
@@ -464,7 +482,9 @@ impl DraftProxy {
         if is_credit
             && resolved_string_field(&input, "expiresAt")
                 .as_deref()
-                .map(store_credit_expires_at_in_past)
+                .map(|expires_at| {
+                    store_credit_expires_at_in_past(expires_at, self.current_epoch_seconds())
+                })
                 .unwrap_or(false)
         {
             return self.store_credit_error_outcome(
@@ -795,7 +815,15 @@ impl DraftProxy {
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
             .cloned()
             .collect::<Vec<_>>();
-        selected_connection_json_with_args(accounts, arguments, selection, value_id_cursor)
+        selected_staged_connection_with_args(
+            accounts,
+            arguments,
+            selection,
+            store_credit_account_search_decision,
+            store_credit_account_sort_key,
+            selected_json,
+            value_id_cursor,
+        )
     }
 
     fn store_credit_account_id_for_owner_currency(
@@ -948,7 +976,8 @@ impl DraftProxy {
         } else if let Some(raw_phone) = resolved_string_field(&identifier, "phone")
             .or_else(|| resolved_string_field(&identifier, "phoneNumber"))
         {
-            let needle = normalize_customer_phone(&raw_phone);
+            let needle =
+                normalize_customer_phone(&raw_phone, shop_country_code(&self.store.base.shop));
             self.store.staged.customers.values().find(|customer| {
                 if !is_live(customer) {
                     return false;
@@ -1134,7 +1163,7 @@ impl DraftProxy {
             return (response, Vec::new(), errors);
         }
         let (errors, normalized) =
-            self.customer_input_validation_errors(request, &input, None, false);
+            self.customer_input_validation_errors(request, &input, None, None, false);
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1654,10 +1683,11 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let shop = self.customer_delete_shop_payload();
         let mut payload = if id.is_empty() || !self.customer_exists_for_mutation(request, &id) {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
@@ -1670,7 +1700,7 @@ impl DraftProxy {
         {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
@@ -1678,7 +1708,7 @@ impl DraftProxy {
             self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": shop,
                 "userErrors": []
             })
         };
@@ -1695,6 +1725,17 @@ impl DraftProxy {
             .map(|id| vec![id.to_string()])
             .unwrap_or_default();
         (payload, staged_ids, Vec::new())
+    }
+
+    fn customer_delete_shop_payload(&self) -> Value {
+        self.store
+            .base
+            .shop
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null)
     }
 
     fn customer_set_payload(
@@ -1739,16 +1780,21 @@ impl DraftProxy {
                     "email",
                     &email,
                     &input,
+                    None,
                     find_customer_id_by_email,
                 );
             }
             if let Some(phone) = resolved_string_field(identifier, "phone") {
-                let normalized_phone = normalize_customer_phone(&phone).unwrap_or(phone);
+                let phone_country_code = self.customer_phone_country_code(&input, None);
+                let normalized_phone =
+                    normalize_customer_phone(&phone, phone_country_code.as_deref())
+                        .unwrap_or(phone);
                 return self.customer_set_contact_identifier_payload(
                     request,
                     "phone",
                     &normalized_phone,
                     &input,
+                    phone_country_code.as_deref(),
                     find_customer_id_by_phone,
                 );
             }
@@ -1774,6 +1820,7 @@ impl DraftProxy {
         identifier_field: &str,
         identifier_value: &str,
         input: &BTreeMap<String, ResolvedValue>,
+        phone_country_code: Option<&str>,
         find: fn(&BTreeMap<String, Value>, &str) -> Option<String>,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input_value = resolved_string_field(input, identifier_field);
@@ -1792,7 +1839,7 @@ impl DraftProxy {
             );
         };
         let normalized_input_value = if identifier_field == "phone" {
-            normalize_customer_phone(&input_value).unwrap_or(input_value)
+            normalize_customer_phone(&input_value, phone_country_code).unwrap_or(input_value)
         } else {
             normalize_customer_email(&input_value).unwrap_or(input_value)
         };
@@ -1845,7 +1892,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let (errors, normalized) =
-            self.customer_input_validation_errors(request, input, None, true);
+            self.customer_input_validation_errors(request, input, None, None, true);
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1912,6 +1959,7 @@ impl DraftProxy {
             request,
             validation_input,
             Some(id),
+            Some(&existing),
             customer_set,
         );
         if let Some(address_values) = update_address_values {
@@ -2137,11 +2185,22 @@ impl DraftProxy {
         Some(record)
     }
 
+    fn customer_phone_country_code(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        existing: Option<&Value>,
+    ) -> Option<String> {
+        customer_input_address_country_code(input)
+            .or_else(|| existing.and_then(customer_record_country_code))
+            .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+    }
+
     fn customer_input_validation_errors(
         &self,
         request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         current_id: Option<&str>,
+        existing: Option<&Value>,
         customer_set: bool,
     ) -> (Vec<Value>, NormalizedCustomerInput) {
         let mut errors = Vec::new();
@@ -2184,10 +2243,13 @@ impl DraftProxy {
             normalized.email = Some(None);
         }
 
+        let phone_country_code = self.customer_phone_country_code(input, existing);
         if let Some(raw_phone) = resolved_string_field(input, "phone") {
             if raw_phone.trim().is_empty() {
                 normalized.phone = Some(None);
-            } else if let Some(phone) = normalize_customer_phone(&raw_phone) {
+            } else if let Some(phone) =
+                normalize_customer_phone(&raw_phone, phone_country_code.as_deref())
+            {
                 if self.customer_phone_taken(request, current_id, &phone) {
                     errors.push(user_error_omit_code(
                         customer_field_path(customer_set, "phone"),
@@ -3089,30 +3151,61 @@ fn customer_email_key(email: &str) -> String {
     email.split_whitespace().collect::<String>().to_lowercase()
 }
 
-fn normalize_customer_phone(raw: &str) -> Option<String> {
+fn customer_input_address_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_object_field(input, "defaultAddress")
+        .and_then(|address| customer_input_country_code(&address))
+        .or_else(|| {
+            input.get("addresses").and_then(|value| match value {
+                ResolvedValue::List(values) => values.iter().find_map(|value| {
+                    resolved_value_object(value)
+                        .as_ref()
+                        .and_then(customer_input_country_code)
+                }),
+                _ => None,
+            })
+        })
+}
+
+fn customer_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    customer_address_string(input, "countryCode")
+        .or_else(|| customer_address_string(input, "countryCodeV2"))
+        .or_else(|| customer_address_string(input, "country"))
+        .and_then(|country| customer_country_from_input(&country).map(|resolved| resolved.code))
+}
+
+fn customer_record_country_code(customer: &Value) -> Option<String> {
+    customer
+        .get("defaultAddress")
+        .and_then(customer_address_value_country_code)
+        .or_else(|| {
+            customer
+                .pointer("/addressesV2/nodes")
+                .and_then(Value::as_array)
+                .and_then(|nodes| nodes.iter().find_map(customer_address_value_country_code))
+        })
+        .or_else(|| {
+            customer
+                .get("addresses")
+                .and_then(Value::as_array)
+                .and_then(|nodes| nodes.iter().find_map(customer_address_value_country_code))
+        })
+}
+
+fn customer_address_value_country_code(address: &Value) -> Option<String> {
+    value_country_code(address).map(str::to_string).or_else(|| {
+        address
+            .get("country")
+            .and_then(Value::as_str)
+            .and_then(|country| customer_country_from_input(country).map(|resolved| resolved.code))
+    })
+}
+
+fn normalize_customer_phone(raw: &str, country_code: Option<&str>) -> Option<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() || trimmed.chars().count() > 255 {
         return None;
     }
-    if trimmed.contains('*') {
-        return Some(trimmed.to_string());
-    }
-    let has_plus = trimmed.starts_with('+');
-    let digits = trimmed
-        .chars()
-        .filter(char::is_ascii_digit)
-        .collect::<String>();
-    if digits.len() < 10 || digits.len() > 15 {
-        return None;
-    }
-    if has_plus {
-        return Some(format!("+{digits}"));
-    }
-    if !has_plus && digits.len() == 10 {
-        Some(format!("+1{digits}"))
-    } else {
-        Some(format!("+{digits}"))
-    }
+    normalize_phone_with_country_context(trimmed, country_code, true)
 }
 
 fn blank_string_to_option(value: String) -> Option<String> {
@@ -3510,6 +3603,15 @@ fn customer_address_cursor(address: &Value) -> Option<String> {
         .get("id")
         .and_then(Value::as_str)
         .map(|id| format!("cursor:{id}"))
+}
+
+fn selected_customer_addresses_connection(customer: &Value, field: &SelectedField) -> Value {
+    selected_connection_json_with_args(
+        connection_nodes(&customer["addressesV2"]),
+        &field.arguments,
+        &field.selection,
+        |address| customer_address_cursor(address).unwrap_or_default(),
+    )
 }
 
 fn customer_mailing_addresses(
@@ -4026,8 +4128,13 @@ fn customer_address_input_node(
     let company = field_value("company");
     let zip = field_value("zip");
     let phone = if input.contains_key("phone") {
-        customer_address_string(input, "phone")
-            .map(|phone| normalize_customer_address_phone(&phone).unwrap_or(phone))
+        customer_address_string(input, "phone").map(|phone| {
+            normalize_customer_address_phone(
+                &phone,
+                country.as_ref().map(|country| country.code.as_str()),
+            )
+            .unwrap_or(phone)
+        })
     } else {
         field_value("phone")
     };
@@ -4049,55 +4156,8 @@ fn customer_address_input_node(
     )
 }
 
-fn normalize_customer_address_phone(raw: &str) -> Option<String> {
-    const CALLING_CODE: &str = "1";
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
-    if !starts_with_plus && trimmed.chars().any(|c| c == '+' || c == '\u{FF0B}') {
-        return None;
-    }
-    let supported = |c: char| {
-        c.is_ascii_digit()
-            || matches!(
-                c,
-                '+' | '\u{FF0B}'
-                    | ' '
-                    | '\t'
-                    | '\n'
-                    | '\r'
-                    | '('
-                    | ')'
-                    | '-'
-                    | '.'
-                    | '\u{2010}'
-                    | '\u{2011}'
-                    | '\u{2012}'
-                    | '\u{2013}'
-                    | '\u{2014}'
-                    | '\u{00A0}'
-            )
-    };
-    if !trimmed.chars().all(supported) {
-        return None;
-    }
-    let digits = trimmed
-        .chars()
-        .filter(char::is_ascii_digit)
-        .collect::<String>();
-    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
-    {
-        digits
-    } else {
-        format!("{CALLING_CODE}{digits}")
-    };
-    if (8..=15).contains(&e164_digits.len()) {
-        Some(format!("+{e164_digits}"))
-    } else {
-        None
-    }
+fn normalize_customer_address_phone(raw: &str, country_code: Option<&str>) -> Option<String> {
+    normalize_phone_with_country_context(raw, country_code, false)
 }
 
 #[derive(Clone)]
@@ -5007,11 +5067,13 @@ impl DraftProxy {
         // order transferred from the merged-away source, mirroring Shopify reparenting
         // the source's orders under the resulting customer's identity.
         let result_email = result["email"].as_str().map(str::to_string);
+        let result_metafields = result["metafields"].clone();
 
         self.store
             .staged
             .customers
             .insert(result_id.clone(), result);
+        self.replace_owner_metafields_from_connection(&result_id, &result_metafields);
         self.store.staged.customers.remove(&source_id);
         self.store.staged.customers.tombstone(source_id.clone());
         self.store
@@ -5610,6 +5672,87 @@ fn empty_orders_connection() -> Value {
     })
 }
 
+fn store_credit_account_currency(account: &Value) -> &str {
+    account["balance"]["currencyCode"]
+        .as_str()
+        .unwrap_or_default()
+}
+
+fn store_credit_account_matches_id(account: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    account
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn store_credit_account_search_decision(
+    account: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        let term = term.trim().trim_matches('"').trim_matches('\'');
+        if term.is_empty() {
+            continue;
+        }
+        let decision = if let Some((key, value)) = term.split_once(':') {
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "id" => {
+                    StagedSearchDecision::from_bool(store_credit_account_matches_id(account, value))
+                }
+                "currency"
+                | "currency_code"
+                | "currencyCode"
+                | "balance.currency_code"
+                | "balance.currencyCode" => StagedSearchDecision::from_bool(
+                    store_credit_account_currency(account).eq_ignore_ascii_case(value),
+                ),
+                _ => StagedSearchDecision::Unsupported,
+            }
+        } else {
+            let needle = term.to_ascii_lowercase();
+            let currency = store_credit_account_currency(account).to_ascii_lowercase();
+            StagedSearchDecision::from_bool(
+                currency.contains(&needle) || store_credit_account_matches_id(account, term),
+            )
+        };
+        match decision {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+    let tail = account
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    let id_value = tail
+        .parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
+    vec![
+        id_value,
+        StagedSortValue::String(store_credit_account_currency(account).to_ascii_lowercase()),
+    ]
+}
+
 /// Shopify rejects a credit/debit that would push an account past this hard cap.
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
@@ -5649,12 +5792,10 @@ fn resolved_money_amount_text(
     }
 }
 
-fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
-}
-
-fn store_credit_synthetic_today() -> String {
-    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
+fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
+    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+        .map(|expires_at| expires_at <= now_epoch)
+        .unwrap_or(false)
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
