@@ -2936,11 +2936,22 @@ pub(in crate::proxy) fn customer_tax_exemptions_invalid_enum_response(
         if let Some(literal) = raw_tax_exemption_literal(raw_value) {
             return Some(ok_json(json!({
                 "errors": [{
-                    "message": format!("Argument 'taxExemptions' has an invalid value [{literal}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+                    "message": tax_exemption_invalid_literal_message(
+                        "taxExemptions",
+                        &field.name,
+                        literal,
+                        "[TaxExemption!]!",
+                    ),
+                    "locations": [{
+                        "line": field.location.line,
+                        "column": field.location.column
+                    }],
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
+                        "typeName": "Field",
                         "argumentName": "taxExemptions"
-                    }
+                    },
+                    "path": tax_exemption_invalid_literal_path(query, field, "taxExemptions")
                 }]
             })));
         }
@@ -4616,14 +4627,25 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
             let Some(raw_value) = field.raw_arguments.get(argument_name) else {
                 continue;
             };
-            if raw_tax_exemption_literal(raw_value).is_some() {
+            if let Some(literal) = raw_tax_exemption_literal(raw_value) {
                 return Some(ok_json(json!({
-                    "errors": [{
-                        "message": format!("Argument '{argument_name}' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+                        "errors": [{
+                            "message": tax_exemption_invalid_literal_message(
+                                argument_name,
+                                "companyLocationTaxSettingsUpdate",
+                                literal,
+                                "[TaxExemption!]",
+                            ),
+                        "locations": [{
+                            "line": field.location.line,
+                            "column": field.location.column
+                        }],
                         "extensions": {
                             "code": "argumentLiteralsIncompatible",
+                            "typeName": "Field",
                             "argumentName": argument_name
-                        }
+                        },
+                        "path": tax_exemption_invalid_literal_path(query, field, argument_name)
                     }]
                 })));
             }
@@ -4633,6 +4655,28 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
         }
     }
     None
+}
+
+fn tax_exemption_invalid_literal_message(
+    argument_name: &str,
+    field_name: &str,
+    literal: &str,
+    expected_type: &str,
+) -> String {
+    format!(
+        "Argument '{argument_name}' on Field '{field_name}' has an invalid value ([{literal}]). Expected type '{expected_type}'."
+    )
+}
+
+fn tax_exemption_invalid_literal_path(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Value {
+    let operation_path = parsed_document(query, &BTreeMap::new())
+        .map(|document| document.operation_path)
+        .unwrap_or_else(|| "mutation".to_string());
+    json!([operation_path, field.name.clone(), argument_name])
 }
 
 fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {

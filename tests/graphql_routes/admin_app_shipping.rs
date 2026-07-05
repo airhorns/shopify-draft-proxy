@@ -3120,34 +3120,60 @@ fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
 #[test]
 fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
     let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation InvalidTaxLiteral {
-          customerAddTaxExemptions(
-            customerId: "gid://shopify/Customer/9102966915305",
-            taxExemptions: [NOT_A_REAL_EXEMPTION]
-          ) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    ));
+    for root in [
+        "customerAddTaxExemptions",
+        "customerRemoveTaxExemptions",
+        "customerReplaceTaxExemptions",
+    ] {
+        let query = format!(
+            r#"
+            mutation InvalidTaxLiteral {{
+              {root}(
+                customerId: "gid://shopify/Customer/9102966915305",
+                taxExemptions: [FOO_BAR]
+              ) {{
+                customer {{ id taxExemptions }}
+                userErrors {{ field message }}
+              }}
+            }}
+            "#
+        );
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
 
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["code"],
-        json!("argumentLiteralsIncompatible")
-    );
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["argumentName"],
-        json!("taxExemptions")
-    );
-    assert!(response.body["errors"][0]["message"]
-        .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("argumentLiteralsIncompatible")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["typeName"],
+            json!("Field")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["argumentName"],
+            json!("taxExemptions")
+        );
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!("Argument 'taxExemptions' on Field '{root}' has an invalid value ([FOO_BAR]). Expected type '[TaxExemption!]!'."))
+        );
+        assert_eq!(
+            response.body["errors"][0]["locations"],
+            json!([{ "line": 3, "column": 15 }])
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"],
+            json!(["mutation InvalidTaxLiteral", root, "taxExemptions"])
+        );
+        assert!(!response.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Did you mean"));
+        assert!(!response.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("NOT_A_REAL_EXEMPTION"));
+    }
     assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()

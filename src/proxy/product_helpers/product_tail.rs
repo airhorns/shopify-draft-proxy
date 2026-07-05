@@ -931,7 +931,7 @@ impl DraftProxy {
                 ["productsAdded"],
                 &format!(
                     "The product with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_child_ids).unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_string_list(&missing_child_ids)
                 ),
                 Some("PRODUCT_NOT_FOUND"),
             ));
@@ -1141,8 +1141,7 @@ impl DraftProxy {
                 ["input"],
                 &format!(
                     "The product variants with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_variant_ids)
-                        .unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_string_list(&missing_variant_ids)
                 ),
                 Some("PRODUCT_VARIANTS_NOT_FOUND"),
             ));
@@ -1561,6 +1560,15 @@ fn product_variant_component_rows(variant: &ProductVariantRecord) -> Vec<Value> 
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
+}
+
+fn shopify_error_string_list(values: &[String]) -> String {
+    let quoted = values
+        .iter()
+        .map(|value| serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{quoted}]")
 }
 
 const PUBLICATION_UPDATE_LIMIT: usize = 50;

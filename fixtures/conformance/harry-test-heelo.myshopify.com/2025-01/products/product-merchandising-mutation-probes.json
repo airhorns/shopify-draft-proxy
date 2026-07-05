@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-03T02:15:01.149Z",
+  "capturedAt": "2026-07-05T03:34:03.486Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -100,7 +100,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -134,7 +134,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -170,7 +170,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -207,7 +207,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -241,7 +241,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -285,7 +285,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -341,6 +341,64 @@
               }
             ],
             "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulkProductResourceFeedbackCreate-foobar-state",
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "query": "mutation ProductFeedbackFoobarState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: FOOBAR\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "mutation ProductFeedbackFoobarState",
+              "bulkProductResourceFeedbackCreate",
+              "feedbackInput",
+              0,
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-foobar-state",
+      "operationNames": ["shopResourceFeedbackCreate"],
+      "query": "mutation ShopFeedbackFoobarState {\n  shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "path": ["mutation ShopFeedbackFoobarState", "shopResourceFeedbackCreate", "input", "state"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "InputObject",
