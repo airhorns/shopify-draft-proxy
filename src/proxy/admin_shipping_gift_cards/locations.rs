@@ -272,27 +272,39 @@ impl DraftProxy {
             let location_id =
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             self.ensure_location_hydrated(&location_id, request);
-            self.hydrate_location_limit_status(request);
-            let source_location = self.location_source_record(&location_id);
-            let errors = self.location_activate_errors(&source_location);
-            let location = if errors.is_empty() {
-                let mut location = source_location;
-                location["isActive"] = json!(true);
-                location["activatable"] = json!(true);
-                location["deactivatable"] = json!(true);
-                location["deletable"] = json!(false);
-                self.stage_location(location.clone());
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationActivate",
-                    vec![location_id.clone()],
-                );
-                location
-            } else {
-                source_location
-            };
+            let (location, errors) =
+                if let Some(source_location) = self.location_for_read(&location_id) {
+                    self.hydrate_location_limit_status(request);
+                    let errors = self.location_activate_errors(&source_location);
+                    let location = if errors.is_empty() {
+                        let mut location = source_location;
+                        location["isActive"] = json!(true);
+                        location["activatable"] = json!(true);
+                        location["deactivatable"] = json!(true);
+                        location["deletable"] = json!(false);
+                        self.stage_location(location.clone());
+                        self.record_mutation_log_entry(
+                            request,
+                            query,
+                            variables,
+                            "locationActivate",
+                            vec![location_id.clone()],
+                        );
+                        location
+                    } else {
+                        source_location
+                    };
+                    (location, errors)
+                } else {
+                    (
+                        Value::Null,
+                        vec![user_error(
+                            ["locationId"],
+                            "Location not found.",
+                            Some("LOCATION_NOT_FOUND"),
+                        )],
+                    )
+                };
             data.insert(
                 field.response_key,
                 location_activate_payload_selected_json(location, &field.selection, errors),
@@ -905,6 +917,9 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
+        if self.store.staged.locations.is_tombstoned(location_id) {
+            return;
+        }
         if self.store.staged.locations.contains_key(location_id)
             || self
                 .store
@@ -1058,7 +1073,7 @@ impl DraftProxy {
                 "location" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection))
+                        .map(|location| self.location_selected_json(&location, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "locationByIdentifier" => {
@@ -1067,7 +1082,7 @@ impl DraftProxy {
                     let id = resolved_string_field(&identifier, "id").unwrap_or_default();
                     let location = self
                         .location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection));
+                        .map(|location| self.location_selected_json(&location, &field.selection));
                     if location.is_none() && identifier.contains_key("customId") {
                         errors.push(json!({
                             "message": "Metafield definition of type 'id' is required when using custom ids.",
@@ -1132,18 +1147,13 @@ impl DraftProxy {
         })
     }
 
-    fn location_source_record(&self, location_id: &str) -> Value {
-        self.location_for_read(location_id)
-            .unwrap_or_else(|| self.staged_location_record(location_id))
-    }
-
     fn locations_connection_json(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
         let locations = self.locations_for_connection(arguments);
-        location_connection_json(locations, arguments, selections)
+        self.location_connection_json(locations, arguments, selections)
     }
 
     fn locations_count_json(
@@ -1263,6 +1273,70 @@ impl DraftProxy {
         }
         seen.insert(id.to_string());
         locations.push(location);
+    }
+
+    fn location_connection_json(
+        &self,
+        locations: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let result = staged_connection_query(
+            locations,
+            arguments,
+            location_search_decision,
+            location_staged_sort_key,
+            value_id_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selections,
+            |location, fields| self.location_selected_json(location, fields),
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    fn location_selected_json(&self, location: &Value, selections: &[SelectedField]) -> Value {
+        let mut fields = serde_json::Map::new();
+        for selection in selections {
+            let value = match selection.name.as_str() {
+                "inventoryLevels" => {
+                    let location_id = location
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    Some(self.location_inventory_levels_connection_selected_json(
+                        location_id,
+                        Some(location),
+                        &selection.arguments,
+                        &selection.selection,
+                    ))
+                }
+                "metafield" => location_metafield_json(location, selection),
+                "metafields" => Some(location_metafields_connection_json(location, selection)),
+                _ => location.get(&selection.name).map(|value| {
+                    if selection.selection.is_empty() {
+                        value.clone()
+                    } else if value.is_null() {
+                        Value::Null
+                    } else if let Some(values) = value.as_array() {
+                        Value::Array(
+                            values
+                                .iter()
+                                .map(|item| self.location_selected_json(item, &selection.selection))
+                                .collect(),
+                        )
+                    } else {
+                        selected_json(value, &selection.selection)
+                    }
+                }),
+            };
+            if let Some(value) = value {
+                fields.insert(selection.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -1539,6 +1613,22 @@ impl DraftProxy {
     }
 }
 
+fn location_visible_in_connection(
+    location: &Value,
+    include_inactive: bool,
+    include_legacy: bool,
+) -> bool {
+    let is_active = location
+        .get("isActive")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let is_legacy = location
+        .get("isFulfillmentService")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    (include_inactive || is_active) && (include_legacy || !is_legacy)
+}
+
 pub(in crate::proxy) fn location_connection_json(
     locations: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -1560,22 +1650,6 @@ pub(in crate::proxy) fn location_connection_json(
     )
 }
 
-fn location_visible_in_connection(
-    location: &Value,
-    include_inactive: bool,
-    include_legacy: bool,
-) -> bool {
-    let is_active = location
-        .get("isActive")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-    let is_legacy = location
-        .get("isFulfillmentService")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    (include_inactive || is_active) && (include_legacy || !is_legacy)
-}
-
 fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
     match sort_key.unwrap_or("NAME") {
         "ID" => vec![location_gid_tail_sort_value(location)],
@@ -1588,10 +1662,7 @@ fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedS
 
 fn location_gid_tail_sort_value(location: &Value) -> StagedSortValue {
     let id = location_value_string(location, "id");
-    let tail = resource_id_tail(&id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(&id))
 }
 
 fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {
@@ -2416,7 +2487,11 @@ fn location_activate_payload_selected_json(
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "location" => Some(location_selected_json(&location, &selection.selection)),
+            "location" => Some(if location.is_null() {
+                Value::Null
+            } else {
+                location_selected_json(&location, &selection.selection)
+            }),
             "locationActivateUserErrors" => {
                 selected_user_errors_field(user_errors.as_slice(), selection)
             }

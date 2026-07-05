@@ -13,6 +13,14 @@ pub(in crate::proxy) struct InventoryLevelViewState<'a> {
     pub fulfillment_service_locations: &'a BTreeMap<String, Value>,
 }
 
+#[derive(Clone)]
+struct InventoryLocationLevelRecord {
+    inventory_item_id: String,
+    location_id: String,
+    level_id: Option<String>,
+    quantities: BTreeMap<String, i64>,
+}
+
 fn inventory_level_location_for_view(
     location_id: &str,
     view_state: &InventoryLevelViewState<'_>,
@@ -177,7 +185,7 @@ pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&
 pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
     let (level_tail, query) = inventory_level_id_tail_and_query(id)?;
     let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
-    let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+    let item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
         query.to_string()
     } else {
         shopify_gid("InventoryItem", item_tail)
@@ -355,7 +363,7 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
-    fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
+    pub(in crate::proxy) fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
         InventoryLevelViewState {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
@@ -582,10 +590,10 @@ fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -
         .as_deref()
         .is_some_and(|value| !is_valid_tracking_carrier(value))
     {
-        errors.push(inventory_shipment_user_error(
+        errors.push(user_error(
             vec!["input", "trackingInput", "carrier"],
             "Carrier is not included in the list.",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
     let tracking_url =
@@ -594,10 +602,10 @@ fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -
         .as_deref()
         .is_some_and(|url| !(url.starts_with("https://") || url.starts_with("http://")))
     {
-        errors.push(inventory_shipment_user_error(
+        errors.push(user_error(
             vec!["input", "trackingInput", "url"],
             "Tracking URL is invalid.",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
     errors
@@ -916,7 +924,7 @@ fn inventory_invalid_adjust_ledger_document_payload(
                     )],
                 ));
             }
-            (_, Some(ledger)) if ledger.starts_with("gid://shopify/") => {
+            (_, Some(ledger)) if has_shopify_gid_prefix(ledger) => {
                 return Some(inventory_invalid_adjustment_payload(
                     field,
                     vec![user_error(
@@ -1015,20 +1023,30 @@ fn inventory_invalid_set_on_hand_quantities_payload(
     let mut errors = Vec::new();
     for (index, quantity) in set_quantities.iter().enumerate() {
         if resolved_int_field(quantity, "quantity").is_some_and(|value| value < 0) {
-            errors.push(json!({
-                "field": ["input", "setQuantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be negative.",
-                "code": "INVALID_QUANTITY_NEGATIVE"
-            }));
+            errors.push(user_error(
+                vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "quantity".to_string(),
+                ],
+                "The quantity can't be negative.",
+                Some("INVALID_QUANTITY_NEGATIVE"),
+            ));
         }
         if resolved_int_field(quantity, "quantity")
             .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
         {
-            errors.push(json!({
-                "field": ["input", "setQuantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be higher than 1,000,000,000.",
-                "code": "INVALID_QUANTITY_TOO_HIGH"
-            }));
+            errors.push(user_error(
+                vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "quantity".to_string(),
+                ],
+                "The quantity can't be higher than 1,000,000,000.",
+                Some("INVALID_QUANTITY_TOO_HIGH"),
+            ));
         }
     }
 
@@ -1106,7 +1124,7 @@ fn inventory_id_matches_query(id: &str, raw_value: &str) -> bool {
         return false;
     }
     let actual_tail = resource_id_tail(id);
-    let expected_tail = if expected.starts_with("gid://shopify/") {
+    let expected_tail = if has_shopify_gid_prefix(&expected) {
         resource_id_tail(&expected).to_string()
     } else {
         expected.clone()
@@ -1158,11 +1176,7 @@ fn inventory_datetime_matches_query(actual: Option<&str>, raw_value: &str) -> bo
 }
 
 fn inventory_gid_sort_key(id: &str) -> StagedSortKey {
-    let tail = resource_id_tail(id);
-    match tail.parse::<i64>() {
-        Ok(value) => vec![StagedSortValue::I64(value)],
-        Err(_) => vec![StagedSortValue::String(tail.to_ascii_lowercase())],
-    }
+    vec![resource_id_tail_sort_value(Some(id))]
 }
 
 fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> StagedSortKey {

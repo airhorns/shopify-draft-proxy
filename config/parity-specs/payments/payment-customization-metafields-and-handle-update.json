@@ -16,7 +16,10 @@
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-customization-metafields-create.graphql",
-    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables"
+    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
   },
   "comparison": {
     "mode": "strict-json",
@@ -54,6 +57,9 @@
         "proxyPath": "$.data.paymentCustomizationUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-metafields-update.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
@@ -92,6 +98,9 @@
         "proxyPath": "$.data.paymentCustomizationCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-invalid-metafields-create.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "input": {
               "fromCapturePath": "$.operations.paymentCustomizationCreateInvalidMetafieldsMissingSubfields.variables.input"
@@ -105,6 +114,9 @@
         "proxyPath": "$.data.paymentCustomizationCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-metafields-create-local-runtime.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "input": {
               "fromCapturePath": "$.operations.paymentCustomizationCreate.variables.input"
@@ -140,6 +152,9 @@
         "proxyPath": "$.data.paymentCustomizationUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-invalid-metafields-update.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "id": {
               "fromProxyResponse": "local-runtime-create-for-invalid-update",
@@ -157,6 +172,9 @@
         "proxyPath": "$.data.paymentCustomizationUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-metafields-update.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
@@ -195,6 +213,9 @@
         "proxyPath": "$.data.paymentCustomization",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-customization-metafields-read.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"

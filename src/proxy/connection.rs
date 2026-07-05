@@ -121,7 +121,17 @@ pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
 }
 
 pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
+    let nodes = connection["nodes"].as_array().cloned().unwrap_or_default();
+    if !nodes.is_empty() {
+        return nodes;
+    }
+    connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect()
 }
 
 pub(in crate::proxy) fn connection_json_with_cursor<F>(
@@ -147,6 +157,21 @@ where
 
 pub(in crate::proxy) fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
     json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
+}
+
+pub(in crate::proxy) fn connection_json_with_boundary_cursors<F>(
+    nodes: Vec<Value>,
+    mut cursor_for: F,
+) -> Value
+where
+    F: FnMut(&Value) -> Option<String>,
+{
+    let start_cursor = nodes.first().and_then(&mut cursor_for);
+    let end_cursor = nodes.last().and_then(&mut cursor_for);
+    json!({
+        "nodes": nodes,
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
+    })
 }
 
 pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {

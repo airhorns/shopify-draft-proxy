@@ -2,11 +2,11 @@
   "scenarioId": "publishable-resource-existence-current-channel",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-07-03T19:00:39.401Z",
+  "capturedAt": "2026-07-05T01:27:46.171Z",
   "setup": {
     "product": {
-      "id": "gid://shopify/Product/10230902718770",
-      "title": "Publishable resource existence mr5ati7x",
+      "id": "gid://shopify/Product/10231749509426",
+      "title": "Publishable resource existence mr7436vj",
       "status": "ACTIVE"
     },
     "publications": [
@@ -173,7 +173,7 @@
     },
     "publishCurrentMembership": {
       "variables": {
-        "id": "gid://shopify/Product/10230902718770"
+        "id": "gid://shopify/Product/10231749509426"
       },
       "response": {
         "status": 200,
@@ -181,7 +181,7 @@
           "data": {
             "publishablePublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10230902718770",
+                "id": "gid://shopify/Product/10231749509426",
                 "publishedOnCurrentPublication": true,
                 "resourcePublications": {
                   "nodes": [
@@ -191,7 +191,7 @@
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10230902718770"
+                        "id": "gid://shopify/Product/10231749509426"
                       }
                     },
                     {
@@ -200,7 +200,7 @@
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10230902718770"
+                        "id": "gid://shopify/Product/10231749509426"
                       }
                     }
                   ]
@@ -223,9 +223,40 @@
         }
       }
     },
+    "readAfterPublishCurrentMembership": {
+      "variables": {
+        "id": "gid://shopify/Product/10231749509426"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10231749509426",
+              "publishedOnCurrentPublication": true
+            },
+            "node": {
+              "id": "gid://shopify/Product/10231749509426",
+              "publishedOnCurrentPublication": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "unpublishCurrentMembership": {
       "variables": {
-        "id": "gid://shopify/Product/10230902718770"
+        "id": "gid://shopify/Product/10231749509426"
       },
       "response": {
         "status": 200,
@@ -233,7 +264,7 @@
           "data": {
             "publishableUnpublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10230902718770",
+                "id": "gid://shopify/Product/10231749509426",
                 "publishedOnCurrentPublication": false,
                 "resourcePublications": {
                   "nodes": [
@@ -243,7 +274,7 @@
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10230902718770"
+                        "id": "gid://shopify/Product/10231749509426"
                       }
                     }
                   ]
@@ -272,7 +303,7 @@
     "payload": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10230902718770",
+          "deletedProductId": "gid://shopify/Product/10231749509426",
           "userErrors": []
         }
       },
@@ -291,7 +322,8 @@
   },
   "notes": [
     "Live Admin API capture for generic publishable top-level id resource-existence validation.",
-    "Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product."
+    "Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product.",
+    "Live Admin API capture for product/node publishedOnCurrentPublication downstream reads after publishing to the current app publication."
   ],
   "upstreamCalls": [
     {
@@ -390,7 +422,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }
@@ -401,7 +433,7 @@
     {
       "operationName": "PublicationResourceHydrate",
       "variables": {
-        "ids": ["gid://shopify/Product/10230902718770"]
+        "ids": ["gid://shopify/Product/10231749509426"]
       },
       "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
@@ -410,9 +442,9 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10230902718770",
-                "title": "Publishable resource existence mr5ati7x",
-                "handle": "publishable-resource-existence-mr5ati7x",
+                "id": "gid://shopify/Product/10231749509426",
+                "title": "Publishable resource existence mr7436vj",
+                "handle": "publishable-resource-existence-mr7436vj",
                 "status": "ACTIVE",
                 "resourcePublications": {
                   "nodes": [
@@ -432,7 +464,7 @@
               "actualQueryCost": 4,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }

@@ -22,6 +22,15 @@ mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
         }
       }
       profileLocationGroups {
+        countriesInAnyZone {
+          zone
+          country {
+            code {
+              countryCode
+              restOfWorld
+            }
+          }
+        }
         locationGroup {
           id
         }
@@ -30,12 +39,19 @@ mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
             zone {
               id
               name
+              countries {
+                code {
+                  countryCode
+                  restOfWorld
+                }
+              }
             }
             methodDefinitions(first: 5) {
               nodes {
                 id
                 name
                 active
+                description
                 rateProvider {
                   ... on DeliveryRateDefinition {
                     id

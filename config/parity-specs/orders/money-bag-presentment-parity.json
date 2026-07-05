@@ -6,13 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/money-bag-presentment-parity.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
     "variablesCapturePath": "$.orderCreate.variables",
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 Shopify Admin GraphQL capture for MoneyBag presentment propagation through orderCreate, orderEditBegin/orderEditCommit, orderMarkAsPaid, and refundCreate on one disposable multi-currency order. The edit branch is captured before payment/refund because Shopify rejects edit begin on the paid/refunded order. Shopify applies a store FX rate when settling mark-as-paid and refund shopMoney amounts; the proxy preserves the captured presentment currency/amount strictly and treats only those opaque shopMoney amount conversions as expected differences. This replaces the retired proxy/local-runtime fixture; replay uses public GraphQL requests only and does not seed private proxy state.",
+  "notes": "Live 2025-01 Shopify Admin GraphQL capture for MoneyBag presentment propagation through orderCreate, orderEditBegin/orderEditCommit, orderMarkAsPaid, and refundCreate on one disposable multi-currency order. The edit branch is captured before payment/refund because Shopify rejects edit begin on the paid/refunded order. Shopify applies a store FX rate when settling mark-as-paid and refund shopMoney amounts; the proxy preserves the captured presentment currency/amount strictly and treats only those opaque shopMoney amount conversions as expected differences. This replaces the retired proxy/local-runtime fixture; replay uses public GraphQL requests only and does not seed private proxy state. Evidence trail: registered capture script scripts/capture-money-bag-presentment-conformance.ts writes the listed fixture and request files through capture-index entry money-bag-presentment; tests/graphql_routes/orders.rs keeps the local money-helper projection path executable.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

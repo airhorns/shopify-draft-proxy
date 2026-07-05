@@ -2,11 +2,11 @@
   "scenarioId": "draft-order-complete-live-parity",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-06-22T22:34:01.705Z",
+  "recordedAt": "2026-07-05T01:21:07.824Z",
   "source": "live-shopify-admin-graphql",
   "notes": "Live draft-order completion capture (re-homed from very-big-test-store to harry-test-heelo). A disposable, fully-ready draft with two non-taxable custom line items is completed; the precondition draft is resolved via a real cold OrdersDraftOrderHydrate forward (the single upstreamCall) rather than a setup-block seed. The completed order inherits the draft note/tags; sourceName is the acting app id, payment settles through the manual gateway.",
   "variables": {
-    "id": "gid://shopify/DraftOrder/1269664547122",
+    "id": "gid://shopify/DraftOrder/1275925004594",
     "paymentGatewayId": null,
     "sourceName": "hermes-cron-orders",
     "paymentPending": false
@@ -16,14 +16,49 @@
       "data": {
         "draftOrderComplete": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1269664547122",
-            "name": "#D222",
+            "id": "gid://shopify/DraftOrder/1275925004594",
+            "name": "#D310",
             "status": "COMPLETED",
             "ready": true,
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/fd3bc2cc0896419b0140b361e8b85f3c",
-            "completedAt": "2026-06-22T22:34:00Z",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/eff2f7ef53724502a936867345cd1e8d",
+            "completedAt": "2026-07-05T01:21:06Z",
+            "lineItemsSubtotalPrice": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalTax": "0.00",
+            "totalTaxSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            },
             "totalPriceSet": {
               "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
                 "amount": "55.0",
                 "currencyCode": "CAD"
               }
@@ -31,22 +66,22 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58619480047922",
+                  "id": "gid://shopify/DraftOrderLineItem/58629047124274",
                   "title": "Custom installation service",
                   "quantity": 2,
-                  "sku": "hermes-custom-service-20260622223358"
+                  "sku": "hermes-custom-service-20260705012104"
                 },
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58619480080690",
+                  "id": "gid://shopify/DraftOrderLineItem/58629047157042",
                   "title": "Premium support plan",
                   "quantity": 1,
-                  "sku": "hermes-support-20260622223358"
+                  "sku": "hermes-support-20260705012104"
                 }
               ]
             },
             "order": {
-              "id": "gid://shopify/Order/8837991727410",
-              "name": "#1494",
+              "id": "gid://shopify/Order/8891591688498",
+              "name": "#1724",
               "sourceName": "347082227713",
               "paymentGatewayNames": ["manual"],
               "displayFinancialStatus": "PAID",
@@ -57,15 +92,59 @@
                 "shopMoney": {
                   "amount": "55.0",
                   "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
                 }
               },
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19495137739058",
+                    "id": "gid://shopify/LineItem/19710707433778",
                     "title": "Custom installation service",
                     "quantity": 2,
-                    "sku": "hermes-custom-service-20260622223358",
+                    "sku": "hermes-custom-service-20260705012104",
                     "variantTitle": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -75,10 +154,10 @@
                     }
                   },
                   {
-                    "id": "gid://shopify/LineItem/19495137771826",
+                    "id": "gid://shopify/LineItem/19710707466546",
                     "title": "Premium support plan",
                     "quantity": 1,
-                    "sku": "hermes-support-20260622223358",
+                    "sku": "hermes-support-20260705012104",
                     "variantTitle": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -100,7 +179,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -111,14 +190,49 @@
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1269664547122",
-          "name": "#D222",
+          "id": "gid://shopify/DraftOrder/1275925004594",
+          "name": "#D310",
           "status": "COMPLETED",
           "ready": true,
-          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/fd3bc2cc0896419b0140b361e8b85f3c",
-          "completedAt": "2026-06-22T22:34:00Z",
+          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/eff2f7ef53724502a936867345cd1e8d",
+          "completedAt": "2026-07-05T01:21:06Z",
+          "lineItemsSubtotalPrice": {
+            "shopMoney": {
+              "amount": "55.0",
+              "currencyCode": "CAD"
+            },
+            "presentmentMoney": {
+              "amount": "55.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalTax": "0.00",
+          "totalTaxSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            },
+            "presentmentMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "subtotalPriceSet": {
+            "shopMoney": {
+              "amount": "55.0",
+              "currencyCode": "CAD"
+            },
+            "presentmentMoney": {
+              "amount": "55.0",
+              "currencyCode": "CAD"
+            }
+          },
           "totalPriceSet": {
             "shopMoney": {
+              "amount": "55.0",
+              "currencyCode": "CAD"
+            },
+            "presentmentMoney": {
               "amount": "55.0",
               "currencyCode": "CAD"
             }
@@ -126,10 +240,10 @@
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/DraftOrderLineItem/58619480047922",
+                "id": "gid://shopify/DraftOrderLineItem/58629047124274",
                 "title": "Custom installation service",
                 "quantity": 2,
-                "sku": "hermes-custom-service-20260622223358",
+                "sku": "hermes-custom-service-20260705012104",
                 "variantTitle": null,
                 "originalUnitPriceSet": {
                   "shopMoney": {
@@ -139,10 +253,10 @@
                 }
               },
               {
-                "id": "gid://shopify/DraftOrderLineItem/58619480080690",
+                "id": "gid://shopify/DraftOrderLineItem/58629047157042",
                 "title": "Premium support plan",
                 "quantity": 1,
-                "sku": "hermes-support-20260622223358",
+                "sku": "hermes-support-20260705012104",
                 "variantTitle": null,
                 "originalUnitPriceSet": {
                   "shopMoney": {
@@ -154,8 +268,8 @@
             ]
           },
           "order": {
-            "id": "gid://shopify/Order/8837991727410",
-            "name": "#1494",
+            "id": "gid://shopify/Order/8891591688498",
+            "name": "#1724",
             "sourceName": "347082227713",
             "paymentGatewayNames": ["manual"],
             "displayFinancialStatus": "PAID",
@@ -166,15 +280,59 @@
               "shopMoney": {
                 "amount": "55.0",
                 "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalTaxSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
               }
             },
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/LineItem/19495137739058",
+                  "id": "gid://shopify/LineItem/19710707433778",
                   "title": "Custom installation service",
                   "quantity": 2,
-                  "sku": "hermes-custom-service-20260622223358",
+                  "sku": "hermes-custom-service-20260705012104",
                   "variantTitle": null,
                   "originalUnitPriceSet": {
                     "shopMoney": {
@@ -184,10 +342,10 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/LineItem/19495137771826",
+                  "id": "gid://shopify/LineItem/19710707466546",
                   "title": "Premium support plan",
                   "quantity": 1,
-                  "sku": "hermes-support-20260622223358",
+                  "sku": "hermes-support-20260705012104",
                   "variantTitle": null,
                   "originalUnitPriceSet": {
                     "shopMoney": {
@@ -218,23 +376,23 @@
     {
       "operationName": "OrdersDraftOrderHydrate",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1269664547122"
+        "id": "gid://shopify/DraftOrder/1275925004594"
       },
-      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        lineItemsSubtotalPrice { shopMoney { amount currencyCode } }\n        totalTax\n        totalTaxSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1269664547122",
-              "name": "#D222",
+              "id": "gid://shopify/DraftOrder/1275925004594",
+              "name": "#D310",
               "status": "OPEN",
               "ready": true,
               "note": "merchant realistic draft order complete parity probe",
-              "email": "hermes-draft-order-complete-20260622223358@example.com",
+              "email": "hermes-draft-order-complete-20260705012104@example.com",
               "customer": {
-                "id": "gid://shopify/Customer/10821458559282",
-                "email": "hermes-draft-order-complete-20260622223358@example.com",
+                "id": "gid://shopify/Customer/10899794624818",
+                "email": "hermes-draft-order-complete-20260705012104@example.com",
                 "displayName": "Hermes Buyer"
               },
               "taxExempt": true,
@@ -242,7 +400,7 @@
               "reserveInventoryUntil": null,
               "paymentTerms": null,
               "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
-              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/fd3bc2cc0896419b0140b361e8b85f3c",
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/eff2f7ef53724502a936867345cd1e8d",
               "customAttributes": [
                 {
                   "key": "source",
@@ -264,6 +422,19 @@
               "subtotalPriceSet": {
                 "shopMoney": {
                   "amount": "55.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItemsSubtotalPrice": {
+                "shopMoney": {
+                  "amount": "55.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalTax": "0.00",
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
                   "currencyCode": "CAD"
                 }
               },
@@ -289,11 +460,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58619480047922",
+                    "id": "gid://shopify/DraftOrderLineItem/58629047124274",
                     "title": "Custom installation service",
                     "name": "Custom installation service",
                     "quantity": 2,
-                    "sku": "hermes-custom-service-20260622223358",
+                    "sku": "hermes-custom-service-20260705012104",
                     "variantTitle": null,
                     "custom": true,
                     "requiresShipping": false,
@@ -327,11 +498,11 @@
                     "variant": null
                   },
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58619480080690",
+                    "id": "gid://shopify/DraftOrderLineItem/58629047157042",
                     "title": "Premium support plan",
                     "name": "Premium support plan",
                     "quantity": 1,
-                    "sku": "hermes-support-20260622223358",
+                    "sku": "hermes-support-20260705012104",
                     "variantTitle": null,
                     "custom": true,
                     "requiresShipping": false,
