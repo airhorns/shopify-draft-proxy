@@ -396,6 +396,28 @@ function applyExcludedPaths(value: unknown, paths: string[] | undefined): unknow
   return out;
 }
 
+function resourceIdTail(value: string): string {
+  const pathPart = value.split('?')[0] ?? value;
+  return pathPart.split('/').pop() ?? value;
+}
+
+function applySpecialVariableTransforms(value: unknown, object: Record<string, unknown>): unknown {
+  let out = value;
+  if (object['resourceIdTail'] === true) {
+    if (typeof out !== 'string') throw new Error('resourceIdTail transform requires a string value');
+    out = resourceIdTail(out);
+  }
+  if (typeof object['prefix'] === 'string' || typeof object['suffix'] === 'string') {
+    if (!['string', 'number', 'boolean'].includes(typeof out)) {
+      throw new Error('prefix/suffix transform requires a scalar value');
+    }
+    const prefix = typeof object['prefix'] === 'string' ? object['prefix'] : '';
+    const suffix = typeof object['suffix'] === 'string' ? object['suffix'] : '';
+    out = `${prefix}${String(out)}${suffix}`;
+  }
+  return out;
+}
+
 function resolveSpecialVariables(
   value: unknown,
   capture: unknown,
@@ -411,18 +433,19 @@ function resolveSpecialVariables(
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
-      return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
+      return applySpecialVariableTransforms(getPath(primaryResponse.body, object['fromPrimaryProxyPath']), object);
     }
     if (typeof object['fromPreviousProxyPath'] === 'string') {
       if (previousResponse === null)
         throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
-      return getPath(previousResponse.body, object['fromPreviousProxyPath']);
+      return applySpecialVariableTransforms(getPath(previousResponse.body, object['fromPreviousProxyPath']), object);
     }
-    if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
+    if (typeof object['fromCapturePath'] === 'string')
+      return applySpecialVariableTransforms(getPath(capture, object['fromCapturePath']), object);
     if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
       const response = namedResponses.get(object['fromProxyResponse']);
       if (!response) throw new Error(`fromProxyResponse references unknown target: ${object['fromProxyResponse']}`);
-      return getPath(response.body, object['path']);
+      return applySpecialVariableTransforms(getPath(response.body, object['path']), object);
     }
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [

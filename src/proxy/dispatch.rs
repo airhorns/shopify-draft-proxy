@@ -170,6 +170,7 @@ impl DraftProxy {
                                 | "customer"
                                 | "order"
                                 | "company"
+                                | "shop"
                         )
                     })
                 })
@@ -567,7 +568,7 @@ impl DraftProxy {
             if let Some(product) = self.store.product_by_id(id) {
                 let variants = self.store.product_variants_for_product(id);
                 let shop_currency_code = self.store.shop_currency_code();
-                return Some(product_json_with_variants_and_currency(
+                return Some(self.product_json_with_variants_and_currency_context(
                     product,
                     &variants,
                     selection,
@@ -719,7 +720,7 @@ impl DraftProxy {
         }
         for node in nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
+            if is_shopify_gid_of_type(id, "Collection") {
                 self.stage_collection_from_observed_json(&node);
             }
         }
@@ -727,7 +728,7 @@ impl DraftProxy {
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-        if id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {
                 for variant in node
@@ -749,18 +750,18 @@ impl DraftProxy {
                     }
                 }
             }
-        } else if id.starts_with("gid://shopify/Collection/") {
+        } else if is_shopify_gid_of_type(id, "Collection") {
             self.stage_collection_from_observed_json(node);
-        } else if id.starts_with("gid://shopify/ProductVariant/") {
+        } else if is_shopify_gid_of_type(id, "ProductVariant") {
             if let Some(variant) = product_variant_state_from_observed_json(node) {
                 self.store.stage_product_variant(variant);
             }
             if let Some(product) = node.get("product").and_then(product_state_from_json) {
                 self.store.stage_observed_product(product);
             }
-        } else if id.starts_with("gid://shopify/InventoryItem/") {
+        } else if is_shopify_gid_of_type(id, "InventoryItem") {
             self.observe_inventory_item_node(node);
-        } else if id.starts_with("gid://shopify/InventoryLevel/") {
+        } else if is_shopify_gid_of_type(id, "InventoryLevel") {
             self.observe_inventory_level_node(node);
         } else if shopify_gid_resource_type(id) == Some("Location") {
             self.merge_staged_location(node, &[]);
@@ -913,6 +914,1161 @@ impl DraftProxy {
         }));
     }
 
+    fn dispatch_capability_fallback(execution: CapabilityExecution, root_field: &str) -> Response {
+        no_dispatcher(execution.registry_name(), root_field)
+    }
+
+    fn dispatch_products_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match (CapabilityDomain::Products, execution) {
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query =>
+            {
+                self.products_query_response(request, query, variables, root_field)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "publicationCreate"
+                            | "publicationUpdate"
+                            | "publicationDelete"
+                            | "productFeedCreate"
+                            | "productFeedDelete"
+                            | "productFullSync"
+                            | "combinedListingUpdate"
+                            | "productVariantRelationshipBulkUpdate"
+                            | "bulkProductResourceFeedbackCreate"
+                            | "shopResourceFeedbackCreate"
+                    ) =>
+            {
+                self.products_mutation_tail_helper_response(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| no_dispatcher("products", root_field))
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productCreate" =>
+            {
+                let outcome = self.product_create(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productUpdate" =>
+            {
+                let outcome = self.product_update(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productDelete" =>
+            {
+                let outcome = self.product_delete(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productSet" =>
+            {
+                let outcome = self.product_set(query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productDuplicate" =>
+            {
+                let outcome = self.product_duplicate(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+            {
+                let outcome = self.product_bundle_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(root_field, "productPublish" | "productUnpublish") =>
+            {
+                let outcome =
+                    self.product_publication_mutation(root_field, query, variables, request);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if root_field == "productChangeStatus" =>
+            {
+                let outcome = self.product_change_status(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(
+                    root_field,
+                    "productCreateMedia"
+                        | "productUpdateMedia"
+                        | "productDeleteMedia"
+                        | "productReorderMedia"
+                ) =>
+            {
+                // Media staging is store-backed: in Snapshot mode (unit tests) no
+                // upstream product has been observed, so there is nothing to stage
+                // media onto. Fail closed exactly like an unrouted mutation rather
+                // than fabricate a baked media payload from empty local state.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    match root_fields(query, variables) {
+                        Some(fields) => match self.product_media_mutation_data(request, &fields) {
+                            Some(data) => {
+                                self.record_mutation_log_entry(
+                                    request,
+                                    query,
+                                    variables,
+                                    root_field,
+                                    Vec::new(),
+                                );
+                                ok_json(json!({ "data": data }))
+                            }
+                            // Error scenarios (e.g. unstaged live products) fall
+                            // through to the real upstream rather than a 501.
+                            None => (self.upstream_transport)(request.clone()),
+                        },
+                        None => (self.upstream_transport)(request.clone()),
+                    }
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productVariantAppendMedia" | "productVariantDetachMedia"
+                    ) =>
+            {
+                // Variant media attach/detach is store-backed against the owning
+                // product's staged variants. Snapshot mode has nothing staged, so
+                // fail closed; LiveHybrid stages through the variant mutation path.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    let outcome =
+                        self.product_variant_mutation(request, root_field, query, variables);
+                    self.finalize_mutation_outcome(request, query, variables, outcome)
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(
+                    root_field,
+                    "collectionCreate"
+                        | "collectionUpdate"
+                        | "collectionDelete"
+                        | "collectionAddProducts"
+                        | "collectionAddProductsV2"
+                        | "collectionRemoveProducts"
+                        | "collectionReorderProducts"
+                ) =>
+            {
+                let outcome = self.collection_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productVariantCreate"
+                            | "productVariantUpdate"
+                            | "productVariantDelete"
+                            | "productVariantsBulkCreate"
+                            | "productVariantsBulkUpdate"
+                            | "productVariantsBulkDelete"
+                            | "productVariantsBulkReorder"
+                    ) =>
+            {
+                let outcome = self.product_variant_mutation(request, root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "sellingPlanGroupCreate"
+                            | "sellingPlanGroupUpdate"
+                            | "sellingPlanGroupDelete"
+                            | "sellingPlanGroupAddProducts"
+                            | "sellingPlanGroupRemoveProducts"
+                            | "sellingPlanGroupAddProductVariants"
+                            | "sellingPlanGroupRemoveProductVariants"
+                            | "productJoinSellingPlanGroups"
+                            | "productLeaveSellingPlanGroups"
+                            | "productVariantJoinSellingPlanGroups"
+                            | "productVariantLeaveSellingPlanGroups"
+                    ) =>
+            {
+                // Validation scenarios reference live-store products/groups that
+                // were never staged here; serve those from upstream rather than
+                // fabricate an inaccurate userError from empty local state.
+                if !self.selling_plan_mutation_serves_locally(root_field, query, variables) {
+                    return (self.upstream_transport)(request.clone());
+                }
+                let outcome = self.selling_plan_group_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
+                    ) =>
+            {
+                let outcome = self.product_option_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if matches!(root_field, "tagsAdd" | "tagsRemove") =>
+            {
+                let outcome = self.product_tags_mutation(root_field, query, variables, request);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldsSet" =>
+            {
+                match metafields_set_coercion_error(query, variables) {
+                    Some(response) => response,
+                    None => {
+                        let outcome = self.owner_metafields_set(request, query, variables);
+                        self.finalize_mutation_outcome(request, query, variables, outcome)
+                    }
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldsDelete" =>
+            {
+                let outcome = self.owner_metafields_delete(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldDelete" =>
+            {
+                let outcome = self.owner_metafield_delete(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "inventoryAdjustQuantities"
+                            | "inventorySetQuantities"
+                            | "inventorySetOnHandQuantities"
+                            | "inventoryMoveQuantities"
+                            | "inventoryActivate"
+                            | "inventoryDeactivate"
+                            | "inventoryBulkToggleActivation"
+                            | "inventoryItemUpdate"
+                            | "inventoryTransferCreate"
+                            | "inventoryTransferCreateAsReadyToShip"
+                            | "inventoryTransferMarkAsReadyToShip"
+                            | "inventoryTransferEdit"
+                            | "inventoryTransferSetItems"
+                            | "inventoryTransferRemoveItems"
+                            | "inventoryTransferDuplicate"
+                            | "inventoryTransferCancel"
+                            | "inventoryTransferDelete"
+                            | "inventoryShipmentCreate"
+                            | "inventoryShipmentCreateInTransit"
+                            | "inventoryShipmentAddItems"
+                            | "inventoryShipmentRemoveItems"
+                            | "inventoryShipmentUpdateItemQuantities"
+                            | "inventoryShipmentSetTracking"
+                            | "inventoryShipmentMarkInTransit"
+                            | "inventoryShipmentReceive"
+                            | "inventoryShipmentDelete"
+                    ) =>
+            {
+                let fields = try_root_fields!(query, variables);
+                let outcome = self.inventory_mutation_data(request, &fields);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
+        }
+    }
+
+    fn dispatch_orders_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match (CapabilityDomain::Orders, execution) {
+            (CapabilityDomain::Orders, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query =>
+            {
+                if let Some(data) =
+                    self.order_return_local_runtime_data(request, root_field, query, variables)
+                {
+                    return ok_json(data);
+                }
+                if self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables);
+                }
+                self.orders_query_response(request, query, variables, root_field)
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
+            {
+                if let Some(data) =
+                    self.abandonment_delivery_status_local_data(request, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderCancel" =>
+            {
+                if let Some(data) = self.order_customer_error_paths_data(request, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderDelete" =>
+            {
+                if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
+                    ) =>
+            {
+                if let Some(data) = self.money_bag_presentment_local_data(request, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.refund_create_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.order_payment_transaction_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    self.orders_stage_locally_unmodeled_shape_response(
+                        request, query, variables, root_field,
+                    )
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderCreate" =>
+            {
+                if let Some(data) = self.payment_terms_local_data(request, query, variables) {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.money_bag_presentment_local_data(request, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.order_payment_transaction_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.draft_order_complete_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(data) =
+                    self.order_create_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    self.customer_order_create(query, variables, request)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderUpdate" =>
+            {
+                if let Some(data) =
+                    self.order_create_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "orderClose" | "orderOpen") =>
+            {
+                if let Some(data) =
+                    self.order_create_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "draftOrderCreate"
+                            | "draftOrderInvoiceSend"
+                            | "draftOrderUpdate"
+                            | "draftOrderCalculate"
+                            | "draftOrderDuplicate"
+                            | "draftOrderDelete"
+                            | "draftOrderBulkDelete"
+                            | "draftOrderCreateFromOrder"
+                            | "draftOrderInvoicePreview"
+                    ) =>
+            {
+                if let Some(response) =
+                    self.draft_order_invoice_send_local_response(request, query, variables)
+                {
+                    response
+                } else if let Some(data) =
+                    self.draft_order_complete_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else if let Some(response) =
+                    self.draft_order_lifecycle_local_response(request, query, variables)
+                {
+                    response
+                } else if let Some(data) = self.draft_order_bulk_tag_local_data(query, variables) {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "draftOrderComplete" =>
+            {
+                if let Some(data) =
+                    self.draft_order_complete_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
+                    ) =>
+            {
+                let before_tags = self.store.staged.draft_order_tags.clone();
+                if let Some(data) = self.draft_order_bulk_tag_local_data(query, variables) {
+                    let staged_ids = changed_draft_order_tag_ids(
+                        &before_tags,
+                        &self.store.staged.draft_order_tags,
+                    );
+                    if !staged_ids.is_empty() {
+                        self.record_mutation_log_entry(
+                            request, query, variables, root_field, staged_ids,
+                        );
+                    }
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentCreate"
+                            | "fulfillmentCreateV2"
+                            | "fulfillmentCancel"
+                            | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentEventCreate"
+                            | "orderEditAddVariant"
+                            | "orderEditSetQuantity"
+                            | "orderEditAddCustomItem"
+                            | "orderEditAddLineItemDiscount"
+                            | "orderEditRemoveDiscount"
+                            | "orderEditAddShippingLine"
+                            | "orderEditUpdateShippingLine"
+                            | "orderEditRemoveShippingLine"
+                    ) =>
+            {
+                if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "returnCreate"
+                            | "returnRequest"
+                            | "returnApproveRequest"
+                            | "returnDeclineRequest"
+                            | "returnCancel"
+                            | "returnClose"
+                            | "returnReopen"
+                            | "removeFromReturn"
+                            | "returnProcess"
+                    ) =>
+            {
+                if let Some(data) =
+                    self.order_return_local_runtime_data(request, root_field, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
+            {
+                if let Some(data) = self.order_customer_error_paths_data(request, query, variables)
+                {
+                    ok_json(data)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
+        }
+    }
+
+    fn dispatch_shipping_fulfillments_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match (CapabilityDomain::ShippingFulfillments, execution) {
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query =>
+            {
+                let fields = try_root_fields!(query, variables);
+                if matches!(root_field, "reverseDelivery" | "reverseFulfillmentOrder") {
+                    if let Some(data) =
+                        self.order_return_local_runtime_data(request, root_field, query, variables)
+                    {
+                        ok_json(data)
+                    } else {
+                        ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
+                    }
+                } else if matches!(root_field, "carrierService" | "carrierServices") {
+                    ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
+                } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
+                    self.delivery_profile_read_response(request, &fields)
+                } else if root_field == "availableCarrierServices" {
+                    // The shipping-settings availability read combines
+                    // `availableCarrierServices` with the shipping-locations
+                    // connection. Serve from observed/staged state, or (in live
+                    // modes with no observed state yet) forward upstream and
+                    // observe both carrier services and locations so later
+                    // local-pickup mutations and reads resolve them locally.
+                    self.shipping_settings_read_response(request, &fields)
+                } else if root_field == "locationsAvailableForDeliveryProfilesConnection" {
+                    // A standalone shipping-locations connection read: serve from
+                    // observed/staged shipping locations, or (in live modes with no
+                    // observed state yet) forward upstream and observe the result so
+                    // later pickup mutations and reads resolve locally.
+                    self.delivery_profile_locations_read_response(request, &fields)
+                } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
+                    ok_json(json!({ "data": data }))
+                } else if matches!(
+                    root_field,
+                    "fulfillmentOrder"
+                        | "fulfillmentOrders"
+                        | "assignedFulfillmentOrders"
+                        | "manualHoldsFulfillmentOrders"
+                ) {
+                    self.shipping_fulfillment_order_read_response(request, query, variables)
+                } else {
+                    ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
+                }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "reverseDeliveryCreateWithShipping"
+                            | "reverseDeliveryShippingUpdate"
+                            | "reverseFulfillmentOrderDispose"
+                    ) =>
+            {
+                if let Some(data) =
+                    self.order_return_local_runtime_data(request, root_field, query, variables)
+                {
+                    // Reverse-logistics mutations are recorded in the mutation log so
+                    // the staged session can be introspected/replayed; the return*
+                    // lifecycle mutations (Orders domain) intentionally do not log.
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_field,
+                        Vec::new(),
+                    );
+                    ok_json(data)
+                } else {
+                    no_dispatcher("shipping-fulfillments", root_field)
+                }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "shippingPackageUpdate"
+                            | "shippingPackageMakeDefault"
+                            | "shippingPackageDelete"
+                    ) =>
+            {
+                self.shipping_package_mutation(root_field, query, variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
+                    ) =>
+            {
+                self.carrier_service_mutations(query, variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentServiceCreate"
+                            | "fulfillmentServiceUpdate"
+                            | "fulfillmentServiceDelete"
+                    ) =>
+            {
+                self.fulfillment_service_mutation(root_field, query, variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "fulfillmentOrderMove" =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, query, variables,
+                )
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
+                    ) =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, query, variables,
+                )
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "fulfillmentOrdersSetFulfillmentDeadline" =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, query, variables,
+                )
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
+                    ) =>
+            {
+                self.delivery_profile_mutation(root_field, query, variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "locationLocalPickupEnable" | "locationLocalPickupDisable"
+                    ) =>
+            {
+                self.location_local_pickup_mutation(root_field, query, variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrderHold"
+                            | "fulfillmentOrderReleaseHold"
+                            | "fulfillmentOrderCancel"
+                            | "fulfillmentOrderClose"
+                            | "fulfillmentOrderReschedule"
+                            | "fulfillmentOrdersReroute"
+                            | "fulfillmentOrderSplit"
+                            | "fulfillmentOrderMerge"
+                            | "fulfillmentOrderSubmitFulfillmentRequest"
+                            | "fulfillmentOrderAcceptFulfillmentRequest"
+                            | "fulfillmentOrderRejectFulfillmentRequest"
+                            | "fulfillmentOrderSubmitCancellationRequest"
+                            | "fulfillmentOrderAcceptCancellationRequest"
+                            | "fulfillmentOrderRejectCancellationRequest"
+                    ) =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, query, variables,
+                )
+            }
+            (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
+        }
+    }
+
+    fn dispatch_customers_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match (CapabilityDomain::Customers, execution) {
+            (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query =>
+            {
+                let fields = try_root_fields!(query, variables);
+                if customer_payment_methods_only_read(&fields) {
+                    if let Some(data) =
+                        self.customer_payment_method_local_data(request, query, variables)
+                    {
+                        return ok_json(data);
+                    }
+                }
+                // A query may combine `customer*` reads with a standalone
+                // `storeCreditAccount(id:)` read (or carry only the latter).
+                // Each is served from its own staged overlay and the two field
+                // maps are merged into one `data` object.
+                let handle_customers = self.should_handle_customer_overlay_read(&fields);
+                if !handle_customers && self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables);
+                }
+                let handle_store_credit = fields
+                    .iter()
+                    .any(|field| field.name == "storeCreditAccount");
+                if handle_customers || handle_store_credit {
+                    // A `customersCount` read served from the staged overlay
+                    // needs the live store-wide baseline; hydrate it once in
+                    // LiveHybrid mode before projecting.
+                    if handle_customers && fields.iter().any(|field| field.name == "customersCount")
+                    {
+                        self.hydrate_customers_count_for_overlay_read(request);
+                    }
+                    let data = root_payload_json(&fields, |field| {
+                        if handle_customers {
+                            if let Value::Object(object) =
+                                self.customer_overlay_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
+                        }
+                        if handle_store_credit {
+                            if let Value::Object(object) =
+                                self.store_credit_account_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
+                        }
+                        None
+                    });
+                    ok_json(json!({ "data": data }))
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet"
+                    ) =>
+            {
+                self.customer_mutation_response(request, query, variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "customerMerge" =>
+            {
+                self.customer_merge(query, variables, request)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerRequestDataErasure" | "customerCancelDataErasure"
+                    ) =>
+            {
+                self.customer_data_erasure(
+                    query,
+                    variables,
+                    request,
+                    root_field,
+                    root_field == "customerRequestDataErasure",
+                )
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerAddressCreate"
+                            | "customerAddressUpdate"
+                            | "customerAddressDelete"
+                            | "customerUpdateDefaultAddress"
+                    ) =>
+            {
+                self.customer_address_mutation(request, query, variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "storeCreditAccountCredit" | "storeCreditAccountDebit"
+                    ) =>
+            {
+                let outcome =
+                    self.store_credit_account_mutation(root_field, request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerAddTaxExemptions"
+                            | "customerRemoveTaxExemptions"
+                            | "customerReplaceTaxExemptions"
+                    ) =>
+            {
+                let fields = try_root_fields!(query, variables);
+                // Enum coercion errors (invalid `taxExemptions`) are raised before
+                // any staging, matching Shopify's request-validation ordering.
+                if let Some(response) =
+                    customer_tax_exemptions_invalid_enum_response(query, &fields)
+                {
+                    return response;
+                }
+                self.customer_tax_exemptions_mutation_response(&fields, request, query, variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerEmailMarketingConsentUpdate" | "customerSmsMarketingConsentUpdate"
+                    ) =>
+            {
+                let fields = try_root_fields!(query, variables);
+                // SMS marketingState values outside `CustomerSmsMarketingState` fail
+                // enum coercion before any staging, matching Shopify's ordering.
+                if let Some(response) = customer_sms_consent_invalid_enum_response(query, &fields) {
+                    return response;
+                }
+                self.customer_marketing_consent_update(query, variables, request)
+            }
+            (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
+        }
+    }
+
+    fn dispatch_b2b_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match (CapabilityDomain::B2b, execution) {
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "companyLocationUpdate"
+                            | "companyLocationTaxSettingsUpdate"
+                            | "companyAssignCustomerAsContact"
+                    ) =>
+            {
+                match root_field {
+                    "companyLocationUpdate" => self
+                        .b2b_location_buyer_experience_tail_helper_response(
+                            request,
+                            query,
+                            variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
+                    "companyLocationTaxSettingsUpdate" => self
+                        .b2b_tax_settings_tail_helper_response(
+                            request,
+                            query,
+                            variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
+                    "companyAssignCustomerAsContact" => {
+                        if let Some(response) =
+                            self.b2b_assign_customer_as_contact_response(request, query, variables)
+                        {
+                            response
+                        } else if let Some(data) =
+                            self.order_customer_error_paths_data(request, query, variables)
+                        {
+                            ok_json(data)
+                        } else {
+                            no_dispatcher("b2b", root_field)
+                        }
+                    }
+                    _ => no_dispatcher("b2b", root_field),
+                }
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                // Snapshot mode (unit tests) has no upstream to forward to, so every
+                // remaining B2B mutations stage locally through the company tail
+                // helper.
+                self.b2b_company_tail_helper_response(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| no_dispatcher("b2b", root_field))
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                // Live/hybrid mode: apply the local cascade side-effects and forward
+                // upstream so the recorded Shopify response is returned. Roots
+                // without a dedicated cascade handler fall through to a plain
+                // passthrough (never a hard 501), keeping parity intact.
+                match root_field {
+                    "companyCreate"
+                    | "companyUpdate"
+                    | "companyLocationCreate"
+                    | "companyLocationAssignAddress"
+                    | "companyContactAssignRole"
+                    | "companyContactAssignRoles"
+                    | "companyLocationAssignRoles" => self
+                        .b2b_company_tail_helper_response(
+                            request,
+                            query,
+                            variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
+                    "companyContactDelete"
+                    | "companyContactsDelete"
+                    | "companyContactRemoveFromCompany" => self.b2b_contact_delete_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyContactCreate" => self.b2b_company_contact_create_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyContactUpdate" => self.b2b_company_contact_update_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyAssignMainContact" => self.b2b_assign_main_contact_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyRevokeMainContact" => self.b2b_revoke_main_contact_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyDelete" | "companiesDelete" => self.b2b_company_delete_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyAddressDelete" => self.b2b_company_address_delete_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    "companyLocationDelete" | "companyLocationsDelete" => self
+                        .b2b_company_locations_delete_with_cascade(
+                            request,
+                            query,
+                            variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                            root_field,
+                        ),
+                    "companyContactRevokeRole"
+                    | "companyContactRevokeRoles"
+                    | "companyLocationRevokeRoles" => self.b2b_revoke_roles_with_cascade(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                    _ => self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
+                }
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query =>
+            {
+                if self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables);
+                }
+                self.b2b_location_buyer_experience_tail_helper_response(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .or_else(|| {
+                    self.b2b_company_tail_helper_response(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    // Cold read: the query touches no locally-staged B2B graph
+                    // (e.g. a pure read of a pre-existing company catalog, or a
+                    // multi-root read whose roots the local serializer does not
+                    // cover). Forward verbatim upstream as a read-through so the
+                    // real recorded Shopify response is replayed. Staged
+                    // read-after-write reads short-circuit above by returning
+                    // Some, so this never masks local overlay state. Snapshot
+                    // mode has no upstream, so it keeps the explicit 501.
+                    if self.config.read_mode != ReadMode::Snapshot {
+                        (self.upstream_transport)(request.clone())
+                    } else {
+                        no_dispatcher("b2b overlay-read", root_field)
+                    }
+                })
+            }
+            (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            _ => unreachable!("non-unknown passthrough capabilities are not registered"),
+        }
+    }
+
     pub(in crate::proxy) fn dispatch_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
@@ -970,292 +2126,9 @@ impl DraftProxy {
             return response;
         }
         match (capability.domain, capability.execution) {
-            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                self.products_query_response(request, &query, &variables, root_field)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "publicationCreate"
-                            | "publicationUpdate"
-                            | "publicationDelete"
-                            | "productFeedCreate"
-                            | "productFeedDelete"
-                            | "productFullSync"
-                            | "combinedListingUpdate"
-                            | "productVariantRelationshipBulkUpdate"
-                            | "bulkProductResourceFeedbackCreate"
-                            | "shopResourceFeedbackCreate"
-                    ) =>
-            {
-                self.products_mutation_tail_helper_response(
-                    request,
-                    &query,
-                    &variables,
-                    operation.operation_type,
-                    &operation.root_fields,
-                )
-                .unwrap_or_else(|| no_dispatcher("products", root_field))
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productCreate" =>
-            {
-                let outcome = self.product_create(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productUpdate" =>
-            {
-                let outcome = self.product_update(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productDelete" =>
-            {
-                let outcome = self.product_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productSet" =>
-            {
-                let outcome = self.product_set(&query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productDuplicate" =>
-            {
-                let outcome = self.product_duplicate(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
-            {
-                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(root_field, "productPublish" | "productUnpublish") =>
-            {
-                let outcome =
-                    self.product_publication_mutation(root_field, &query, &variables, request);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if root_field == "productChangeStatus" =>
-            {
-                let outcome = self.product_change_status(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(
-                    root_field,
-                    "productCreateMedia"
-                        | "productUpdateMedia"
-                        | "productDeleteMedia"
-                        | "productReorderMedia"
-                ) =>
-            {
-                // Media staging is store-backed: in Snapshot mode (unit tests) no
-                // upstream product has been observed, so there is nothing to stage
-                // media onto. Fail closed exactly like an unrouted mutation rather
-                // than fabricate a baked media payload from empty local state.
-                if self.config.read_mode == ReadMode::Snapshot {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    )
-                } else {
-                    match root_fields(&query, &variables) {
-                        Some(fields) => match self.product_media_mutation_data(request, &fields) {
-                            Some(data) => {
-                                self.record_mutation_log_entry(
-                                    request,
-                                    &query,
-                                    &variables,
-                                    root_field,
-                                    Vec::new(),
-                                );
-                                ok_json(json!({ "data": data }))
-                            }
-                            // Error scenarios (e.g. unstaged live products) fall
-                            // through to the real upstream rather than a 501.
-                            None => (self.upstream_transport)(request.clone()),
-                        },
-                        None => (self.upstream_transport)(request.clone()),
-                    }
-                }
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productVariantAppendMedia" | "productVariantDetachMedia"
-                    ) =>
-            {
-                // Variant media attach/detach is store-backed against the owning
-                // product's staged variants. Snapshot mode has nothing staged, so
-                // fail closed; LiveHybrid stages through the variant mutation path.
-                if self.config.read_mode == ReadMode::Snapshot {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    )
-                } else {
-                    let outcome =
-                        self.product_variant_mutation(request, root_field, &query, &variables);
-                    self.finalize_mutation_outcome(request, &query, &variables, outcome)
-                }
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(
-                    root_field,
-                    "collectionCreate"
-                        | "collectionUpdate"
-                        | "collectionDelete"
-                        | "collectionAddProducts"
-                        | "collectionAddProductsV2"
-                        | "collectionRemoveProducts"
-                        | "collectionReorderProducts"
-                ) =>
-            {
-                let outcome = self.collection_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productVariantCreate"
-                            | "productVariantUpdate"
-                            | "productVariantDelete"
-                            | "productVariantsBulkCreate"
-                            | "productVariantsBulkUpdate"
-                            | "productVariantsBulkDelete"
-                            | "productVariantsBulkReorder"
-                    ) =>
-            {
-                let outcome =
-                    self.product_variant_mutation(request, root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "sellingPlanGroupCreate"
-                            | "sellingPlanGroupUpdate"
-                            | "sellingPlanGroupDelete"
-                            | "sellingPlanGroupAddProducts"
-                            | "sellingPlanGroupRemoveProducts"
-                            | "sellingPlanGroupAddProductVariants"
-                            | "sellingPlanGroupRemoveProductVariants"
-                            | "productJoinSellingPlanGroups"
-                            | "productLeaveSellingPlanGroups"
-                            | "productVariantJoinSellingPlanGroups"
-                            | "productVariantLeaveSellingPlanGroups"
-                    ) =>
-            {
-                // Validation scenarios reference live-store products/groups that
-                // were never staged here; serve those from upstream rather than
-                // fabricate an inaccurate userError from empty local state.
-                if !self.selling_plan_mutation_serves_locally(root_field, &query, &variables) {
-                    return (self.upstream_transport)(request.clone());
-                }
-                let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productOptionsCreate"
-                            | "productOptionUpdate"
-                            | "productOptionsDelete"
-                            | "productOptionsReorder"
-                    ) =>
-            {
-                let outcome = self.product_option_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if matches!(root_field, "tagsAdd" | "tagsRemove") =>
-            {
-                let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldsSet" =>
-            {
-                match metafields_set_coercion_error(&query, &variables) {
-                    Some(response) => response,
-                    None => {
-                        let outcome = self.owner_metafields_set(request, &query, &variables);
-                        self.finalize_mutation_outcome(request, &query, &variables, outcome)
-                    }
-                }
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldsDelete" =>
-            {
-                let outcome = self.owner_metafields_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldDelete" =>
-            {
-                let outcome = self.owner_metafield_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "inventoryAdjustQuantities"
-                            | "inventorySetQuantities"
-                            | "inventorySetOnHandQuantities"
-                            | "inventoryMoveQuantities"
-                            | "inventoryActivate"
-                            | "inventoryDeactivate"
-                            | "inventoryBulkToggleActivation"
-                            | "inventoryItemUpdate"
-                            | "inventoryTransferCreate"
-                            | "inventoryTransferCreateAsReadyToShip"
-                            | "inventoryTransferMarkAsReadyToShip"
-                            | "inventoryTransferEdit"
-                            | "inventoryTransferSetItems"
-                            | "inventoryTransferRemoveItems"
-                            | "inventoryTransferDuplicate"
-                            | "inventoryTransferCancel"
-                            | "inventoryTransferDelete"
-                            | "inventoryShipmentCreate"
-                            | "inventoryShipmentCreateInTransit"
-                            | "inventoryShipmentAddItems"
-                            | "inventoryShipmentRemoveItems"
-                            | "inventoryShipmentUpdateItemQuantities"
-                            | "inventoryShipmentSetTracking"
-                            | "inventoryShipmentMarkInTransit"
-                            | "inventoryShipmentReceive"
-                            | "inventoryShipmentDelete"
-                    ) =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                let outcome = self.inventory_mutation_data(request, &fields);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
+            (CapabilityDomain::Products, execution) => self.dispatch_products_graphql(
+                request, &query, &variables, &operation, root_field, execution,
+            ),
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
                 self.saved_search_overlay_read_response(request, &query, &variables)
             }
@@ -1435,269 +2308,9 @@ impl DraftProxy {
                 let fields = try_root_fields!(&query, &variables);
                 self.gift_card_mutation_response(&fields, request, &query, &variables)
             }
-            (CapabilityDomain::Orders, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                if let Some(data) =
-                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
-                {
-                    return ok_json(data);
-                }
-                if self.should_route_owner_metafields_read(&query, &variables) {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
-                self.orders_query_response(request, &query, &variables, root_field)
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
-            {
-                if let Some(data) =
-                    self.abandonment_delivery_status_local_data(request, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "orderCancel" =>
-            {
-                if let Some(data) =
-                    self.order_customer_error_paths_data(request, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "orderDelete" =>
-            {
-                if let Some(data) =
-                    self.remaining_order_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
-                    ) =>
-            {
-                if let Some(data) =
-                    self.money_bag_presentment_local_data(request, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.refund_create_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) = self
-                    .order_payment_transaction_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.remaining_order_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    self.orders_stage_locally_unmodeled_shape_response(
-                        request, &query, &variables, root_field,
-                    )
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "orderCreate" =>
-            {
-                if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.money_bag_presentment_local_data(request, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) = self
-                    .order_payment_transaction_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.remaining_order_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(data) =
-                    self.order_create_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    self.customer_order_create(&query, &variables, request)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "orderUpdate" =>
-            {
-                if let Some(data) =
-                    self.order_create_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(root_field, "orderClose" | "orderOpen") =>
-            {
-                if let Some(data) =
-                    self.order_create_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "draftOrderCreate"
-                            | "draftOrderInvoiceSend"
-                            | "draftOrderUpdate"
-                            | "draftOrderCalculate"
-                            | "draftOrderDuplicate"
-                            | "draftOrderDelete"
-                            | "draftOrderBulkDelete"
-                            | "draftOrderCreateFromOrder"
-                            | "draftOrderInvoicePreview"
-                    ) =>
-            {
-                if let Some(response) =
-                    self.draft_order_invoice_send_local_response(request, &query, &variables)
-                {
-                    response
-                } else if let Some(data) =
-                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else if let Some(response) =
-                    self.draft_order_lifecycle_local_response(request, &query, &variables)
-                {
-                    response
-                } else if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "draftOrderComplete" =>
-            {
-                if let Some(data) =
-                    self.draft_order_complete_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
-                    ) =>
-            {
-                let before_tags = self.store.staged.draft_order_tags.clone();
-                if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
-                    let staged_ids = changed_draft_order_tag_ids(
-                        &before_tags,
-                        &self.store.staged.draft_order_tags,
-                    );
-                    if !staged_ids.is_empty() {
-                        self.record_mutation_log_entry(
-                            request, &query, &variables, root_field, staged_ids,
-                        );
-                    }
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "fulfillmentCreate"
-                            | "fulfillmentCreateV2"
-                            | "fulfillmentCancel"
-                            | "fulfillmentTrackingInfoUpdate"
-                            | "fulfillmentEventCreate"
-                            | "orderEditAddVariant"
-                            | "orderEditSetQuantity"
-                            | "orderEditAddCustomItem"
-                            | "orderEditAddLineItemDiscount"
-                            | "orderEditRemoveDiscount"
-                            | "orderEditAddShippingLine"
-                            | "orderEditUpdateShippingLine"
-                            | "orderEditRemoveShippingLine"
-                    ) =>
-            {
-                if let Some(data) =
-                    self.remaining_order_local_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "returnCreate"
-                            | "returnRequest"
-                            | "returnApproveRequest"
-                            | "returnDeclineRequest"
-                            | "returnCancel"
-                            | "returnClose"
-                            | "returnReopen"
-                            | "removeFromReturn"
-                            | "returnProcess"
-                    ) =>
-            {
-                if let Some(data) =
-                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    no_dispatcher("orders", root_field)
-                }
-            }
-            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
-            {
-                if let Some(data) =
-                    self.order_customer_error_paths_data(request, &query, &variables)
-                {
-                    ok_json(data)
-                } else {
-                    json_error(400, "Could not parse GraphQL operation")
-                }
-            }
+            (CapabilityDomain::Orders, execution) => self.dispatch_orders_graphql(
+                request, &query, &variables, &operation, root_field, execution,
+            ),
             (CapabilityDomain::Payments, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
@@ -1997,21 +2610,14 @@ impl DraftProxy {
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
                     self.quantity_pricing_rules_mutation_preflight(request, &variables);
-                    return quantity_pricing_by_variant_update_response(
-                        &query,
-                        &variables,
-                        &self.store,
-                    );
+                    return self
+                        .quantity_pricing_by_variant_update_response(&query, &variables, request);
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
                     self.quantity_pricing_rules_mutation_preflight(request, &variables);
-                    return quantity_rules_mutation_response(
-                        root_field,
-                        &query,
-                        &variables,
-                        &self.store,
-                    );
+                    return self
+                        .quantity_rules_mutation_response(root_field, &query, &variables, request);
                 } else if operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
@@ -2152,6 +2758,9 @@ impl DraftProxy {
                         }))
                     }
                 } else if root_field == "shop" {
+                    if self.should_route_owner_metafields_read(&query, &variables) {
+                        return self.owner_metafields_read(request, &query, &variables);
+                    }
                     // `shop` reads are served locally only when the proxy is
                     // holding shop-policy overlay state (snapshot mode, or staged
                     // / tombstoned policies); otherwise the live shop response is
@@ -2260,7 +2869,21 @@ impl DraftProxy {
                     // locally below.
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let (data, errors) = self.segment_read_data(&fields);
+                    let upstream_catalog_response = self
+                        .segment_read_needs_upstream_catalog(&fields)
+                        .then(|| (self.upstream_transport)(request.clone()));
+                    let (mut data, mut errors) = self.segment_read_data(&fields);
+                    if let Some(response) = upstream_catalog_response {
+                        if response.status != 200 {
+                            return response;
+                        }
+                        self.merge_upstream_segment_catalog_data(
+                            &mut data,
+                            &mut errors,
+                            &fields,
+                            &response.body,
+                        );
+                    }
                     if errors.is_empty() {
                         ok_json(json!({ "data": data }))
                     } else {
@@ -2279,337 +2902,13 @@ impl DraftProxy {
             {
                 self.segment_mutation(root_field, &query, &variables, request)
             }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                if matches!(root_field, "reverseDelivery" | "reverseFulfillmentOrder") {
-                    if let Some(data) = self
-                        .order_return_local_runtime_data(request, root_field, &query, &variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
-                    }
-                } else if matches!(root_field, "carrierService" | "carrierServices") {
-                    ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
-                } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
-                    self.delivery_profile_read_response(request, &fields)
-                } else if root_field == "availableCarrierServices" {
-                    // The shipping-settings availability read combines
-                    // `availableCarrierServices` with the shipping-locations
-                    // connection. Serve from observed/staged state, or (in live
-                    // modes with no observed state yet) forward upstream and
-                    // observe both carrier services and locations so later
-                    // local-pickup mutations and reads resolve them locally.
-                    self.shipping_settings_read_response(request, &fields)
-                } else if root_field == "locationsAvailableForDeliveryProfilesConnection" {
-                    // A standalone shipping-locations connection read: serve from
-                    // observed/staged shipping locations, or (in live modes with no
-                    // observed state yet) forward upstream and observe the result so
-                    // later pickup mutations and reads resolve locally.
-                    self.delivery_profile_locations_read_response(request, &fields)
-                } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
-                    ok_json(json!({ "data": data }))
-                } else if matches!(
-                    root_field,
-                    "fulfillmentOrder"
-                        | "fulfillmentOrders"
-                        | "assignedFulfillmentOrders"
-                        | "manualHoldsFulfillmentOrders"
-                ) {
-                    self.shipping_fulfillment_order_read_response(request, &query, &variables)
-                } else {
-                    ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
-                }
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "reverseDeliveryCreateWithShipping"
-                            | "reverseDeliveryShippingUpdate"
-                            | "reverseFulfillmentOrderDispose"
-                    ) =>
-            {
-                if let Some(data) =
-                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
-                {
-                    // Reverse-logistics mutations are recorded in the mutation log so
-                    // the staged session can be introspected/replayed; the return*
-                    // lifecycle mutations (Orders domain) intentionally do not log.
-                    self.record_mutation_log_entry(
-                        request,
-                        &query,
-                        &variables,
-                        root_field,
-                        Vec::new(),
-                    );
-                    ok_json(data)
-                } else {
-                    no_dispatcher("shipping-fulfillments", root_field)
-                }
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "shippingPackageUpdate"
-                            | "shippingPackageMakeDefault"
-                            | "shippingPackageDelete"
-                    ) =>
-            {
-                self.shipping_package_mutation(root_field, &query, &variables, request)
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
-                    ) =>
-            {
-                self.carrier_service_mutations(&query, &variables, request)
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "fulfillmentServiceCreate"
-                            | "fulfillmentServiceUpdate"
-                            | "fulfillmentServiceDelete"
-                    ) =>
-            {
-                self.fulfillment_service_mutation(root_field, &query, &variables, request)
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "fulfillmentOrderMove" =>
-            {
-                self.shipping_fulfillment_order_mutation_response(
-                    root_field, request, &query, &variables,
-                )
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
-                    ) =>
-            {
-                self.shipping_fulfillment_order_mutation_response(
-                    root_field, request, &query, &variables,
-                )
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "fulfillmentOrdersSetFulfillmentDeadline" =>
-            {
-                self.shipping_fulfillment_order_mutation_response(
-                    root_field, request, &query, &variables,
-                )
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
-                    ) =>
-            {
-                self.delivery_profile_mutation(root_field, &query, &variables, request)
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "locationLocalPickupEnable" | "locationLocalPickupDisable"
-                    ) =>
-            {
-                self.location_local_pickup_mutation(root_field, &query, &variables, request)
-            }
-            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "fulfillmentOrderHold"
-                            | "fulfillmentOrderReleaseHold"
-                            | "fulfillmentOrderCancel"
-                            | "fulfillmentOrderClose"
-                            | "fulfillmentOrderReschedule"
-                            | "fulfillmentOrdersReroute"
-                            | "fulfillmentOrderSplit"
-                            | "fulfillmentOrderMerge"
-                            | "fulfillmentOrderSubmitFulfillmentRequest"
-                            | "fulfillmentOrderAcceptFulfillmentRequest"
-                            | "fulfillmentOrderRejectFulfillmentRequest"
-                            | "fulfillmentOrderSubmitCancellationRequest"
-                            | "fulfillmentOrderAcceptCancellationRequest"
-                            | "fulfillmentOrderRejectCancellationRequest"
-                    ) =>
-            {
-                self.shipping_fulfillment_order_mutation_response(
-                    root_field, request, &query, &variables,
-                )
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                if customer_payment_methods_only_read(&fields) {
-                    if let Some(data) =
-                        self.customer_payment_method_local_data(request, &query, &variables)
-                    {
-                        return ok_json(data);
-                    }
-                }
-                // A query may combine `customer*` reads with a standalone
-                // `storeCreditAccount(id:)` read (or carry only the latter).
-                // Each is served from its own staged overlay and the two field
-                // maps are merged into one `data` object.
-                let handle_customers = self.should_handle_customer_overlay_read(&fields);
-                if !handle_customers && self.should_route_owner_metafields_read(&query, &variables)
-                {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
-                let handle_store_credit = fields
-                    .iter()
-                    .any(|field| field.name == "storeCreditAccount");
-                if handle_customers || handle_store_credit {
-                    // A `customersCount` read served from the staged overlay
-                    // needs the live store-wide baseline; hydrate it once in
-                    // LiveHybrid mode before projecting.
-                    if handle_customers && fields.iter().any(|field| field.name == "customersCount")
-                    {
-                        self.hydrate_customers_count_for_overlay_read(request);
-                    }
-                    let data = root_payload_json(&fields, |field| {
-                        if handle_customers {
-                            if let Value::Object(object) =
-                                self.customer_overlay_read_fields(std::slice::from_ref(field))
-                            {
-                                if let Some(value) = object.get(field.response_key.as_str()) {
-                                    return Some(value.clone());
-                                }
-                            }
-                        }
-                        if handle_store_credit {
-                            if let Value::Object(object) =
-                                self.store_credit_account_read_fields(std::slice::from_ref(field))
-                            {
-                                if let Some(value) = object.get(field.response_key.as_str()) {
-                                    return Some(value.clone());
-                                }
-                            }
-                        }
-                        None
-                    });
-                    ok_json(json!({ "data": data }))
-                } else {
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "customerCreate" =>
-            {
-                self.customer_mutation_response(request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "customerUpdate" =>
-            {
-                self.customer_mutation_response(request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "customerDelete" =>
-            {
-                self.customer_mutation_response(request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "customerMerge" =>
-            {
-                self.customer_merge(&query, &variables, request)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "customerRequestDataErasure" | "customerCancelDataErasure"
-                    ) =>
-            {
-                self.customer_data_erasure(
-                    &query,
-                    &variables,
-                    request,
-                    root_field,
-                    root_field == "customerRequestDataErasure",
-                )
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "customerSet" =>
-            {
-                self.customer_mutation_response(request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "customerAddressCreate"
-                            | "customerAddressUpdate"
-                            | "customerAddressDelete"
-                            | "customerUpdateDefaultAddress"
-                    ) =>
-            {
-                self.customer_address_mutation(request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "storeCreditAccountCredit" | "storeCreditAccountDebit"
-                    ) =>
-            {
-                let outcome =
-                    self.store_credit_account_mutation(root_field, request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "customerAddTaxExemptions"
-                            | "customerRemoveTaxExemptions"
-                            | "customerReplaceTaxExemptions"
-                    ) =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                // Enum coercion errors (invalid `taxExemptions`) are raised before
-                // any staging, matching Shopify's request-validation ordering.
-                if let Some(response) =
-                    customer_tax_exemptions_invalid_enum_response(&query, &fields)
-                {
-                    return response;
-                }
-                self.customer_tax_exemptions_mutation_response(&fields, request, &query, &variables)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "customerEmailMarketingConsentUpdate" | "customerSmsMarketingConsentUpdate"
-                    ) =>
-            {
-                let fields = try_root_fields!(&query, &variables);
-                // SMS marketingState values outside `CustomerSmsMarketingState` fail
-                // enum coercion before any staging, matching Shopify's ordering.
-                if let Some(response) = customer_sms_consent_invalid_enum_response(&query, &fields)
-                {
-                    return response;
-                }
-                self.customer_marketing_consent_update(&query, &variables, request)
-            }
+            (CapabilityDomain::ShippingFulfillments, execution) => self
+                .dispatch_shipping_fulfillments_graphql(
+                    request, &query, &variables, &operation, root_field, execution,
+                ),
+            (CapabilityDomain::Customers, execution) => self.dispatch_customers_graphql(
+                request, &query, &variables, &operation, root_field, execution,
+            ),
             (CapabilityDomain::Privacy, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "dataSaleOptOut" =>
@@ -2617,214 +2916,9 @@ impl DraftProxy {
                 let outcome = self.data_sale_opt_out(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "companyLocationUpdate"
-                            | "companyLocationTaxSettingsUpdate"
-                            | "companyAssignCustomerAsContact"
-                    ) =>
-            {
-                match root_field {
-                    "companyLocationUpdate" => self
-                        .b2b_location_buyer_experience_tail_helper_response(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                        )
-                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
-                    "companyLocationTaxSettingsUpdate" => self
-                        .b2b_tax_settings_tail_helper_response(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                        )
-                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
-                    "companyAssignCustomerAsContact" => {
-                        if let Some(response) = self
-                            .b2b_assign_customer_as_contact_response(request, &query, &variables)
-                        {
-                            response
-                        } else if let Some(data) =
-                            self.order_customer_error_paths_data(request, &query, &variables)
-                        {
-                            ok_json(data)
-                        } else {
-                            no_dispatcher("b2b", root_field)
-                        }
-                    }
-                    _ => no_dispatcher("b2b", root_field),
-                }
-            }
-            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && self.config.read_mode == ReadMode::Snapshot =>
-            {
-                // Snapshot mode (unit tests) has no upstream to forward to, so every
-                // remaining B2B mutations stage locally through the company tail
-                // helper.
-                self.b2b_company_tail_helper_response(
-                    request,
-                    &query,
-                    &variables,
-                    operation.operation_type,
-                    &operation.root_fields,
-                )
-                .unwrap_or_else(|| no_dispatcher("b2b", root_field))
-            }
-            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation =>
-            {
-                // Live/hybrid mode: apply the local cascade side-effects and forward
-                // upstream so the recorded Shopify response is returned. Roots
-                // without a dedicated cascade handler fall through to a plain
-                // passthrough (never a hard 501), keeping parity intact.
-                match root_field {
-                    "companyCreate"
-                    | "companyUpdate"
-                    | "companyLocationCreate"
-                    | "companyLocationAssignAddress"
-                    | "companyContactAssignRole"
-                    | "companyContactAssignRoles"
-                    | "companyLocationAssignRoles" => self
-                        .b2b_company_tail_helper_response(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                        )
-                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
-                    "companyContactDelete"
-                    | "companyContactsDelete"
-                    | "companyContactRemoveFromCompany" => self.b2b_contact_delete_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyContactCreate" => self.b2b_company_contact_create_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyContactUpdate" => self.b2b_company_contact_update_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyAssignMainContact" => self.b2b_assign_main_contact_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyRevokeMainContact" => self.b2b_revoke_main_contact_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyDelete" | "companiesDelete" => self.b2b_company_delete_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyAddressDelete" => self.b2b_company_address_delete_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyLocationDelete" | "companyLocationsDelete" => self
-                        .b2b_company_locations_delete_with_cascade(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                            root_field,
-                        ),
-                    "companyContactRevokeRole"
-                    | "companyContactRevokeRoles"
-                    | "companyLocationRevokeRoles" => self.b2b_revoke_roles_with_cascade(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    _ => self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                }
-            }
-            (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                if self.should_route_owner_metafields_read(&query, &variables) {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
-                self.b2b_location_buyer_experience_tail_helper_response(
-                    request,
-                    &query,
-                    &variables,
-                    operation.operation_type,
-                    &operation.root_fields,
-                )
-                .or_else(|| {
-                    self.b2b_company_tail_helper_response(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                    )
-                })
-                .unwrap_or_else(|| {
-                    // Cold read: the query touches no locally-staged B2B graph
-                    // (e.g. a pure read of a pre-existing company catalog, or a
-                    // multi-root read whose roots the local serializer does not
-                    // cover). Forward verbatim upstream as a read-through so the
-                    // real recorded Shopify response is replayed. Staged
-                    // read-after-write reads short-circuit above by returning
-                    // Some, so this never masks local overlay state. Snapshot
-                    // mode has no upstream, so it keeps the explicit 501.
-                    if self.config.read_mode != ReadMode::Snapshot {
-                        (self.upstream_transport)(request.clone())
-                    } else {
-                        no_dispatcher("b2b overlay-read", root_field)
-                    }
-                })
-            }
+            (CapabilityDomain::B2b, execution) => self.dispatch_b2b_graphql(
+                request, &query, &variables, &operation, root_field, execution,
+            ),
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && root_field == "files" =>
             {
