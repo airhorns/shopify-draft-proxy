@@ -835,39 +835,25 @@ fn metafield_input_error(
             Some("APP_NOT_AUTHORIZED"),
         ));
     }
-    match type_name.as_deref() {
-        Some("single_line_text_field") => {
-            if value.as_deref() == Some("") {
-                Some(user_error(
-                    field,
-                    "The value is invalid.",
-                    Some("INVALID_VALUE"),
-                ))
-            } else {
-                None
-            }
-        }
-        Some("number_integer") => {
-            if value
-                .as_deref()
-                .is_some_and(|value| value.parse::<i64>().is_ok())
-            {
-                None
-            } else {
-                Some(user_error(
-                    field,
-                    "The value is invalid.",
-                    Some("INVALID_VALUE"),
-                ))
-            }
-        }
-        Some("json") => None,
-        _ => Some(user_error(
+    let type_name = type_name.as_deref().unwrap_or_default();
+    if !metafield_definition_type_allowed(type_name) {
+        return Some(user_error(
             field,
             "The type is invalid.",
             Some("INVALID_TYPE"),
-        )),
+        ));
     }
+    let mut reference_exists = validation_metafield_reference_exists;
+    metafield_value_error_message(
+        type_name,
+        value.as_deref().unwrap_or_default(),
+        &mut reference_exists,
+    )
+    .map(|_| user_error(field, "The value is invalid.", Some("INVALID_VALUE")))
+}
+
+fn validation_metafield_reference_exists(_: &str) -> bool {
+    true
 }
 
 fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
