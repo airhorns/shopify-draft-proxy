@@ -386,6 +386,44 @@ impl DraftProxy {
         self.store.staged.function_metadata.insert(id, function);
     }
 
+    pub(in crate::proxy) fn resolve_payment_customization_function(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.resolve_function_metadata(request, id, handle, "PAYMENT_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn payment_customization_record_matches_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+        candidate_key: &str,
+    ) -> bool {
+        self.payment_customization_record_function_key(request, record)
+            .as_deref()
+            == Some(candidate_key)
+    }
+
+    fn payment_customization_record_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+    ) -> Option<String> {
+        if let Some(id) = record["functionId"].as_str() {
+            return Some(payment_customization_function_key(id));
+        }
+        let handle = record["functionHandle"].as_str()?;
+        self.resolve_payment_customization_function(request, None, Some(handle))
+            .and_then(|function| {
+                function["id"]
+                    .as_str()
+                    .map(payment_customization_function_key)
+            })
+            .or_else(|| Some(payment_customization_function_key(handle)))
+    }
+
     pub(in crate::proxy) fn hydrate_function_metadata_from_response_data(&mut self, data: &Value) {
         let mut functions = Vec::new();
         collect_function_metadata_values(data, &mut functions);
