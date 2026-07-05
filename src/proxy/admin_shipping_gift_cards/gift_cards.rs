@@ -58,6 +58,14 @@ const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"        }
       }
     }
   "#;
+const GIFT_CARD_CREATE_CONFIGURATION_QUERY: &str = r#"#graphql
+  query GiftCardCreateConfiguration {
+    giftCardConfiguration {
+      issueLimit { amount currencyCode }
+      purchaseLimit { amount currencyCode }
+    }
+  }
+"#;
 
 fn gift_card_hydrate_query(include_transactions_page_info: bool) -> String {
     let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
@@ -548,6 +556,7 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        self.hydrate_gift_card_configuration_for_create(request);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         if user_errors.is_empty() {
             user_errors.extend(self.gift_card_assignment_errors(&field.name, &input, "input"));
@@ -614,7 +623,7 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let shop_currency_code = self.store.shop_currency_code();
+        let shop_currency_code = self.gift_card_configuration_currency();
         let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
         card["lastCharacters"] = json!(last_characters);
         card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
@@ -1104,6 +1113,26 @@ impl DraftProxy {
             .gift_cards
             .insert(id.to_string(), card.clone());
         Some(card)
+    }
+
+    fn hydrate_gift_card_configuration_for_create(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.base.gift_card_configuration.is_some()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": GIFT_CARD_CREATE_CONFIGURATION_QUERY,
+                "operationName": "GiftCardCreateConfiguration",
+                "variables": {},
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        self.observe_gift_card_configuration(&response.body["data"]["giftCardConfiguration"]);
     }
 
     fn gift_card_effective_record(&self, id: &str) -> Option<Value> {
