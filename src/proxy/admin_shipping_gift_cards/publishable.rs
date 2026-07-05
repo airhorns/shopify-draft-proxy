@@ -73,22 +73,31 @@ impl DraftProxy {
             let publish = root_field == "publishablePublish"
                 || root_field == "publishablePublishToCurrentChannel";
 
+            let mut payload_shop_hydrated = false;
             if selected_child_selection(&payload_selection, "shop")
                 .as_deref()
                 .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
             {
                 self.hydrate_publishable_payload_shop(&resource_id, request);
+                payload_shop_hydrated = true;
             }
-            if self
-                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
+            let resource_needs_hydration = self
+                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection);
+            let publication_input_needs_hydration = !to_current
+                && field.arguments.contains_key("input")
+                && !self.store.has_known_publication_ids();
+            if (!payload_shop_hydrated && resource_needs_hydration)
+                || publication_input_needs_hydration
             {
                 self.hydrate_publishable_payload_shop(&resource_id, request);
-                if self.publishable_payload_resource_needs_hydration(
+            }
+            if resource_needs_hydration
+                && self.publishable_payload_resource_needs_hydration(
                     &resource_id,
                     &publishable_selection,
-                ) {
-                    self.hydrate_publishable_resource(&resource_id, request);
-                }
+                )
+            {
+                self.hydrate_publishable_resource(&resource_id, request);
             }
 
             let mut user_errors = Vec::new();

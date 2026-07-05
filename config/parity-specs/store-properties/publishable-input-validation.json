@@ -18,7 +18,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, unknown publicationId, and current-channel id-only sibling behavior. Rust runtime tests cover the local handler path for these captured cases.",
+  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, arbitrary non-sentinel unknown publicationId, and current-channel id-only sibling behavior. Rust runtime tests cover the local handler path for these captured cases.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

@@ -7224,6 +7224,17 @@ fn publishable_publish_hydrates_selected_collection_identity_for_payload_and_rea
                             "publishedOnPublication": false,
                             "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
                             "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        },
+                        "shop": {
+                            "publicationCount": 1
+                        },
+                        "publications": {
+                            "nodes": [
+                                {
+                                    "id": publication_id,
+                                    "name": "Online Store"
+                                }
+                            ]
                         }
                     }
                 }),
