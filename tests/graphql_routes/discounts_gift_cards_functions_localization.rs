@@ -5073,6 +5073,149 @@ fn functions_cart_transform_metafield_compare_digest_round_trips_through_metafie
 }
 
 #[test]
+fn functions_validation_metafields_accept_shared_registry_types_and_reject_unknowns() {
+    let mut proxy = function_metadata_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationMetafieldSharedTypes(
+          $validBoolean: ValidationCreateInput!
+          $invalidBooleanValue: ValidationCreateInput!
+          $unknownType: ValidationCreateInput!
+        ) {
+          validBoolean: validationCreate(validation: $validBoolean) {
+            validation {
+              id
+              metafields(first: 5) {
+                nodes { namespace key type value }
+              }
+            }
+            userErrors { field message code }
+          }
+          invalidBooleanValue: validationCreate(validation: $invalidBooleanValue) {
+            validation { id }
+            userErrors { field message code }
+          }
+          unknownType: validationCreate(validation: $unknownType) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "validBoolean": {
+                "functionHandle": "validation-local",
+                "title": "Boolean validation metafield",
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "enabled",
+                    "type": "boolean",
+                    "value": "true"
+                }]
+            },
+            "invalidBooleanValue": {
+                "functionHandle": "validation-local",
+                "title": "Invalid boolean validation metafield",
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "enabled",
+                    "type": "boolean",
+                    "value": "maybe"
+                }]
+            },
+            "unknownType": {
+                "functionHandle": "validation-local",
+                "title": "Unknown validation metafield",
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "enabled",
+                    "type": "draft_proxy_unknown",
+                    "value": "true"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["validBoolean"]["userErrors"], json!([]));
+    let validation_id = json_string(
+        &create.body["data"]["validBoolean"]["validation"]["id"],
+        "validation id",
+    );
+    assert_synthetic_gid(&validation_id, "Validation");
+    assert_eq!(
+        create.body["data"]["validBoolean"]["validation"]["metafields"]["nodes"],
+        json!([{
+            "namespace": "custom",
+            "key": "enabled",
+            "type": "boolean",
+            "value": "true"
+        }])
+    );
+
+    let invalid_boolean = &create.body["data"]["invalidBooleanValue"];
+    assert_eq!(invalid_boolean["validation"], Value::Null);
+    assert_eq!(
+        invalid_boolean["userErrors"][0]["field"],
+        json!(["validation", "metafields", "0"])
+    );
+    assert_eq!(
+        invalid_boolean["userErrors"][0]["code"],
+        json!("INVALID_VALUE")
+    );
+
+    assert_eq!(
+        create.body["data"]["unknownType"],
+        json!({
+            "validation": null,
+            "userErrors": [{
+                "field": ["validation", "metafields", "0"],
+                "message": "The type is invalid.",
+                "code": "INVALID_TYPE"
+            }]
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationMetafieldSharedTypesUpdate($id: ID!) {
+          validationUpdate(
+            id: $id
+            validation: {
+              metafields: [{
+                namespace: "custom"
+                key: "enabled"
+                type: "boolean"
+                value: "false"
+              }]
+            }
+          ) {
+            validation {
+              id
+              metafields(first: 5) {
+                nodes { namespace key type value }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": validation_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["validation"]["metafields"]["nodes"],
+        json!([{
+            "namespace": "custom",
+            "key": "enabled",
+            "type": "boolean",
+            "value": "false"
+        }])
+    );
+}
+
+#[test]
 fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve_state() {
     let mut proxy = function_metadata_proxy();
 
