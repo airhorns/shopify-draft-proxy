@@ -1,6 +1,6 @@
 {
   "scenarioId": "bulk-operation-run-mutation-operation-in-progress",
-  "operationNames": ["bulkOperationCancel", "bulkOperationRunMutation"],
+  "operationNames": ["stagedUploadsCreate", "bulkOperationCancel", "bulkOperationRunMutation"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "runtime-staging", "side-effect-boundary"],
   "liveCaptureFiles": [
@@ -23,16 +23,56 @@
         "proxyPath": "$.data.bulkOperationCancel"
       },
       {
+        "name": "second-mutation-staged-upload-user-errors",
+        "capturePath": "$.firstRun.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file-staged-upload.graphql",
+          "variables": {
+            "input": [
+              {
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "operation-in-progress.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "PUT",
+                "fileSize": 60
+              }
+            ]
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "second-mutation-upload-content",
+        "capturePath": "$.scenarioId",
+        "proxyUpload": {
+          "method": "PUT",
+          "path": {
+            "fromPreviousProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": "{\"product\":{\"title\":\"Bulk mutation operation in progress\"}}\n"
+        }
+      },
+      {
         "name": "second-mutation-run-operation-in-progress",
         "capturePath": "$.secondRun.response.data.bulkOperationRunMutation",
         "proxyPath": "$.data.bulkOperationRunMutation",
+        "preserveProxyState": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-operation-in-progress.graphql",
-          "variablesCapturePath": "$.secondRun.variables",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.secondRun.variables.mutation"
+            },
+            "path": {
+              "fromProxyResponse": "second-mutation-staged-upload-user-errors",
+              "path": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
           "apiVersion": "2025-01"
         }
       }
     ]
   },
-  "notes": "HAR-752 captures Shopify Admin GraphQL 2025-01 returning OPERATION_IN_PROGRESS for two consecutive bulkOperationRunMutation calls using two uploaded JSONL variable files. The executable comparison hydrates the captured first mutation operation through bulkOperationCancel and then proves the local throttle response before staged upload lookup, without localSetups or seeded state."
+  "notes": "Captures Shopify Admin GraphQL 2025-01 returning OPERATION_IN_PROGRESS for two consecutive bulkOperationRunMutation calls using two uploaded JSONL variable files. The executable comparison hydrates the captured first mutation operation through bulkOperationCancel, registers a local BULK_MUTATION_VARIABLES target through stagedUploadsCreate and the public staged-upload route, and then proves the local throttle response without localSetups or seeded state."
 }

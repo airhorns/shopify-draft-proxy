@@ -76,6 +76,27 @@ const functionCatalogDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const createDocument = `#graphql
   mutation PaymentCustomizationMetafieldsCreate($input: PaymentCustomizationInput!) {
     paymentCustomizationCreate(paymentCustomization: $input) {
@@ -209,6 +230,12 @@ const updateHandleVariables = {
     functionHandle: functionNode['handle'],
   },
 };
+const updateHandleHydrateVariables = {
+  handle: updateHandleVariables.input.functionHandle,
+  apiType: 'PAYMENT_CUSTOMIZATION',
+};
+const updateHandleHydrate = await runGraphqlRequest(functionHydrateByHandleDocument, updateHandleHydrateVariables);
+assertNoTopLevelErrors(updateHandleHydrate, 'paymentCustomization functionHandle hydrate cassette');
 const invalidCreateMissingSubfieldsVariables = {
   input: {
     title: `Draft proxy missing metafields ${runId}`,
@@ -320,7 +347,17 @@ try {
       },
     },
     cleanup,
-    upstreamCalls: [],
+    upstreamCalls: [
+      {
+        operationName: 'FunctionHydrateByHandle',
+        variables: updateHandleHydrateVariables,
+        query: functionHydrateByHandleDocument,
+        response: {
+          status: updateHandleHydrate.status,
+          body: updateHandleHydrate.payload,
+        },
+      },
+    ],
     notes:
       'Captured against a disposable PaymentCustomization. Shopify Admin 2026-04 accepts functionHandle as update input but does not expose paymentCustomization.functionHandle as a selected output field, so the capture proves the persisted Function reference through functionId.',
   };

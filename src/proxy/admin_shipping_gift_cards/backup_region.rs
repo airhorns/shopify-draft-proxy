@@ -282,17 +282,15 @@ fn backup_region_country_from_code(country_code: &str) -> Value {
 }
 
 fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {
+    const REQUIRED_ACCESS: &str =
+        "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.";
     json!({
-        "errors": [{
-            "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
-            "locations": [{ "line": location.line, "column": location.column }],
-            "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
-            },
-            "path": [response_key]
-        }],
+        "errors": [top_level_access_denied_error_envelope(
+            format!("Access denied for backupRegionUpdate field. Required access: {REQUIRED_ACCESS}"),
+            Some(location),
+            vec![json!(response_key)],
+            Some(REQUIRED_ACCESS),
+        )],
         "data": { response_key: null }
     })
 }
@@ -348,7 +346,7 @@ fn backup_region_update_region_value_location(
     let fallback = root_field
         .map(|field| field.location)
         .unwrap_or(SourceLocation { line: 1, column: 1 });
-    let Some(field_offset) = source_location_byte_offset(query, fallback) else {
+    let Some(field_offset) = byte_offset_for_location(query, fallback) else {
         return fallback;
     };
     let Some(after_field) = query.get(field_offset..) else {
@@ -378,39 +376,6 @@ fn source_location_after_field_colon(
         value_offset += 1;
     }
     source_location_for_byte_offset(query, value_offset)
-}
-
-fn source_location_byte_offset(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut current_line = 1;
-    let mut line_start = 0;
-    for (index, byte) in query.bytes().enumerate() {
-        if current_line == location.line {
-            return Some(line_start + location.column.saturating_sub(1));
-        }
-        if byte == b'\n' {
-            current_line += 1;
-            line_start = index + 1;
-        }
-    }
-    (current_line == location.line).then_some(line_start + location.column.saturating_sub(1))
-}
-
-fn source_location_for_byte_offset(query: &str, byte_offset: usize) -> Option<SourceLocation> {
-    if byte_offset > query.len() {
-        return None;
-    }
-    let line = query[..byte_offset]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count()
-        + 1;
-    let line_start = query[..byte_offset]
-        .rfind('\n')
-        .map_or(0, |index| index + 1);
-    Some(SourceLocation {
-        line,
-        column: byte_offset - line_start + 1,
-    })
 }
 
 fn backup_region_update_country_code(

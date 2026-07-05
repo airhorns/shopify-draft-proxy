@@ -12,6 +12,32 @@ pub(in crate::proxy) fn draft_order_create_first_line_title(
     resolved_string_field(first_line, "title")
 }
 
+fn merge_draft_order_string_field(
+    draft_order: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) {
+    if input.contains_key(field) {
+        draft_order[field] = resolved_string_field(input, field)
+            .map(Value::String)
+            .unwrap_or(Value::Null);
+    }
+}
+
+fn draft_order_complete_payload(
+    draft_order: Value,
+    user_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    selected_json(
+        &json!({
+            "draftOrder": draft_order,
+            "userErrors": user_errors
+        }),
+        selection,
+    )
+}
+
 pub(in crate::proxy) fn draft_order_input_custom_attributes(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -182,6 +208,7 @@ pub(in crate::proxy) fn draft_order_line_item(
     let line_total = unit_amount * quantity as f64;
     let discount_amount = draft_order_applied_discount_amount(input, line_total);
     let discounted_total = (line_total - discount_amount).max(0.0);
+    let tax_lines = order_create_tax_lines(input, "taxLines", currency);
     let title = if variant_id.is_some() {
         hydrated_variant
             .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
@@ -240,6 +267,7 @@ pub(in crate::proxy) fn draft_order_line_item(
         "originalTotalSet": money_bag(line_total, currency),
         "discountedTotalSet": money_bag(discounted_total, currency),
         "totalDiscountSet": money_bag(discount_amount, currency),
+        "taxLines": tax_lines,
         "variant": variant
     })
 }
@@ -273,6 +301,7 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
         "originalTotalSet": money_bag(line_total, currency),
         "discountedTotalSet": money_bag(line_total, currency),
         "totalDiscountSet": money_bag(0.0, currency),
+        "taxLines": line["taxLines"].clone(),
         "variant": line["variant"].clone()
     })
 }
@@ -399,6 +428,28 @@ pub(in crate::proxy) fn draft_order_discount_amount(discount: &Value) -> f64 {
 
 pub(in crate::proxy) fn draft_order_line_discount_total(line_items: &[Value]) -> f64 {
     sum_money_set(line_items, "totalDiscountSet")
+}
+
+pub(in crate::proxy) fn draft_order_tax_total(draft_order: &Value, line_items: &[Value]) -> f64 {
+    if draft_order["taxExempt"].as_bool().unwrap_or(false) {
+        return 0.0;
+    }
+    let has_line_tax_lines = line_items.iter().any(|line| line.get("taxLines").is_some());
+    let line_tax_total = line_items
+        .iter()
+        .flat_map(|line| {
+            line["taxLines"]
+                .as_array()
+                .into_iter()
+                .flat_map(|tax_lines| tax_lines.iter())
+        })
+        .filter_map(|tax_line| money_set_amount(&tax_line["priceSet"]))
+        .sum::<f64>();
+    if has_line_tax_lines {
+        line_tax_total
+    } else {
+        money_set_amount(&draft_order["totalTaxSet"]).unwrap_or(0.0)
+    }
 }
 
 pub(in crate::proxy) fn draft_order_discount_amount_from_discount(
@@ -781,11 +832,11 @@ fn draft_order_matches_datetime_comparator(actual: Option<&str>, query_value: &s
     if query_value.is_empty() {
         return false;
     }
-    let (operator, expected) = draft_order_search_comparator(query_value);
+    let (operator, expected) = search_comparator(query_value);
     if expected.is_empty() {
         return false;
     }
-    let actual = draft_order_search_datetime_value(actual, expected);
+    let actual = search_datetime_value(actual, expected);
     match operator {
         "<" => actual < expected,
         "<=" => actual <= expected,
@@ -803,7 +854,7 @@ fn draft_order_matches_money_comparator(actual: Option<f64>, query_value: &str) 
     if query_value.is_empty() {
         return false;
     }
-    let (operator, expected) = draft_order_search_comparator(query_value);
+    let (operator, expected) = search_comparator(query_value);
     let Some(expected) = expected.parse::<f64>().ok() else {
         return false;
     };
@@ -813,26 +864,6 @@ fn draft_order_matches_money_comparator(actual: Option<f64>, query_value: &str) 
         ">" => actual > expected,
         ">=" => actual >= expected,
         _ => (actual - expected).abs() < f64::EPSILON,
-    }
-}
-
-fn draft_order_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value)
-}
-
-fn draft_order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
-    if expected.contains('T') {
-        actual
-    } else {
-        actual
-            .split_once('T')
-            .map(|(date, _)| date)
-            .unwrap_or(actual)
     }
 }
 
@@ -872,34 +903,24 @@ fn draft_order_search_string_matches(actual: Option<&str>, query_value: &str) ->
         return false;
     };
     let actual = actual.to_ascii_lowercase();
-    let query_value = query_value
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_ascii_lowercase();
+    let query_value = normalized_search_query_value(query_value);
     if query_value.is_empty() {
         return true;
     }
     if let Some(prefix) = query_value.strip_suffix('*') {
-        return actual
-            .split(|ch: char| !ch.is_ascii_alphanumeric())
-            .any(|part| part.starts_with(prefix));
+        return ascii_word_starts_with(&actual, prefix);
     }
     actual.contains(&query_value)
 }
 
 fn draft_order_search_token_matches(actual: &str, query_value: &str) -> bool {
-    let query_value = query_value
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_ascii_lowercase();
+    let query_value = normalized_search_query_value(query_value);
     if query_value.is_empty() {
         return true;
     }
     let actual = actual.to_ascii_lowercase();
     if let Some(prefix) = query_value.strip_suffix('*') {
-        return actual
-            .split(|ch: char| !ch.is_ascii_alphanumeric())
-            .any(|part| part.starts_with(prefix));
+        return ascii_word_starts_with(&actual, prefix);
     }
     actual
         .split(|ch: char| !ch.is_ascii_alphanumeric())
@@ -1962,20 +1983,8 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         variant_hydrations: &BTreeMap<String, Value>,
     ) -> Value {
-        if input.contains_key("email") {
-            draft_order["email"] = resolved_string_field(input, "email")
-                .map(Value::String)
-                .unwrap_or(Value::Null);
-        }
-        if input.contains_key("note") {
-            draft_order["note"] = resolved_string_field(input, "note")
-                .map(Value::String)
-                .unwrap_or(Value::Null);
-        }
-        if input.contains_key("sourceName") {
-            draft_order["sourceName"] = resolved_string_field(input, "sourceName")
-                .map(Value::String)
-                .unwrap_or(Value::Null);
+        for field in ["email", "note", "sourceName"] {
+            merge_draft_order_string_field(&mut draft_order, input, field);
         }
         if input.contains_key("tags") {
             draft_order["tags"] = json!(normalize_taggable_tags(list_string_field(input, "tags")));
@@ -2041,11 +2050,15 @@ impl DraftProxy {
         let line_discount_total = draft_order_line_discount_total(&line_items);
         let shipping_total =
             money_set_amount(&draft_order["shippingLine"]["originalPriceSet"]).unwrap_or(0.0);
+        let tax_total = draft_order_tax_total(draft_order, &line_items);
         let discount_total =
             line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
         let subtotal = (original_subtotal - discount_total).max(0.0);
-        let total = subtotal + shipping_total;
+        let total = subtotal + shipping_total + tax_total;
+        draft_order["lineItemsSubtotalPrice"] = money_bag(original_subtotal, &currency);
         draft_order["subtotalPriceSet"] = money_bag(subtotal, &currency);
+        draft_order["totalTax"] = json!(format!("{:.2}", (tax_total * 100.0).round() / 100.0));
+        draft_order["totalTaxSet"] = money_bag(tax_total, &currency);
         draft_order["totalDiscountsSet"] = money_bag(discount_total, &currency);
         draft_order["totalShippingPriceSet"] = money_bag(shipping_total, &currency);
         draft_order["totalPriceSet"] = money_bag(total, &currency);
@@ -2142,53 +2155,60 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            return selected_json(
-                &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error_omit_code(["id"], "ID is required", None)]
-                }),
+            return draft_order_complete_payload(
+                Value::Null,
+                vec![user_error_omit_code(["id"], "ID is required", None)],
                 &field.selection,
             );
         };
         let Some(mut draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
-            return selected_json(
-                &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error_omit_code(["id"], "Draft order does not exist", None)]
-                }),
+            return draft_order_complete_payload(
+                Value::Null,
+                vec![user_error_omit_code(
+                    ["id"],
+                    "Draft order does not exist",
+                    None,
+                )],
                 &field.selection,
             );
         };
         if draft_order.get("__draftProxyLineItems").is_none() {
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
+        self.recalculate_draft_order_totals(&mut draft_order);
         if draft_order["status"].as_str() == Some("COMPLETED") {
-            return selected_json(
-                &json!({
-                    "draftOrder": draft_order,
-                    "userErrors": [user_error_omit_code(Value::Null, "This order has been paid", None)]
-                }),
+            return draft_order_complete_payload(
+                draft_order,
+                vec![user_error_omit_code(
+                    Value::Null,
+                    "This order has been paid",
+                    None,
+                )],
                 &field.selection,
             );
         }
         let payment_gateway_id = resolved_string_field(&field.arguments, "paymentGatewayId");
         if payment_gateway_id.is_some() {
-            return selected_json(
-                &json!({
-                    "draftOrder": draft_order,
-                    "userErrors": [user_error_omit_code(Value::Null, "Invalid payment gateway", None)]
-                }),
+            return draft_order_complete_payload(
+                draft_order,
+                vec![user_error_omit_code(
+                    Value::Null,
+                    "Invalid payment gateway",
+                    None,
+                )],
                 &field.selection,
             );
         }
         let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let amount = money_set_amount(&draft_order["totalPriceSet"])
-            .map(format_money_amount)
-            .unwrap_or_else(|| "0.0".to_string());
         let shop_currency_code = self.store.shop_currency_code();
         let currency_code =
             money_set_shop_currency(&draft_order["totalPriceSet"]).unwrap_or(shop_currency_code);
+        let total_amount = money_set_amount(&draft_order["totalPriceSet"]).unwrap_or(0.0);
+        let subtotal_amount = money_set_amount(&draft_order["subtotalPriceSet"])
+            .or_else(|| money_set_amount(&draft_order["lineItemsSubtotalPrice"]))
+            .unwrap_or(0.0);
+        let tax_amount = money_set_amount(&draft_order["totalTaxSet"]).unwrap_or(0.0);
         let payment_pending = if field.raw_arguments.contains_key("paymentPending") {
             matches!(
                 field.arguments.get("paymentPending"),
@@ -2238,7 +2258,7 @@ impl DraftProxy {
                 "kind": "SALE",
                 "status": transaction_status,
                 "gateway": "manual",
-                "amountSet": money_set(&amount, &currency_code)
+                "amountSet": money_bag(total_amount, &currency_code)
         })];
         let order_name = self.next_order_name();
         let mut order = json!({
@@ -2249,13 +2269,31 @@ impl DraftProxy {
             "tags": order_tags,
             "paymentGatewayNames": payment_gateway_names,
             "transactions": order_transactions,
+            "currencyCode": currency_code,
+            "presentmentCurrencyCode": currency_code,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
-            "currentTotalPriceSet": money_set(&amount, &currency_code),
+            "subtotalPriceSet": money_bag(subtotal_amount, &currency_code),
+            "currentSubtotalPriceSet": money_bag(subtotal_amount, &currency_code),
+            "totalTaxSet": money_bag(tax_amount, &currency_code),
+            "currentTotalTaxSet": money_bag(tax_amount, &currency_code),
+            "totalPriceSet": money_bag(total_amount, &currency_code),
+            "currentTotalPriceSet": money_bag(total_amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items
             }
         });
+        let order_transactions = order["transactions"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        order_create_payment_fields(
+            &mut order,
+            &order_transactions,
+            total_amount,
+            &currency_code,
+            &currency_code,
+        );
         if let Some(purchasing_entity) = draft_order.get("__draftProxyPurchasingEntity") {
             if !purchasing_entity.is_null() {
                 order["purchasingEntity"] = purchasing_entity.clone();
@@ -2272,10 +2310,7 @@ impl DraftProxy {
             .draft_orders
             .insert(id.clone(), draft_order.clone());
         self.store.staged.orders.insert(order_id, order);
-        selected_json(
-            &json!({ "draftOrder": draft_order, "userErrors": [] }),
-            &field.selection,
-        )
+        draft_order_complete_payload(draft_order, vec![], &field.selection)
     }
 
     pub(in crate::proxy) fn draft_order_invoice_send_local_response(
@@ -2361,35 +2396,22 @@ impl DraftProxy {
             .map(Value::String)
             .unwrap_or(Value::Null);
         let shop_currency_code = self.store.shop_currency_code();
-        let record = json!({
-            "id": id,
-            "name": "#D1",
-            "status": "OPEN",
-            "ready": true,
-            "email": email,
-            "note": Value::Null,
-            "purchasingEntity": Value::Null,
-            "customer": Value::Null,
-            "taxExempt": false,
-            "taxesIncluded": false,
-            "reserveInventoryUntil": Value::Null,
-            "paymentTerms": Value::Null,
-            "tags": [],
-            "invoiceUrl": format!("https://shopify-draft-proxy.local/draft_orders/{id}/invoice"),
-            "customAttributes": [],
-            "appliedDiscount": Value::Null,
-            "billingAddress": Value::Null,
-            "shippingAddress": Value::Null,
-            "shippingLine": Value::Null,
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "updatedAt": "2024-01-01T00:00:00.000Z",
-            "subtotalPriceSet": money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code),
-            "totalDiscountsSet": money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code),
-            "totalShippingPriceSet": money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code),
-            "totalPriceSet": money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code),
-            "totalQuantityOfLineItems": 1,
-            "lineItems": { "nodes": [draft_order_invoice_line_item()] }
-        });
+        let invoice_line_item = draft_order_invoice_line_item();
+        let mut record = draft_order_record_skeleton(&id, "#D1", vec![invoice_line_item.clone()]);
+        record["email"] = email;
+        record["invoiceUrl"] = json!(format!(
+            "https://shopify-draft-proxy.local/draft_orders/{id}/invoice"
+        ));
+        record["subtotalPriceSet"] =
+            money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code);
+        record["totalDiscountsSet"] =
+            money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code);
+        record["totalShippingPriceSet"] =
+            money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code);
+        record["totalPriceSet"] =
+            money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code);
+        record["totalQuantityOfLineItems"] = json!(1);
+        record["lineItems"] = json!({ "nodes": [invoice_line_item] });
         self.store
             .staged
             .draft_orders

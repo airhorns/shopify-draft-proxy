@@ -83,8 +83,14 @@ Local staged mutations:
 - `customerByIdentifier(identifier:)` resolves from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers.
 - `Customer.orders` reads from the staged per-customer order index when local order writes or customer merge/order-customer changes affect the relationship. That staged connection applies the supported local order `query:`, `sortKey`, `reverse`, and cursor windowing before projection; hydrated inline order pages remain projected from their captured page when no staged order relationship exists.
 - For locally staged overlay reads, `customers(query:)` and `customersCount(query:)`
-  share the same staged predicate semantics for the supported local search slice
-  (`tag:`, `email:`, and bare text). Captured live `customersCount(query:)`
+  share the same staged predicate semantics for the supported local search slice.
+  The staged query parser supports bare text, implicit `AND`, explicit `OR`,
+  parentheses, unary `-`, and common keyed predicates including `email:`,
+  `first_name:`, `last_name:`, `country:`, `state:`, `tag:`, `id:`, `phone:`,
+  `verified_email:`, `created_at:`, `updated_at:`, and `orders_count:`. Unknown
+  keyed predicates remain unsupported staged-search terms and do not narrow
+  staged customer rows, so the proxy avoids turning an unimplemented Shopify
+  search key into an empty local result set. Captured live `customersCount(query:)`
   warning behavior remains separate and must not be generalized into broader
   count-query support without conformance evidence.
 - In Admin GraphQL 2026-04, customer marketing consent readback is conformance-backed through `Customer.defaultEmailAddress` and `Customer.defaultPhoneNumber` marketing fields. Staged email/SMS consent updates keep those default contact fields and the compatibility `emailMarketingConsent` / `smsMarketingConsent` serializers aligned for downstream reads.

@@ -2101,8 +2101,8 @@ impl DraftProxy {
             let message = format!(
                 "The product couldn't be stocked at {location_name} because not allowed to set available and on_hand quantities at the same time."
             );
-            user_errors.push(inventory_activate_user_error(vec!["available"], &message));
-            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
+            user_errors.push(user_error_omit_code(vec!["available"], &message, None));
+            user_errors.push(user_error_omit_code(vec!["onHand"], &message, None));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
                 &field.selection,
@@ -2113,7 +2113,7 @@ impl DraftProxy {
             let message = format!(
                 "The product couldn't be stocked at {location_name} because the quantity needs to be between -1 billion and 1 billion."
             );
-            user_errors.push(inventory_activate_user_error(vec!["onHand"], &message));
+            user_errors.push(user_error_omit_code(vec!["onHand"], &message, None));
             return MutationFieldOutcome::unlogged(self.inventory_activate_payload(
                 None,
                 &field.selection,
@@ -2148,9 +2148,10 @@ impl DraftProxy {
             ));
         }
         if was_active && has_on_hand {
-            user_errors.push(inventory_activate_user_error(
+            user_errors.push(user_error_omit_code(
                 vec!["onHand"],
                 "Not allowed to set an on_hand quantity when the item is already active at the location.",
+                None,
             ));
             let level = self.inventory_level_for_payload(
                 &inventory_item_id,
@@ -2238,8 +2239,10 @@ impl DraftProxy {
         let Some((inventory_item_id, location_id)) =
             self.inventory_level_parts_from_id_or_fallback(&inventory_level_id)
         else {
-            user_errors.push(inventory_deactivate_user_error(
+            user_errors.push(user_error_omit_code(
+                Value::Null,
                 "The product couldn't be unstocked because the product was deleted.",
+                None,
             ));
             return MutationFieldOutcome::unlogged(
                 self.inventory_deactivate_payload(&field.selection, user_errors),
@@ -2247,12 +2250,16 @@ impl DraftProxy {
         };
         let key = (inventory_item_id.clone(), location_id.clone());
         if !self.inventory_item_exists(&inventory_item_id) {
-            user_errors.push(inventory_deactivate_user_error(
+            user_errors.push(user_error_omit_code(
+                Value::Null,
                 "The product couldn't be unstocked because the product was deleted.",
+                None,
             ));
         } else if !self.store.staged.inventory_levels.contains_key(&key) {
-            user_errors.push(inventory_deactivate_user_error(
+            user_errors.push(user_error_omit_code(
+                Value::Null,
                 "The product couldn't be unstocked because the location was deleted.",
+                None,
             ));
         }
         if user_errors.is_empty()
@@ -2262,11 +2269,13 @@ impl DraftProxy {
                 <= 1
             && !self.store.staged.inactive_inventory_levels.contains(&key)
         {
-            user_errors.push(inventory_deactivate_user_error(
+            user_errors.push(user_error_omit_code(
+                Value::Null,
                 &format!(
                     "The product couldn't be unstocked from {} because products need to be stocked at a minimum of 1 location.",
                     self.inventory_location_display_name(&location_id)
                 ),
+                None,
             ));
         }
         if !user_errors.is_empty() {
@@ -2434,7 +2443,7 @@ impl DraftProxy {
                 None,
                 &field.selection,
                 vec![user_error_omit_code(
-                    inventory_item_update_field_path(&["id"]),
+                    ["id"],
                     "The product couldn't be updated because it does not exist.",
                     None,
                 )],
@@ -3104,10 +3113,10 @@ impl DraftProxy {
                     self.inventory_shipment_payload_with_errors_and_extra(
                         field,
                         "shipment",
-                        vec![inventory_shipment_user_error(
+                        vec![user_error(
                             vec!["items", &index.to_string(), "shipmentLineItemId"],
                             "The specified inventory shipment line item could not be found.",
-                            "NOT_FOUND",
+                            Some("NOT_FOUND"),
                         )],
                         &[("updatedLineItems", json!([]))],
                     ),
@@ -3146,10 +3155,10 @@ impl DraftProxy {
                         self.inventory_shipment_payload_with_errors_and_extra(
                             field,
                             "shipment",
-                            vec![inventory_shipment_user_error(
+                            vec![user_error(
                                 vec!["items", &index.to_string(), "quantity"],
                                 "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                                "QUANTITY_EXCEEDS_REMAINING",
+                                Some("QUANTITY_EXCEEDS_REMAINING"),
                             )],
                             &[("updatedLineItems", json!([]))],
                         ),
@@ -3256,10 +3265,10 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
                 field,
                 "inventoryShipment",
-                vec![inventory_shipment_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Only draft shipments can be marked in transit.",
-                    "INVALID_STATE",
+                    Some("INVALID_STATE"),
                 )],
             ));
         }
@@ -3291,10 +3300,10 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
                 field,
                 "inventoryShipment",
-                vec![inventory_shipment_user_error(
+                vec![user_error(
                     vec!["id"],
                     "Only in-transit shipments can be received.",
-                    "INVALID_STATE",
+                    Some("INVALID_STATE"),
                 )],
             ));
         }
@@ -3370,10 +3379,10 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(selected_json(
                 &json!({
                     "id": Value::Null,
-                    "userErrors": [inventory_shipment_user_error(
+                    "userErrors": [user_error(
                         vec!["id"],
                         "The specified inventory shipment could not be found.",
-                        "NOT_FOUND",
+                        Some("NOT_FOUND"),
                     )]
                 }),
                 &field.selection,
@@ -3409,17 +3418,17 @@ impl DraftProxy {
         }
         let transfer_id = transfer_id?;
         let Some(transfer) = self.store.staged.inventory_transfers.get(transfer_id) else {
-            return Some(vec![inventory_shipment_user_error(
+            return Some(vec![user_error(
                 vec!["transferId"],
                 "The specified inventory transfer could not be found.",
-                "NOT_FOUND",
+                Some("NOT_FOUND"),
             )]);
         };
         if !matches!(transfer.status.as_str(), "DRAFT" | "READY_TO_SHIP") {
-            return Some(vec![inventory_shipment_user_error(
+            return Some(vec![user_error(
                 vec!["transferId"],
                 "Inventory shipments can only be created for open or ready to ship transfers.",
-                "INVALID_STATE",
+                Some("INVALID_STATE"),
             )]);
         }
         let mut proposed_quantities_by_transfer_line = BTreeMap::new();
@@ -3433,14 +3442,14 @@ impl DraftProxy {
                     .find(|line_item| line_item.id == *id)
             });
             if transfer_line_item_id.is_some() && matching_line.is_none() {
-                return Some(vec![inventory_shipment_user_error(
+                return Some(vec![user_error(
                     vec![
                         "lineItems",
                         &index.to_string(),
                         "inventoryTransferLineItemId",
                     ],
                     "The specified inventory transfer line item could not be found.",
-                    "NOT_FOUND",
+                    Some("NOT_FOUND"),
                 )]);
             }
             let quantity = resolved_int_field(line_input, "quantity").unwrap_or(0);
@@ -3452,10 +3461,10 @@ impl DraftProxy {
                 if *proposed_quantity
                     > self.remaining_transfer_line_quantity(transfer_id, &transfer_line.id, None)
                 {
-                    return Some(vec![inventory_shipment_user_error(
+                    return Some(vec![user_error(
                         vec!["lineItems", &index.to_string(), "quantity"],
                         "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                        "QUANTITY_EXCEEDS_REMAINING",
+                        Some("QUANTITY_EXCEEDS_REMAINING"),
                     )]);
                 }
             }
@@ -3471,10 +3480,10 @@ impl DraftProxy {
     ) -> Option<Vec<Value>> {
         let transfer_id = record.transfer_id.as_deref()?;
         let Some(transfer) = self.store.staged.inventory_transfers.get(transfer_id) else {
-            return Some(vec![inventory_shipment_user_error(
+            return Some(vec![user_error(
                 vec!["transferId"],
                 "The specified inventory transfer could not be found.",
-                "NOT_FOUND",
+                Some("NOT_FOUND"),
             )]);
         };
         let mut proposed_quantities_by_transfer_line = BTreeMap::new();
@@ -3488,14 +3497,14 @@ impl DraftProxy {
                     .find(|line_item| line_item.id == *id)
             });
             if transfer_line_item_id.is_some() && matching_line.is_none() {
-                return Some(vec![inventory_shipment_user_error(
+                return Some(vec![user_error(
                     vec![
                         field_name,
                         &index.to_string(),
                         "inventoryTransferLineItemId",
                     ],
                     "The specified inventory transfer line item could not be found.",
-                    "NOT_FOUND",
+                    Some("NOT_FOUND"),
                 )]);
             }
             if let Some(transfer_line) = matching_line {
@@ -3519,10 +3528,10 @@ impl DraftProxy {
                     .or_insert(0);
                 *proposed_quantity += quantity;
                 if *proposed_quantity > remaining_for_add {
-                    return Some(vec![inventory_shipment_user_error(
+                    return Some(vec![user_error(
                         vec![field_name, &index.to_string(), "quantity"],
                         "Quantity exceeds the remaining quantity for the inventory transfer line item.",
-                        "QUANTITY_EXCEEDS_REMAINING",
+                        Some("QUANTITY_EXCEEDS_REMAINING"),
                     )]);
                 }
             }
@@ -3614,10 +3623,10 @@ impl DraftProxy {
         self.inventory_shipment_payload_with_errors_and_extra(
             field,
             shipment_field,
-            vec![inventory_shipment_user_error(
+            vec![user_error(
                 vec!["id"],
                 "The specified inventory shipment could not be found.",
-                "NOT_FOUND",
+                Some("NOT_FOUND"),
             )],
             extra,
         )
@@ -4942,10 +4951,10 @@ fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -
         .as_deref()
         .is_some_and(|value| !is_valid_tracking_carrier(value))
     {
-        errors.push(inventory_shipment_user_error(
+        errors.push(user_error(
             vec!["input", "trackingInput", "carrier"],
             "Carrier is not included in the list.",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
     let tracking_url =
@@ -4954,10 +4963,10 @@ fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -
         .as_deref()
         .is_some_and(|url| !(url.starts_with("https://") || url.starts_with("http://")))
     {
-        errors.push(inventory_shipment_user_error(
+        errors.push(user_error(
             vec!["input", "trackingInput", "url"],
             "Tracking URL is invalid.",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
     errors
@@ -4965,10 +4974,6 @@ fn inventory_shipment_tracking_errors(input: &BTreeMap<String, ResolvedValue>) -
 
 fn is_valid_tracking_carrier(carrier: &str) -> bool {
     !carrier.trim().is_empty()
-}
-
-fn inventory_shipment_user_error(field_path: Vec<&str>, message: &str, code: &str) -> Value {
-    user_error(field_path, message, Some(code))
 }
 
 fn inventory_shipment_has_incoming(record: &InventoryShipmentRecord) -> bool {
@@ -5036,14 +5041,6 @@ fn inventory_quantities_from_observed_rows(rows: &[Value]) -> BTreeMap<String, i
     quantities
 }
 
-fn inventory_deactivate_user_error(message: &str) -> Value {
-    user_error_omit_code(Value::Null, message, None)
-}
-
-fn inventory_activate_user_error(field: impl Into<UserErrorField>, message: &str) -> Value {
-    user_error_omit_code(field, message, None)
-}
-
 fn inventory_item_update_variable_errors(
     field: &RootFieldSelection,
     input: &BTreeMap<String, ResolvedValue>,
@@ -5075,7 +5072,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     let mut errors = Vec::new();
     if resolved_f64_path(input, &["cost"]).is_some_and(|cost| cost < 0.0) {
         errors.push(user_error_omit_code(
-            inventory_item_update_field_path(&["input", "cost"]),
+            ["input", "cost"],
             "Cost must be greater than or equal to 0",
             Some("INVALID"),
         ));
@@ -5086,7 +5083,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
         if let Some(value) = resolved_f64_path(&weight, &["value"]) {
             if value < 0.0 {
                 errors.push(user_error_omit_code(
-                    inventory_item_update_field_path(&["input", "measurement", "weight"]),
+                    ["input", "measurement", "weight"],
                     &format!(
                         "Measurement weight value {} kg must be >= 0 kg",
                         shopify_number_text(value)
@@ -5099,7 +5096,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     if let Some(country_code) = resolved_string_field(input, "countryCodeOfOrigin") {
         if !is_valid_country_code(&country_code) {
             errors.push(user_error_omit_code(
-                inventory_item_update_field_path(&["input", "countryCodeOfOrigin"]),
+                ["input", "countryCodeOfOrigin"],
                 "Country code of origin is invalid",
                 Some("INVALID"),
             ));
@@ -5108,7 +5105,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     if let Some(province_code) = resolved_string_field(input, "provinceCodeOfOrigin") {
         if province_code.len() > 3 || !province_code.chars().all(|ch| ch.is_ascii_alphabetic()) {
             errors.push(user_error_omit_code(
-                inventory_item_update_field_path(&["input", "provinceCodeOfOrigin"]),
+                ["input", "provinceCodeOfOrigin"],
                 "Province code of origin is invalid",
                 Some("INVALID"),
             ));
@@ -5117,7 +5114,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
     if let Some(hs_code) = resolved_string_field(input, "harmonizedSystemCode") {
         if !valid_harmonized_system_code(&hs_code) {
             errors.push(user_error_omit_code(
-                inventory_item_update_field_path(&["input", "harmonizedSystemCode"]),
+                ["input", "harmonizedSystemCode"],
                 "Harmonized system code must be a number between six and thirteen digits",
                 Some("INVALID"),
             ));
@@ -5131,7 +5128,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
         if let Some(country_code) = resolved_string_field(row, "countryCode") {
             if !is_valid_country_code(&country_code) {
                 errors.push(user_error_omit_code(
-                    inventory_item_update_field_path(&["input", "countryHarmonizedSystemCodes"]),
+                    ["input", "countryHarmonizedSystemCodes"],
                     "Country code is invalid",
                     Some("INVALID"),
                 ));
@@ -5151,7 +5148,7 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
         if let Some(hs_code) = resolved_string_field(row, "harmonizedSystemCode") {
             if !valid_harmonized_system_code(&hs_code) {
                 errors.push(user_error_omit_code(
-                    inventory_item_update_field_path(&["input", "countryHarmonizedSystemCodes"]),
+                    ["input", "countryHarmonizedSystemCodes"],
                     "Harmonized system code must be a number between six and thirteen digits",
                     Some("INVALID"),
                 ));
@@ -5159,10 +5156,6 @@ fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) ->
         }
     }
     errors
-}
-
-fn inventory_item_update_field_path(parts: &[&str]) -> Vec<String> {
-    parts.iter().map(|part| (*part).to_string()).collect()
 }
 
 fn is_valid_country_code(country_code: &str) -> bool {
@@ -5375,20 +5368,30 @@ fn inventory_invalid_set_on_hand_quantities_payload(
     let mut errors = Vec::new();
     for (index, quantity) in set_quantities.iter().enumerate() {
         if resolved_int_field(quantity, "quantity").is_some_and(|value| value < 0) {
-            errors.push(json!({
-                "field": ["input", "setQuantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be negative.",
-                "code": "INVALID_QUANTITY_NEGATIVE"
-            }));
+            errors.push(user_error(
+                vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "quantity".to_string(),
+                ],
+                "The quantity can't be negative.",
+                Some("INVALID_QUANTITY_NEGATIVE"),
+            ));
         }
         if resolved_int_field(quantity, "quantity")
             .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
         {
-            errors.push(json!({
-                "field": ["input", "setQuantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be higher than 1,000,000,000.",
-                "code": "INVALID_QUANTITY_TOO_HIGH"
-            }));
+            errors.push(user_error(
+                vec![
+                    "input".to_string(),
+                    "setQuantities".to_string(),
+                    index.to_string(),
+                    "quantity".to_string(),
+                ],
+                "The quantity can't be higher than 1,000,000,000.",
+                Some("INVALID_QUANTITY_TOO_HIGH"),
+            ));
         }
     }
 

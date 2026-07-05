@@ -995,10 +995,10 @@ impl DraftProxy {
                     )
                 }
                 "marketsResolvedValues" => self.markets_resolved_values_value(field),
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &connection_json_with_empty_edges(Vec::new()),
-                    &field.selection,
-                ),
+                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
+                "marketLocalizableResourcesByIds" => {
+                    self.market_localizable_resources_by_ids_connection(field)
+                }
                 // The `markets` plural connection projects the staged markets store.
                 // Hydration from upstream happens in the LiveHybrid fetch path before
                 // this handler is reached, so here we only serve what is already
@@ -3453,13 +3453,10 @@ impl DraftProxy {
                         )
                     }
                 }
-                // Local read-after-write serve only reaches the connections after the
-                // resource was observed; a backend with no staged localizable owners
-                // returns an empty connection (not a fabricated node) for both variants.
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &connection_json_with_empty_edges(Vec::new()),
-                    &field.selection,
-                ),
+                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
+                "marketLocalizableResourcesByIds" => {
+                    self.market_localizable_resources_by_ids_connection(field)
+                }
                 "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
             })
@@ -3499,6 +3496,83 @@ impl DraftProxy {
             "marketLocalizableContent": content,
             "marketLocalizations": localizations
         })
+    }
+
+    fn market_localizable_resource_selected(
+        &self,
+        resource_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        let market_filter = market_localizations_market_filter(selections);
+        selected_json(
+            &self.market_localizable_resource(resource_id, market_filter.as_deref()),
+            selections,
+        )
+    }
+
+    fn market_localizable_resources_connection(&self, field: &RootFieldSelection) -> Value {
+        let resource_type = resolved_string_field(&field.arguments, "resourceType");
+        let records = self
+            .market_localizable_resource_ids()
+            .into_iter()
+            .filter(|resource_id| {
+                resource_type.as_deref().is_none_or(|resource_type| {
+                    localization_resource_type_matches(resource_id, resource_type)
+                })
+            })
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |resource_id, selection| {
+                self.market_localizable_resource_selected(resource_id, selection)
+            },
+            |resource_id| resource_id.clone(),
+        )
+    }
+
+    fn market_localizable_resources_by_ids_connection(&self, field: &RootFieldSelection) -> Value {
+        let records = resolved_string_list_arg(&field.arguments, "resourceIds")
+            .into_iter()
+            .filter(|resource_id| self.market_localizable_resource_exists(resource_id))
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |resource_id, selection| {
+                self.market_localizable_resource_selected(resource_id, selection)
+            },
+            |resource_id| resource_id.clone(),
+        )
+    }
+
+    fn market_localizable_resource_ids(&self) -> Vec<String> {
+        let mut ids = self
+            .store
+            .staged
+            .localization_resources
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        ids.extend(
+            self.store
+                .staged
+                .localization_translations
+                .iter()
+                .filter_map(|translation| {
+                    translation["resourceId"]
+                        .as_str()
+                        .filter(|resource_id| !resource_id.is_empty())
+                        .map(ToString::to_string)
+                }),
+        );
+        ids.into_iter().collect()
+    }
+
+    fn has_market_localizable_resource_state(&self) -> bool {
+        !self.market_localizable_resource_ids().is_empty()
     }
 
     fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
@@ -3543,7 +3617,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE", "Too many keys for resource - maximum 100 per mutation")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "Too many keys for resource - maximum 100 per mutation", "TOO_MANY_KEYS_FOR_RESOURCE")]
                 }),
                 &field.selection,
             );
@@ -3559,7 +3633,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -3573,7 +3647,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST", "The market does not exist")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "The market does not exist", "MARKET_DOES_NOT_EXIST")]
                     }),
                     &field.selection,
                 );
@@ -3588,7 +3662,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL", &format!("Key {key} is not a valid market localizable field"))]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], &format!("Key {key} is not a valid market localizable field"), "INVALID_KEY_FOR_MODEL")]
                     }),
                     &field.selection,
                 );
@@ -3601,7 +3675,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT", "The provided content digest does not match the latest resource content")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "The provided content digest does not match the latest resource content", "INVALID_MARKET_LOCALIZABLE_CONTENT")]
                     }),
                     &field.selection,
                 );
@@ -3611,7 +3685,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Value can't be blank")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Value can't be blank", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3623,7 +3697,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Market Localizable content is invalid")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Market Localizable content is invalid", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3698,7 +3772,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -4218,9 +4292,10 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues"
-            | "marketLocalizableResources"
-            | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
+            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
+            "marketLocalizableResources" | "marketLocalizableResourcesByIds" => {
+                !self.has_market_localizable_resource_state()
+            }
             _ => false,
         }
     }

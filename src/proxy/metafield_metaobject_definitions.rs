@@ -2053,16 +2053,14 @@ fn metafield_definition_resource_limit_bucket(
 }
 
 fn metafield_definition_access_denied_response(root_field: &str) -> Response {
+    const REQUIRED_ACCESS: &str = "API client to have access to the namespace and the resource type associated with the metafield definition.\n";
     ok_json(json!({
-        "errors": [{
-            "message": format!("Access denied for {root_field} field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\n"),
-            "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
-            },
-            "path": [root_field]
-        }],
+        "errors": [top_level_access_denied_error_envelope(
+            format!("Access denied for {root_field} field. Required access: {REQUIRED_ACCESS}"),
+            None,
+            vec![json!(root_field)],
+            Some(REQUIRED_ACCESS),
+        )],
         "data": { root_field: Value::Null }
     }))
 }

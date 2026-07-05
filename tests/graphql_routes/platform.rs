@@ -3741,19 +3741,67 @@ fn location_edit_preserves_hydrated_address_display_names() {
 }
 
 #[test]
-fn generic_location_activate_stages_state_and_scope_guards() {
+fn generic_location_activate_stages_existing_state_and_rejects_absent_ids() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/Location/activate-control";
-    let activate = proxy.process_request(json_graphql_request(
-        r#"
-        mutation GenericLocationActivate($locationId: ID!) {
-          locationActivate(locationId: $locationId) @idempotent(key: "generic-location-activate") {
+    let activate_query = r#"
+        mutation GenericLocationActivate($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
             location { id isActive }
             locationActivateUserErrors { field code message }
           }
         }
+    "#;
+    let unknown_id = "gid://shopify/Location/999999999999";
+    let unknown = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "locationId": unknown_id, "idempotencyKey": "generic-location-activate-unknown" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["locationActivate"],
+        json!({
+            "location": null,
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_NOT_FOUND",
+                "message": "Location not found."
+            }]
+        })
+    );
+
+    let unknown_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationActivateUnknownRead($id: ID!) {
+          location(id: $id) { id isActive }
+        }
         "#,
-        json!({ "locationId": location_id }),
+        json!({ "id": unknown_id }),
+    ));
+    assert_eq!(unknown_read.body["data"]["location"], Value::Null);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let location_id = add_platform_location(&mut proxy, "Activation control", false);
+    let make_inactive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationActivateMakeInactive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "active": false } }),
+    ));
+    assert_eq!(
+        make_inactive.body["data"]["locationEdit"],
+        json!({
+            "location": { "id": location_id, "isActive": false },
+            "userErrors": []
+        })
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "locationId": location_id, "idempotencyKey": "generic-location-activate" }),
     ));
     assert_eq!(
         activate.body["data"]["locationActivate"],
@@ -3779,6 +3827,74 @@ fn generic_location_activate_stages_state_and_scope_guards() {
             "activatable": true,
             "deactivatable": true
         })
+    );
+
+    let deleted_id = add_platform_location(&mut proxy, "Deleted activation target", false);
+    let make_deleted_inactive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationActivateMakeDeletedInactive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": deleted_id, "input": { "active": false } }),
+    ));
+    assert_eq!(
+        make_deleted_inactive.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationActivateDeleteTarget($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": deleted_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": deleted_id,
+            "locationDeleteUserErrors": []
+        })
+    );
+    let log_len_before_deleted_activate = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let deleted_activate = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "locationId": deleted_id, "idempotencyKey": "generic-location-activate-deleted" }),
+    ));
+    assert_eq!(
+        deleted_activate.body["data"]["locationActivate"],
+        json!({
+            "location": null,
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_NOT_FOUND",
+                "message": "Location not found."
+            }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_deleted_activate
+    );
+    let deleted_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationActivateDeletedRead($id: ID!) {
+          location(id: $id) { id isActive }
+        }
+        "#,
+        json!({ "id": deleted_id }),
+    ));
+    assert_eq!(deleted_read.body["data"]["location"], Value::Null);
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["deletedLocationIds"],
+        json!([deleted_id])
     );
 
     let service = proxy.process_request(json_graphql_request(
