@@ -579,6 +579,12 @@ impl DraftProxy {
             );
         }
         let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+        let contact_locale = customer
+            .get("locale")
+            .and_then(Value::as_str)
+            .filter(|locale| !locale.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.localization_primary_locale());
         let contact = json!({
             "id": contact_id,
             "companyId": company_id,
@@ -587,7 +593,7 @@ impl DraftProxy {
             "lastName": customer["lastName"].clone(),
             // companyAssignCustomerAsContact takes no title, so the contact has none.
             "title": Value::Null,
-            "locale": "en",
+            "locale": contact_locale,
             // A customer assigned to an existing company never becomes its main
             // contact, so isMainContact reads back false.
             "isMainContact": false
@@ -621,8 +627,13 @@ impl DraftProxy {
         // The nested companyLocation is validated under its own field path before
         // anything is staged, so an invalid nested phone rejects the whole create.
         if let Some(nested_location) = resolved_object_field(&input, "companyLocation") {
-            let location_errors =
-                b2b_location_input_errors(&nested_location, &["input", "companyLocation"]);
+            let location_phone_country_code =
+                self.b2b_location_phone_country_code(&nested_location, None);
+            let location_errors = b2b_location_input_errors(
+                &nested_location,
+                &["input", "companyLocation"],
+                location_phone_country_code.as_deref(),
+            );
             if !location_errors.is_empty() {
                 return (
                     b2b_company_payload(None, location_errors),
@@ -692,6 +703,7 @@ impl DraftProxy {
         let mut main_contact_id: Option<String> = None;
         if let Some(contact_input) = resolved_object_field(&input, "companyContact") {
             let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+            let shop_locale = self.localization_primary_locale();
             // A company contact supplied with an email links to (or provisions) a
             // Customer record, which reads back as companyContact.customer.
             let customer_id = resolved_string_field(&contact_input, "email").map(|email| {
@@ -703,16 +715,12 @@ impl DraftProxy {
             });
             let contact = json!({
                 "id": contact_id,
-                "title": resolved_string_field(&contact_input, "title")
-                    .or_else(|| resolved_string_field(&contact_input, "name"))
-                    .unwrap_or_else(|| "Buyer".to_string()),
+                "title": resolved_string_field(&contact_input, "title").map(Value::String).unwrap_or(Value::Null),
                 "firstName": resolved_string_field(&contact_input, "firstName").map(Value::String).unwrap_or(Value::Null),
                 "lastName": resolved_string_field(&contact_input, "lastName").map(Value::String).unwrap_or(Value::Null),
                 "companyId": id,
                 "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
-                // Shopify defaults a new company contact's locale to the shop's
-                // primary locale ("en" for this store) when none is supplied.
-                "locale": resolved_string_field(&contact_input, "locale").unwrap_or_else(|| "en".to_string()),
+                "locale": resolved_string_field(&contact_input, "locale").unwrap_or(shop_locale),
                 // The contact supplied at company creation becomes the company's
                 // main contact, so it reads back as isMainContact: true.
                 "isMainContact": true
@@ -889,7 +897,8 @@ impl DraftProxy {
             );
         };
 
-        let errors = b2b_location_input_errors(&input, &["input"]);
+        let phone_country_code = self.b2b_location_phone_country_code(&input, None);
+        let errors = b2b_location_input_errors(&input, &["input"], phone_country_code.as_deref());
         if !errors.is_empty() {
             return (
                 b2b_company_location_payload(None, errors),
@@ -1049,9 +1058,11 @@ impl DraftProxy {
             }
         }
 
-        if resolved_string_field(&input, "phone")
-            .is_some_and(|phone| !phone.trim().is_empty() && b2b_normalize_phone(&phone).is_none())
-        {
+        let phone_country_code = self.b2b_location_phone_country_code(&input, Some(&location));
+        if resolved_string_field(&input, "phone").is_some_and(|phone| {
+            !phone.trim().is_empty()
+                && b2b_normalize_phone(&phone, phone_country_code.as_deref()).is_none()
+        }) {
             return (
                 b2b_company_location_payload(
                     None,
@@ -1080,7 +1091,7 @@ impl DraftProxy {
             location["phone"] = if phone.trim().is_empty() {
                 Value::Null
             } else {
-                b2b_normalize_phone(&phone)
+                b2b_normalize_phone(&phone, phone_country_code.as_deref())
                     .map(Value::String)
                     .unwrap_or(Value::Null)
             };
@@ -1173,13 +1184,16 @@ impl DraftProxy {
         // and the default email/phone addresses in sync the way Shopify does.
         if let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) {
             if let Some(mut customer) = self.store.staged.customers.get(&customer_id).cloned() {
+                let phone_country_code = self.b2b_customer_phone_country_code(Some(&customer));
                 for key in ["firstName", "lastName", "email", "phone"] {
                     if input.contains_key(key) {
                         let raw = resolved_string_field(&input, key);
                         // Shopify stores customer phone numbers in E.164, so a
                         // supplied "(650) 555-0101" reads back as "+16505550101".
                         let value = if key == "phone" {
-                            raw.as_deref().and_then(b2b_normalize_phone)
+                            raw.as_deref().and_then(|phone| {
+                                b2b_normalize_phone(phone, phone_country_code.as_deref())
+                            })
                         } else {
                             raw
                         };
@@ -1259,6 +1273,7 @@ impl DraftProxy {
         let last = resolved_string_field(&input, "lastName");
         let title = resolved_string_field(&input, "title");
         let phone = resolved_string_field(&input, "phone");
+        let phone_country_code = self.b2b_customer_phone_country_code(None);
         let customer_id = resolved_string_field(&input, "email").map(|email| {
             let id = self.b2b_provision_contact_customer(&email, first.clone(), last.clone());
             // Carry the supplied phone onto the freshly-provisioned customer so it
@@ -1266,7 +1281,7 @@ impl DraftProxy {
             // phone numbers in E.164, so "(650) 555-0101" reads back "+16505550101".
             if let Some(phone) = phone.clone() {
                 if let Some(customer) = self.store.staged.customers.get_mut(&id) {
-                    customer["phone"] = b2b_normalize_phone(&phone)
+                    customer["phone"] = b2b_normalize_phone(&phone, phone_country_code.as_deref())
                         .map(Value::String)
                         .unwrap_or(Value::Null);
                 }
@@ -1280,9 +1295,7 @@ impl DraftProxy {
             "firstName": first.map(Value::String).unwrap_or(Value::Null),
             "lastName": last.map(Value::String).unwrap_or(Value::Null),
             "title": title.map(Value::String).unwrap_or(Value::Null),
-            // A contact added after creation defaults to the shop's primary locale
-            // ("en") and never becomes the company's main contact.
-            "locale": resolved_string_field(&input, "locale").unwrap_or_else(|| "en".to_string()),
+            "locale": resolved_string_field(&input, "locale").unwrap_or_else(|| self.localization_primary_locale()),
             "isMainContact": false
         });
         self.store
@@ -2940,20 +2953,19 @@ impl DraftProxy {
         let buyer_experience = b2b_buyer_experience_configuration_json(
             &resolved_object_field(input, "buyerExperienceConfiguration").unwrap_or_default(),
         );
+        let phone_country_code = self.b2b_location_phone_country_code(input, None);
         let location = json!({
             "id": id,
             "name": name,
             "companyId": company_id,
             "externalId": resolved_string_field(input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
-            // A new location defaults to the shop's primary locale ("en"); a
-            // supplied locale (even a malformed one) is stored verbatim.
-            "locale": resolved_string_field(input, "locale").unwrap_or_else(|| "en".to_string()),
+            "locale": resolved_string_field(input, "locale").unwrap_or_else(|| self.localization_primary_locale()),
             // Phone is normalized to E.164; invalid values are rejected earlier
             // by validation, so an unparseable value here degrades to null.
             "phone": resolved_string_field(input, "phone")
                 .filter(|phone| !phone.trim().is_empty())
-                .and_then(|phone| b2b_normalize_phone(&phone))
+                .and_then(|phone| b2b_normalize_phone(&phone, phone_country_code.as_deref()))
                 .map(Value::String)
                 .unwrap_or(Value::Null),
             "shippingAddress": shipping_address.unwrap_or(Value::Null),
@@ -3561,6 +3573,27 @@ impl DraftProxy {
                     && assignment["companyLocationId"].as_str() == Some(location_id)
             })
     }
+
+    fn b2b_location_phone_country_code(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        existing: Option<&Value>,
+    ) -> Option<String> {
+        b2b_location_input_country_code(input)
+            .or_else(|| {
+                existing
+                    .and_then(b2b_location_record_country_code)
+                    .map(str::to_string)
+            })
+            .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+    }
+
+    fn b2b_customer_phone_country_code(&self, customer: Option<&Value>) -> Option<String> {
+        customer
+            .and_then(b2b_customer_record_country_code)
+            .map(str::to_string)
+            .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+    }
 }
 
 /// Validation shared by companyLocationCreate (prefix `["input"]`) and the nested
@@ -3571,6 +3604,7 @@ impl DraftProxy {
 fn b2b_location_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
+    phone_country_code: Option<&str>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
@@ -3586,7 +3620,7 @@ fn b2b_location_input_errors(
         }
     }
     if let Some(phone) = resolved_string_field(input, "phone") {
-        if !phone.trim().is_empty() && b2b_normalize_phone(&phone).is_none() {
+        if !phone.trim().is_empty() && b2b_normalize_phone(&phone, phone_country_code).is_none() {
             let mut field = prefix.to_vec();
             field.push("phone");
             errors.push(b2b_company_user_error(
@@ -3995,53 +4029,57 @@ fn b2b_contact_input_errors(
     errors
 }
 
-/// Shopify-style phone normalization for this US store (calling code "1").
+/// Shopify-style phone normalization using the caller's country context.
 /// Returns the E.164 form ("+<digits>") or None when the input contains
 /// unsupported characters or the digit count falls outside 8..=15.
-fn b2b_normalize_phone(phone: &str) -> Option<String> {
-    const CALLING_CODE: &str = "1";
-    let trimmed = phone.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let supported = |c: char| {
-        c.is_ascii_digit()
-            || matches!(
-                c,
-                '+' | '\u{FF0B}'
-                    | ' '
-                    | '\t'
-                    | '\n'
-                    | '\r'
-                    | '('
-                    | ')'
-                    | '-'
-                    | '.'
-                    | '\u{2010}'
-                    | '\u{2011}'
-                    | '\u{2012}'
-                    | '\u{2013}'
-                    | '\u{2014}'
-                    | '\u{00A0}'
-            )
-    };
-    if !trimmed.chars().all(supported) {
-        return None;
-    }
-    let digits: String = trimmed.chars().filter(char::is_ascii_digit).collect();
-    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
-    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
-    {
-        digits
-    } else {
-        format!("{CALLING_CODE}{digits}")
-    };
-    let len = e164_digits.len();
-    if (8..=15).contains(&len) {
-        Some(format!("+{e164_digits}"))
-    } else {
-        None
-    }
+fn b2b_normalize_phone(phone: &str, country_code: Option<&str>) -> Option<String> {
+    normalize_phone_with_country_context(phone, country_code, false)
+}
+
+fn b2b_location_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    ["shippingAddress", "billingAddress"]
+        .into_iter()
+        .find_map(|field| {
+            resolved_object_field(input, field)
+                .as_ref()
+                .and_then(b2b_address_input_country_code)
+        })
+}
+
+fn b2b_address_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(input, "countryCode")
+        .or_else(|| resolved_string_field(input, "countryCodeV2"))
+        .and_then(|code| {
+            b2b_country_catalog_by_code(&code).map(|(country_code, _)| country_code.to_string())
+        })
+}
+
+fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
+    location
+        .get("shippingAddress")
+        .and_then(b2b_address_record_country_code)
+        .or_else(|| {
+            location
+                .get("billingAddress")
+                .and_then(b2b_address_record_country_code)
+        })
+}
+
+fn b2b_address_record_country_code(address: &Value) -> Option<&str> {
+    value_country_code(address)
+        .and_then(|code| b2b_country_catalog_by_code(code).map(|(country_code, _)| country_code))
+}
+
+fn b2b_customer_record_country_code(customer: &Value) -> Option<&str> {
+    customer
+        .get("defaultAddress")
+        .and_then(value_country_code)
+        .or_else(|| {
+            customer
+                .pointer("/addressesV2/nodes")
+                .and_then(Value::as_array)
+                .and_then(|nodes| nodes.iter().find_map(value_country_code))
+        })
 }
 
 fn b2b_company_address_json(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -4111,8 +4149,11 @@ fn b2b_buyer_experience_configuration_json(input: &BTreeMap<String, ResolvedValu
         "paymentTermsTemplate": resolved_string_field(input, "paymentTermsTemplateId")
             .map(|id| json!({ "id": id }))
             .unwrap_or(Value::Null),
-        "deposit": if input.contains_key("deposit") {
-            json!({ "__typename": "DepositPercentage" })
+        "deposit": if let Some(deposit) = resolved_object_field(input, "deposit") {
+            json!({
+                "__typename": "DepositPercentage",
+                "percentage": resolved_number_field(&deposit, "percentage").unwrap_or(0.0)
+            })
         } else {
             Value::Null
         }

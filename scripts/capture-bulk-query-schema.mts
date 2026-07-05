@@ -4,15 +4,14 @@
  * bulkOperationRunQuery AdminQuery validator:
  *
  * - field returns a Connection, including the connection node type
- * - field returns a non-connection List, including the element type
+ * - field returns a non-connection List of composite values, including the element type
  * - field returns an object/interface/union, for nested traversal
+ * - field returns a scalar/enum leaf, so generic selection validation can
+ *   distinguish known leaf fields from unknown fields
  *
  * Output: `config/admin-graphql/<api-version>/bulk-query-schema.json`.
  * Regenerate each supported Admin API version independently so runtime
- * validation can use the output schema that matches the request path. The
- * current default-version capture is also mirrored to the legacy
- * `config/admin-graphql-bulk-query-schema.json` path for compatibility with
- * older local tooling.
+ * validation can use the output schema that matches the request path.
  */
 import 'dotenv/config';
 
@@ -43,7 +42,9 @@ type SchemaType = {
 type CapturedFieldKind =
   | { type: 'connection'; nodeType: string }
   | { type: 'list'; elementType: string }
-  | { type: 'object'; typeName: string };
+  | { type: 'object'; typeName: string }
+  | { type: 'scalar'; typeName: string }
+  | { type: 'enum'; typeName: string };
 
 type CapturedField = {
   parentType: string;
@@ -167,12 +168,22 @@ function capturedKind(typesByName: Map<string, SchemaType>, field: SchemaField):
   const unwrapped = unwrapNonNull(field.type);
   if (unwrapped.kind === 'LIST') {
     const elementType = namedLeaf(unwrapped.ofType);
-    return elementType ? { type: 'list', elementType } : null;
+    const elementKind = typeKind(typesByName, elementType);
+    if (elementType && (elementKind === 'OBJECT' || elementKind === 'INTERFACE' || elementKind === 'UNION')) {
+      return { type: 'list', elementType };
+    }
+    if (elementType && (elementKind === 'SCALAR' || elementKind === 'ENUM')) {
+      return { type: elementKind === 'ENUM' ? 'enum' : 'scalar', typeName: elementType };
+    }
+    return null;
   }
 
   const leafKind = typeKind(typesByName, leaf);
   if (leaf && (leafKind === 'OBJECT' || leafKind === 'INTERFACE' || leafKind === 'UNION')) {
     return { type: 'object', typeName: leaf };
+  }
+  if (leaf && (leafKind === 'SCALAR' || leafKind === 'ENUM')) {
+    return { type: leafKind === 'ENUM' ? 'enum' : 'scalar', typeName: leaf };
   }
 
   return null;
@@ -212,7 +223,6 @@ capturedFields.sort((a, b) => a.parentType.localeCompare(b.parentType) || a.name
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const outputPath = path.join(repoRoot, 'config', 'admin-graphql', apiVersion, 'bulk-query-schema.json');
-const legacyOutputPath = path.join(repoRoot, 'config', 'admin-graphql-bulk-query-schema.json');
 const output = `${JSON.stringify(
   {
     capturedAt: new Date().toISOString(),
@@ -225,21 +235,19 @@ const output = `${JSON.stringify(
 )}\n`;
 await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, output, 'utf8');
-if (apiVersion === '2026-04') {
-  await writeFile(legacyOutputPath, output, 'utf8');
-}
 
 console.log(
   JSON.stringify(
     {
       ok: true,
       outputPath,
-      legacyOutputPath: apiVersion === '2026-04' ? legacyOutputPath : null,
       apiVersion,
       fieldCount: capturedFields.length,
       connectionFieldCount: capturedFields.filter((field) => field.kind.type === 'connection').length,
       listFieldCount: capturedFields.filter((field) => field.kind.type === 'list').length,
       objectFieldCount: capturedFields.filter((field) => field.kind.type === 'object').length,
+      scalarFieldCount: capturedFields.filter((field) => field.kind.type === 'scalar').length,
+      enumFieldCount: capturedFields.filter((field) => field.kind.type === 'enum').length,
     },
     null,
     2,

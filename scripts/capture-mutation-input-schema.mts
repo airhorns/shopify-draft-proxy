@@ -7,9 +7,7 @@
  * Output: `config/admin-graphql/<api-version>/mutation-schema.json`.
  * Regenerate each supported Admin API version independently so runtime
  * validation can use the schema that matches the request path without runtime
- * IO. The current default-version capture is also mirrored to the legacy
- * `config/admin-graphql-mutation-schema.json` path for compatibility with
- * older local tooling.
+ * IO.
  *
  * Strategy:
  *   1. Introspect Mutation { fields { args { type } } } with deprecated args
@@ -17,7 +15,9 @@
  *   2. BFS over the reachable INPUT_OBJECT types. For each, fetch
  *      `inputFields(includeDeprecated: true)` so deprecated aliases like
  *      `WebhookSubscriptionInput.callbackUrl` are preserved.
- *   3. Persist a closed graph: every INPUT_OBJECT referenced by a mutation
+ *   3. Persist enum values for every ENUM referenced by a mutation arg or
+ *      captured input field, so coercion validation is schema-driven.
+ *   4. Persist a closed graph: every INPUT_OBJECT referenced by a mutation
  *      arg or another captured input field is itself captured.
  */
 import 'dotenv/config';
@@ -49,6 +49,12 @@ type SchemaInputField = {
   deprecationReason: string | null;
   defaultValue: string | null;
   type: TypeRef;
+};
+
+type SchemaEnumValue = {
+  name: string;
+  isDeprecated: boolean;
+  deprecationReason: string | null;
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -132,10 +138,30 @@ const inputObjectQuery = `#graphql
   }
 `;
 
+const enumQuery = `#graphql
+  query EnumValues($name: String!) {
+    type: __type(name: $name) {
+      name
+      kind
+      enumValues(includeDeprecated: true) {
+        name
+        isDeprecated
+        deprecationReason
+      }
+    }
+  }
+`;
+
 function namedInputObjects(t: TypeRef | null, into: Set<string>): void {
   if (!t) return;
   if (t.kind === 'INPUT_OBJECT' && t.name) into.add(t.name);
   namedInputObjects(t.ofType, into);
+}
+
+function namedEnums(t: TypeRef | null, into: Set<string>): void {
+  if (!t) return;
+  if (t.kind === 'ENUM' && t.name) into.add(t.name);
+  namedEnums(t.ofType, into);
 }
 
 const mutationsResp = await runGraphql<{
@@ -227,9 +253,51 @@ while (queue.length > 0) {
 
 inputObjects.sort((a, b) => a.name.localeCompare(b.name));
 
+const enumNames = new Set<string>();
+for (const m of mutations) {
+  for (const a of m.args) {
+    namedEnums(a.type, enumNames);
+  }
+}
+for (const inputObject of inputObjects) {
+  for (const field of inputObject.inputFields) {
+    namedEnums(field.type, enumNames);
+  }
+}
+
+const enums: Array<{ name: string; values: SchemaEnumValue[] }> = [];
+let processedEnums = 0;
+for (const name of [...enumNames].sort((a, b) => a.localeCompare(b))) {
+  processedEnums++;
+  if (processedEnums % 25 === 0) console.error(`  fetched ${processedEnums} enums (${enumNames.size} total)...`);
+  const r = await runGraphql<{
+    type: {
+      name: string;
+      kind: string;
+      enumValues: SchemaEnumValue[] | null;
+    } | null;
+  }>(enumQuery, { name });
+  const t = r.data?.type;
+  if (!t) {
+    console.error(`  WARN: enum ${name} not found via __type - skipping`);
+    continue;
+  }
+  if (t.kind !== 'ENUM') {
+    console.error(`  WARN: ${name} resolved as ${t.kind}, expected ENUM - skipping`);
+    continue;
+  }
+  enums.push({
+    name: t.name,
+    values: (t.enumValues ?? []).map((value) => ({
+      name: value.name,
+      isDeprecated: value.isDeprecated,
+      deprecationReason: value.deprecationReason,
+    })),
+  });
+}
+
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const outputPath = path.join(repoRoot, 'config', 'admin-graphql', apiVersion, 'mutation-schema.json');
-const legacyOutputPath = path.join(repoRoot, 'config', 'admin-graphql-mutation-schema.json');
 const output = `${JSON.stringify(
   {
     capturedAt: new Date().toISOString(),
@@ -237,25 +305,23 @@ const output = `${JSON.stringify(
     apiVersion,
     mutations,
     inputObjects,
+    enums,
   },
   null,
   2,
 )}\n`;
 await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, output, 'utf8');
-if (apiVersion === '2026-04') {
-  await writeFile(legacyOutputPath, output, 'utf8');
-}
 
 console.log(
   JSON.stringify(
     {
       ok: true,
       outputPath,
-      legacyOutputPath: apiVersion === '2026-04' ? legacyOutputPath : null,
       apiVersion,
       mutationCount: mutations.length,
       inputObjectCount: inputObjects.length,
+      enumCount: enums.length,
     },
     null,
     2,

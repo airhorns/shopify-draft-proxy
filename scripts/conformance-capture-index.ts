@@ -1458,6 +1458,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
+      'config/parity-specs/store-properties/publishable-current-channel-non-sentinel-membership.json',
       'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
       'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
       'config/parity-requests/store-properties/current-app-publication-hydrate.graphql',
@@ -2619,6 +2620,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable metaobject definitions to supply valid metaobject_definition_id options, records validation branches, deletes the staged metafield definition, then deletes the metaobject definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-validation-option-names',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-option-names-conformance.ts',
+    purpose:
+      'metafieldDefinitionCreate/metafieldDefinitionUpdate validations[] unsupported option-name rejection and number_decimal option coercion.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-option-names.json`,
+      'config/parity-specs/metafields/metafield-definition-validation-option-names.json',
+      'config/parity-requests/metafields/metafield-definition-invalid-validation-options.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable product metafield definitions in a unique namespace, records invalid validation-option branches and a valid decimal control, then deletes every created definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7394,7 +7412,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 per-mutation argument and input-object field shapes (deprecated included) used by the central required-field validator.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json', 'config/admin-graphql-mutation-schema.json'],
+    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
@@ -7408,6 +7426,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: [
       'active Admin API token with Admin GraphQL schema access',
       'read_products',
+      'write_orders',
       'write_products',
       'write_webhooks',
     ],
@@ -7420,6 +7439,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-order-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql',
     ],
@@ -8105,6 +8125,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/orderCreate-line-item-fields-downstream-read.graphql',
     ],
     cleanupBehavior: 'Creates one disposable test order, reads it back, then records best-effort orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-create-fulfillment-assigned-location',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-create-fulfillment-assigned-location-conformance.ts',
+    purpose:
+      'orderCreate fulfillment-order assignedLocation derives from an observed real store location in mutation and downstream order read payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'read_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-create-fulfillment-assigned-location.json`,
+      'config/parity-specs/orders/orderCreate-fulfillment-assigned-location.json',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location-locations.graphql',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location.graphql',
+      'config/parity-requests/orders/orderCreate-fulfillment-assigned-location-read.graphql',
+    ],
+    cleanupBehavior:
+      'Reads delivery-profile locations, creates one disposable shippable test order, reads it back, then records best-effort orderCancel cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -11615,10 +11654,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 Admin GraphQL output-field connection/list/object schema facts used by request-version-scoped validation.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: [
-      'config/admin-graphql/2026-04/bulk-query-schema.json',
-      'config/admin-graphql-bulk-query-schema.json',
-    ],
+    fixtureOutputs: ['config/admin-graphql/2026-04/bulk-query-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
@@ -11760,7 +11796,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
     purpose:
-      'bulkOperationRunMutation immediate CREATED response for valid uploaded JSONL plus no-such-file null-operation branch.',
+      'bulkOperationRunMutation immediate CREATED response, completed import counters, downstream read-after-import, and no-such-file null-operation branch.',
     requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-run-mutation-created-status.json`,

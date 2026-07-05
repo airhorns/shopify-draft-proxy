@@ -93,6 +93,25 @@ pub struct Response {
     pub body: Value,
 }
 
+impl DraftProxy {
+    pub fn record_bulk_operation_staged_upload_body(
+        &mut self,
+        staged_upload_path: &str,
+        body: String,
+    ) -> bool {
+        let registered = self
+            .store
+            .staged
+            .bulk_operation_staged_uploads
+            .contains_key(staged_upload_path);
+        self.store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .insert(staged_upload_path.to_string(), body);
+        registered
+    }
+}
+
 fn primary_root_response_parts(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -323,6 +342,7 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
     bulk_operation_results: BTreeMap<String, String>,
     discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
@@ -775,6 +795,7 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            bulk_operation_staged_upload_bodies: BTreeMap::new(),
             bulk_operation_results: BTreeMap::new(),
             discounts: StagedRecords::default(),
             discount_code_index: BTreeMap::new(),
@@ -1988,6 +2009,7 @@ mod metaobjects;
 mod money;
 mod online_store_content;
 mod online_store_orders_payments;
+mod phone;
 mod privacy;
 mod product_helpers;
 mod product_operations;
@@ -2017,6 +2039,7 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
+pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
 pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;

@@ -1029,7 +1029,11 @@ impl DraftProxy {
         );
     }
 
-    fn merge_staged_location(&mut self, location: &Value, defaults: &[(&str, Value)]) {
+    pub(in crate::proxy) fn merge_staged_location(
+        &mut self,
+        location: &Value,
+        defaults: &[(&str, Value)],
+    ) {
         let Some(id) = location.get("id").and_then(Value::as_str) else {
             return;
         };
