@@ -4689,7 +4689,7 @@ impl DraftProxy {
         Vec::new()
     }
 
-    fn localization_primary_locale(&self) -> String {
+    pub(in crate::proxy) fn localization_primary_locale(&self) -> String {
         self.localization_shop_locales(None)
             .into_iter()
             .find(|locale| locale.get("primary").and_then(Value::as_bool) == Some(true))

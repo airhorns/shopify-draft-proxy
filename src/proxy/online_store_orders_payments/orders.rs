@@ -2070,7 +2070,11 @@ impl DraftProxy {
         let fulfillment_orders = if line_items.is_empty() {
             Vec::new()
         } else {
-            vec![order_default_fulfillment_order(order_id, &line_items)]
+            let mut fulfillment_order = order_default_fulfillment_order(order_id, &line_items);
+            if let Some(assigned_location) = self.default_fulfillment_assigned_location() {
+                fulfillment_order["assignedLocation"] = assigned_location;
+            }
+            vec![fulfillment_order]
         };
         let shipping_lines = resolved_object_list_field(order_input, "shippingLines")
             .into_iter()

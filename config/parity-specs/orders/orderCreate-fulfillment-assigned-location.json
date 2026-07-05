@@ -1,0 +1,53 @@
+{
+  "scenarioId": "order-create-fulfillment-assigned-location",
+  "operationNames": ["orderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "assigned-location-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-fulfillment-assigned-location.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-fulfillment-assigned-location-locations.graphql",
+    "variablesCapturePath": "$.operations.locations.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 Shopify capture for orderCreate with a shippable line item after a public delivery-profile locations read. The replay observes the store location through the same public GraphQL surface, then proves the created fulfillment order uses that real assigned location in both the mutation payload and downstream order(id:) read instead of a fixed Location/1 placeholder.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "observed-delivery-profile-locations",
+        "capturePath": "$.operations.locations.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "mutation-fulfillment-order-assigned-location",
+        "capturePath": "$.operations.create.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": ["$.order.fulfillmentOrders.nodes[*].assignedLocation", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-fulfillment-assigned-location.graphql",
+          "variablesCapturePath": "$.operations.create.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "downstream-fulfillment-order-assigned-location",
+        "capturePath": "$.operations.downstreamRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": ["$.fulfillmentOrders.nodes[*].assignedLocation"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-fulfillment-assigned-location-read.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

@@ -264,7 +264,7 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or(false);
-        let line_items = app_subscription_line_items_from_arguments(&arguments, Vec::new());
+        let line_items = app_subscription_line_items_from_arguments(&arguments, &[]);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
             user_errors.push(user_error(
                 ["lineItems"],
@@ -288,7 +288,7 @@ impl DraftProxy {
             .iter()
             .map(|_| self.next_proxy_synthetic_gid("AppSubscriptionLineItem"))
             .collect::<Vec<_>>();
-        let line_items = app_subscription_line_items_from_arguments(&arguments, line_item_ids);
+        let line_items = app_subscription_line_items_from_arguments(&arguments, &line_item_ids);
         let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let subscription = json!({
             "__typename": "AppSubscription",

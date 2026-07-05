@@ -111,7 +111,11 @@ email-backed customer reference; omitting `input.email` returns `INVALID` at
 `["input"]` without staging a contact or customer. The nested
 `companyCreate(input.companyContact)` path applies contact validation under
 `["input", "companyContact"]` before staging any company, location, role,
-contact, or assignment rows.
+contact, or assignment rows. Company contacts preserve explicit `title` input
+and otherwise store `title: null`, including nested create. Contact locale is
+explicit input when supplied; otherwise contact-create paths use the shop's
+primary locale, and `companyAssignCustomerAsContact` uses the assigned customer's
+locale before falling back to the shop primary locale.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from
@@ -135,7 +139,12 @@ The nested `companyCreate(input.companyLocation)` default location does not use
 to the company name. A present blank `companyLocationUpdate(input.name)` returns
 a `BLANK` user error without mutating the staged location. Bulk deletion returns
 per-index `RESOURCE_NOT_FOUND` errors at `["companyLocationIds", i]` while still
-deleting valid staged IDs.
+deleting valid staged IDs. Location locale is explicit input when supplied and
+otherwise uses the shop's primary locale. Location phone normalization uses the
+input shipping or billing address country, then existing location address
+country on updates, then the shop country; bare digit-shaped phone input without
+a usable country context returns the local invalid-phone branch instead of
+assuming a North American calling code.
 
 `companyLocationAssignAddress` updates the requested address slots locally,
 rejects duplicate `addressTypes` with `INVALID_INPUT`, and preserves the
@@ -175,7 +184,8 @@ treated as omitted. Supplying no tax-setting knobs is a successful no-op that
 returns the unchanged company location.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
-`checkoutToDraft`, `paymentTermsTemplate`, and `deposit`.
+`checkoutToDraft`, `paymentTermsTemplate`, and `deposit`. Deposit input is
+stored as a `DepositPercentage` object with the supplied `percentage` value.
 
 ### Boundaries
 
