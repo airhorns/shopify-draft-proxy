@@ -25,7 +25,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison replays the HAR-288 customer order-summary read-effects trace through the local proxy harness with NO precondition seeding. The proxy earns its state from real upstream forwards recorded in the fixture's upstreamCalls: the store-wide customersCount baseline (CustomerCountHydrate) and the cold order projection for orderCustomerSet (OrderManagementDownstreamRead). It stages the customer setup locally, then compares before-set reads, orderCustomerSet, after-set reads, orderCustomerRemove, and after-remove reads. The comparison focuses on the immediate customer/order association behavior captured by Shopify: Customer.orders exposes the linked order after set and returns empty after remove, while lastOrder stays at the baseline. Expected differences are limited to locally generated customer IDs, opaque order connection cursors, and the existing local representation gap where freshly staged customers use numeric/null summary defaults instead of Shopify's string zero and shop-currency money object.",
+  "notes": "Strict comparison replays the HAR-288 customer order-summary read-effects trace through the local proxy harness with NO precondition seeding. The proxy earns its state from real upstream forwards recorded in the fixture's upstreamCalls: the shop-pricing baseline for zero MoneyV2 currency (DraftProxyShopPricingHydrate), the store-wide customersCount baseline (CustomerCountHydrate), and the cold order projection for orderCustomerSet (OrderManagementDownstreamRead). It stages the customer setup locally, then compares before-set reads, orderCustomerSet, after-set reads, orderCustomerRemove, and after-remove reads. The comparison focuses on the immediate customer/order association behavior captured by Shopify: Customer.orders exposes the linked order after set and returns empty after remove, while numberOfOrders, amountSpent, and lastOrder stay at the customer summary baseline. Expected differences are limited to locally generated customer IDs and opaque order connection cursors.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -39,12 +39,6 @@
             "path": "$.customer.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The proxy stages the setup customer locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
-          },
-          {
-            "path": "$.customer.amountSpent",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
           }
         ]
       },
@@ -66,12 +60,6 @@
             "path": "$.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The proxy reads the locally staged setup customer."
-          },
-          {
-            "path": "$.amountSpent",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
           }
         ]
       },
@@ -114,12 +102,6 @@
             "path": "$.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The proxy reads the locally staged setup customer."
-          },
-          {
-            "path": "$.amountSpent",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
           },
           {
             "path": "$.orders.nodes[*].customer.id",
@@ -172,12 +154,6 @@
             "path": "$.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The proxy reads the locally staged setup customer."
-          },
-          {
-            "path": "$.amountSpent",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Freshly staged customers do not yet synthesize Shopify's shop-currency zero amountSpent object."
           }
         ]
       }

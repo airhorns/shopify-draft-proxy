@@ -88,6 +88,342 @@ fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: 
 }
 
 #[test]
+fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
+    for root in ["customerUpdate", "customerSet"] {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured = Arc::clone(&upstream_calls);
+        let customer_id = format!("gid://shopify/Customer/{root}");
+        let hydrated_customer_id = customer_id.clone();
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+                captured.lock().unwrap().push(body.clone());
+                assert_eq!(body["operationName"], json!("CustomerHydrate"));
+                assert_eq!(body["variables"]["id"], json!(hydrated_customer_id));
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": hydrated_customer_id,
+                                "firstName": "Hydrated",
+                                "lastName": "Customer",
+                                "displayName": "Hydrated Customer",
+                                "email": "hydrated-customer@example.com",
+                                "phone": null,
+                                "locale": "fr",
+                                "note": "kept from hydrate",
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "dataSaleOptOut": true,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "state": "ENABLED",
+                                "tags": ["existing"],
+                                "createdAt": "2026-06-01T00:00:00Z",
+                                "updatedAt": "2026-06-01T00:00:00Z",
+                                "defaultEmailAddress": { "emailAddress": "hydrated-customer@example.com" },
+                                "defaultPhoneNumber": null,
+                                "defaultAddress": null,
+                                "addressesV2": { "nodes": [] }
+                            }
+                        }
+                    }),
+                }
+            });
+
+        let response = if root == "customerUpdate" {
+            proxy.process_request(json_graphql_request(
+                r#"
+                mutation PreserveHydratedCustomerUpdate($input: CustomerInput!) {
+                  customerUpdate(input: $input) {
+                    customer { id tags state dataSaleOptOut locale note }
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "input": { "id": customer_id, "tags": ["vip"] } }),
+            ))
+        } else {
+            proxy.process_request(json_graphql_request(
+                r#"
+                mutation PreserveHydratedCustomerSet($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+                  customerSet(input: $input, identifier: $identifier) {
+                    customer { id tags state dataSaleOptOut locale note }
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({
+                    "identifier": { "id": customer_id },
+                    "input": { "tags": ["vip"] }
+                }),
+            ))
+        };
+
+        assert_eq!(response.status, 200);
+        let payload = &response.body["data"][root];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(payload["customer"]["tags"], json!(["vip"]));
+        assert_eq!(payload["customer"]["state"], json!("ENABLED"));
+        assert_eq!(payload["customer"]["dataSaleOptOut"], json!(true));
+        assert_eq!(payload["customer"]["locale"], json!("fr"));
+        assert_eq!(payload["customer"]["note"], json!("kept from hydrate"));
+
+        let readback = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadHydratedCustomerAfterUpdate($id: ID!) {
+              customer(id: $id) { id tags state dataSaleOptOut locale note }
+            }
+            "#,
+            json!({ "id": customer_id }),
+        ));
+        assert_eq!(readback.body["data"]["customer"]["state"], json!("ENABLED"));
+        assert_eq!(
+            readback.body["data"]["customer"]["dataSaleOptOut"],
+            json!(true)
+        );
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    }
+}
+
+#[test]
+fn customer_create_uses_shop_locale_and_zero_money_order_summary() {
+    let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"]["currencyCode"] = json!("CAD");
+        state["baseState"]["shopLocales"] = json!({
+            "en": {
+                "locale": "en",
+                "name": "English",
+                "primary": false,
+                "published": true,
+                "marketWebPresences": []
+            },
+            "fr": {
+                "locale": "fr",
+                "name": "French",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": []
+            }
+        });
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateShopDefaults($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              locale
+              numberOfOrders
+              amountSpent { amount currencyCode }
+              lastOrder { id }
+              orders(first: 1) {
+                nodes { id }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "shop-defaults@example.test" } }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let customer = &response.body["data"]["customerCreate"]["customer"];
+    assert_eq!(
+        response.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(customer["locale"], json!("fr"));
+    assert_eq!(customer["numberOfOrders"], json!("0"));
+    assert_eq!(
+        customer["amountSpent"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(customer["lastOrder"], Value::Null);
+    assert_eq!(customer["orders"]["nodes"], json!([]));
+    assert_eq!(
+        customer["orders"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+}
+
+#[test]
+fn customer_create_amount_spent_hydrates_shop_currency_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            if query.contains("CustomerDuplicateHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customers": { "nodes": [] } } }),
+                };
+            }
+            assert_eq!(
+                query,
+                "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/customers/customer-order-summary-create-customer.graphql"
+        ),
+        json!({
+            "input": {
+                "email": "amount-spent-currency@example.test",
+                "firstName": "HAR-288",
+                "lastName": "Order Summary"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerCreate"]["customer"]["amountSpent"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().any(|body| {
+        body["query"].as_str()
+            == Some(
+                "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+            )
+    }));
+}
+
+#[test]
+fn customer_update_and_set_preserve_created_customer_order_summary_defaults() {
+    for root in ["customerUpdate", "customerSet"] {
+        let mut proxy = snapshot_proxy();
+        restore_shop_currency(&mut proxy, "CAD");
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CustomerCreateForOrderSummaryUpdate($input: CustomerInput!) {
+              customerCreate(input: $input) {
+                customer { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "email": format!("order-summary-{root}@example.test") } }),
+        ));
+        assert_eq!(
+            create.body["data"]["customerCreate"]["userErrors"],
+            json!([])
+        );
+        let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+            .as_str()
+            .expect("customer id")
+            .to_string();
+
+        let response = if root == "customerUpdate" {
+            proxy.process_request(json_graphql_request(
+                r#"
+                mutation CustomerUpdatePreservesOrderSummary($input: CustomerInput!) {
+                  customerUpdate(input: $input) {
+                    customer {
+                      id
+                      tags
+                      numberOfOrders
+                      amountSpent { amount currencyCode }
+                      lastOrder { id }
+                      orders(first: 1) {
+                        nodes { id }
+                        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                      }
+                    }
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "input": { "id": customer_id, "tags": ["vip"] } }),
+            ))
+        } else {
+            proxy.process_request(json_graphql_request(
+                r#"
+                mutation CustomerSetPreservesOrderSummary($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+                  customerSet(input: $input, identifier: $identifier) {
+                    customer {
+                      id
+                      tags
+                      numberOfOrders
+                      amountSpent { amount currencyCode }
+                      lastOrder { id }
+                      orders(first: 1) {
+                        nodes { id }
+                        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                      }
+                    }
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({
+                    "identifier": { "id": customer_id },
+                    "input": { "tags": ["vip"] }
+                }),
+            ))
+        };
+
+        assert_eq!(response.status, 200);
+        let customer = &response.body["data"][root]["customer"];
+        assert_eq!(response.body["data"][root]["userErrors"], json!([]));
+        assert_eq!(customer["tags"], json!(["vip"]));
+        assert_eq!(customer["numberOfOrders"], json!("0"));
+        assert_eq!(
+            customer["amountSpent"],
+            json!({ "amount": "0.0", "currencyCode": "CAD" })
+        );
+        assert_eq!(customer["lastOrder"], Value::Null);
+        assert_eq!(customer["orders"]["nodes"], json!([]));
+        assert_eq!(
+            customer["orders"]["pageInfo"],
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            })
+        );
+    }
+}
+
+#[test]
 fn customer_update_inline_addresses_are_id_aware_and_replace_existing_addresses() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
