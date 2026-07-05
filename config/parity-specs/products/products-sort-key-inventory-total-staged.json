@@ -1,0 +1,73 @@
+{
+  "scenarioId": "products-sort-key-inventory-total-staged",
+  "operationNames": ["productSet", "products"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["sort-order-semantics", "runtime-staging", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/connection-sort-key-coverage.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-sort-key-inventory-total-set.graphql",
+    "variablesCapturePath": "$.operations.products.alphaSet.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for local staged products(sortKey: INVENTORY_TOTAL) ordering and reverse windowing. Replay stages three products through public productSet requests with distinct tracked inventory quantities, then reads the connection through the public products root.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "alpha-product-set-setup",
+        "capturePath": "$.operations.products.alphaSet.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productSet.product.title",
+          "$.productSet.product.totalInventory",
+          "$.productSet.userErrors"
+        ]
+      },
+      {
+        "name": "middle-product-set-setup",
+        "capturePath": "$.operations.products.middleSet.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/products-sort-key-inventory-total-set.graphql",
+          "variablesCapturePath": "$.operations.products.middleSet.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.productSet.product.title",
+          "$.productSet.product.totalInventory",
+          "$.productSet.userErrors"
+        ]
+      },
+      {
+        "name": "zulu-product-set-setup",
+        "capturePath": "$.operations.products.zuluSet.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/products-sort-key-inventory-total-set.graphql",
+          "variablesCapturePath": "$.operations.products.zuluSet.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.productSet.product.title",
+          "$.productSet.product.totalInventory",
+          "$.productSet.userErrors"
+        ]
+      },
+      {
+        "name": "products-inventory-total-order-and-reverse-window",
+        "capturePath": "$.operations.products.read.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/products-sort-key-inventory-total-read.graphql",
+          "variablesCapturePath": "$.operations.products.read.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
