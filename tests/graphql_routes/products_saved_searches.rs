@@ -7924,6 +7924,225 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     );
     assert_eq!(forwarded.lock().unwrap().len(), 1);
 
+    let create_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateVariantForCurrentPublication($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id inventoryItem { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": current_product_id,
+            "variants": [{
+                "optionValues": [{ "optionName": "Title", "name": "Variant title" }]
+            }]
+        }),
+    ));
+    assert_eq!(create_variant.status, 200);
+    assert_eq!(
+        create_variant.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    let variant_id = create_variant.body["data"]["productVariantsBulkCreate"]["productVariants"][0]
+        ["id"]
+        .as_str()
+        .expect("bulk create should return a variant id")
+        .to_string();
+    let inventory_item_id = create_variant.body["data"]["productVariantsBulkCreate"]
+        ["productVariants"][0]["inventoryItem"]["id"]
+        .as_str()
+        .expect("bulk create should return an inventory item id")
+        .to_string();
+
+    let indirect_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationIndirectRead($variantId: ID!, $inventoryItemId: ID!, $defaultOnlyId: ID!) {
+          variant: productVariant(id: $variantId) {
+            product { id publishedOnCurrentPublication }
+          }
+          inventoryItem(id: $inventoryItemId) {
+            variant {
+              id
+              product { id publishedOnCurrentPublication }
+            }
+          }
+          defaultOnly: product(id: $defaultOnlyId) {
+            id
+            publishedOnCurrentPublication
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id,
+            "defaultOnlyId": default_only_product_id
+        }),
+    ));
+    assert_eq!(indirect_read.status, 200);
+    assert_eq!(
+        indirect_read.body["data"],
+        json!({
+            "variant": {
+                "product": {
+                    "id": current_product_id,
+                    "publishedOnCurrentPublication": true
+                }
+            },
+            "inventoryItem": {
+                "variant": {
+                    "id": variant_id,
+                    "product": {
+                        "id": current_product_id,
+                        "publishedOnCurrentPublication": true
+                    }
+                }
+            },
+            "defaultOnly": {
+                "id": default_only_product_id,
+                "publishedOnCurrentPublication": false
+            }
+        })
+    );
+
+    let update_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCurrentPublicationPayloadRead($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id publishedOnCurrentPublication }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": current_product_id,
+                "title": "Current channel product payload read"
+            }
+        }),
+    ));
+    assert_eq!(update_payload.status, 200);
+    assert_eq!(
+        update_payload.body["data"]["productUpdate"],
+        json!({
+            "product": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let option_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCurrentPublicationOptionPayloadRead($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { id publishedOnCurrentPublication }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": current_product_id,
+            "options": [{
+                "name": "Size",
+                "values": [{ "name": "Small" }]
+            }]
+        }),
+    ));
+    assert_eq!(option_payload.status, 200);
+    assert_eq!(
+        option_payload.body["data"]["productOptionsCreate"],
+        json!({
+            "product": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let create_collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCurrentPublicationCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Current Publication Collection" } }),
+    ));
+    assert_eq!(create_collection.status, 200);
+    assert_eq!(
+        create_collection.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create_collection.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should return a collection id")
+        .to_string();
+
+    let add_collection_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddCurrentPublicationProductToCollection($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              products(first: 10, sortKey: MANUAL) {
+                nodes { id publishedOnCurrentPublication }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": [current_product_id]
+        }),
+    ));
+    assert_eq!(add_collection_product.status, 200);
+    assert_eq!(
+        add_collection_product.body["data"]["collectionAddProducts"],
+        json!({
+            "collection": {
+                "products": {
+                    "nodes": [{
+                        "id": current_product_id,
+                        "publishedOnCurrentPublication": true
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let collection_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionCurrentPublicationProductsRead($id: ID!) {
+          collection(id: $id) {
+            products(first: 10, sortKey: MANUAL) {
+              nodes { id publishedOnCurrentPublication }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+    assert_eq!(collection_read.status, 200);
+    assert_eq!(
+        collection_read.body["data"]["collection"],
+        json!({
+            "products": {
+                "nodes": [{
+                    "id": current_product_id,
+                    "publishedOnCurrentPublication": true
+                }]
+            }
+        })
+    );
+
     let fallback_product_id = "gid://shopify/Product/default-publication-fallback";
     let mut fallback_product = ProductRecord {
         id: fallback_product_id.to_string(),
