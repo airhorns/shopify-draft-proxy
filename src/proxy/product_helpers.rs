@@ -3461,7 +3461,7 @@ pub(in crate::proxy) fn no_key_on_variant_create_response(field: &str) -> Respon
         "errors": [{
             "message": format!("Field '{}' is not allowed on create", field),
             "extensions": {
-                "code": "no_key_on_create",
+                "code": "NO_KEY_ON_CREATE",
                 "key": field
             }
         }]
@@ -3531,10 +3531,11 @@ pub(in crate::proxy) fn product_delete_async_duplicate_payload(
     shop: &Value,
     payload_selections: &[SelectedField],
 ) -> Value {
-    let user_errors = [json!({
-        "field": null,
-        "message": "Another operation already in progress. Please wait until current one is finished."
-    })];
+    let user_errors = [user_error_omit_code(
+        Value::Null,
+        "Another operation already in progress. Please wait until current one is finished.",
+        None,
+    )];
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
             "deletedProductId" => Some(Value::Null),

@@ -148,14 +148,6 @@ fn return_already_declined_error() -> Value {
     )
 }
 
-fn return_user_error_null_field(message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": Value::Null,
-        "message": message,
-        "code": code
-    })
-}
-
 fn blank_return_line_string(value: Option<String>) -> bool {
     value.as_deref().is_none_or(|raw| raw.trim().is_empty())
 }
@@ -1167,7 +1159,8 @@ impl DraftProxy {
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
                     if quantity <= 0 {
-                        user_errors.push(return_user_error_null_field(
+                        user_errors.push(user_error(
+                            Value::Null,
                             "Quantity must be greater than 0",
                             Some("GREATER_THAN"),
                         ));

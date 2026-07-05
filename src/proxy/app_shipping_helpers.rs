@@ -150,13 +150,6 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
     })
 }
 
-pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(Value::Null, message, Some(code))
-}
-
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
@@ -1618,11 +1611,11 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
 }
 
 pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Value {
-    json!({
-        "field": ["destinationLocationId"],
-        "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
-        "message": "Location could not be deactivated because the destination location could be not found or is inactive."
-    })
+    user_error(
+        ["destinationLocationId"],
+        "Location could not be deactivated because the destination location could be not found or is inactive.",
+        Some("DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE"),
+    )
 }
 
 pub(in crate::proxy) fn carrier_service_record(
@@ -1677,10 +1670,10 @@ pub(in crate::proxy) fn carrier_service_not_found_payload(
         Value::Null,
         payload_selection,
         &[],
-        vec![carrier_service_user_error(
+        vec![user_error(
             Value::Null,
             "The carrier or app could not be found.",
-            code,
+            Some(code),
         )],
     )
 }
@@ -1699,38 +1692,30 @@ pub(in crate::proxy) fn carrier_service_delete_payload(
     })
 }
 
-pub(in crate::proxy) fn carrier_service_user_error(
-    field: Value,
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(field, message, Some(code))
-}
-
 pub(in crate::proxy) fn carrier_service_callback_url_error(
     callback_url: &str,
     code: &str,
 ) -> Option<Value> {
     let trimmed = callback_url.trim();
     if trimmed.starts_with("http://") {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url must use HTTPS",
-            code,
+            Some(code),
         ));
     }
     let Some(host) = carrier_service_https_callback_host(trimmed) else {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url invalid host",
-            code,
+            Some(code),
         ));
     };
     if carrier_service_callback_host_is_disallowed(&host) {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url invalid host",
-            code,
+            Some(code),
         ));
     }
     None
@@ -2352,11 +2337,11 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     let payload = if inputs.len() > 50 {
         json!({
             "feedback": [],
-            "userErrors": [{
-                "field": ["feedback"],
-                "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
-            }]
+            "userErrors": [user_error(
+                ["feedback"],
+                "Feedback cannot contain more than 50 entries",
+                Some("TOO_LONG")
+            )]
         })
     } else {
         let mut feedback = Vec::new();
@@ -2431,10 +2416,10 @@ fn resource_feedback_validation_error(
 
     let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
     if feedback_generated_at_is_future(&generated_at) {
-        return Some(resource_feedback_user_error(
+        return Some(user_error(
             feedback_field_path(feedback_index, "feedbackGeneratedAt", None),
             "Feedback generated at must not be in the future",
-            "INVALID",
+            Some("INVALID"),
         ));
     }
 
@@ -2464,10 +2449,6 @@ fn feedback_field_path(
         path.push(index.to_string());
     }
     path
-}
-
-fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
 }
 
 // Shopify reports referenced-but-unavailable products at the product id field,

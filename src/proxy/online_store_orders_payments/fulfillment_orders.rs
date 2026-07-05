@@ -1,17 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn fulfillment_order_user_error(
-    field: Value,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error(field, message, code)
-}
-
-fn fulfillment_user_error(field: &[&str], message: &str) -> Value {
-    user_error_omit_code(field, message, None)
-}
-
 pub(in crate::proxy) fn fulfillment_order_supported_actions(include_split: bool) -> Value {
     let mut actions = vec![
         json!({ "action": "CREATE_FULFILLMENT" }),
@@ -334,37 +322,40 @@ pub(in crate::proxy) fn fulfillment_group_line_items(
 }
 
 pub(in crate::proxy) fn fulfillment_create_closed_order_error(fulfillment_order_id: &str) -> Value {
-    json!({
-        "field": ["fulfillment"],
-        "message": format!(
+    user_error_omit_code(
+        ["fulfillment"],
+        &format!(
             "Fulfillment order {} has an unfulfillable status= closed.",
             resource_id_tail(fulfillment_order_id)
-        )
-    })
+        ),
+        None,
+    )
 }
 
 pub(in crate::proxy) fn fulfillment_create_invalid_quantity_error() -> Value {
-    json!({
-        "field": ["fulfillment"],
-        "message": "Invalid fulfillment order line item quantity requested."
-    })
+    user_error_omit_code(
+        ["fulfillment"],
+        "Invalid fulfillment order line item quantity requested.",
+        None,
+    )
 }
 
 pub(in crate::proxy) fn fulfillment_create_non_positive_quantity_error(
     group_index: usize,
     line_index: usize,
 ) -> Value {
-    json!({
-        "field": [
+    user_error_omit_code(
+        json!([
             "fulfillment",
             "lineItemsByFulfillmentOrder",
             group_index.to_string(),
             "fulfillmentOrderLineItems",
             line_index.to_string(),
             "quantity"
-        ],
-        "message": "Quantity must be greater than 0"
-    })
+        ]),
+        "Quantity must be greater than 0",
+        None,
+    )
 }
 
 pub(in crate::proxy) fn fulfillment_create_precondition_error(
@@ -669,7 +660,7 @@ impl DraftProxy {
         root_field: &str,
         selection: &[SelectedField],
     ) -> Value {
-        let errors = vec![fulfillment_order_user_error(
+        let errors = vec![user_error(
             Value::Null,
             "Fulfillment order does not exist.",
             Some("FULFILLMENT_ORDER_NOT_FOUND"),
@@ -961,7 +952,7 @@ impl DraftProxy {
                 "fulfillmentOrderLineItems"
             ]),
         };
-        fulfillment_order_user_error(field, message, Some(code))
+        user_error(field, message, Some(code))
     }
 
     pub(super) fn stage_fulfillment_order_split(
@@ -1048,7 +1039,7 @@ impl DraftProxy {
                     return fulfillment_order_split_payload_json(
                         Value::Null,
                         &field.selection,
-                        vec![fulfillment_order_user_error(
+                        vec![user_error(
                             Value::Null,
                             "Invalid fulfillment order line item quantity requested.",
                             None,
@@ -1128,7 +1119,7 @@ impl DraftProxy {
             let requested_id = resolved_string_field(request, "id").unwrap_or_default();
             let quantity = resolved_int_field(request, "quantity").unwrap_or(0);
             if quantity <= 0 {
-                return Err(fulfillment_order_user_error(
+                return Err(user_error(
                     json!([
                         "fulfillmentOrderMergeInputs",
                         input_index.to_string(),
@@ -1146,14 +1137,14 @@ impl DraftProxy {
                 .iter()
                 .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
             else {
-                return Err(fulfillment_order_user_error(
+                return Err(user_error(
                     Value::Null,
                     "Fulfillment order line item does not exist.",
                     None,
                 ));
             };
             if quantity > line_item_remaining_quantity(line) {
-                return Err(fulfillment_order_user_error(
+                return Err(user_error(
                     Value::Null,
                     "Invalid fulfillment order line item quantity requested.",
                     None,
@@ -1204,7 +1195,7 @@ impl DraftProxy {
                 return fulfillment_order_merge_payload_json(
                     Value::Null,
                     &field.selection,
-                    vec![fulfillment_order_user_error(
+                    vec![user_error(
                         Value::Null,
                         &format!(
                             "Fulfillment order: {} is currently not in a mergeable state.",
@@ -1251,7 +1242,7 @@ impl DraftProxy {
                     return fulfillment_order_merge_payload_json(
                         Value::Null,
                         &field.selection,
-                        vec![fulfillment_order_user_error(
+                        vec![user_error(
                             Value::Null,
                             &format!(
                                 "Fulfillment order: {} is currently not in a mergeable state.",
@@ -1417,7 +1408,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "fulfillment": Value::Null,
-                "userErrors": [fulfillment_user_error(&["fulfillment"], message)]
+                "userErrors": [user_error_omit_code(["fulfillment"], message, None)]
             }),
             &field.selection,
         )
@@ -1634,9 +1625,10 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "fulfillmentEvent": Value::Null,
-                "userErrors": [fulfillment_user_error(
-                    &["fulfillmentEvent", "fulfillmentId"],
-                    "Fulfillment does not exist."
+                "userErrors": [user_error_omit_code(
+                    ["fulfillmentEvent", "fulfillmentId"],
+                    "Fulfillment does not exist.",
+                    None
                 )]
             }),
             &field.selection,
@@ -1654,9 +1646,10 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "fulfillmentEvent": Value::Null,
-                    "userErrors": [fulfillment_user_error(
-                        &["fulfillmentEvent"],
-                        "Fulfillment event is required"
+                    "userErrors": [user_error_omit_code(
+                        ["fulfillmentEvent"],
+                        "Fulfillment event is required",
+                        None
                     )]
                 }),
                 &field.selection,
@@ -1673,9 +1666,10 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "fulfillmentEvent": Value::Null,
-                    "userErrors": [fulfillment_user_error(
-                        &["fulfillmentEvent", "status"],
-                        "Fulfillment event status is invalid."
+                    "userErrors": [user_error_omit_code(
+                        ["fulfillmentEvent", "status"],
+                        "Fulfillment event status is invalid.",
+                        None
                     )]
                 }),
                 &field.selection,

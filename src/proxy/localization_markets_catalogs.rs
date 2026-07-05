@@ -3620,7 +3620,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE", "Too many keys for resource - maximum 100 per mutation")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "Too many keys for resource - maximum 100 per mutation", "TOO_MANY_KEYS_FOR_RESOURCE")]
                 }),
                 &field.selection,
             );
@@ -3636,7 +3636,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -3650,7 +3650,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST", "The market does not exist")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "The market does not exist", "MARKET_DOES_NOT_EXIST")]
                     }),
                     &field.selection,
                 );
@@ -3665,7 +3665,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL", &format!("Key {key} is not a valid market localizable field"))]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], &format!("Key {key} is not a valid market localizable field"), "INVALID_KEY_FOR_MODEL")]
                     }),
                     &field.selection,
                 );
@@ -3678,7 +3678,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT", "The provided content digest does not match the latest resource content")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "The provided content digest does not match the latest resource content", "INVALID_MARKET_LOCALIZABLE_CONTENT")]
                     }),
                     &field.selection,
                 );
@@ -3688,7 +3688,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Value can't be blank")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Value can't be blank", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3700,7 +3700,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Market Localizable content is invalid")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Market Localizable content is invalid", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3775,7 +3775,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );

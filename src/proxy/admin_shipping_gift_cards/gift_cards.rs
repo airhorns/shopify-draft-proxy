@@ -1512,14 +1512,10 @@ fn gift_card_user_error(
     code: Option<&str>,
     message: &str,
 ) -> Value {
-    let mut error = serde_json::Map::new();
     if let Some(typename) = gift_card_user_error_typename(root_field) {
-        error.insert("__typename".to_string(), json!(typename));
+        return user_error_typed(typename, field, message, code);
     }
-    error.insert("field".to_string(), field);
-    error.insert("code".to_string(), code.map_or(Value::Null, Value::from));
-    error.insert("message".to_string(), json!(message));
-    Value::Object(error)
+    user_error(field, message, code)
 }
 
 fn gift_card_not_found_error(root_field: &str) -> Value {
