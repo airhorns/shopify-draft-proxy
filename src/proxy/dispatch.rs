@@ -20,6 +20,104 @@ fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
         || predicate.contains("metafields.")
 }
 
+/// Whether a `products`/`productsCount` root carries a `query:` the local
+/// overlay cannot faithfully evaluate against partial staged state (a store-wide
+/// aggregate such as `inventory_total:`). Such a field keeps the authoritative
+/// upstream answer with no staged overlay applied.
+fn field_query_requires_full_catalog(field: &RootFieldSelection) -> bool {
+    matches!(
+        field.arguments.get("query"),
+        Some(ResolvedValue::String(predicate))
+            if catalog_search_predicate_requires_full_catalog(predicate)
+    )
+}
+
+/// The `id` of a connection item — the node itself for a `nodes` array, or the
+/// `node` sub-object for an `edges` array. Reads the unaliased `id`; an aliased
+/// id selection is not resolved here, so such an item is treated as having no id
+/// (it is kept, never tombstone-dropped).
+fn connection_item_id(item: &Value, is_edges: bool) -> Option<String> {
+    let node = if is_edges { item.get("node")? } else { item };
+    node.get("id").and_then(Value::as_str).map(str::to_string)
+}
+
+/// Splices staged product nodes/edges (rendered as a connection by
+/// [`DraftProxy::staged_products_overlay_connection`]) into an upstream
+/// `products` connection and drops tombstoned products from the upstream page.
+/// Staged creates are prepended, then the merged array is re-truncated to the
+/// field's `first`. Only `nodes` / `edges` arrays are touched; `pageInfo` stays
+/// the upstream page's.
+fn merge_staged_product_connection(
+    connection: &mut Value,
+    staged_connection: &Value,
+    field: &RootFieldSelection,
+    tombstones: &std::collections::BTreeSet<String>,
+) {
+    let first = resolved_int_field(&field.arguments, "first")
+        .filter(|limit| *limit >= 0)
+        .map(|limit| limit as usize);
+    let Some(connection) = connection.as_object_mut() else {
+        return;
+    };
+    for selection in &field.selection {
+        let is_edges = match selection.name.as_str() {
+            "nodes" => false,
+            "edges" => true,
+            _ => continue,
+        };
+        let key = selection.response_key.as_str();
+        let staged_items = staged_connection
+            .get(key)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let upstream_items = connection
+            .get(key)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let staged_ids: std::collections::BTreeSet<String> = staged_items
+            .iter()
+            .filter_map(|item| connection_item_id(item, is_edges))
+            .collect();
+        let mut merged = staged_items;
+        for item in upstream_items {
+            if let Some(id) = connection_item_id(&item, is_edges) {
+                // Drop a live row that this session deleted, and never duplicate a
+                // row already contributed by the staged overlay.
+                if tombstones.contains(&id) || staged_ids.contains(&id) {
+                    continue;
+                }
+            }
+            merged.push(item);
+        }
+        if let Some(limit) = first {
+            merged.truncate(limit);
+        }
+        connection.insert(selection.response_key.clone(), Value::Array(merged));
+    }
+}
+
+/// Adds `added` staged matches to an upstream `productsCount` value, honoring an
+/// aliased `count` sub-field and leaving `precision` as upstream reported it.
+fn bump_product_count(count: &mut Value, field: &RootFieldSelection, added: usize) {
+    let Some(object) = count.as_object_mut() else {
+        return;
+    };
+    for selection in &field.selection {
+        if selection.name != "count" {
+            continue;
+        }
+        let key = selection.response_key.as_str();
+        if let Some(current) = object.get(key).and_then(Value::as_i64) {
+            object.insert(
+                selection.response_key.clone(),
+                json!(current + added as i64),
+            );
+        }
+    }
+}
+
 fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     json_error(
         501,
@@ -153,6 +251,73 @@ impl DraftProxy {
         false
     }
 
+    /// Overlays this session's staged product creates/deletes onto an upstream
+    /// live catalog response so a read-after-write sees them. The live backend is
+    /// authoritative for the full catalog (which is why the read forwarded
+    /// upstream), but a `productCreate` synthetic product has no live row yet and
+    /// a staged delete's row is still live upstream — so for each `products` /
+    /// `productsCount` root that is not a store-wide aggregate search, staged
+    /// creates matching the field's `query:` are spliced into the connection and
+    /// tombstoned ids are dropped. A no-op when the session staged no product
+    /// create/delete, when the upstream call did not return 200, or for aggregate
+    /// predicates the partial overlay cannot evaluate — in every such case the
+    /// upstream body passes through byte-for-byte.
+    ///
+    /// Scope (deliberate): only creates and deletes are overlaid. A staged
+    /// *update* to an already-live product still appears in the upstream page, so
+    /// it is not re-injected; its edited fields are not yet reflected in list
+    /// reads. Pagination is best-effort: staged nodes are prepended and the page
+    /// is re-truncated to `first`, but `pageInfo` cursors remain the upstream
+    /// page's, so deep cursor paging across a mixed page is not exact.
+    fn overlay_staged_writes_onto_product_catalog(
+        &self,
+        mut upstream: Response,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if upstream.status != 200 || !self.store.has_staged_product_catalog_writes() {
+            return upstream;
+        }
+        let staged_created = self.store.staged_created_products();
+        let tombstones = self.store.staged_product_tombstones().clone();
+        let Some(data) = upstream.body.get_mut("data").and_then(Value::as_object_mut) else {
+            return upstream;
+        };
+        for field in fields {
+            // A store-wide aggregate predicate (e.g. `inventory_total:`) cannot be
+            // evaluated against partial staged state, so leave upstream's
+            // authoritative answer untouched — the same reason the read forwarded.
+            if field_query_requires_full_catalog(field) {
+                continue;
+            }
+            let key = field.response_key.clone();
+            match field.name.as_str() {
+                "products" => {
+                    let staged_connection =
+                        self.staged_products_overlay_connection(field, staged_created.clone());
+                    if let Some(connection) = data.get_mut(&key) {
+                        merge_staged_product_connection(
+                            connection,
+                            &staged_connection,
+                            field,
+                            &tombstones,
+                        );
+                    }
+                }
+                "productsCount" => {
+                    let added =
+                        self.staged_products_overlay_match_count(field, staged_created.clone());
+                    if added > 0 {
+                        if let Some(count) = data.get_mut(&key) {
+                            bump_product_count(count, field, added);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        upstream
+    }
+
     fn should_route_owner_metafields_read(
         &self,
         query: &str,
@@ -198,7 +363,13 @@ impl DraftProxy {
             | "productVariant" => {
                 let fields = root_fields(query, variables).unwrap_or_default();
                 if self.product_read_needs_upstream(&fields) {
-                    (self.upstream_transport)(request.clone())
+                    // The live catalog is authoritative for the full product set,
+                    // so the read forwards upstream — but staged creates/deletes
+                    // in this session have no live representation yet, so overlay
+                    // them onto the upstream page before returning (a no-op when
+                    // the session staged no product create/delete).
+                    let upstream = (self.upstream_transport)(request.clone());
+                    self.overlay_staged_writes_onto_product_catalog(upstream, &fields)
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {

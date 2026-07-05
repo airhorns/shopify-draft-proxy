@@ -376,6 +376,53 @@ impl DraftProxy {
         )
     }
 
+    /// Renders the session's staged, not-yet-live products (`staged_products`)
+    /// as a `products` connection value shaped by `field`'s selection and
+    /// arguments — search `query:`, `sortKey`, `reverse`, and `first/after`
+    /// pagination — reusing the exact same overlay node rendering a snapshot read
+    /// uses. Used to splice staged creates into a live-hybrid catalog page: those
+    /// products have no live counterpart, so the upstream page alone omits them
+    /// and a read-after-write would wrongly report them missing. Only the `nodes`
+    /// and `edges` arrays of the returned value are spliced into the upstream
+    /// connection by the caller; the local `pageInfo`/`totalCount` describe the
+    /// staged subset alone and are not authoritative for the merged page.
+    pub(in crate::proxy) fn staged_products_overlay_connection(
+        &self,
+        field: &RootFieldSelection,
+        staged_products: Vec<ProductRecord>,
+    ) -> Value {
+        selected_staged_connection_with_args(
+            staged_products,
+            &field.arguments,
+            &field.selection,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product, selections| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                self.product_owner_json_with_store_currency(product, &variants, selections)
+            },
+            |product| product_cursor(product).to_string(),
+        )
+    }
+
+    /// Count of staged, not-yet-live products matching `field`'s search `query:`
+    /// (pre-pagination, matching Shopify's `productsCount`), added to the upstream
+    /// live count when overlaying a live-hybrid `productsCount` read.
+    pub(in crate::proxy) fn staged_products_overlay_match_count(
+        &self,
+        field: &RootFieldSelection,
+        staged_products: Vec<ProductRecord>,
+    ) -> usize {
+        staged_connection_query(
+            staged_products,
+            &field.arguments,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product| product_cursor(product).to_string(),
+        )
+        .total_count
+    }
+
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         let count = if field.arguments.contains_key("query") {
             staged_connection_query(
