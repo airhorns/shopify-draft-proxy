@@ -2253,13 +2253,17 @@ impl DraftProxy {
         let mut order = json!({
             "id": order_id.clone(),
             "name": order_name,
+            "email": draft_order["email"].clone(),
             "sourceName": source_name,
             "note": order_note,
             "tags": order_tags,
+            "currencyCode": currency_code,
+            "presentmentCurrencyCode": currency_code,
             "paymentGatewayNames": payment_gateway_names,
             "transactions": order_transactions,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
+            "totalPriceSet": money_set(&amount, &currency_code),
             "currentTotalPriceSet": money_set(&amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items

@@ -114,6 +114,43 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
+    domain: 'admin-platform',
+    captureId: 'connection-sort-key-coverage',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-connection-sort-key-coverage-conformance.ts',
+    purpose:
+      'Cross-domain staged connection sort-key evidence for products(sortKey: INVENTORY_TOTAL), orders(sortKey: TOTAL_PRICE), and segments sort keys over resources created through public Admin GraphQL mutations.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_customers',
+      'write_customers',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}connection-sort-key-coverage.json`,
+      'config/parity-specs/products/products-sort-key-inventory-total-staged.json',
+      'config/parity-specs/orders/orders-sort-key-total-price-staged.json',
+      'config/parity-specs/segments/segments-sort-key-staged.json',
+      'config/parity-requests/products/products-sort-key-inventory-total-set.graphql',
+      'config/parity-requests/products/products-sort-key-inventory-total-read.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-draft-create.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-draft-complete.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-read.graphql',
+      'config/parity-requests/segments/segments-sort-key-create.graphql',
+      'config/parity-requests/segments/segments-sort-key-update.graphql',
+      'config/parity-requests/segments/segments-sort-key-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable products, three disposable draft-completed test orders, and three disposable segments; deletes products and segments and cancels orders after the captured reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The RELEVANCE enum values remain documented as deterministic local fallbacks because Shopify relevance scoring is opaque and query-score dependent; this capture covers the computable ordering branches required to prevent silent default fallbacks.',
+  },
+  {
     domain: 'b2b',
     captureId: 'b2b-quantity-rules-extended-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },

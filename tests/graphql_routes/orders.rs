@@ -2681,6 +2681,92 @@ fn orders_sorted_connection_handles_interleaved_create_and_update_windows() {
 }
 
 #[test]
+fn order_total_price_sort_key_orders_by_amount() {
+    fn create_priced_order(proxy: &mut DraftProxy, email: &str, amount: &str) -> String {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderForScalarSortKeys($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id email totalPriceSet { shopMoney { amount } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "lineItems": [{
+                        "title": email,
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": amount, "currencyCode": "USD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        create.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let expensive_id = create_priced_order(&mut proxy, "expensive-sort@example.test", "30.00");
+    let cheap_id = create_priced_order(&mut proxy, "cheap-sort@example.test", "10.00");
+    let middle_id = create_priced_order(&mut proxy, "middle-sort@example.test", "20.00");
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["orders"][&expensive_id]["totalPriceSet"]
+            ["shopMoney"]["amount"],
+        json!("30.0")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersScalarSortKeys {
+          byTotalPrice: orders(first: 10, sortKey: TOTAL_PRICE) {
+            nodes { id email totalPriceSet { shopMoney { amount } } }
+          }
+          reverseWindow: orders(first: 1, sortKey: TOTAL_PRICE, reverse: true) {
+            edges { cursor node { id email } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byTotalPrice"]["nodes"],
+        json!([
+            { "id": cheap_id, "email": "cheap-sort@example.test", "totalPriceSet": { "shopMoney": { "amount": "10.0" } } },
+            { "id": middle_id, "email": "middle-sort@example.test", "totalPriceSet": { "shopMoney": { "amount": "20.0" } } },
+            { "id": expensive_id.clone(), "email": "expensive-sort@example.test", "totalPriceSet": { "shopMoney": { "amount": "30.0" } } }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["reverseWindow"],
+        json!({
+            "edges": [{
+                "cursor": expensive_id.clone(),
+                "node": {
+                    "id": expensive_id.clone(),
+                    "email": "expensive-sort@example.test"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": expensive_id.clone(),
+                "endCursor": expensive_id
+            }
+        })
+    );
+}
+
+#[test]
 fn orders_count_fallback_preserves_alias_and_selection() {
     let mut proxy = snapshot_proxy();
 
@@ -10895,8 +10981,11 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
               status
               order {
                 id
+                email
                 sourceName
+                currencyCode
                 displayFinancialStatus
+                totalPriceSet { shopMoney { amount currencyCode } }
                 currentTotalPriceSet { shopMoney { amount currencyCode } }
                 lineItems {
                   nodes {
@@ -10929,8 +11018,17 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(completed_draft["status"], json!("COMPLETED"));
     let order = &completed_draft["order"];
     assert_eq!(order["id"], json!("gid://shopify/Order/1"));
+    assert_eq!(
+        order["email"],
+        json!("customer-completion-any-email@example.com")
+    );
     assert_eq!(order["sourceName"], json!("123456789012"));
+    assert_eq!(order["currencyCode"], json!("CAD"));
     assert_eq!(order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        order["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "32.25", "currencyCode": "CAD" })
+    );
     assert_eq!(
         order["currentTotalPriceSet"]["shopMoney"],
         json!({ "amount": "32.25", "currencyCode": "CAD" })

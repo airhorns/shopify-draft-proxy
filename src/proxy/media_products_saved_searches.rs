@@ -45,19 +45,25 @@ fn gid_tail_sort_string(id: &str) -> StagedSortValue {
 }
 
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
-    let primary = match sort_key.unwrap_or("CREATED_AT") {
-        "TITLE" => normalized_sort_string(&product.title),
-        "VENDOR" => normalized_sort_string(&product.vendor),
-        "PRODUCT_TYPE" => normalized_sort_string(&product.product_type),
-        "PUBLISHED_AT" => product
+    let primary = match sort_key {
+        None | Some("CREATED_AT") => StagedSortValue::String(product.created_at.clone()),
+        Some("TITLE") => normalized_sort_string(&product.title),
+        Some("VENDOR") => normalized_sort_string(&product.vendor),
+        Some("PRODUCT_TYPE") => normalized_sort_string(&product.product_type),
+        Some("PUBLISHED_AT") => product
             .extra_fields
             .get("publishedAt")
             .and_then(Value::as_str)
             .map(|value| StagedSortValue::String(value.to_string()))
             .unwrap_or(StagedSortValue::Null),
-        "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
-        "ID" => gid_tail_sort_string(&product.id),
-        _ => StagedSortValue::String(product.created_at.clone()),
+        Some("UPDATED_AT") => StagedSortValue::String(product.updated_at.clone()),
+        Some("INVENTORY_TOTAL") => StagedSortValue::I64(product.total_inventory),
+        Some("ID") => gid_tail_sort_string(&product.id),
+        // Shopify relevance is a search score. The local staged search adapter
+        // only computes match/no-match, so keep a deterministic created-at order
+        // instead of letting RELEVANCE disappear into the unknown-key branch.
+        Some("RELEVANCE") => StagedSortValue::String(product.created_at.clone()),
+        Some(_) => gid_tail_sort_string(&product.id),
     };
     vec![primary, gid_tail_sort_string(&product.id)]
 }

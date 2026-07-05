@@ -1,0 +1,141 @@
+{
+  "scenarioId": "orders-sort-key-total-price-staged",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete", "orders"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["sort-order-semantics", "runtime-staging", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/connection-sort-key-coverage.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-create.graphql",
+    "variablesCapturePath": "$.operations.orders.expensiveDraftCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for local staged orders(sortKey: TOTAL_PRICE) ordering and reverse windowing. Replay stages three orders through public draftOrderCreate and draftOrderComplete requests with distinct total prices, then reads the connection through the public orders root.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "expensive-draft-create-setup",
+        "capturePath": "$.operations.orders.expensiveDraftCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.draftOrderCreate.draftOrder.email",
+          "$.draftOrderCreate.draftOrder.totalPriceSet",
+          "$.draftOrderCreate.userErrors"
+        ]
+      },
+      {
+        "name": "expensive-draft-complete-setup",
+        "capturePath": "$.operations.orders.expensiveComplete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": {
+              "fromCapturePath": "$.operations.orders.expensiveComplete.variables.paymentPending"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.draftOrderComplete.draftOrder.order.email",
+          "$.draftOrderComplete.draftOrder.order.totalPriceSet",
+          "$.draftOrderComplete.userErrors"
+        ]
+      },
+      {
+        "name": "cheap-draft-create-setup",
+        "capturePath": "$.operations.orders.cheapDraftCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-create.graphql",
+          "variablesCapturePath": "$.operations.orders.cheapDraftCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.draftOrderCreate.draftOrder.email",
+          "$.draftOrderCreate.draftOrder.totalPriceSet",
+          "$.draftOrderCreate.userErrors"
+        ]
+      },
+      {
+        "name": "cheap-draft-complete-setup",
+        "capturePath": "$.operations.orders.cheapComplete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "cheap-draft-create-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": {
+              "fromCapturePath": "$.operations.orders.cheapComplete.variables.paymentPending"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.draftOrderComplete.draftOrder.order.email",
+          "$.draftOrderComplete.draftOrder.order.totalPriceSet",
+          "$.draftOrderComplete.userErrors"
+        ]
+      },
+      {
+        "name": "middle-draft-create-setup",
+        "capturePath": "$.operations.orders.middleDraftCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-create.graphql",
+          "variablesCapturePath": "$.operations.orders.middleDraftCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.draftOrderCreate.draftOrder.email",
+          "$.draftOrderCreate.draftOrder.totalPriceSet",
+          "$.draftOrderCreate.userErrors"
+        ]
+      },
+      {
+        "name": "middle-draft-complete-setup",
+        "capturePath": "$.operations.orders.middleComplete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-draft-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "middle-draft-create-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": {
+              "fromCapturePath": "$.operations.orders.middleComplete.variables.paymentPending"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.draftOrderComplete.draftOrder.order.email",
+          "$.draftOrderComplete.draftOrder.order.totalPriceSet",
+          "$.draftOrderComplete.userErrors"
+        ]
+      },
+      {
+        "name": "orders-total-price-order-and-reverse-window",
+        "capturePath": "$.operations.orders.read.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orders-sort-key-total-price-read.graphql",
+          "variablesCapturePath": "$.operations.orders.read.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
