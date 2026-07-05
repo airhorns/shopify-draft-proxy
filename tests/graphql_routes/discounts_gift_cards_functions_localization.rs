@@ -9474,6 +9474,80 @@ fn gift_card_configuration_and_create_limit_use_base_configuration() {
 }
 
 #[test]
+fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert!(
+                request.body.contains("GiftCardCreateConfiguration"),
+                "create-only gift-card mutation should hydrate configuration before staging, got {}",
+                request.body
+            );
+            assert!(
+                request.body.contains("\"variables\":{}"),
+                "configuration hydrate should not send synthetic variables, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "giftCardConfiguration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateInitialValueLimit {
+          boundarySuccess: giftCardCreate(input: { initialValue: "3000.0" }) {
+            giftCard {
+              id
+              initialValue { amount currencyCode }
+              balance { amount currencyCode }
+            }
+            userErrors { field code message }
+          }
+          overByCent: giftCardCreate(input: { initialValue: "3000.01" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "boundarySuccess": {
+                "giftCard": {
+                    "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                    "initialValue": { "amount": "3000.0", "currencyCode": "CAD" },
+                    "balance": { "amount": "3000.0", "currencyCode": "CAD" }
+                },
+                "userErrors": []
+            },
+            "overByCent": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": ["input", "initialValue"],
+                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                    "message": "can't exceed $3,000.00 CAD"
+                }]
+            }
+        })
+    );
+}
+
+#[test]
 fn gift_card_create_missing_customer_uses_existence_not_id_substring() {
     let mut proxy = snapshot_proxy();
 
