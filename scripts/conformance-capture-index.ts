@@ -12869,6 +12869,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customers-keyed-search-filters',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-customer-search-keyed-filters-conformance.mts',
+    purpose:
+      'customers(query:) keyed filter parity for country, account state, default text, grouped tag OR, and tag negation searches after staged customerCreate setup.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customers-keyed-search-filters.json`,
+      'config/parity-specs/customers/customers-keyed-search-filters.json',
+      'config/parity-requests/customers/customers-keyed-search-create.graphql',
+      'config/parity-requests/customers/customers-keyed-search-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates Canadian and US disposable customers, waits for Shopify customer search indexing, captures keyed search reads, then deletes both customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
     purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
