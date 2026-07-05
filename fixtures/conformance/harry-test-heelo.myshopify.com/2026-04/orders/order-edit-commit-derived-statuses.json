@@ -1,0 +1,336 @@
+{
+  "scenarioId": "order-edit-commit-derived-statuses",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-07-05T05:03:52.420Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live draftOrderCreate -> draftOrderComplete -> orderEditBegin -> orderEditAddCustomItem -> orderEditCommit capture proving a paid editable order becomes partially paid after adding an unpaid custom item; post-edit display statuses, totalOutstandingSet, totalPriceSet, and currentTotalPriceSet are asserted from the commit payload and downstream order read.",
+  "draftCreate": {
+    "query": "mutation OrderEditCommitDerivedStatusesDraftCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      status\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "email": "order-edit-derived-statuses-20260705050349@example.com",
+        "note": "order edit derived statuses capture 20260705050349",
+        "tags": ["order-edit-derived-statuses", "20260705050349"],
+        "lineItems": [
+          {
+            "title": "Original paid editable line 20260705050349",
+            "quantity": 1,
+            "originalUnitPriceWithCurrency": {
+              "amount": "10.00",
+              "currencyCode": "CAD"
+            },
+            "requiresShipping": true,
+            "taxable": false
+          }
+        ],
+        "shippingAddress": {
+          "firstName": "Conformance",
+          "lastName": "OrderEdit",
+          "address1": "123 Queen St W",
+          "city": "Toronto",
+          "provinceCode": "ON",
+          "countryCode": "CA",
+          "zip": "M5H 2M9"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1275997815090",
+            "status": "OPEN",
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftComplete": {
+    "query": "mutation OrderEditCommitDerivedStatusesDraftComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        displayFinancialStatus\n        displayFulfillmentStatus\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        transactions {\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1275997815090",
+      "paymentPending": false
+    },
+    "response": {
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1275997815090",
+            "status": "COMPLETED",
+            "order": {
+              "id": "gid://shopify/Order/8891798749490",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "begin": {
+    "query": "mutation OrderEditCommitDerivedStatusesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8891798749490"
+    },
+    "response": {
+      "data": {
+        "orderEditBegin": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/113922048306",
+            "originalOrder": {
+              "id": "gid://shopify/Order/8891798749490"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addCustomItem": {
+    "query": "mutation OrderEditCommitDerivedStatusesAddCustomItem($id: ID!, $title: String!, $quantity: Int!, $price: MoneyInput!) {\n  orderEditAddCustomItem(id: $id, title: $title, quantity: $quantity, price: $price) {\n    calculatedOrder {\n      id\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      addedLineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/CalculatedOrder/113922048306",
+      "title": "Added unpaid item",
+      "quantity": 1,
+      "price": {
+        "amount": "5.00",
+        "currencyCode": "CAD"
+      }
+    },
+    "response": {
+      "data": {
+        "orderEditAddCustomItem": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/113922048306",
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "addedLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CalculatedLineItem/f9e4a38a-8d61-4628-a282-d49c90a85451",
+                  "title": "Added unpaid item",
+                  "quantity": 1
+                }
+              ]
+            }
+          },
+          "calculatedLineItem": {
+            "id": "gid://shopify/CalculatedLineItem/f9e4a38a-8d61-4628-a282-d49c90a85451",
+            "title": "Added unpaid item",
+            "quantity": 1,
+            "originalUnitPriceSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "commit": {
+    "query": "mutation OrderEditCommitDerivedStatusesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      displayFinancialStatus\n      displayFulfillmentStatus\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/CalculatedOrder/113922048306",
+      "notifyCustomer": false,
+      "staffNote": "order edit derived statuses capture"
+    },
+    "response": {
+      "data": {
+        "orderEditCommit": {
+          "order": {
+            "id": "gid://shopify/Order/8891798749490",
+            "displayFinancialStatus": "PARTIALLY_PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "15.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "successMessages": ["Order updated"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query OrderEditCommitDerivedStatusesRead($id: ID!) {\n  order(id: $id) {\n    id\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8891798749490"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8891798749490",
+          "displayFinancialStatus": "PARTIALLY_PAID",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "5.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "totalPriceSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "15.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "#graphql\n  mutation OrderEditCommitDerivedStatusesCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n    $refund: Boolean!\n  ) {\n    orderCancel(\n      orderId: $orderId\n      reason: $reason\n      notifyCustomer: $notifyCustomer\n      restock: $restock\n      refund: $refund\n    ) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8891798749490",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": true,
+      "refund": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/b0294797-75a0-4e64-8678-27d7b155726e"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

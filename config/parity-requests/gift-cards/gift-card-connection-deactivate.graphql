@@ -1,0 +1,13 @@
+mutation GiftCardConnectionDeactivate($id: ID!) {
+  deactivate: giftCardDeactivate(id: $id) {
+    giftCard {
+      id
+      enabled
+      deactivatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

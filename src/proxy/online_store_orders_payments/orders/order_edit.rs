@@ -147,6 +147,17 @@ pub(super) fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
     (subtotal, subtotal - discount + shipping, quantity)
 }
 
+fn oe_session_original_total(session: &Value) -> i64 {
+    let empty = Vec::new();
+    session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+        .iter()
+        .map(|line| oe_int(line, "unitCents") * oe_int(line, "histQty"))
+        .sum()
+}
+
 pub(super) fn oe_session_currency(session: &Value) -> &str {
     session
         .get("currency")
@@ -275,15 +286,6 @@ fn oe_money_set_cents(value: &Value) -> Option<i64> {
         .map(|amount| (amount * 100.0).round() as i64)
 }
 
-/// A single order-edit `userError`, optionally carrying a `code`.
-pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(field, message, code)
-}
-
-pub(super) fn oe_user_error_null_field(message: &str, code: Option<&str>) -> Value {
-    user_error_omit_code(Value::Null, message, code)
-}
-
 /// A failed order-edit mutation payload: every resource field is null and the
 /// given userErrors are attached. The kitchen-sink shape is narrowed by the
 /// caller's field selection, so each mutation emits only the fields it asked
@@ -327,10 +329,93 @@ pub(super) fn oe_shipping_index(session: &Value, shipping_id: &str) -> Option<us
         })
 }
 
+fn oe_transaction_received_cents(base: &Value) -> Option<i64> {
+    base["transactions"].as_array().map(|transactions| {
+        transactions
+            .iter()
+            .filter(|transaction| {
+                matches!(transaction["kind"].as_str(), Some("SALE" | "CAPTURE"))
+                    && transaction["status"].as_str() == Some("SUCCESS")
+            })
+            .filter_map(|transaction| oe_money_set_cents(&transaction["amountSet"]))
+            .sum()
+    })
+}
+
+fn oe_order_received_cents(base: &Value, base_total: i64) -> i64 {
+    oe_money_set_cents(&base["totalReceivedSet"])
+        .or_else(|| oe_transaction_received_cents(base))
+        .or_else(|| {
+            oe_money_set_cents(&base["totalOutstandingSet"])
+                .map(|outstanding| (base_total - outstanding).max(0))
+        })
+        .unwrap_or_else(|| match base["displayFinancialStatus"].as_str() {
+            Some("PENDING" | "AUTHORIZED") => 0,
+            _ => base_total,
+        })
+}
+
+fn oe_display_financial_status(base: &Value, received: i64, outstanding: i64) -> String {
+    let current = base["displayFinancialStatus"].as_str();
+    if matches!(current, Some("REFUNDED" | "PARTIALLY_REFUNDED" | "VOIDED")) {
+        return current.unwrap_or_default().to_string();
+    }
+    if outstanding > 0 {
+        if received > 0 {
+            "PARTIALLY_PAID".to_string()
+        } else if current == Some("AUTHORIZED") {
+            "AUTHORIZED".to_string()
+        } else {
+            "PENDING".to_string()
+        }
+    } else if current == Some("AUTHORIZED") && received <= 0 {
+        "AUTHORIZED".to_string()
+    } else {
+        "PAID".to_string()
+    }
+}
+
+fn oe_fulfillment_quantity_for_line(base_fulfilled: bool, line: &Value) -> i64 {
+    let current = oe_int(line, "curQty");
+    if !base_fulfilled {
+        return current;
+    }
+    if line.get("kind").and_then(Value::as_str) == Some("existing") {
+        (current - oe_int(line, "histQty")).max(0)
+    } else {
+        current
+    }
+}
+
+fn oe_has_new_fulfillment_demand(base_fulfilled: bool, lines: &[Value]) -> bool {
+    lines
+        .iter()
+        .any(|line| oe_fulfillment_quantity_for_line(base_fulfilled, line) > 0)
+}
+
+fn oe_display_fulfillment_status(base: &Value, session: &Value, quantity: i64) -> String {
+    if quantity <= 0 {
+        return "FULFILLED".to_string();
+    }
+    let current = base["displayFulfillmentStatus"].as_str();
+    let empty = Vec::new();
+    let lines = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
+    let base_fulfilled = current == Some("FULFILLED");
+    if base_fulfilled && oe_has_new_fulfillment_demand(base_fulfilled, lines) {
+        "PARTIALLY_FULFILLED".to_string()
+    } else {
+        current.unwrap_or("UNFULFILLED").to_string()
+    }
+}
+
 /// Project an edit session back onto a committed order: existing lines keep
 /// their historical `quantity` but adopt the edited `currentQuantity`; added
-/// lines are materialised as new line items. Current totals, the edit history
-/// event, and per-line fulfillment orders are recomputed from the session.
+/// lines are materialised as new line items. Current totals, derived display
+/// statuses, the edit history event, and per-line fulfillment orders are
+/// recomputed from the session.
 pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str>) -> Value {
     let currency = oe_session_currency(session);
     let empty = Vec::new();
@@ -358,7 +443,11 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
             "variant": line.get("variant").cloned().unwrap_or(Value::Null),
             "originalUnitPriceSet": oe_shop_money(unit, currency)
         }));
-        if current > 0 {
+        let fulfillment_quantity = oe_fulfillment_quantity_for_line(
+            base["displayFulfillmentStatus"].as_str() == Some("FULFILLED"),
+            line,
+        );
+        if fulfillment_quantity > 0 {
             fulfillment_orders.push(json!({
                 "id": shopify_gid("FulfillmentOrder", format_args!("oe-{index}")),
                 "status": "OPEN",
@@ -368,14 +457,14 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
                             "FulfillmentOrderLineItem",
                             format_args!("oe-{index}"),
                         ),
-                        "totalQuantity": current,
-                        "remainingQuantity": current,
+                        "totalQuantity": fulfillment_quantity,
+                        "remainingQuantity": fulfillment_quantity,
                         "lineItem": {
                             "id": line_id,
                             "title": line.get("title").cloned().unwrap_or(Value::Null),
                             "quantity": historical,
                             "currentQuantity": current,
-                            "fulfillableQuantity": current
+                            "fulfillableQuantity": fulfillment_quantity
                         }
                     }]
                 }
@@ -385,12 +474,9 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
     let message = author.map(|author| format!("{author} edited this order."));
     let base_total = oe_money_set_cents(&base["currentTotalPriceSet"])
         .or_else(|| oe_money_set_cents(&base["totalPriceSet"]))
-        .unwrap_or(total);
-    let received = oe_money_set_cents(&base["totalReceivedSet"]).unwrap_or_else(|| {
-        let outstanding = oe_money_set_cents(&base["totalOutstandingSet"]).unwrap_or(0);
-        (base_total - outstanding).max(0)
-    });
-    let outstanding = total - received;
+        .unwrap_or_else(|| oe_session_original_total(session));
+    let received = oe_order_received_cents(base, base_total);
+    let outstanding = (total - received).max(0);
     let mut committed = if base.is_object() {
         base.clone()
     } else {
@@ -408,8 +494,14 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
     committed["merchantEditable"] = json!(true);
     committed["merchantEditableErrors"] = json!([]);
     committed["currentSubtotalLineItemsQuantity"] = json!(quantity);
-    committed["currentSubtotalPriceSet"] = oe_shop_money(subtotal, currency);
-    committed["currentTotalPriceSet"] = oe_shop_money(total, currency);
+    committed["displayFinancialStatus"] =
+        json!(oe_display_financial_status(base, received, outstanding));
+    committed["displayFulfillmentStatus"] =
+        json!(oe_display_fulfillment_status(base, session, quantity));
+    committed["currentSubtotalPriceSet"] = oe_shop_presentment_money(subtotal, currency);
+    committed["currentTotalPriceSet"] = oe_shop_presentment_money(total, currency);
+    committed["totalPriceSet"] = oe_shop_presentment_money(total, currency);
+    committed["totalReceivedSet"] = oe_shop_presentment_money(received, currency);
     committed["totalOutstandingSet"] = oe_shop_presentment_money(outstanding, currency);
     committed["currentTaxLines"] = json!([]);
     committed["lineItems"] = json!({ "nodes": line_nodes });

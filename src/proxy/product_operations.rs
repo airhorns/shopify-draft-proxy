@@ -6,8 +6,16 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
+        let root_field = primary_root_field(query, variables);
+        let (response_key, payload_selection, arguments) = root_field
+            .as_ref()
+            .map(|field| {
+                (
+                    field.response_key.clone(),
+                    field.selection.clone(),
+                    field.arguments.clone(),
+                )
+            })
             .unwrap_or_else(|| ("productSet".into(), Vec::new(), BTreeMap::new()));
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
@@ -110,6 +118,23 @@ impl DraftProxy {
                 .and_then(|handle| self.store.product_by_handle(&handle).cloned())
         });
         let base = existing.or(by_handle);
+        let category = if let Some(category_id) = product_category_input_id(&input) {
+            match product_category_value(&category_id) {
+                Some(category) => Some(category),
+                None => {
+                    let location = root_field
+                        .as_ref()
+                        .map(|field| field.location)
+                        .unwrap_or(SourceLocation { line: 1, column: 1 });
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        &response_key,
+                        location,
+                    ));
+                }
+            }
+        } else {
+            None
+        };
         let product_id = base
             .as_ref()
             .map(|product| product.id.clone())
@@ -190,10 +215,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category_id) = product_category_input_id(&input) {
+        if let Some(category) = category {
             product
                 .extra_fields
-                .insert("category".to_string(), product_category_value(&category_id));
+                .insert("category".to_string(), category);
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(

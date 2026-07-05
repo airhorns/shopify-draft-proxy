@@ -266,22 +266,16 @@ pub(in crate::proxy) fn payment_reminder_invalid_gid_error(
     location: SourceLocation,
 ) -> Value {
     json!({
-        "errors": [{
-            "message": "Variable $paymentScheduleId of type ID! was provided invalid value",
-            "locations": [{
-                "line": location.line,
-                "column": location.column
-            }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": schedule_id,
-                "problems": [{
+        "errors": [invalid_variable_error_envelope(
+            "Variable $paymentScheduleId of type ID! was provided invalid value".to_string(),
+            location,
+            json!(schedule_id),
+            json!([{
                     "path": [],
                     "explanation": format!("Invalid global id '{schedule_id}'"),
                     "message": format!("Invalid global id '{schedule_id}'")
-                }]
-            }
-        }]
+            }]),
+        )]
     })
 }
 
@@ -311,7 +305,8 @@ pub(in crate::proxy) fn payment_reminder_invalid_selection_error(
     operation_path: &str,
     field: &RootFieldSelection,
 ) -> Value {
-    let location = query_source_location(query, "customerPaymentMethod").unwrap_or(field.location);
+    let location = source_location_for_query_substring(query, "customerPaymentMethod")
+        .unwrap_or(field.location);
     let mut path = vec![operation_path.to_string()];
     path.push(field.response_key.clone());
     path.push("customerPaymentMethod".to_string());
@@ -329,20 +324,6 @@ pub(in crate::proxy) fn payment_reminder_invalid_selection_error(
                 "fieldName": "customerPaymentMethod"
             }
         }]
-    })
-}
-
-pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Option<SourceLocation> {
-    let byte_index = query.find(needle)?;
-    let line = query[..byte_index]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count()
-        + 1;
-    let line_start = query[..byte_index].rfind('\n').map_or(0, |index| index + 1);
-    Some(SourceLocation {
-        line,
-        column: byte_index - line_start + 1,
     })
 }
 

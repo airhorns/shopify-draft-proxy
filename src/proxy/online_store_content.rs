@@ -695,11 +695,6 @@ impl DraftProxy {
         }
         let timestamp = online_store_operation_timestamp();
         apply_page_input(&mut record, &input, &timestamp);
-        if input.contains_key("title") && !input.contains_key("handle") {
-            let handle = record["handle"].as_str().unwrap_or_default();
-            record["handle"] =
-                json!(self.unique_online_store_page_handle(handle, Some(id.as_str())));
-        }
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
         resource_payload(&field.selection, "page", record, Vec::new())
@@ -802,9 +797,8 @@ impl DraftProxy {
         let record = article_record(&id, &blog_id, &input, None, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Article, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(
+        self.online_store_article_payload(
             &field.selection,
-            "article",
             self.enriched_article_record(&record),
             Vec::new(),
         )
@@ -864,9 +858,8 @@ impl DraftProxy {
         apply_article_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(
+        self.online_store_article_payload(
             &field.selection,
-            "article",
             self.enriched_article_record(&record),
             Vec::new(),
         )
@@ -1054,9 +1047,8 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Option<Value> {
-        self.online_store_record(kind, id).map(|record| {
-            selected_json(&self.enriched_online_store_record(kind, &record), selection)
-        })
+        self.online_store_record(kind, id)
+            .map(|record| self.online_store_selected_record(kind, &record, selection))
     }
 
     fn online_store_record(&self, kind: OnlineStoreKind, id: &str) -> Option<Value> {
@@ -1078,34 +1070,38 @@ impl DraftProxy {
         kind: OnlineStoreKind,
         field: &RootFieldSelection,
     ) -> Value {
-        let records = self
-            .online_store_records(kind)
-            .into_iter()
-            .enumerate()
-            .collect::<Vec<_>>();
-        let result = staged_connection_query(
-            records,
+        self.online_store_connection_from_records(
+            kind,
+            self.online_store_records(kind),
             &field.arguments,
+            &field.selection,
+        )
+    }
+
+    fn online_store_connection_from_records(
+        &self,
+        kind: OnlineStoreKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
+        let result = staged_connection_query(
+            indexed_records,
+            arguments,
             |(_, record), query| online_store_search_decision(kind, record, query),
             |(index, record), sort_key| {
-                sort_key
-                    .map(|sort_key| online_store_sort_key(kind, record, sort_key))
-                    .unwrap_or_else(|| vec![StagedSortValue::I64(*index as i64)])
+                online_store_connection_sort_key(kind, *index, record, sort_key)
             },
             |(_, record)| value_id_cursor(record),
         );
-        let records = result
-            .records
-            .into_iter()
-            .map(|(_, record)| record)
-            .collect::<Vec<_>>();
-        selected_json(
-            &connection_json_with_cursor(
-                records,
-                |_, node| value_id_cursor(node),
-                result.page_info,
-            ),
-            &field.selection,
+
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            |(_, record), selection| self.online_store_selected_record(kind, record, selection),
+            |(_, record)| value_id_cursor(record),
+            result.page_info,
         )
     }
 
@@ -1130,6 +1126,88 @@ impl DraftProxy {
             OnlineStoreKind::Article => self.enriched_article_record(record),
             OnlineStoreKind::Comment => self.enriched_comment_record(record),
         }
+    }
+
+    fn online_store_selected_record(
+        &self,
+        kind: OnlineStoreKind,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        match kind {
+            OnlineStoreKind::Blog => self.selected_blog_record(record, selection),
+            OnlineStoreKind::Article => self.selected_article_record(record, selection),
+            OnlineStoreKind::Page => selected_json(record, selection),
+            OnlineStoreKind::Comment => {
+                selected_json(&self.enriched_comment_record(record), selection)
+            }
+        }
+    }
+
+    fn selected_blog_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
+        let enriched = self.enriched_blog_record(record);
+        let id = enriched["id"].as_str().unwrap_or_default();
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "articles" => {
+                selected_online_store_field(&enriched, field)?;
+                let articles = self
+                    .online_store_records(OnlineStoreKind::Article)
+                    .into_iter()
+                    .filter(|article| article["blogId"].as_str() == Some(id))
+                    .collect::<Vec<_>>();
+                Some(self.online_store_connection_from_records(
+                    OnlineStoreKind::Article,
+                    articles,
+                    &field.arguments,
+                    &field.selection,
+                ))
+            }
+            _ => selected_online_store_field(&enriched, field),
+        })
+    }
+
+    fn selected_article_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
+        let enriched = self.enriched_article_record(record);
+        let article_id = enriched["id"].as_str().unwrap_or_default().to_string();
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "metafield" => Some(selected_article_metafield(&enriched, field)),
+            "metafields" => Some(selected_article_metafields_connection(&enriched, field)),
+            "comments" => {
+                selected_online_store_field(&enriched, field)?;
+                let comments = self
+                    .online_store_records(OnlineStoreKind::Comment)
+                    .into_iter()
+                    .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
+                    .collect::<Vec<_>>();
+                Some(self.online_store_connection_from_records(
+                    OnlineStoreKind::Comment,
+                    comments,
+                    &field.arguments,
+                    &field.selection,
+                ))
+            }
+            _ => selected_online_store_field(&enriched, field),
+        })
+    }
+
+    fn online_store_article_payload(
+        &self,
+        selection: &[SelectedField],
+        article: Value,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let payload = json!({
+            "article": article,
+            "userErrors": user_errors
+        });
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "article" => Some(if payload["article"].is_null() {
+                Value::Null
+            } else {
+                self.selected_article_record(&payload["article"], &field.selection)
+            }),
+            _ => selected_online_store_field(&payload, field),
+        })
     }
 
     fn enriched_blog_record(&self, record: &Value) -> Value {
@@ -1280,7 +1358,7 @@ fn apply_blog_input(
 ) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
-        if create || !input.contains_key("handle") {
+        if create && !input.contains_key("handle") {
             record["handle"] = json!(slugify_handle(record["title"].as_str().unwrap_or_default()));
         }
     }
@@ -1332,9 +1410,6 @@ fn page_record(
 fn apply_page_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>, timestamp: &str) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
-        if !input.contains_key("handle") {
-            record["handle"] = json!(slugify_handle(record["title"].as_str().unwrap_or_default()));
-        }
     }
     if let Some(handle) = resolved_string_field(input, "handle") {
         record["handle"] = json!(handle);
@@ -1370,7 +1445,7 @@ fn article_record(
     let body = resolved_string_field(input, "body").unwrap_or_default();
     let summary = optional_string_value(input, "summary");
     let (is_published, published_at) = publication_state(input, existing, true, timestamp);
-    json!({
+    let mut record = json!({
         "__typename": "Article",
         "id": id,
         "blogId": blog_id,
@@ -1389,7 +1464,9 @@ fn article_record(
         "metafields": connection_json(Vec::new()),
         "commentsCount": count_object(0),
         "comments": connection_json(Vec::new())
-    })
+    });
+    apply_article_metafields_input(&mut record, input, timestamp);
+    record
 }
 
 fn apply_article_input(
@@ -1399,9 +1476,6 @@ fn apply_article_input(
 ) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
-        if !input.contains_key("handle") {
-            record["handle"] = json!(slugify_handle(record["title"].as_str().unwrap_or_default()));
-        }
     }
     if let Some(handle) = resolved_string_field(input, "handle") {
         record["handle"] = json!(handle);
@@ -1420,6 +1494,9 @@ fn apply_article_input(
     }
     if input.contains_key("image") {
         record["image"] = article_image_json(input);
+    }
+    if input.contains_key("metafields") {
+        apply_article_metafields_input(record, input, timestamp);
     }
     if input.contains_key("isPublished")
         || input.contains_key("visible")
@@ -1716,6 +1793,153 @@ fn article_image_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
         "url": url,
         "altText": alt_text
     })
+}
+
+fn selected_article_metafield(record: &Value, field: &SelectedField) -> Value {
+    let Some(namespace) = resolved_string_field(&field.arguments, "namespace") else {
+        return Value::Null;
+    };
+    let Some(key) = resolved_string_field(&field.arguments, "key") else {
+        return Value::Null;
+    };
+    article_metafield(record, &namespace, &key)
+        .map(|metafield| selected_json(&metafield, &field.selection))
+        .unwrap_or(Value::Null)
+}
+
+fn selected_article_metafields_connection(record: &Value, field: &SelectedField) -> Value {
+    let namespace = resolved_string_field(&field.arguments, "namespace");
+    let mut records = article_metafield_nodes(record, namespace.as_deref());
+    if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+        records.reverse();
+    }
+    selected_typed_connection_with_args(
+        &records,
+        &field.arguments,
+        &field.selection,
+        selected_json,
+        value_id_cursor,
+    )
+}
+
+fn article_metafield(record: &Value, namespace: &str, key: &str) -> Option<Value> {
+    article_metafield_nodes(record, Some(namespace))
+        .into_iter()
+        .find(|metafield| metafield.get("key").and_then(Value::as_str) == Some(key))
+}
+
+fn article_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value> {
+    let mut nodes = connection_nodes(&record["metafields"]);
+    if let Some(metafield) = record.get("metafield").filter(|value| value.is_object()) {
+        let duplicate = nodes.iter().any(|node| {
+            node.get("namespace").and_then(Value::as_str)
+                == metafield.get("namespace").and_then(Value::as_str)
+                && node.get("key").and_then(Value::as_str)
+                    == metafield.get("key").and_then(Value::as_str)
+        });
+        if !duplicate {
+            nodes.push(metafield.clone());
+        }
+    }
+
+    nodes
+        .into_iter()
+        .filter(|metafield| {
+            namespace.is_none_or(|namespace| {
+                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+            })
+        })
+        .collect()
+}
+
+fn apply_article_metafields_input(
+    record: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    timestamp: &str,
+) {
+    let article_id = record["id"].as_str().unwrap_or_default().to_string();
+    let mut records = connection_nodes(&record["metafields"]);
+
+    for metafield in resolved_object_list_field(input, "metafields") {
+        let Some(namespace) = resolved_string_field(&metafield, "namespace") else {
+            continue;
+        };
+        let Some(key) = resolved_string_field(&metafield, "key") else {
+            continue;
+        };
+        let position = records.iter().position(|existing| {
+            existing.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
+                && existing.get("key").and_then(Value::as_str) == Some(key.as_str())
+        });
+        let existing = position.map(|index| records[index].clone());
+        let metafield =
+            article_metafield_record(&article_id, &metafield, existing.as_ref(), timestamp);
+        match position {
+            Some(index) => records[index] = metafield,
+            None => records.push(metafield),
+        }
+    }
+
+    record["metafields"] = connection_json(records);
+}
+
+fn article_metafield_record(
+    article_id: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    timestamp: &str,
+) -> Value {
+    let namespace = resolved_string_field(input, "namespace").unwrap_or_default();
+    let key = resolved_string_field(input, "key").unwrap_or_default();
+    let metafield_type = resolved_string_field(input, "type").unwrap_or_else(|| {
+        existing
+            .and_then(|metafield| metafield.get("type"))
+            .and_then(Value::as_str)
+            .unwrap_or("single_line_text_field")
+            .to_string()
+    });
+    let raw_value = resolved_string_field(input, "value").unwrap_or_else(|| {
+        existing
+            .and_then(|metafield| metafield.get("value"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    });
+    let normalized_value = normalize_metafield_value_string(&metafield_type, &raw_value);
+    let created_at = existing
+        .and_then(|metafield| metafield.get("createdAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(timestamp);
+    let updated_at = existing
+        .filter(|metafield| {
+            metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
+        })
+        .and_then(|metafield| metafield.get("updatedAt"))
+        .and_then(Value::as_str)
+        .unwrap_or(timestamp);
+
+    json!({
+        "__typename": "Metafield",
+        "id": existing
+            .and_then(|metafield| metafield.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| article_metafield_id(article_id, &namespace, &key)),
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type.clone(),
+        "value": normalized_value.clone(),
+        "jsonValue": metafield_json_value(&metafield_type, &raw_value),
+        "compareDigest": metafield_compare_digest(&normalized_value),
+        "ownerType": "ARTICLE",
+        "createdAt": created_at,
+        "updatedAt": updated_at
+    })
+}
+
+fn article_metafield_id(article_id: &str, namespace: &str, key: &str) -> String {
+    let digest = metafield_compare_digest(&format!("{article_id}\n{namespace}\n{key}"));
+    shopify_gid("Metafield", &digest[..16])
 }
 
 fn body_summary(body: &str) -> String {
@@ -2027,7 +2251,7 @@ fn online_store_free_text_search_decision(
     let fields = match kind {
         OnlineStoreKind::Blog => vec!["title", "handle"],
         OnlineStoreKind::Page => vec!["title", "handle", "body", "bodySummary"],
-        OnlineStoreKind::Article => vec!["title", "handle", "body", "summary"],
+        OnlineStoreKind::Article => vec!["title", "body", "summary"],
         OnlineStoreKind::Comment => vec!["body", "bodyHtml", "status"],
     };
     let field_match = fields.into_iter().any(|field| {
@@ -2047,7 +2271,7 @@ fn online_store_free_text_search_decision(
                     .and_then(|blog| blog.get("title"))
                     .and_then(Value::as_str),
                 value,
-            ) || array_field_matches(record, "tags", value)
+            )
         }
         OnlineStoreKind::Blog => array_field_matches(record, "tags", value),
         OnlineStoreKind::Comment => online_store_search_string_matches(
@@ -2172,6 +2396,23 @@ fn online_store_sort_key(kind: OnlineStoreKind, record: &Value, sort_key: &str) 
         },
     };
     vec![primary, online_store_gid_tail_sort_value(record)]
+}
+
+fn online_store_connection_sort_key(
+    kind: OnlineStoreKind,
+    index: usize,
+    record: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    sort_key
+        .map(|sort_key| online_store_sort_key(kind, record, sort_key))
+        .unwrap_or_else(|| vec![StagedSortValue::I64(index as i64)])
+}
+
+fn selected_online_store_field(record: &Value, field: &SelectedField) -> Option<Value> {
+    selected_json(record, std::slice::from_ref(field))
+        .get(&field.response_key)
+        .cloned()
 }
 
 fn online_store_sort_string(record: &Value, field: &str) -> StagedSortValue {
