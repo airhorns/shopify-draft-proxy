@@ -736,7 +736,12 @@ impl DraftProxy {
                     &selection.arguments,
                     &selection.selection,
                     |product, selections| {
-                        product_json_with_currency(product, selections, &shop_currency_code)
+                        self.product_json_with_variants_and_currency_context(
+                            product,
+                            &[],
+                            selections,
+                            &shop_currency_code,
+                        )
                     },
                     |product| product.id.clone(),
                 ))
@@ -778,7 +783,7 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_json_with_variants_and_currency(
+        let base = self.product_json_with_variants_and_currency_context(
             product,
             variants,
             selections,

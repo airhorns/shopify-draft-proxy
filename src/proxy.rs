@@ -1160,18 +1160,64 @@ impl Store {
             || self.staged.publications.contains_key(id)
     }
 
-    fn current_publication_id(&self) -> Option<&'static str> {
+    fn default_publication_id(&self) -> Option<&'static str> {
         let id = "gid://shopify/Publication/1";
         self.has_publication_id(id).then_some(id)
     }
 
+    fn current_publication_ids(&self) -> Vec<&str> {
+        if self.staged.current_channel_publication_resolved {
+            return self
+                .staged
+                .current_channel_publication_id
+                .as_deref()
+                .or_else(|| self.default_publication_id())
+                .into_iter()
+                .collect();
+        }
+
+        let mut publication_ids = Vec::new();
+        if !(self.base.publication_count == Some(0) && self.staged.publications.is_empty()) {
+            publication_ids.push(CURRENT_CHANNEL_PUBLICATION_ID);
+        }
+        if let Some(id) = self.default_publication_id() {
+            if !publication_ids.contains(&id) {
+                publication_ids.push(id);
+            }
+        }
+        publication_ids
+    }
+
     fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
-        self.current_publication_id().is_some_and(|publication_id| {
-            self.staged
+        let publication_ids = self.current_publication_ids();
+        self.staged
+            .resource_publications
+            .get(resource_id)
+            .is_some_and(|publications| {
+                publication_ids
+                    .iter()
+                    .any(|publication_id| publications.contains(*publication_id))
+            })
+    }
+
+    fn product_is_published_on_current_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" {
+            return false;
+        }
+
+        let publication_ids = self.current_publication_ids();
+        publication_ids
+            .iter()
+            .any(|publication_id| product_is_published_on_publication(product, publication_id))
+            || self
+                .staged
                 .resource_publications
-                .get(resource_id)
-                .is_some_and(|publications| publications.contains(publication_id))
-        })
+                .get(&product.id)
+                .is_some_and(|publications| {
+                    publication_ids
+                        .iter()
+                        .any(|publication_id| publications.contains(*publication_id))
+                })
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {

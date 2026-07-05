@@ -91,7 +91,7 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = product_json_with_variants_and_currency(
+            let product_json = self.product_json_with_variants_and_currency_context(
                 &product,
                 &variants,
                 &product_selection,

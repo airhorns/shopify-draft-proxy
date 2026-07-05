@@ -7020,6 +7020,212 @@ fn publishable_current_channel_payload_reflects_staged_membership() {
 }
 
 #[test]
+fn product_read_resolves_published_on_current_publication_from_current_channel() {
+    let current_product_id = "gid://shopify/Product/current-channel-product-read";
+    let default_only_product_id = "gid://shopify/Product/default-publication-only";
+    let mut default_only_product = ProductRecord {
+        id: default_only_product_id.to_string(),
+        title: "Default publication only product".to_string(),
+        handle: "default-publication-only-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    default_only_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/1" }]),
+    );
+    let forwarded = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![
+            ProductRecord {
+                id: current_product_id.to_string(),
+                title: "Current channel product read".to_string(),
+                handle: "current-channel-product-read".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+            default_only_product,
+        ])
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "publication": {
+                                "id": "gid://shopify/Publication/current-channel"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishCurrentForProductRead($id: ID!) {
+          publishablePublishToCurrentChannel(id: $id) {
+            publishable { ... on Product { id publishedOnCurrentPublication } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": current_product_id }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublishToCurrentChannel"],
+        json!({
+            "publishable": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["currentChannelPublicationId"],
+        json!("gid://shopify/Publication/current-channel")
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["currentChannelPublicationResolved"],
+        json!(true)
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["resourcePublications"][current_product_id],
+        json!(["gid://shopify/Publication/current-channel"])
+    );
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_state = state_snapshot(&proxy);
+    assert_eq!(
+        restored_state["stagedState"]["currentChannelPublicationId"],
+        json!("gid://shopify/Publication/current-channel")
+    );
+    assert_eq!(
+        restored_state["stagedState"]["currentChannelPublicationResolved"],
+        json!(true)
+    );
+    assert_eq!(
+        restored_state["stagedState"]["resourcePublications"][current_product_id],
+        json!(["gid://shopify/Publication/current-channel"])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationRead($currentId: ID!, $defaultOnlyId: ID!) {
+          current: product(id: $currentId) {
+            id
+            publishedOnCurrentPublication
+          }
+          defaultOnly: product(id: $defaultOnlyId) {
+            id
+            publishedOnCurrentPublication
+          }
+          currentNode: node(id: $currentId) {
+            ... on Product {
+              id
+              publishedOnCurrentPublication
+            }
+          }
+        }
+        "#,
+        json!({
+            "currentId": current_product_id,
+            "defaultOnlyId": default_only_product_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "current": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "defaultOnly": {
+                "id": default_only_product_id,
+                "publishedOnCurrentPublication": false
+            },
+            "currentNode": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            }
+        })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let fallback_product_id = "gid://shopify/Product/default-publication-fallback";
+    let mut fallback_product = ProductRecord {
+        id: fallback_product_id.to_string(),
+        title: "Default publication fallback product".to_string(),
+        handle: "default-publication-fallback-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    fallback_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/1" }]),
+    );
+    let mut fallback_proxy = snapshot_proxy().with_base_products(vec![fallback_product]);
+    let fallback_dump =
+        fallback_proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(fallback_dump.status, 200);
+    let mut fallback_state = fallback_dump.body;
+    fallback_state["state"]["baseState"]["publicationIds"] = json!(["gid://shopify/Publication/1"]);
+    fallback_state["state"]["baseState"]["publicationCount"] = json!(1);
+    let fallback_restore = fallback_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &fallback_state.to_string(),
+    ));
+    assert_eq!(fallback_restore.status, 200);
+
+    let fallback_read = fallback_proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationDefaultFallback($id: ID!) {
+          product(id: $id) {
+            id
+            publishedOnCurrentPublication
+          }
+          node(id: $id) {
+            ... on Product {
+              id
+              publishedOnCurrentPublication
+            }
+          }
+        }
+        "#,
+        json!({ "id": fallback_product_id }),
+    ));
+    assert_eq!(fallback_read.status, 200);
+    assert_eq!(
+        fallback_read.body["data"],
+        json!({
+            "product": {
+                "id": fallback_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "node": {
+                "id": fallback_product_id,
+                "publishedOnCurrentPublication": true
+            }
+        })
+    );
+}
+
+#[test]
 fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);

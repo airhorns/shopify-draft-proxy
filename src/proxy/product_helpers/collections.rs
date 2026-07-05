@@ -956,20 +956,10 @@ impl DraftProxy {
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
                 "publishedOnCurrentPublication" => {
-                    let published = if self.store.staged.current_channel_publication_resolved {
-                        self.store
-                            .staged
-                            .current_channel_publication_id
-                            .as_deref()
-                            .is_some_and(|id| live_pubs.contains(id))
-                    } else {
-                        self.current_channel_publication_id()
-                            .as_deref()
-                            .is_some_and(|id| live_pubs.contains(id))
-                            || self
-                                .store
-                                .resource_is_published_on_current_publication(resource_id)
-                    };
+                    let current_publication_ids = self.store.current_publication_ids();
+                    let published = current_publication_ids
+                        .iter()
+                        .any(|publication_id| live_pubs.contains(*publication_id));
                     json!(published)
                 }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
