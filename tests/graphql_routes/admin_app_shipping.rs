@@ -413,11 +413,13 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ReadProductBulkArtifact($id: ID!) {
-          bulkOperation(id: $id) { id status url partialDataUrl }
+          bulkOperation(id: $id) { id status objectCount rootObjectCount url partialDataUrl }
         }
         "#,
         json!({ "id": operation_id }),
     ));
+    let completed_operation = &read.body["data"]["bulkOperation"];
+    assert_eq!(completed_operation["status"], json!("COMPLETED"));
     let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
     let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
     assert_eq!(parsed_url.scheme(), "https");
@@ -465,6 +467,11 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
             && row["sku"] == json!("BULK-ARTIFACT-SKU")
             && row["__parentId"] == json!(product_id)
     }));
+    assert_eq!(
+        completed_operation["objectCount"],
+        json!(rows.len().to_string())
+    );
+    assert_eq!(completed_operation["rootObjectCount"], json!("1"));
 
     let variants_run = proxy.process_request(json_graphql_request(
         r#"
@@ -2420,6 +2427,12 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
           defaultCurrent: currentBulkOperation { id type status }
           queryOnly: bulkOperations(first: 5, query: "operation_type:QUERY") { nodes { id type } }
           cancelingQueries: bulkOperations(first: 5, query: "status:CANCELING operation_type:QUERY") { nodes { id type status } }
+          completedLowercase: bulkOperations(first: 5, query: "status:completed") { nodes { id status } }
+          completedAfter: bulkOperations(first: 5, query: "status:completed AND created_at:>=2024-01-01") { nodes { id status createdAt } }
+          strictAfter: bulkOperations(first: 5, query: "created_at:>2023-12-31") { nodes { id createdAt } }
+          onOrBefore: bulkOperations(first: 5, query: "created_at:<=2023-12-31") { nodes { id createdAt } }
+          createdBefore: bulkOperations(first: 5, query: "created_at:<2024-01-01") { nodes { id createdAt } }
+          unknownFilter: bulkOperations(first: 5, query: "made_up:value") { nodes { id } }
           firstPage: bulkOperations(first: 1, sortKey: CREATED_AT) {
             nodes { id type }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -2453,6 +2466,46 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
     assert_eq!(
         read.body["data"]["cancelingQueries"]["nodes"],
         json!([{ "id": older_id, "type": "QUERY", "status": "CANCELING" }])
+    );
+    assert_eq!(
+        read.body["data"]["completedLowercase"]["nodes"],
+        json!([{ "id": query_id, "status": "COMPLETED" }])
+    );
+    assert_eq!(
+        read.body["data"]["completedAfter"]["nodes"],
+        json!([{ "id": query_id, "status": "COMPLETED", "createdAt": "2024-01-01T00:00:01.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["strictAfter"]["nodes"],
+        json!([{ "id": query_id, "createdAt": "2024-01-01T00:00:01.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["onOrBefore"]["nodes"],
+        json!([{ "id": older_id, "createdAt": "2023-12-31T23:59:59.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["createdBefore"]["nodes"],
+        json!([{ "id": older_id, "createdAt": "2023-12-31T23:59:59.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["unknownFilter"]["nodes"],
+        json!([{ "id": query_id }, { "id": older_id }])
+    );
+    assert_eq!(
+        read.body["extensions"]["search"],
+        json!([{
+            "path": ["unknownFilter"],
+            "query": "made_up:value",
+            "parsed": {
+                "field": "made_up",
+                "match_all": "value"
+            },
+            "warnings": [{
+                "field": "made_up",
+                "message": "Invalid search field for this query.",
+                "code": "invalid_field"
+            }]
+        }])
     );
     assert_eq!(
         read.body["data"]["firstPage"]["nodes"][0]["id"],
