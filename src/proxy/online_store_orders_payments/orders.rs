@@ -1777,6 +1777,18 @@ impl DraftProxy {
             })
     }
 
+    pub(in crate::proxy) fn staged_order_record_for_id(&self, order_id: &str) -> Option<Value> {
+        self.store.staged.orders.get(order_id).cloned().or_else(|| {
+            self.store
+                .staged
+                .orders
+                .values()
+                .into_iter()
+                .find(|order| order["id"].as_str() == Some(order_id))
+                .cloned()
+        })
+    }
+
     pub(super) fn order_id_for_fulfillment_order(
         &mut self,
         fulfillment_order_id: &str,

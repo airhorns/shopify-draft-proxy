@@ -10954,6 +10954,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-query-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-query-roots-conformance.mts',
+    purpose:
+      'returnableFulfillments and returnCalculate query-root behavior for a fulfilled order, replayed against locally staged order and fulfillment state.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-query-roots-recorded.json`,
+      'config/parity-specs/orders/return-query-roots-recorded.json',
+      'config/parity-requests/orders/returnable-fulfillments-recorded.graphql',
+      'config/parity-requests/orders/return-calculate-recorded.graphql',
+      'config/parity-requests/orders/return-calculation-order-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable order, records return query-root evidence, then cancels and deletes the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-customer-note',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-customer-note-conformance.mts',

@@ -979,7 +979,7 @@ impl DraftProxy {
     /// snapshot-only.
     pub(in crate::proxy) fn hydrate_order_for_return(&mut self, request: &Request, order_id: &str) {
         if order_id.is_empty()
-            || self.store.staged.orders.contains_key(order_id)
+            || self.staged_order_record_for_id(order_id).is_some()
             || self.config.read_mode == ReadMode::Snapshot
         {
             return;
