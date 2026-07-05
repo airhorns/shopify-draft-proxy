@@ -179,26 +179,12 @@ pub(in crate::proxy) fn fulfillment_order_split_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentOrderSplits" => {
-                if splits.is_null() {
-                    Some(Value::Null)
-                } else {
-                    Some(Value::Array(
-                        splits
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .map(|split| selected_json(split, &selection.selection))
-                            .collect(),
-                    ))
-                }
-            }
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
+    fulfillment_order_list_payload_json(
+        "fulfillmentOrderSplits",
+        splits,
+        payload_selection,
+        user_errors,
+    )
 }
 
 pub(in crate::proxy) fn fulfillment_order_merge_payload_json(
@@ -206,26 +192,76 @@ pub(in crate::proxy) fn fulfillment_order_merge_payload_json(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
+    fulfillment_order_list_payload_json(
+        "fulfillmentOrderMerges",
+        merges,
+        payload_selection,
+        user_errors,
+    )
+}
+
+fn fulfillment_order_list_payload_json(
+    field_name: &str,
+    values: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
     selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentOrderMerges" => {
-                if merges.is_null() {
-                    Some(Value::Null)
-                } else {
-                    Some(Value::Array(
-                        merges
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .map(|merge| selected_json(merge, &selection.selection))
-                            .collect(),
-                    ))
-                }
+        if selection.name == field_name {
+            if values.is_null() {
+                Some(Value::Null)
+            } else {
+                Some(Value::Array(
+                    values
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|value| selected_json(value, &selection.selection))
+                        .collect(),
+                ))
             }
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
+        } else if selection.name == "userErrors" {
+            selected_user_errors_field(user_errors.as_slice(), selection)
+        } else {
+            None
         }
     })
+}
+
+pub(in crate::proxy) fn fulfillment_order_nodes(order: &Value) -> Option<&Vec<Value>> {
+    order.get("fulfillmentOrders")?.get("nodes")?.as_array()
+}
+
+pub(in crate::proxy) fn fulfillment_order_display_status(
+    nodes: &[Value],
+    include_progress_hold_statuses: bool,
+    non_closed_status: &'static str,
+) -> Option<&'static str> {
+    let statuses = nodes
+        .iter()
+        .filter_map(|node| node["status"].as_str())
+        .collect::<Vec<_>>();
+    if statuses.is_empty() {
+        return None;
+    }
+    if include_progress_hold_statuses {
+        if statuses.contains(&"IN_PROGRESS") {
+            return Some("IN_PROGRESS");
+        }
+        if statuses.contains(&"ON_HOLD") && !statuses.contains(&"OPEN") {
+            return Some("ON_HOLD");
+        }
+    }
+    Some(
+        if statuses
+            .iter()
+            .all(|status| status.eq_ignore_ascii_case("CLOSED"))
+        {
+            "FULFILLED"
+        } else {
+            non_closed_status
+        },
+    )
 }
 
 pub(in crate::proxy) fn fulfillment_tracking_info(
@@ -426,23 +462,12 @@ pub(in crate::proxy) fn update_order_fulfillment_status(order: &mut Value) {
     if fulfillment_count == 0 {
         return;
     }
-    let nodes = order["fulfillmentOrders"]["nodes"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    if nodes.is_empty() {
+    let Some(display) = fulfillment_order_nodes(order)
+        .and_then(|nodes| fulfillment_order_display_status(nodes, false, "PARTIALLY_FULFILLED"))
+    else {
         return;
-    }
-    let all_closed = nodes.iter().all(|node| {
-        node["status"]
-            .as_str()
-            .is_some_and(|status| status.eq_ignore_ascii_case("CLOSED"))
-    });
-    order["displayFulfillmentStatus"] = json!(if all_closed {
-        "FULFILLED"
-    } else {
-        "PARTIALLY_FULFILLED"
-    });
+    };
+    order["displayFulfillmentStatus"] = json!(display);
 }
 
 pub(in crate::proxy) fn fulfillment_status_is(fulfillment: &Value, expected: &str) -> bool {
