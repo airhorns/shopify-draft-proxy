@@ -12317,7 +12317,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',
     purpose:
-      'Gift-card read/configuration/count behavior, advanced search filters, and create/update/credit/debit/deactivate lifecycle parity.',
+      'Gift-card read/configuration/count behavior, advanced search filters, connection sort/window behavior, and create/update/credit/debit/deactivate lifecycle parity.',
     requiredAuthScopes: [
       'read_gift_cards',
       'write_gift_cards',
@@ -12330,6 +12330,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
       'config/parity-specs/gift-cards/gift-card-connection-mechanics.json',
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+      'config/parity-requests/gift-cards/gift-card-connection-deactivate.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-disabled-at-first-page.graphql',
+      'config/parity-requests/gift-cards/gift-card-connection-disabled-at-windows.graphql',
       'config/parity-requests/gift-cards/gift-card-connection-first-page.graphql',
       'config/parity-requests/gift-cards/gift-card-connection-setup.graphql',
       'config/parity-requests/gift-cards/gift-card-connection-windows.graphql',
