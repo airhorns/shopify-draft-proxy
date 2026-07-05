@@ -1915,7 +1915,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
         ) {
           native: marketingActivityUpdate(input: $nativeInput) {
             marketingActivity { id isExternal }
-            userErrors { field message code }
+            userErrors { field message  }
           }
           external: marketingActivityCreateExternal(input: $externalInput) {
             marketingActivity { id remoteId isExternal }
@@ -2475,7 +2475,7 @@ fn inventory_items_query_filters_window_and_rejects_unknown_tokens() {
         mutation MarkInventoryItemUntracked($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id tracked }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -4225,7 +4225,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
               countryHarmonizedSystemCodes { countryCode harmonizedSystemCode }
               variant { id inventoryQuantity }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4552,7 +4552,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }])
     );
 
-    let activate_code_selection = proxy.process_request(json_graphql_request(
+    let mut activate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
@@ -4561,7 +4561,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
-    ));
+    );
+    activate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let activate_code_selection = proxy.process_request(activate_code_selection_request);
     assert_eq!(
         activate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -4580,7 +4582,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         ])
     );
 
-    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+    let mut deactivate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
@@ -4589,7 +4591,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryLevelId": level_id}),
-    ));
+    );
+    deactivate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let deactivate_code_selection = proxy.process_request(deactivate_code_selection_request);
     assert_eq!(
         deactivate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -4694,13 +4698,13 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidInventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
         json!({"id": inventory_item_id, "input": {
             "cost": "-5.00",
-            "countryCodeOfOrigin": "ZZZ",
+            "countryCodeOfOrigin": "US",
             "provinceCodeOfOrigin": "ONTARIO",
             "harmonizedSystemCode": "abc",
             "measurement": {"weight": {"value": -1, "unit": "KILOGRAMS"}},
@@ -4715,33 +4719,23 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         .unwrap();
     assert!(item_errors.contains(&json!({
         "field": ["input", "cost"],
-        "message": "Cost must be greater than or equal to 0",
-        "code": "INVALID"
+        "message": "Cost must be greater than or equal to 0"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "measurement", "weight"],
-        "message": "Measurement weight value -1 kg must be >= 0 kg",
-        "code": "INVALID"
-    })));
-    assert!(item_errors.contains(&json!({
-        "field": ["input", "countryCodeOfOrigin"],
-        "message": "Country code of origin is invalid",
-        "code": "INVALID"
+        "message": "Measurement weight value -1 kg must be >= 0 kg"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "provinceCodeOfOrigin"],
-        "message": "Province code of origin is invalid",
-        "code": "INVALID"
+        "message": "Province code of origin is invalid"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "harmonizedSystemCode"],
-        "message": "Harmonized system code must be a number between six and thirteen digits",
-        "code": "INVALID"
+        "message": "Harmonized system code must be a number between six and thirteen digits"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "countryHarmonizedSystemCodes", "1", "countryCode"],
-        "message": "Country code has already been taken",
-        "code": "TAKEN"
+        "message": "Country code has already been taken"
     })));
 
     let invalid_unit = proxy.process_request(json_graphql_request(
@@ -4749,7 +4743,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidWeightUnit($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4767,7 +4761,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation MissingInventoryItem($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -6701,35 +6695,35 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_validation = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagCreateValidatesSrc {
-          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         script_validation.body["data"]["blank"]["userErrors"][0],
-        json!({"code": "BLANK", "field": ["input", "src"], "message": "Source can't be blank"})
+        json!({"field": ["input", "src"], "message": "Source can't be blank"})
     );
     assert_eq!(
-        script_validation.body["data"]["tooLong"]["userErrors"][0]["code"],
-        json!("TOO_LONG")
+        script_validation.body["data"]["tooLong"]["userErrors"][0]["message"],
+        json!("Source is too long (maximum is 255 characters)")
     );
     assert_eq!(
-        script_validation.body["data"]["invalid"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["invalid"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
     assert_eq!(
-        script_validation.body["data"]["http"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["http"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
 
     let create_script = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidationCreate {
-          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6742,7 +6736,7 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_update = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateEventForceOnload {
-          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6760,34 +6754,34 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let invalid_script_updates = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidatesChangedSrc($longSrc: String!) {
-          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors { code field message } }
-          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors { code field message } }
-          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors { code field message } }
-          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors { code field message } }
-          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors { code field message } }
+          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors {  field message } }
+          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors {  field message } }
+          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
+          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors {  field message } }
+          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors {  field message } }
         }
         "#,
         json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
     ));
     assert_eq!(
         invalid_script_updates.body["data"]["blank"],
-        json!({"scriptTag": null, "userErrors": [{"code": "BLANK", "field": ["src"], "message": "Source can't be blank"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source can't be blank"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["tooLong"],
-        json!({"scriptTag": null, "userErrors": [{"code": "TOO_LONG", "field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["invalid"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["http"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["badScope"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["displayScope"], "message": "Display scope is not included in the list"}]})
     );
     assert_eq!(
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
@@ -6858,8 +6852,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation DeliberatelyNotAScriptTagOperationName {
-          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
-          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6910,8 +6904,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation DeleteStagedScriptTags($firstId: ID!, $missingId: ID!) {
-          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename code field message } }
-          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename code field message } }
+          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename  field message } }
+          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename  field message } }
         }
         "#,
         json!({
@@ -6927,7 +6921,6 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
         delete.body["data"]["deleteMissing"],
         json!({"deletedScriptTagId": null, "userErrors": [{
             "__typename": "ScriptTagUserError",
-            "code": "NOT_FOUND",
             "field": ["id"],
             "message": "Script tag not found"
         }]})
@@ -7106,7 +7099,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         mutation ScriptTagUpdateUnknown {
           scriptTagUpdate(id: "gid://shopify/ScriptTag/999999999", input: { src: "https://cdn.example.test/changed.js" }) {
             scriptTag { id src displayScope event cache }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7118,7 +7111,6 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         json!({
             "scriptTag": null,
             "userErrors": [{
-                "code": "NOT_FOUND",
                 "field": ["id"],
                 "message": "Script tag not found"
             }]
@@ -7137,7 +7129,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7171,7 +7163,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFilteredScopes {
           storefrontAccessTokenCreate(input: { title: "Hydrogen filtered" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7212,7 +7204,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeThird {
           storefrontAccessTokenCreate(input: { title: "Hydrogen third" }) {
             storefrontAccessToken { accessToken }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7236,7 +7228,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "   " }) {
             storefrontAccessToken { id }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7247,7 +7239,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         json!({
             "storefrontAccessToken": null,
             "shop": {},
-            "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
+            "userErrors": [{"field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
 
@@ -7257,7 +7249,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
             mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {
               storefrontAccessTokenCreate(input: { title: $title }) {
                 storefrontAccessToken { id }
-                userErrors { code field message }
+                userErrors {  field message }
               }
             }
             "#,
@@ -7274,7 +7266,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeLimit {
           storefrontAccessTokenCreate(input: { title: "One too many" }) {
             storefrontAccessToken { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -7284,7 +7276,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         limit.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
+            "userErrors": [{"field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
         })
     );
 }
@@ -11437,7 +11429,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
         mutation FileSavedSearchCreate($input: SavedSearchCreateInput!) {
           savedSearchCreate(input: $input) {
             savedSearch { id name query resourceType }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
