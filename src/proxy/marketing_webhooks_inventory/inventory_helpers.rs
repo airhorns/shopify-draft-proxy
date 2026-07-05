@@ -363,7 +363,7 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
+    fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
         InventoryLevelViewState {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
@@ -1103,12 +1103,8 @@ fn inventory_unquoted_query_value(raw: &str) -> String {
 }
 
 fn inventory_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.trim().strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value.trim())
+    let value = value.trim();
+    comparison_operator_prefix(value, &[">=", "<=", ">", "<", "="]).unwrap_or(("=", value))
 }
 
 fn inventory_search_string_matches(actual: &str, expected: &str) -> bool {

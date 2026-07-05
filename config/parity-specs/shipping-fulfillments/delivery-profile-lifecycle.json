@@ -71,6 +71,49 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "delivery-profile-post-create-catalog-keeps-default",
+        "capturePath": "$.mutations.postCreateCatalog.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profiles-catalog-read.graphql",
+          "variablesCapturePath": "$.mutations.postCreateCatalog.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfiles.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives delivery profile connection cursors from local profile IDs rather than Shopify's opaque base64 cursor encoding."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy cursor is derived from the synthetic staged delivery profile ID instead of Shopify's live created profile ID."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy creates a stable synthetic delivery profile ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.locationsWithoutRatesCount",
+            "matcher": "any-number",
+            "reason": "The proxy does not yet derive Shopify's shop-wide locations-without-rates count for locally staged delivery profiles."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives delivery profile connection cursors from local profile IDs rather than Shopify's opaque base64 cursor encoding."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The final cursor is derived from the synthetic staged delivery profile ID instead of Shopify's live created profile ID."
+          }
+        ]
+      },
+      {
         "name": "delivery-profile-read-after-create-catalog-data",
         "capturePath": "$.mutations.readAfterCreateCatalog.result.payload.data",
         "proxyPath": "$.data",
