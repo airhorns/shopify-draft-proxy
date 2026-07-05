@@ -6,40 +6,78 @@
     "Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.",
     "The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.",
     "Missing ProductFeedInput country/language is captured as top-level schema validation before Shopify creates any feed.",
-    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots."
+    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots.",
+    "Feedback invalid enum fixture literals and foobar literals are both captured so local errors echo the caller-provided invalid value instead of a canned sentinel."
   ],
   "schemaEvidence": {
     "ProductFeed": {
-      "fields": ["id", "country", "language", "status"],
-      "statusValues": ["ACTIVE", "INACTIVE"]
+      "fields": [
+        "id",
+        "country",
+        "language",
+        "status"
+      ],
+      "statusValues": [
+        "ACTIVE",
+        "INACTIVE"
+      ]
     },
     "ProductFeedCreatePayload": {
-      "fields": ["productFeed", "userErrors"]
+      "fields": [
+        "productFeed",
+        "userErrors"
+      ]
     },
     "ProductFeedDeletePayload": {
-      "fields": ["deletedId", "userErrors"]
+      "fields": [
+        "deletedId",
+        "userErrors"
+      ]
     },
     "ProductFullSyncPayload": {
-      "fields": ["id", "userErrors"]
+      "fields": [
+        "id",
+        "userErrors"
+      ]
     },
     "ProductBundleOperation": {
-      "fields": ["id", "product", "status", "userErrors"],
-      "statusValues": ["CREATED", "ACTIVE", "COMPLETE"]
+      "fields": [
+        "id",
+        "product",
+        "status",
+        "userErrors"
+      ],
+      "statusValues": [
+        "CREATED",
+        "ACTIVE",
+        "COMPLETE"
+      ]
     },
     "ProductBundleCreatePayload": {
-      "fields": ["productBundleOperation", "userErrors"]
+      "fields": [
+        "productBundleOperation",
+        "userErrors"
+      ]
     },
     "ProductBundleUpdatePayload": {
-      "fields": ["productBundleOperation", "userErrors"]
+      "fields": [
+        "productBundleOperation",
+        "userErrors"
+      ]
     },
     "CombinedListingUpdatePayload": {
-      "fields": ["product", "userErrors"]
+      "fields": [
+        "product",
+        "userErrors"
+      ]
     }
   },
   "probes": [
     {
       "name": "productFeedCreate-channel-or-webhook-blocker",
-      "operationNames": ["productFeedCreate"],
+      "operationNames": [
+        "productFeedCreate"
+      ],
       "query": "mutation ProductFeedCreate($input: ProductFeedInput) {\n  productFeedCreate(input: $input) {\n    productFeed {\n      id\n      country\n      language\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
@@ -76,7 +114,9 @@
     },
     {
       "name": "productFeedDelete-unknown-id",
-      "operationNames": ["productFeedDelete"],
+      "operationNames": [
+        "productFeedDelete"
+      ],
       "query": "mutation ProductFeedDelete($id: ID!) {\n  productFeedDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/ProductFeed/999999999"
@@ -88,7 +128,9 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "ProductFeed does not exist",
                 "code": null
               }
@@ -110,7 +152,9 @@
     },
     {
       "name": "productFullSync-unknown-id",
-      "operationNames": ["productFullSync"],
+      "operationNames": [
+        "productFullSync"
+      ],
       "query": "mutation ProductFullSync($id: ID!) {\n  productFullSync(id: $id) {\n    id\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/ProductFeed/999999999"
@@ -122,7 +166,9 @@
             "id": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "ProductFeed does not exist",
                 "code": null
               }
@@ -144,7 +190,9 @@
     },
     {
       "name": "productBundleCreate-empty-components",
-      "operationNames": ["productBundleCreate"],
+      "operationNames": [
+        "productBundleCreate"
+      ],
       "query": "mutation ProductBundleCreate($input: ProductBundleCreateInput!) {\n  productBundleCreate(input: $input) {\n    productBundleOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
@@ -180,7 +228,9 @@
     },
     {
       "name": "productBundleUpdate-unknown-product",
-      "operationNames": ["productBundleUpdate"],
+      "operationNames": [
+        "productBundleUpdate"
+      ],
       "query": "mutation ProductBundleUpdate($input: ProductBundleUpdateInput!) {\n  productBundleUpdate(input: $input) {\n    productBundleOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
@@ -217,7 +267,9 @@
     },
     {
       "name": "combinedListingUpdate-unknown-parent",
-      "operationNames": ["combinedListingUpdate"],
+      "operationNames": [
+        "combinedListingUpdate"
+      ],
       "query": "mutation CombinedListingUpdate($parentProductId: ID!) {\n  combinedListingUpdate(parentProductId: $parentProductId) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "parentProductId": "gid://shopify/Product/999999999"
@@ -229,7 +281,9 @@
             "product": null,
             "userErrors": [
               {
-                "field": ["parentProductId"],
+                "field": [
+                  "parentProductId"
+                ],
                 "message": "Product does not exist",
                 "code": "PARENT_PRODUCT_NOT_FOUND"
               }
@@ -251,7 +305,9 @@
     },
     {
       "name": "productVariantRelationshipBulkUpdate-unknown-variants",
-      "operationNames": ["productVariantRelationshipBulkUpdate"],
+      "operationNames": [
+        "productVariantRelationshipBulkUpdate"
+      ],
       "query": "mutation ProductVariantRelationshipBulkUpdate($input: [ProductVariantRelationshipUpdateInput!]!) {\n  productVariantRelationshipBulkUpdate(input: $input) {\n    parentProductVariants {\n      id\n      requiresComponents\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": [
@@ -273,7 +329,9 @@
             "parentProductVariants": null,
             "userErrors": [
               {
-                "field": ["input"],
+                "field": [
+                  "input"
+                ],
                 "message": "The product variants with ID(s) [\"gid://shopify/ProductVariant/999999999\", \"gid://shopify/ProductVariant/999999998\"] could not be found.",
                 "code": "PRODUCT_VARIANTS_NOT_FOUND"
               }
@@ -295,7 +353,9 @@
     },
     {
       "name": "bulkProductResourceFeedbackCreate-invalid-state",
-      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "operationNames": [
+        "bulkProductResourceFeedbackCreate"
+      ],
       "query": "mutation ProductFeedbackInvalidState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: BANANAS\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {},
       "status": 200,
@@ -327,7 +387,9 @@
     },
     {
       "name": "shopResourceFeedbackCreate-invalid-state",
-      "operationNames": ["shopResourceFeedbackCreate"],
+      "operationNames": [
+        "shopResourceFeedbackCreate"
+      ],
       "query": "mutation ShopFeedbackInvalidState {\n  shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {},
       "status": 200,
@@ -341,7 +403,79 @@
                 "column": 37
               }
             ],
-            "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
+            "path": [
+              "mutation ShopFeedbackInvalidState",
+              "shopResourceFeedbackCreate",
+              "input",
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulkProductResourceFeedbackCreate-foobar-state",
+      "operationNames": [
+        "bulkProductResourceFeedbackCreate"
+      ],
+      "query": "mutation ProductFeedbackFoobarState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: FOOBAR\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "mutation ProductFeedbackFoobarState",
+              "bulkProductResourceFeedbackCreate",
+              "feedbackInput",
+              0,
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-foobar-state",
+      "operationNames": [
+        "shopResourceFeedbackCreate"
+      ],
+      "query": "mutation ShopFeedbackFoobarState {\n  shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "path": [
+              "mutation ShopFeedbackFoobarState",
+              "shopResourceFeedbackCreate",
+              "input",
+              "state"
+            ],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "InputObject",
@@ -353,7 +487,9 @@
     },
     {
       "name": "productFeedCreate-missing-country-language",
-      "operationNames": ["productFeedCreate"],
+      "operationNames": [
+        "productFeedCreate"
+      ],
       "query": "mutation ProductFeedCreate($input: ProductFeedInput) {\n  productFeedCreate(input: $input) {\n    productFeed {\n      id\n      country\n      language\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {}
@@ -374,11 +510,15 @@
               "value": {},
               "problems": [
                 {
-                  "path": ["language"],
+                  "path": [
+                    "language"
+                  ],
                   "explanation": "Expected value to not be null"
                 },
                 {
-                  "path": ["country"],
+                  "path": [
+                    "country"
+                  ],
                   "explanation": "Expected value to not be null"
                 }
               ]

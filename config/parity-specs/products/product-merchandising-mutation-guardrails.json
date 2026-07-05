@@ -12,12 +12,17 @@
     "shopResourceFeedbackCreate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-merchandising-mutation-probes.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feedback-mutation-access-blockers.json"
   ],
-  "runtimeTestFiles": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+  "runtimeTestFiles": [
+    "tests/integration/product-merchandising-feedback-flow.test.ts"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-merchandising-product-feed-delete.graphql",
     "variablesCapturePath": "$.probes[1].variables"
@@ -81,7 +86,10 @@
         "name": "product-feedback-invalid-state-schema-error",
         "capturePath": "$.probes[7].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].extensions"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql"
         }
@@ -90,16 +98,46 @@
         "name": "shop-feedback-invalid-state-schema-error",
         "capturePath": "$.probes[8].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].extensions"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/shop-feedback-invalid-state.graphql"
+        }
+      },
+      {
+        "name": "product-feedback-foobar-state-schema-error",
+        "capturePath": "$.probes[9].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].extensions"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-foobar-state.graphql"
+        }
+      },
+      {
+        "name": "shop-feedback-foobar-state-schema-error",
+        "capturePath": "$.probes[10].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].extensions"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-foobar-state.graphql"
         }
       },
       {
         "name": "product-feed-create-missing-country-language-schema-error",
         "capturePath": "$.probes[9].response.errors",
         "proxyPath": "$.errors",
-        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].extensions"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-merchandising-product-feed-create.graphql",
           "variablesCapturePath": "$.probes[9].variables"
@@ -107,5 +145,5 @@
       }
     ]
   },
-  "notes": "Executable guardrail parity for product-adjacent merchandising and feedback roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store blocks productFeedCreate success with automatic channel/spec feed management and missing feed webhook registration, and feedback success remains blocked by write_resource_feedbacks plus Storefront API / Sales Channel configuration. Strict targets cover productFeedCreate missing required input, productFeedDelete and productFullSync unknown-feed payloads, product bundle/listing/relationship validation payloads, and schema-level invalid-state errors for product and shop feedback mutation roots."
+  "notes": "Executable guardrail parity for product-adjacent merchandising and feedback roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store blocks productFeedCreate success with automatic channel/spec feed management and missing feed webhook registration, and feedback success remains blocked by write_resource_feedbacks plus Storefront API / Sales Channel configuration. Strict targets cover productFeedCreate missing required input, productFeedDelete and productFullSync unknown-feed payloads, product bundle/listing/relationship validation payloads, and schema-level invalid-state errors for product and shop feedback mutation roots, including fixture and non-fixture invalid enum literals."
 }

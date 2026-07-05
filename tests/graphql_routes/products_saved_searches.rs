@@ -5927,6 +5927,35 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
         json!("state")
     );
 
+    let product_feedback_foobar_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackInvalidFoobarEnum {
+          bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: "gid://shopify/Product/optioned", state: FOOBAR, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_feedback_foobar_enum.status, 200);
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["message"],
+        json!("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.")
+    );
+    assert!(!product_feedback_foobar_enum.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("BANANAS"));
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
+    );
+
     let shop_feedback_enum = proxy.process_request(json_graphql_request(
         r#"
         mutation RustShopFeedbackInvalidEnum {
@@ -5945,6 +5974,35 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
+    );
+
+    let shop_feedback_foobar_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustShopFeedbackInvalidFoobarEnum {
+          shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(shop_feedback_foobar_enum.status, 200);
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["message"],
+        json!("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.")
+    );
+    assert!(!shop_feedback_foobar_enum.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("BANANAS"));
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
     );
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
