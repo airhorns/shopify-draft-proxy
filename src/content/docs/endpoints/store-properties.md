@@ -85,7 +85,9 @@ stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
 ongoing relocation, fulfillment-service managed scope, and duplicate active
 location names return field paths, codes, and messages without staging
-activation. The `LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
+activation. Unknown or locally deleted activation ids return `location: null`
+with a `LOCATION_NOT_FOUND` userError and do not stage a synthetic Location. The
+`LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
 internal/transient `HAS_ONGOING_RELOCATION` branch remains runtime-test-only
 because public Admin GraphQL relocation completed synchronously in the
 disposable shop.
@@ -116,17 +118,23 @@ Generic publishable mutation slices cover Product and Collection publish/unpubli
 behavior where backed by parity specs. Product-scoped `PublicationInput`
 validation locally rejects duplicate publication IDs, blank or empty
 `publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
-the captured Shopify field paths/messages. The top-level publishable `id` must
-resolve to a known Product or Collection from staged/base state, or from a
-LiveHybrid hydrate read, before the mutation stages; missing resources return a
-local `Resource does not exist` userError on `field: ["id"]` and leave the
-mutation log unchanged. Product current-channel helpers stage an internal
-current-channel publication membership when a current channel is available,
-return `Channel does not exist` without staging when the local shop context has
-no current channel, and project `publishedOnCurrentPublication` plus
-`resourcePublications(first:)` from the staged membership set. Unsupported
-publishable target types return local userErrors in the documented scenarios
-instead of being treated as full support for every publishable object.
+the captured Shopify field paths/messages. Empty string `publicationId` values
+are rejected before resolver execution: variable-bound inputs return top-level
+`INVALID_VARIABLE` problems keyed by the offending list index, while inline
+literal inputs return top-level `argumentLiteralsIncompatible` errors at
+`["input", index, "publicationId"]`. The current-channel sibling roots keep
+their schema-supported id-only shape and reject a supplied `input` argument
+before local staging. The top-level publishable `id` must resolve to a known
+Product or Collection from staged/base state, or from a LiveHybrid hydrate read,
+before the mutation stages; missing resources return a local `Resource does not
+exist` userError on `field: ["id"]` and leave the mutation log unchanged. Product
+current-channel helpers stage an internal current-channel publication membership
+when a current channel is available, return `Channel does not exist` without
+staging when the local shop context has no current channel, and project
+`publishedOnCurrentPublication` plus `resourcePublications(first:)` from the
+staged membership set. Unsupported publishable target types return local
+userErrors in the documented scenarios instead of being treated as full support
+for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,

@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -16,6 +16,14 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'store-properties');
 const fixturePath = path.join(fixtureDir, 'publishable-input-validation.json');
+const publicationResourceHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'products', 'publication-resource-hydrate-nodes.graphql'),
+  'utf8',
+);
+const currentAppPublicationHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'store-properties', 'current-app-publication-hydrate.graphql'),
+  'utf8',
+);
 
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -54,7 +62,7 @@ type PublishableVariables = {
 };
 
 type ValidationCase = {
-  variables: PublishableVariables;
+  variables: Record<string, unknown>;
   response: ConformanceGraphqlResult;
 };
 
@@ -121,6 +129,54 @@ const publishablePublishMutation = `#graphql
 const publishableUnpublishMutation = `#graphql
   mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
     publishableUnpublish(id: $id, input: $input) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishablePublishInlineEmptyStringMutation = `#graphql
+  mutation PublishableInputValidationPublishInlineEmpty($id: ID!) {
+    publishablePublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishableUnpublishInlineEmptyStringMutation = `#graphql
+  mutation PublishableInputValidationUnpublishInlineEmpty($id: ID!) {
+    publishableUnpublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
       publishable {
         ... on Product {
           id
@@ -209,7 +265,7 @@ function validationVariables(productId: string, input: PublicationInput[]): Publ
   return { id: productId, input };
 }
 
-async function captureCase(query: string, variables: PublishableVariables): Promise<ValidationCase> {
+async function captureCase(query: string, variables: Record<string, unknown>): Promise<ValidationCase> {
   return {
     variables,
     response: await runGraphqlRaw(query, variables),
@@ -223,6 +279,8 @@ let productId: string | null = null;
 let setup: ConformanceGraphqlPayload<ProductCreateData> | null = null;
 let cleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let hydrateResponse: ConformanceGraphqlResult | null = null;
+let resourceHydrateResponse: ConformanceGraphqlResult | null = null;
+let currentAppPublicationResponse: ConformanceGraphqlResult | null = null;
 let publicationsResponse: ConformanceGraphqlPayload<PublicationsData> | null = null;
 const cases: Record<string, ValidationCase> = {};
 
@@ -243,11 +301,14 @@ try {
   if (!publicationId) {
     throw new Error('Publishable input validation capture needs at least one shop publication.');
   }
+  resourceHydrateResponse = await runGraphqlRaw(publicationResourceHydrateQuery, { ids: [productId] });
+  currentAppPublicationResponse = await runGraphqlRaw(currentAppPublicationHydrateQuery, {});
 
   const duplicateInput = [{ publicationId }, { publicationId }];
   const pastDateInput = [{ publicationId, publishDate: '1900-01-01T00:00:00Z' }];
   const blankInput = [{}];
   const emptyStringInput = [{ publicationId: '' }];
+  const emptyStringAtIndexOneInput = [{ publicationId }, { publicationId: '' }];
   const unknownInput = [{ publicationId: 'gid://shopify/Publication/999999999999' }];
 
   cases['publishDuplicate'] = await captureCase(
@@ -265,6 +326,14 @@ try {
   cases['publishEmptyStringPublication'] = await captureCase(
     publishablePublishMutation,
     validationVariables(productId, emptyStringInput),
+  );
+  cases['publishEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishablePublishMutation,
+    validationVariables(productId, emptyStringAtIndexOneInput),
+  );
+  cases['publishInlineEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishablePublishInlineEmptyStringMutation,
+    { id: productId },
   );
   cases['publishUnknownPublication'] = await captureCase(
     publishablePublishMutation,
@@ -285,6 +354,14 @@ try {
   cases['unpublishEmptyStringPublication'] = await captureCase(
     publishableUnpublishMutation,
     validationVariables(productId, emptyStringInput),
+  );
+  cases['unpublishEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishableUnpublishMutation,
+    validationVariables(productId, emptyStringAtIndexOneInput),
+  );
+  cases['unpublishInlineEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishableUnpublishInlineEmptyStringMutation,
+    { id: productId },
   );
   cases['unpublishUnknownPublication'] = await captureCase(
     publishableUnpublishMutation,
@@ -325,7 +402,15 @@ try {
   }
 }
 
-if (!productId || !setup || !hydrateResponse || !publicationsResponse || Object.keys(cases).length === 0) {
+if (
+  !productId ||
+  !setup ||
+  !hydrateResponse ||
+  !resourceHydrateResponse ||
+  !currentAppPublicationResponse ||
+  !publicationsResponse ||
+  Object.keys(cases).length === 0
+) {
   throw new Error('Publishable input validation capture did not produce required setup/cases.');
 }
 
@@ -345,9 +430,19 @@ await writeFile(
       cleanup,
       notes: [
         'Live Admin API validation for generic publishable PublicationInput branches.',
+        'Non-zero empty-string publicationId cases capture both variable-bound INVALID_VARIABLE and inline literal argumentLiteralsIncompatible coercion behavior.',
         'Current-channel publishable siblings are captured with their schema-supported id-only shape.',
       ],
       upstreamCalls: [
+        {
+          operationName: 'PublicationResourceHydrate',
+          variables: { ids: [productId] },
+          query: publicationResourceHydrateQuery,
+          response: {
+            status: resourceHydrateResponse.status,
+            body: resourceHydrateResponse.payload,
+          },
+        },
         {
           operationName: 'StorePropertiesPublishablePublishHydrate',
           variables: { id: productId },
@@ -373,6 +468,15 @@ await writeFile(
           response: {
             status: hydrateResponse.status,
             body: hydrateResponse.payload,
+          },
+        },
+        {
+          operationName: 'StorePropertiesCurrentAppPublicationHydrate',
+          variables: {},
+          query: currentAppPublicationHydrateQuery,
+          response: {
+            status: currentAppPublicationResponse.status,
+            body: currentAppPublicationResponse.payload,
           },
         },
         {

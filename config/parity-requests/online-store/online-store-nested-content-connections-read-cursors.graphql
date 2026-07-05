@@ -1,0 +1,65 @@
+query OnlineStoreNestedContentConnectionsReadCursors(
+  $blogId: ID!
+  $articleId: ID!
+  $articleAfter: String!
+  $articleBefore: String!
+  $commentAfter: String!
+  $commentBefore: String!
+) {
+  blog(id: $blogId) {
+    articlesAfter: articles(first: 2, after: $articleAfter) {
+      nodes {
+        title
+        tags
+        isPublished
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    articlesBefore: articles(last: 1, before: $articleBefore) {
+      nodes {
+        title
+        tags
+        isPublished
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  article(id: $articleId) {
+    commentsAfter: comments(first: 2, after: $commentAfter) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    commentsBefore: comments(last: 1, before: $commentBefore) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

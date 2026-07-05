@@ -49,6 +49,18 @@ const connectionWindowsQuery = await readFile(
   path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-windows.graphql'),
   'utf8',
 );
+const connectionDeactivateMutation = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-deactivate.graphql'),
+  'utf8',
+);
+const connectionDisabledAtFirstPageQuery = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-disabled-at-first-page.graphql'),
+  'utf8',
+);
+const connectionDisabledAtWindowsQuery = await readFile(
+  path.join('config', 'parity-requests', 'gift-cards', 'gift-card-connection-disabled-at-windows.graphql'),
+  'utf8',
+);
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -166,6 +178,37 @@ async function captureConnectionFirstPageWithRetry(
   }
   throw new Error(
     `Connection mechanics giftCards query did not observe ${expectedCount} created cards; last capture: ${JSON.stringify(
+      lastCapture?.response.payload ?? null,
+    )}`,
+  );
+}
+
+async function captureConnectionDisabledAtFirstPageWithRetry(
+  variables: Record<string, unknown>,
+  expectedCount: number,
+): Promise<CapturedRequest> {
+  let lastCapture: CapturedRequest | null = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    lastCapture = await capture('connectionDisabledAtFirstPage', connectionDisabledAtFirstPageQuery, variables);
+    const forwardNodeCount = readArrayLengthPath(
+      lastCapture.response.payload,
+      ['data', 'forward', 'nodes'],
+      'connectionDisabledAtFirstPage forward.nodes',
+    );
+    const reverseNodeCount = readArrayLengthPath(
+      lastCapture.response.payload,
+      ['data', 'reverse', 'nodes'],
+      'connectionDisabledAtFirstPage reverse.nodes',
+    );
+    if (forwardNodeCount === expectedCount && reverseNodeCount === 2) {
+      return lastCapture;
+    }
+    if (attempt < 5) {
+      await setTimeout(5_000);
+    }
+  }
+  throw new Error(
+    `Connection disabled-at giftCards query did not observe ${expectedCount} created cards; last capture: ${JSON.stringify(
       lastCapture?.response.payload ?? null,
     )}`,
   );
@@ -966,10 +1009,36 @@ if (createdId !== null) {
       reverseAfter: connectionReverseAfterCursor,
     }),
   );
-  for (const [index, id] of connectionGiftCardIds.entries()) {
+
+  connectionMechanics.push(
+    await capture('connectionDeactivateFirst', connectionDeactivateMutation, { id: connectionGiftCardIds[0] }),
+  );
+  await setTimeout(1_500);
+  connectionMechanics.push(
+    await capture('connectionDeactivateSecond', connectionDeactivateMutation, { id: connectionGiftCardIds[1] }),
+  );
+  await setTimeout(5_000);
+  const connectionDisabledAtFirstPage = await captureConnectionDisabledAtFirstPageWithRetry(
+    { query: connectionSearchToken },
+    connectionGiftCardIds.length,
+  );
+  connectionMechanics.push(connectionDisabledAtFirstPage);
+  const connectionDisabledAtReverseAfterCursor = readStringPath(
+    connectionDisabledAtFirstPage.response.payload,
+    ['data', 'reverse', 'pageInfo', 'endCursor'],
+    'connectionDisabledAtFirstPage reverse.pageInfo.endCursor',
+  );
+  connectionMechanics.push(
+    await capture('connectionDisabledAtWindows', connectionDisabledAtWindowsQuery, {
+      query: connectionSearchToken,
+      reverseAfter: connectionDisabledAtReverseAfterCursor,
+    }),
+  );
+
+  for (const [index, id] of connectionGiftCardIds.slice(2).entries()) {
     connectionMechanics.push(
       await capture(
-        `connectionCleanup${index + 1}`,
+        `connectionCleanup${index + 3}`,
         `#graphql
           mutation GiftCardConnectionCleanup($id: ID!) {
             giftCardDeactivate(id: $id) {
@@ -1125,7 +1194,7 @@ if (createdId !== null) {
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
           'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
           'The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.',
-          'Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, and giftCardsCount(limit:) precision, then deactivates the created cards.',
+          'Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering and cursor windows before deactivating the remaining card.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
         notificationRoots: {
@@ -1162,6 +1231,13 @@ if (createdId !== null) {
             after: connectionAfterCursor,
             before: connectionBeforeCursor,
             reverseAfter: connectionReverseAfterCursor,
+          },
+          connectionDisabledAtFirstPage: {
+            query: connectionSearchToken,
+          },
+          connectionDisabledAtWindows: {
+            query: connectionSearchToken,
+            reverseAfter: connectionDisabledAtReverseAfterCursor,
           },
           searchFilters: {
             partialQuery: `${giftCardIdQuery} AND balance_status:partial`,

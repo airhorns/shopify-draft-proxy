@@ -1,0 +1,323 @@
+{
+  "scenarioId": "online-store-nested-content-connections",
+  "operationNames": ["article", "blog", "articleCreate", "blogCreate", "commentSpam"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["pagination-shape", "search-query-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-nested-content-connections.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-hydrate.graphql",
+    "variablesCapturePath": "$.variables.hydrate",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture proves nested Blog.articles and Article.comments honor first/reverse windows plus cursor-driven after/before reads, including last with before. Article.comments query filtering is captured when supported by the live schema. Proxy replay hydrates live comments through the cassette-backed article read, stages commentSpam locally, creates local blog/articles through public mutations, and compares stable nested node windows plus pageInfo booleans. Opaque Shopify cursors are matcher-scoped to non-empty local cursors; Blog.articles sortKey/query and Article.comments sortKey are not selected because Admin API 2025-01 rejects those nested arguments, and bare nested last is not selected because Shopify rejects last without before.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold article comments hydrate captures Shopify nested comments baseline",
+        "capturePath": "$.interactions[4].response.data.article",
+        "proxyPath": "$.data.article",
+        "selectedPaths": [
+          "$.title",
+          "$.comments.nodes",
+          "$.comments.pageInfo.hasNextPage",
+          "$.comments.pageInfo.hasPreviousPage"
+        ]
+      },
+      {
+        "name": "commentSpam stages hydrated comment before nested read",
+        "capturePath": "$.interactions[5].response.data.commentSpam",
+        "proxyPath": "$.data.commentSpam",
+        "selectedPaths": [
+          "$.comment.id",
+          "$.comment.status",
+          "$.comment.isPublished",
+          "$.comment.publishedAt",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-comment-spam.graphql",
+          "variablesCapturePath": "$.variables.commentSpam",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "blogCreate stages local nested articles parent",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.commentPolicy", "$.blog.articlesCount", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-blog-create.graphql",
+          "variablesCapturePath": "$.variables.blogCreate",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "articleCreate alpha stages local nested article",
+        "capturePath": "$.interactions[1].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.article.title", "$.article.tags", "$.article.isPublished", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-article-create.graphql",
+          "variables": {
+            "article": {
+              "blogId": {
+                "fromProxyResponse": "blogCreate stages local nested articles parent",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "title": { "fromCapturePath": "$.variables.articleCreateAlpha.article.title" },
+              "body": { "fromCapturePath": "$.variables.articleCreateAlpha.article.body" },
+              "summary": { "fromCapturePath": "$.variables.articleCreateAlpha.article.summary" },
+              "isPublished": { "fromCapturePath": "$.variables.articleCreateAlpha.article.isPublished" },
+              "tags": { "fromCapturePath": "$.variables.articleCreateAlpha.article.tags" },
+              "author": { "fromCapturePath": "$.variables.articleCreateAlpha.article.author" }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "articleCreate bravo stages local nested article",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.article.title", "$.article.tags", "$.article.isPublished", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-article-create.graphql",
+          "variables": {
+            "article": {
+              "blogId": {
+                "fromProxyResponse": "blogCreate stages local nested articles parent",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "title": { "fromCapturePath": "$.variables.articleCreateBravo.article.title" },
+              "body": { "fromCapturePath": "$.variables.articleCreateBravo.article.body" },
+              "summary": { "fromCapturePath": "$.variables.articleCreateBravo.article.summary" },
+              "isPublished": { "fromCapturePath": "$.variables.articleCreateBravo.article.isPublished" },
+              "tags": { "fromCapturePath": "$.variables.articleCreateBravo.article.tags" },
+              "author": { "fromCapturePath": "$.variables.articleCreateBravo.article.author" }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "articleCreate charlie stages local nested article",
+        "capturePath": "$.interactions[3].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.article.title", "$.article.tags", "$.article.isPublished", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-article-create.graphql",
+          "variables": {
+            "article": {
+              "blogId": {
+                "fromProxyResponse": "blogCreate stages local nested articles parent",
+                "path": "$.data.blogCreate.blog.id"
+              },
+              "title": { "fromCapturePath": "$.variables.articleCreateCharlie.article.title" },
+              "body": { "fromCapturePath": "$.variables.articleCreateCharlie.article.body" },
+              "summary": { "fromCapturePath": "$.variables.articleCreateCharlie.article.summary" },
+              "isPublished": { "fromCapturePath": "$.variables.articleCreateCharlie.article.isPublished" },
+              "tags": { "fromCapturePath": "$.variables.articleCreateCharlie.article.tags" },
+              "author": { "fromCapturePath": "$.variables.articleCreateCharlie.article.author" }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "nested first reverse and query windows match Shopify",
+        "capturePath": "$.interactions[6].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blog.articlesFirst.nodes",
+          "$.blog.articlesFirst.pageInfo",
+          "$.blog.articlesAll.nodes",
+          "$.blog.articlesAll.pageInfo",
+          "$.blog.articlesReverse.nodes",
+          "$.blog.articlesReverse.pageInfo",
+          "$.article.commentsFirst.nodes",
+          "$.article.commentsFirst.pageInfo",
+          "$.article.commentsAll.nodes",
+          "$.article.commentsAll.pageInfo",
+          "$.article.commentsReverse.nodes",
+          "$.article.commentsReverse.pageInfo",
+          "$.article.commentsFiltered.nodes",
+          "$.article.commentsFiltered.pageInfo"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.blog.articlesFirst.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesFirst.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesAll.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesAll.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesReverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesReverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsFirst.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsFirst.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsAll.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsAll.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsReverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsReverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsFiltered.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsFiltered.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-read-windows.graphql",
+          "variables": {
+            "blogId": {
+              "fromProxyResponse": "blogCreate stages local nested articles parent",
+              "path": "$.data.blogCreate.blog.id"
+            },
+            "articleId": { "fromPrimaryProxyPath": "$.data.article.id" },
+            "commentFilterQuery": { "fromCapturePath": "$.variables.readWindows.commentFilterQuery" }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "nested after and before cursor windows match Shopify",
+        "capturePath": "$.interactions[7].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blog.articlesAfter.nodes",
+          "$.blog.articlesAfter.pageInfo",
+          "$.blog.articlesBefore.nodes",
+          "$.blog.articlesBefore.pageInfo",
+          "$.article.commentsAfter.nodes",
+          "$.article.commentsAfter.pageInfo",
+          "$.article.commentsBefore.nodes",
+          "$.article.commentsBefore.pageInfo"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.blog.articlesAfter.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesAfter.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesBefore.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.blog.articlesBefore.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsAfter.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsAfter.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsBefore.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          },
+          {
+            "path": "$.article.commentsBefore.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors while the proxy uses deterministic local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-nested-content-connections-read-cursors.graphql",
+          "variables": {
+            "blogId": {
+              "fromProxyResponse": "blogCreate stages local nested articles parent",
+              "path": "$.data.blogCreate.blog.id"
+            },
+            "articleId": { "fromPrimaryProxyPath": "$.data.article.id" },
+            "articleAfter": {
+              "fromProxyResponse": "nested first reverse and query windows match Shopify",
+              "path": "$.data.blog.articlesFirst.edges[1].cursor"
+            },
+            "articleBefore": {
+              "fromProxyResponse": "nested first reverse and query windows match Shopify",
+              "path": "$.data.blog.articlesAll.edges[2].cursor"
+            },
+            "commentAfter": {
+              "fromProxyResponse": "nested first reverse and query windows match Shopify",
+              "path": "$.data.article.commentsFirst.edges[1].cursor"
+            },
+            "commentBefore": {
+              "fromProxyResponse": "nested first reverse and query windows match Shopify",
+              "path": "$.data.article.commentsAll.edges[2].cursor"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

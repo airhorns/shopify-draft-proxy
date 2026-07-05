@@ -386,6 +386,44 @@ impl DraftProxy {
         self.store.staged.function_metadata.insert(id, function);
     }
 
+    pub(in crate::proxy) fn resolve_payment_customization_function(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.resolve_function_metadata(request, id, handle, "PAYMENT_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn payment_customization_record_matches_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+        candidate_key: &str,
+    ) -> bool {
+        self.payment_customization_record_function_key(request, record)
+            .as_deref()
+            == Some(candidate_key)
+    }
+
+    fn payment_customization_record_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+    ) -> Option<String> {
+        if let Some(id) = record["functionId"].as_str() {
+            return Some(payment_customization_function_key(id));
+        }
+        let handle = record["functionHandle"].as_str()?;
+        self.resolve_payment_customization_function(request, None, Some(handle))
+            .and_then(|function| {
+                function["id"]
+                    .as_str()
+                    .map(payment_customization_function_key)
+            })
+            .or_else(|| Some(payment_customization_function_key(handle)))
+    }
+
     pub(in crate::proxy) fn hydrate_function_metadata_from_response_data(&mut self, data: &Value) {
         let mut functions = Vec::new();
         collect_function_metadata_values(data, &mut functions);
@@ -423,19 +461,15 @@ fn request_header_truthy(request: &Request, header: &str) -> bool {
 }
 
 fn tax_app_configure_access_denied_error(field: &RootFieldSelection) -> Value {
-    json!({
-        "message": format!(
+    top_level_access_denied_error_envelope(
+        format!(
             "Access denied for {} field. Required access: {TAX_APP_CONFIGURE_REQUIRED_ACCESS}",
             field.name
         ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": TAX_APP_CONFIGURE_REQUIRED_ACCESS
-        },
-        "path": [field.response_key.clone()]
-    })
+        Some(field.location),
+        vec![json!(field.response_key.clone())],
+        Some(TAX_APP_CONFIGURE_REQUIRED_ACCESS),
+    )
 }
 
 fn normalized_function_metadata(function: Value) -> Option<Value> {
