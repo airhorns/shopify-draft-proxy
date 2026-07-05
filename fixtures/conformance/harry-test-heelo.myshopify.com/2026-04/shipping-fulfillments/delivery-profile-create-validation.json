@@ -5,7 +5,10 @@
   "evidence": {
     "locationUsed": "gid://shopify/Location/106318430514",
     "deliveryProfileCreateUserErrorsType": "UserError",
-    "userErrorFields": ["field", "message"]
+    "userErrorFields": [
+      "field",
+      "message"
+    ]
   },
   "mutations": {
     "blankName": {
@@ -23,7 +26,10 @@
               "profile": null,
               "userErrors": [
                 {
-                  "field": ["profile", "name"],
+                  "field": [
+                    "profile",
+                    "name"
+                  ],
                   "message": "Add a profile name"
                 }
               ]
@@ -58,7 +64,10 @@
               "profile": null,
               "userErrors": [
                 {
-                  "field": ["profile", "name"],
+                  "field": [
+                    "profile",
+                    "name"
+                  ],
                   "message": "Profile name must be less than 128 characters long"
                 }
               ]
@@ -85,7 +94,9 @@
           "name": "Unknown location",
           "locationGroupsToCreate": [
             {
-              "locations": ["gid://shopify/Location/999999999"],
+              "locations": [
+                "gid://shopify/Location/999999999"
+              ],
               "zonesToCreate": []
             }
           ]
@@ -126,7 +137,9 @@
           "name": "Empty countries",
           "locationGroupsToCreate": [
             {
-              "locations": ["gid://shopify/Location/106318430514"],
+              "locations": [
+                "gid://shopify/Location/106318430514"
+              ],
               "zonesToCreate": [
                 {
                   "name": "Empty",
