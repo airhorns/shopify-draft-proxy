@@ -1156,21 +1156,11 @@ pub(in crate::proxy) fn order_edit_commit_success_messages(
 }
 
 pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
-    let start_cursor = nodes
-        .first()
-        .and_then(|node| node.get("id"))
-        .and_then(Value::as_str)
-        .filter(|cursor| !cursor.is_empty())
-        .map(str::to_string);
-    let end_cursor = nodes
-        .last()
-        .and_then(|node| node.get("id"))
-        .and_then(Value::as_str)
-        .filter(|cursor| !cursor.is_empty())
-        .map(str::to_string);
-    json!({
-        "nodes": nodes,
-        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
+    connection_json_with_boundary_cursors(nodes, |node| {
+        node.get("id")
+            .and_then(Value::as_str)
+            .filter(|cursor| !cursor.is_empty())
+            .map(str::to_string)
     })
 }
 

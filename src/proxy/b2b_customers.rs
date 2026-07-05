@@ -1211,7 +1211,7 @@ impl DraftProxy {
             .get("storeCreditAccounts")
             .is_none_or(Value::is_null)
         {
-            customer["storeCreditAccounts"] = empty_orders_connection();
+            customer["storeCreditAccounts"] = connection_json_with_empty_edges(Vec::new());
         }
         self.store
             .staged
@@ -5472,19 +5472,7 @@ fn nodes_connection(nodes: Vec<Value>) -> Value {
     // matchers treat connection cursors as opaque (`any-string`), so a deterministic
     // per-node string (the node id) is a faithful stand-in. An empty connection
     // reports null boundary cursors, matching Shopify.
-    let start_cursor = nodes.first().map(node_connection_cursor);
-    let end_cursor = nodes.last().map(node_connection_cursor);
-    json!({
-        "nodes": nodes,
-        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
-    })
-}
-
-fn node_connection_cursor(node: &Value) -> String {
-    node.get("id")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
+    connection_json_with_boundary_cursors(nodes, |node| Some(value_id_cursor(node)))
 }
 
 /// Lift a customer's hydrated `orders` connection (an `edges { cursor node { … } }` page)
@@ -5657,19 +5645,8 @@ fn apply_customer_order_summary_defaults(customer: &mut Value) {
         customer["lastOrder"] = Value::Null;
     }
     if customer.get("orders").is_none_or(Value::is_null) {
-        customer["orders"] = empty_orders_connection();
+        customer["orders"] = connection_json_with_empty_edges(Vec::new());
     }
-}
-
-/// An empty `Customer.orders` connection page: no nodes/edges and null boundary
-/// cursors, matching how Shopify renders the summary connection for a customer
-/// with zero orders.
-fn empty_orders_connection() -> Value {
-    json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": empty_page_info()
-    })
 }
 
 fn store_credit_account_currency(account: &Value) -> &str {

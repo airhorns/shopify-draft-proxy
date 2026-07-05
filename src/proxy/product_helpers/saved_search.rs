@@ -777,25 +777,6 @@ pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> Strin
     format!("cursor:{}", record.id)
 }
 
-fn saved_search_connection_nodes(connection: &Value) -> Vec<Value> {
-    let mut nodes = connection
-        .get("nodes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
-    nodes.extend(
-        connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned()),
-    );
-    nodes
-}
-
 pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {
     resource_id_tail(id).to_string()
 }
@@ -943,7 +924,7 @@ impl DraftProxy {
             let Some(connection) = data.get(&field.response_key) else {
                 continue;
             };
-            for node in saved_search_connection_nodes(connection) {
+            for node in connection_nodes(connection) {
                 let Some(record) = saved_search_record_from_node(&node, "FILE", &api_client_id)
                 else {
                     continue;

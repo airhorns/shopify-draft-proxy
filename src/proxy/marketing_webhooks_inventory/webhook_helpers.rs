@@ -494,16 +494,8 @@ impl DraftProxy {
                         webhook_subscription_staged_sort_key,
                         value_id_cursor,
                     );
-                    let limit = field.arguments.get("limit").and_then(resolved_as_usize);
-                    let count =
-                        limit.map_or(result.total_count, |limit| result.total_count.min(limit));
-                    let precision = if limit.is_some_and(|limit| result.total_count > limit) {
-                        "AT_LEAST"
-                    } else {
-                        "EXACT"
-                    };
                     selected_json(
-                        &count_object_with_precision(count, precision),
+                        &staged_count_with_limit_precision(result.total_count, &field.arguments),
                         &field.selection,
                     )
                 }

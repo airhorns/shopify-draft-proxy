@@ -1988,25 +1988,6 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     Some(record)
 }
 
-fn connection_nodes(connection: &Value) -> Vec<Value> {
-    let mut nodes = connection
-        .get("nodes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
-    nodes.extend(
-        connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned()),
-    );
-    nodes
-}
-
 fn promote_media_file_record_to_ready(file: &mut Value) {
     file["fileStatus"] = json!("READY");
     file["updateStatus"] = json!("READY");
