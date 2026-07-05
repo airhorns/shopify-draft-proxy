@@ -156,6 +156,9 @@ const merchandisingProbes: Probe[] = [
     shopFeedbackInvalidState,
     {},
   ),
+  await capture('productFeedCreate-missing-country-language', ['productFeedCreate'], productFeedCreate, {
+    input: {},
+  }),
 ];
 
 const feedbackAccessProbes: Probe[] = [
@@ -195,6 +198,7 @@ await writeFile(
       notes: [
         'Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.',
         'The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.',
+        'Missing ProductFeedInput country/language is captured as top-level schema validation before Shopify creates any feed.',
         'Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots.',
       ],
       schemaEvidence: {

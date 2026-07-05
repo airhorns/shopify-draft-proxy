@@ -3520,4 +3520,513 @@ mod store_tests {
             read.body["data"]["first"]["collections"]["nodes"]
         );
     }
+
+    #[test]
+    fn smart_collection_downstream_read_evaluates_rule_set_membership() {
+        let mut cheap_product = product("gid://shopify/Product/cheap", "Budget Tee", "budget-tee");
+        cheap_product.vendor = "Hermes".to_string();
+        cheap_product.product_type = "Shirt".to_string();
+        cheap_product.tags = vec!["summer".to_string(), "sale".to_string()];
+        cheap_product.variants = vec![json!({
+            "id": "gid://shopify/ProductVariant/cheap-default",
+            "price": "7.50"
+        })];
+        let mut expensive_product = product(
+            "gid://shopify/Product/expensive",
+            "Premium Jacket",
+            "premium-jacket",
+        );
+        expensive_product.vendor = "Hermes".to_string();
+        expensive_product.product_type = "Outerwear".to_string();
+        expensive_product.tags = vec!["winter".to_string()];
+        expensive_product.variants = vec![json!({
+            "id": "gid://shopify/ProductVariant/expensive-default",
+            "price": "19.00"
+        })];
+        let mut proxy = snapshot_proxy().with_base_products(vec![cheap_product, expensive_product]);
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation SmartCollectionCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                  ruleSet {
+                    appliedDisjunctively
+                    rules {
+                      column
+                      relation
+                      condition
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Cheap Hermes Shirts",
+                    "ruleSet": {
+                        "appliedDisjunctively": false,
+                        "rules": [
+                            {
+                                "column": "VENDOR",
+                                "relation": "EQUALS",
+                                "condition": "Hermes"
+                            },
+                            {
+                                "column": "TYPE",
+                                "relation": "EQUALS",
+                                "condition": "Shirt"
+                            },
+                            {
+                                "column": "TAG",
+                                "relation": "EQUALS",
+                                "condition": "sale"
+                            },
+                            {
+                                "column": "VARIANT_PRICE",
+                                "relation": "LESS_THAN",
+                                "condition": "10"
+                            }
+                        ]
+                    }
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("collection create should return id")
+            .to_string();
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query SmartCollectionRead($id: ID!) {
+              collection(id: $id) {
+                productsCount {
+                  count
+                  precision
+                }
+                products(first: 10) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": collection_id }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["collection"]["productsCount"],
+            json!({ "count": 1, "precision": "EXACT" })
+        );
+        assert_eq!(
+            read.body["data"]["collection"]["products"]["nodes"],
+            json!([
+                {
+                    "id": "gid://shopify/Product/cheap",
+                    "title": "Budget Tee"
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn smart_collection_rules_include_staged_products_without_affecting_manual_collections() {
+        let mut base_match = product("gid://shopify/Product/silk", "Silk Scarf", "silk-scarf");
+        base_match.vendor = "Baseline Vendor".to_string();
+        let mut base_miss = product("gid://shopify/Product/canvas", "Canvas Bag", "canvas-bag");
+        base_miss.vendor = "Baseline Vendor".to_string();
+        let mut proxy = snapshot_proxy().with_base_products(vec![base_match, base_miss]);
+
+        let smart_create = proxy.process_request(graphql_request(
+            r#"
+            mutation SmartCollectionOrCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Silk Or Staged Vendor",
+                    "ruleSet": {
+                        "appliedDisjunctively": true,
+                        "rules": [
+                            {
+                                "column": "TITLE",
+                                "relation": "CONTAINS",
+                                "condition": "silk"
+                            },
+                            {
+                                "column": "VENDOR",
+                                "relation": "EQUALS",
+                                "condition": "Staged Vendor"
+                            }
+                        ]
+                    }
+                }
+            }),
+        ));
+        assert_eq!(smart_create.status, 200);
+        assert_eq!(
+            smart_create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let smart_collection_id = smart_create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("smart collection create should return id")
+            .to_string();
+
+        let manual_create = proxy.process_request(graphql_request(
+            r#"
+            mutation ManualCollectionCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Manual Collection",
+                    "sortOrder": "MANUAL"
+                }
+            }),
+        ));
+        assert_eq!(manual_create.status, 200);
+        assert_eq!(
+            manual_create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let manual_collection_id = manual_create.body["data"]["collectionCreate"]["collection"]
+            ["id"]
+            .as_str()
+            .expect("manual collection create should return id")
+            .to_string();
+
+        let product_create = proxy.process_request(graphql_request(
+            r#"
+            mutation StagedSmartCollectionProduct($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product {
+                  id
+                  title
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": "Staged Vendor Cap",
+                    "vendor": "Staged Vendor"
+                }
+            }),
+        ));
+        assert_eq!(product_create.status, 200);
+        assert_eq!(
+            product_create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        let staged_product_id = product_create.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("product create should return id")
+            .to_string();
+
+        let unsupported_create = proxy.process_request(graphql_request(
+            r#"
+            mutation UnsupportedSmartCollectionRuleCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Unsupported Variant Title",
+                    "ruleSet": {
+                        "appliedDisjunctively": true,
+                        "rules": [
+                            {
+                                "column": "VARIANT_TITLE",
+                                "relation": "EQUALS",
+                                "condition": "Default Title"
+                            }
+                        ]
+                    }
+                }
+            }),
+        ));
+        assert_eq!(unsupported_create.status, 200);
+        assert_eq!(
+            unsupported_create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let unsupported_collection_id = unsupported_create.body["data"]["collectionCreate"]
+            ["collection"]["id"]
+            .as_str()
+            .expect("unsupported smart collection create should return id")
+            .to_string();
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query SmartManualAndUnsupportedRead($smartId: ID!, $manualId: ID!, $unsupportedId: ID!) {
+              smart: collection(id: $smartId) {
+                productsCount {
+                  count
+                  precision
+                }
+                products(first: 10, sortKey: TITLE) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+              manual: collection(id: $manualId) {
+                productsCount {
+                  count
+                  precision
+                }
+                products(first: 10, sortKey: MANUAL) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+              unsupported: collection(id: $unsupportedId) {
+                productsCount {
+                  count
+                  precision
+                }
+                products(first: 10) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "smartId": smart_collection_id,
+                "manualId": manual_collection_id,
+                "unsupportedId": unsupported_collection_id
+            }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["smart"]["productsCount"],
+            json!({ "count": 2, "precision": "EXACT" })
+        );
+        assert_eq!(
+            read.body["data"]["smart"]["products"]["nodes"],
+            json!([
+                {
+                    "id": "gid://shopify/Product/silk",
+                    "title": "Silk Scarf"
+                },
+                {
+                    "id": staged_product_id,
+                    "title": "Staged Vendor Cap"
+                }
+            ])
+        );
+        assert_eq!(
+            read.body["data"]["manual"]["productsCount"],
+            json!({ "count": 0, "precision": "EXACT" })
+        );
+        assert_eq!(read.body["data"]["manual"]["products"]["nodes"], json!([]));
+        assert_eq!(
+            read.body["data"]["unsupported"]["productsCount"],
+            json!({ "count": 0, "precision": "EXACT" })
+        );
+        assert_eq!(
+            read.body["data"]["unsupported"]["products"]["nodes"],
+            json!([])
+        );
+    }
+
+    #[test]
+    fn smart_collection_rules_include_product_set_products() {
+        let mut proxy = snapshot_proxy();
+
+        let product_set = proxy.process_request(graphql_request(
+            r#"
+            mutation SmartCollectionProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+              productSet(input: $input, synchronous: $synchronous) {
+                product {
+                  id
+                  title
+                  vendor
+                  productType
+                  tags
+                  variants(first: 10) {
+                    nodes {
+                      price
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Smart RuleSet Product",
+                    "status": "ACTIVE",
+                    "vendor": "Hermes Smart Rule Vendor",
+                    "productType": "Smart Rule Shirt",
+                    "tags": ["smart-ruleset"],
+                    "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }],
+                    "variants": [{
+                        "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                        "price": "7.50",
+                        "inventoryItem": { "tracked": false, "requiresShipping": true }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(product_set.status, 200);
+        assert_eq!(
+            product_set.body["data"]["productSet"]["userErrors"],
+            json!([])
+        );
+        let product_id = product_set.body["data"]["productSet"]["product"]["id"]
+            .as_str()
+            .expect("productSet should return id")
+            .to_string();
+
+        let dumped = proxy.process_request(request(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "1970-01-01T00:00:00.000Z" }).to_string(),
+        ));
+        assert_eq!(dumped.status, 200);
+        let restored =
+            proxy.process_request(request("POST", "/__meta/restore", &dumped.body.to_string()));
+        assert_eq!(restored.status, 200);
+
+        let collection_create = proxy.process_request(graphql_request(
+            r#"
+            mutation SmartCollectionCreate($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Smart RuleSet Collection",
+                    "ruleSet": {
+                        "appliedDisjunctively": false,
+                        "rules": [
+                            { "column": "TITLE", "relation": "CONTAINS", "condition": "RuleSet Product" },
+                            { "column": "TYPE", "relation": "EQUALS", "condition": "Smart Rule Shirt" },
+                            { "column": "VENDOR", "relation": "EQUALS", "condition": "Hermes Smart Rule Vendor" },
+                            { "column": "TAG", "relation": "EQUALS", "condition": "smart-ruleset" },
+                            { "column": "VARIANT_PRICE", "relation": "LESS_THAN", "condition": "10" }
+                        ]
+                    }
+                }
+            }),
+        ));
+        assert_eq!(collection_create.status, 200);
+        assert_eq!(
+            collection_create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("collectionCreate should return id")
+            .to_string();
+
+        let dumped = proxy.process_request(request(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "1970-01-01T00:00:00.000Z" }).to_string(),
+        ));
+        assert_eq!(dumped.status, 200);
+        let restored =
+            proxy.process_request(request("POST", "/__meta/restore", &dumped.body.to_string()));
+        assert_eq!(restored.status, 200);
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query SmartCollectionRead($id: ID!) {
+              collection(id: $id) {
+                productsCount {
+                  count
+                  precision
+                }
+                products(first: 10) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": collection_id }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["collection"]["productsCount"],
+            json!({ "count": 1, "precision": "EXACT" })
+        );
+        assert_eq!(
+            read.body["data"]["collection"]["products"]["nodes"],
+            json!([{
+                "id": product_id,
+                "title": "Smart RuleSet Product"
+            }])
+        );
+    }
 }

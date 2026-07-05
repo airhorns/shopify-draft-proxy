@@ -9,20 +9,6 @@ const REFUND_ORDER_HYDRATE_QUERY: &str =
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
-pub(in crate::proxy) fn refund_user_error(field: Value, message: impl Into<String>) -> Value {
-    let message = message.into();
-    user_error_omit_code(field, &message, None)
-}
-
-pub(in crate::proxy) fn refund_user_error_with_code(
-    field: Value,
-    message: impl Into<String>,
-    code: &str,
-) -> Value {
-    let message = message.into();
-    user_error_omit_code(field, &message, Some(code))
-}
-
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
     [
         &order["totalPriceSet"],
@@ -302,21 +288,23 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
         let kind =
             resolved_string_field(&transaction, "kind").unwrap_or_else(|| "REFUND".to_string());
         if !kind.eq_ignore_ascii_case("REFUND") {
-            return Some(refund_user_error(
+            return Some(user_error_omit_code(
                 Value::Null,
-                format!(
+                &format!(
                     "Kind {} is not a valid transaction",
                     kind.to_ascii_lowercase()
                 ),
+                None,
             ));
         }
         let parent_id = resolved_string_field(&transaction, "parentId").unwrap_or_default();
         if (parent_id.is_empty() && has_identifiable_parent_transactions)
             || (!parent_id.is_empty() && order_transaction_by_id(order, &parent_id).is_none())
         {
-            return Some(refund_user_error(
+            return Some(user_error_omit_code(
                 json!(["transactions"]),
                 "Transactions require a parent_id associated with the order",
+                None,
             ));
         }
     }
@@ -335,9 +323,10 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             continue;
         };
         let Some(line) = order_line_item_by_id(order, &line_item_id) else {
-            return Some(refund_user_error(
+            return Some(user_error_omit_code(
                 json!(["refundLineItems", index.to_string(), "lineItemId"]),
                 "Line item does not exist",
+                None,
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
@@ -346,9 +335,10 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             .or_else(|| line["quantity"].as_i64())
             .unwrap_or(0);
         if quantity > refundable_quantity {
-            return Some(refund_user_error(
+            return Some(user_error_omit_code(
                 json!(["refundLineItems", index.to_string(), "quantity"]),
                 "Quantity cannot refund more items than were purchased",
+                None,
             ));
         }
     }
@@ -362,12 +352,13 @@ pub(in crate::proxy) fn refund_amount_validation_error(
     let refund_amount = refund_input_total_amount(input, order);
     let refundable = (order_received_amount(order) - order_refunded_amount(order)).max(0.0);
     if refund_amount > refundable + 0.005 {
-        return Some(refund_user_error(
+        return Some(user_error_omit_code(
             Value::Null,
-            format!(
+            &format!(
                 "Refund amount ${:.2} is greater than net payment received ${:.2}",
                 refund_amount, refundable
             ),
+            None,
         ));
     }
     None
@@ -702,14 +693,6 @@ fn payment_transaction_supports_final_capture(transaction: &Value) -> bool {
     transaction["gateway"].as_str() == Some("shopify_payments")
 }
 
-pub(in crate::proxy) fn payment_user_error(
-    field: Value,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_omit_code(field, message, code)
-}
-
 pub(in crate::proxy) fn payment_order_record(
     id: &str,
     display_financial_status: &str,
@@ -834,7 +817,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["input"]), "Input is required"),
+                    user_error_omit_code(json!(["input"]), "Input is required", None),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -845,7 +828,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist"),
+                    user_error_omit_code(json!(["orderId"]), "Order does not exist", None),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -858,7 +841,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist"),
+                    user_error_omit_code(json!(["orderId"]), "Order does not exist", None),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -979,7 +962,7 @@ impl DraftProxy {
     /// snapshot-only.
     pub(in crate::proxy) fn hydrate_order_for_return(&mut self, request: &Request, order_id: &str) {
         if order_id.is_empty()
-            || self.store.staged.orders.contains_key(order_id)
+            || self.staged_order_record_for_id(order_id).is_some()
             || self.config.read_mode == ReadMode::Snapshot
         {
             return;
@@ -1049,7 +1032,7 @@ impl DraftProxy {
                         (
                             Value::Null,
                             order,
-                            vec![payment_user_error(
+                            vec![user_error_omit_code(
                                 Value::Null,
                                 "Unable to find parent transaction",
                                 None,
@@ -1162,10 +1145,11 @@ impl DraftProxy {
                                 "job": Value::Null,
                                 "paymentReferenceId": Value::Null,
                                 "order": order,
-                                "userErrors": [{
-                                    "field": ["idempotencyKey"],
-                                    "message": "Idempotency key is required"
-                                }]
+                                "userErrors": [user_error_omit_code(
+                                    ["idempotencyKey"],
+                                    "Idempotency key is required",
+                                    None
+                                )]
                             }),
                             &field.selection,
                         ),
@@ -1552,7 +1536,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     Value::Null,
                     "Unable to find parent transaction",
                     None,
@@ -1587,7 +1571,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     json!(["currency"]),
                     &format!("Currency Currency must match parent transaction {expected_currency}"),
                     None,
@@ -1599,7 +1583,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     Value::Null,
                     "Amount must be greater than zero for capture transactions",
                     None,
@@ -1613,7 +1597,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     json!(["parent_transaction_id"]),
                     "Parent transaction must be a successful authorization",
                     Some("INVALID_TRANSACTION_STATE"),
@@ -1627,7 +1611,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     Value::Null,
                     FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
                     None,
@@ -1665,7 +1649,7 @@ impl DraftProxy {
             return Some((
                 Value::Null,
                 order.clone(),
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     if parent_amount_set.get("presentmentMoney").is_some() {
                         Value::Null
                     } else {
@@ -1751,7 +1735,7 @@ impl DraftProxy {
         let Some((order_id, order, parent_transaction)) = located else {
             return (
                 Value::Null,
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     json!(["parentTransactionId"]),
                     "Transaction does not exist",
                     Some("TRANSACTION_NOT_FOUND"),
@@ -1764,7 +1748,7 @@ impl DraftProxy {
         {
             return (
                 Value::Null,
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     json!(["parentTransactionId"]),
                     "Parent transaction must be a successful authorization",
                     Some("AUTH_NOT_SUCCESSFUL"),
@@ -1789,7 +1773,7 @@ impl DraftProxy {
         if has_successful_capture || has_successful_void {
             return (
                 Value::Null,
-                vec![payment_user_error(
+                vec![user_error_omit_code(
                     json!(["parentTransactionId"]),
                     "Parent transaction require a parent_id referring to a voidable transaction",
                     Some("AUTH_NOT_VOIDABLE"),
@@ -1877,12 +1861,16 @@ impl DraftProxy {
         let api_client_id = request_app_namespace_api_client_id(request);
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
-                "paymentCustomizationCreate" => {
-                    self.payment_customization_create_payload(field, api_client_id.as_deref())
-                }
-                "paymentCustomizationUpdate" => {
-                    self.payment_customization_update_payload(field, api_client_id.as_deref())
-                }
+                "paymentCustomizationCreate" => self.payment_customization_create_payload(
+                    request,
+                    field,
+                    api_client_id.as_deref(),
+                ),
+                "paymentCustomizationUpdate" => self.payment_customization_update_payload(
+                    request,
+                    field,
+                    api_client_id.as_deref(),
+                ),
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
@@ -1894,6 +1882,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         api_client_id: Option<&str>,
     ) -> Value {
@@ -1946,21 +1935,25 @@ impl DraftProxy {
                 None,
             );
         }
-        if let Some(handle) = function_handle.as_deref() {
-            if !payment_customization_function_handle_exists(handle) {
+        let resolved_function = if let Some(handle) = function_handle.as_deref() {
+            let Some(function) =
+                self.resolve_payment_customization_function(request, None, Some(handle))
+            else {
                 return payment_customization_payload(
                     None,
                     &field.selection,
-                    vec![payment_customization_user_error(
-                        vec!["paymentCustomization", "functionHandle"],
-                        "FUNCTION_NOT_FOUND",
-                        &format!("Could not find function with handle: {handle}."),
+                    vec![payment_customization_function_not_found_error(
+                        handle,
+                        &request_api_client_id(request),
                     )],
                     None,
                     None,
                 );
-            }
-        }
+            };
+            Some(function)
+        } else {
+            None
+        };
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
             return payment_customization_payload(
@@ -1974,7 +1967,8 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record = payment_customization_record(&id, &input, api_client_id);
+        let record =
+            payment_customization_record(&id, &input, api_client_id, resolved_function.as_ref());
         self.store
             .staged
             .payment_customizations
@@ -1984,6 +1978,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         api_client_id: Option<&str>,
     ) -> Value {
@@ -2010,20 +2005,40 @@ impl DraftProxy {
             );
         }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
-            if !payment_customization_function_handle_exists(&handle) {
+            let Some(function) =
+                self.resolve_payment_customization_function(request, None, Some(&handle))
+            else {
                 return payment_customization_payload(
                     None,
                     &field.selection,
-                    vec![payment_customization_user_error(
-                        vec!["paymentCustomization", "functionHandle"],
-                        "FUNCTION_NOT_FOUND",
-                        &format!("Could not find function with handle: {handle}."),
+                    vec![payment_customization_function_not_found_error(
+                        &handle,
+                        &request_api_client_id(request),
                     )],
                     None,
                     None,
                 );
-            }
-            if !payment_customization_function_matches(&existing, &handle) {
+            };
+            let Some(function_key) = function["id"]
+                .as_str()
+                .map(payment_customization_function_key)
+            else {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_function_not_found_error(
+                        &handle,
+                        &request_api_client_id(request),
+                    )],
+                    None,
+                    None,
+                );
+            };
+            if !self.payment_customization_record_matches_function_key(
+                request,
+                &existing,
+                &function_key,
+            ) {
                 return payment_customization_payload(
                     None,
                     &field.selection,
@@ -2036,7 +2051,12 @@ impl DraftProxy {
             }
         }
         if let Some(function_id) = resolved_string_field(&input, "functionId") {
-            if !payment_customization_function_matches(&existing, &function_id) {
+            let function_key = payment_customization_function_key(&function_id);
+            if !self.payment_customization_record_matches_function_key(
+                request,
+                &existing,
+                &function_key,
+            ) {
                 return payment_customization_payload(
                     None,
                     &field.selection,

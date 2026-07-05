@@ -1,0 +1,29 @@
+query CollectionSmartRuleSetMembershipRead($id: ID!) {
+  collection(id: $id) {
+    id
+    title
+    handle
+    productsCount {
+      count
+      precision
+    }
+    products(first: 10, sortKey: TITLE) {
+      nodes {
+        id
+        title
+        vendor
+        productType
+        tags
+        variants(first: 10) {
+          nodes {
+            price
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}
