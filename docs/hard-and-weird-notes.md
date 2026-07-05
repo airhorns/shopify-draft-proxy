@@ -4135,3 +4135,25 @@ Practical rule:
   `DeliveryCountry` records
 - derive `countriesInAnyZone` from the normalized zone country records so
   downstream delivery-profile reads match the captured order
+
+## 98. Bulk mutation staged-upload validation can hide throttling
+
+Admin GraphQL 2026-04 returns `NO_SUCH_FILE` for
+`bulkOperationRunMutation(stagedUploadPath:)` when the supplied path is missing,
+even when five same-type mutation bulk operations are already non-terminal. The
+`bulk-operation-run-mutation-no-such-file-precedence` capture exists for that
+exact branch.
+
+That does not contradict the `bulk-operation-run-mutation-operation-in-progress`
+and `bulk-operation-run-mutation-concurrency-limit` captures. Those scenarios
+first create and upload a real `BULK_MUTATION_VARIABLES` staged file, so staged
+upload validation passes and the same-type `OPERATION_IN_PROGRESS` throttle is
+the first failing condition.
+
+Practical rule:
+
+- validate the `stagedUploadPath` object and file metadata before same-type
+  mutation throttling
+- when proving the throttle branch, register the staged upload and write a
+  non-empty JSONL body through the public staged-upload route before calling
+  `bulkOperationRunMutation`
