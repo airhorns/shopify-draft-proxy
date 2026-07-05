@@ -1,0 +1,91 @@
+{
+  "scenarioId": "draftOrderCreate-magic-title-not-canned",
+  "operationNames": ["draftOrderCreate", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-magic-title-not-canned.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderCreate-magic-title-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "magic-title-create-user-errors",
+        "capturePath": "$.create.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "magic-title-create-draft-order-not-canned",
+        "capturePath": "$.create.response.data.draftOrderCreate.draftOrder",
+        "proxyPath": "$.data.draftOrderCreate.draftOrder",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The proxy creates a stable synthetic draft order ID while the capture contains the live Shopify draft order ID."
+          },
+          {
+            "path": "$.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify allocates draft order names from live store state; local staging uses a deterministic synthetic sequence."
+          },
+          {
+            "path": "$.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated per draft order by Shopify and locally synthesized by the proxy."
+          },
+          {
+            "path": "$.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:DraftOrderLineItem",
+            "reason": "The proxy creates stable synthetic draft order line item IDs while the capture contains live Shopify IDs."
+          }
+        ]
+      },
+      {
+        "name": "magic-title-downstream-read-not-canned",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCreate-magic-title-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The proxy creates a stable synthetic draft order ID while the capture contains the live Shopify draft order ID."
+          },
+          {
+            "path": "$.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify allocates draft order names from live store state; local staging uses a deterministic synthetic sequence."
+          },
+          {
+            "path": "$.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated per draft order by Shopify and locally synthesized by the proxy."
+          },
+          {
+            "path": "$.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:DraftOrderLineItem",
+            "reason": "The proxy creates stable synthetic draft order line item IDs while the capture contains live Shopify IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence that `Invoice error parity item` is just ordinary draftOrderCreate input data. The captured request submits quantity 2, SKU MAGIC-TITLE-NOT-CANNED, no shipping requirement, tags, and custom attributes; strict parity would have failed against the removed scenario-keyed canned #D1 draft path."
+}
