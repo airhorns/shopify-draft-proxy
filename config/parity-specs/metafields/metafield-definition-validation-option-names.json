@@ -1,0 +1,60 @@
+{
+  "scenarioId": "metafield-definition-validation-option-names",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "payload-shape", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-validation-option-names.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-invalid-validation-options.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-unsupported-option-not-real",
+        "capturePath": "$.primary.response.data.unsupportedNotRealOption",
+        "proxyPath": "$.data.unsupportedNotRealOption"
+      },
+      {
+        "name": "create-unsupported-option-pattern",
+        "capturePath": "$.primary.response.data.unsupportedPattern",
+        "proxyPath": "$.data.unsupportedPattern"
+      },
+      {
+        "name": "create-decimal-invalid-min",
+        "capturePath": "$.primary.response.data.decimalBadMin",
+        "proxyPath": "$.data.decimalBadMin"
+      },
+      {
+        "name": "create-decimal-valid-range",
+        "capturePath": "$.primary.response.data.decimalValidRange",
+        "proxyPath": "$.data.decimalValidRange",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-unsupported-option-name",
+        "capturePath": "$.primary.response.data.updateUnsupportedOption",
+        "proxyPath": "$.data.updateUnsupportedOption"
+      },
+      {
+        "name": "update-decimal-invalid-min",
+        "capturePath": "$.primary.response.data.updateDecimalBadMin",
+        "proxyPath": "$.data.updateDecimalBadMin"
+      }
+    ]
+  },
+  "notes": "Strict parity for metafield definition validations[] option-name support and numeric option coercion. Setup aliases create disposable definitions through the same public mutation surface; strict targets assert the invalid create/update payloads and a valid decimal range control."
+}

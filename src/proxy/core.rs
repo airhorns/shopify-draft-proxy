@@ -299,6 +299,15 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        if !self.store.staged.media_ready_on_read.is_empty() {
+            snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
+                .store
+                .staged
+                .media_ready_on_read
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.product_operations.is_empty() {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
@@ -390,6 +399,18 @@ impl DraftProxy {
         if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
             snapshot["stagedState"]["bulkOperationStagedUploads"] =
                 json!(self.store.staged.bulk_operation_staged_uploads.clone());
+        }
+        if !self
+            .store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .is_empty()
+        {
+            snapshot["stagedState"]["bulkOperationStagedUploadBodies"] = json!(self
+                .store
+                .staged
+                .bulk_operation_staged_upload_bodies
+                .clone());
         }
         if !self.store.staged.bulk_operation_results.is_empty() {
             snapshot["stagedState"]["bulkOperationResults"] =
@@ -558,6 +579,12 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self.store.staged.url_redirects.is_empty() {
+            snapshot["stagedState"]["urlRedirects"] =
+                json!(self.store.staged.url_redirects.clone());
+            snapshot["stagedState"]["urlRedirectOrder"] =
+                json!(self.store.staged.url_redirect_order.clone());
         }
         // Linked product-option metaobject entry sets feed DISPLAY_NAME_CONFLICT
         // detection on metaobjectUpdate/Upsert. The runner restores mainState
@@ -950,6 +977,18 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.bulk_operation_staged_upload_bodies = state["stagedState"]
+            .get("bulkOperationStagedUploadBodies")
+            .and_then(Value::as_object)
+            .map(|uploads| {
+                uploads
+                    .iter()
+                    .filter_map(|(path, body)| {
+                        body.as_str().map(|body| (path.clone(), body.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.bulk_operation_results = state["stagedState"]
             .get("bulkOperationResults")
             .and_then(Value::as_object)
@@ -1074,6 +1113,12 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
+        self.store.staged.media_ready_on_read = state["stagedState"]
+            .get("mediaReadyOnReadIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.shop_policies.replace_with_order(
             shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
             string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
@@ -1475,6 +1520,12 @@ impl DraftProxy {
             None,
             Some("deletedMetaobjectIds"),
         );
+        self.store.staged.url_redirects =
+            value_map_from_json(state["stagedState"].get("urlRedirects"));
+        self.store.staged.url_redirect_order = state["stagedState"]
+            .get("urlRedirectOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.url_redirects.keys().cloned().collect());
         self.store.staged.linked_product_option_metaobject_sets = state["stagedState"]
             .get("linkedProductOptionMetaobjectSets")
             .and_then(Value::as_array)

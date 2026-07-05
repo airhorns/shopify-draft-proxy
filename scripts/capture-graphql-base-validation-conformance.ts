@@ -63,6 +63,13 @@ const cases: CaptureCase[] = [
     variables: {},
   },
   {
+    id: 'unknownOrderField',
+    targetName: 'unknown-order-field-errors',
+    description: 'Known non-product connection root selecting a field that does not exist on the backend node type.',
+    documentFile: 'graphql-base-validation-unknown-order-field.graphql',
+    variables: {},
+  },
+  {
     id: 'missingInputRequiredProperty',
     targetName: 'missing-input-required-property-errors',
     description: 'Mutation input object variable missing a required input property.',
@@ -91,7 +98,7 @@ function buildSpec(apiVersion: string, fixturePath: string): JsonRecord {
 
   return {
     scenarioId,
-    operationNames: ['shop', 'products', 'productCreate', 'pubSubWebhookSubscriptionCreate'],
+    operationNames: ['shop', 'products', 'orders', 'productCreate', 'pubSubWebhookSubscriptionCreate'],
     scenarioStatus: 'captured',
     assertionKinds: ['graphql-validation-parity', 'schema-validation', 'no-upstream-passthrough'],
     liveCaptureFiles: [fixturePath],
@@ -114,6 +121,19 @@ function buildSpec(apiVersion: string, fixturePath: string): JsonRecord {
           variablesCapturePath: `$.cases.${captureCase.id}.request.variables`,
           apiVersion,
         },
+        ...(captureCase.id === 'missingRequiredArgument'
+          ? {
+              expectedDifferences: [
+                {
+                  path: '$.extensions',
+                  ignore: true,
+                  regrettable: true,
+                  reason:
+                    'Shopify includes volatile cost/throttle extensions on this schema-validation envelope; the proxy intentionally omits them instead of returning a fixed canned throttle model.',
+                },
+              ],
+            }
+          : {}),
       })),
     },
     notes:

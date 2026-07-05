@@ -4682,38 +4682,7 @@ pub(in crate::proxy) fn local_node_value(
             return Some(selected_json(region, selection));
         }
     }
-    let full = match id {
-        "gid://shopify/ShopAddress/63755419881" => json!({
-            "id": "gid://shopify/ShopAddress/63755419881",
-            "address1": "103 ossington",
-            "address2": null,
-            "city": "Ottawa",
-            "company": null,
-            "coordinatesValidated": false,
-            "country": "Canada",
-            "countryCodeV2": "CA",
-            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
-            "formattedArea": "Ottawa ON, Canada",
-            "latitude": 45.389817,
-            "longitude": -75.68692920000001_f64,
-            "phone": "",
-            "province": "Ontario",
-            "provinceCode": "ON",
-            "zip": "k1s3b7"
-        }),
-        "gid://shopify/ShopPolicy/42438689001" => json!({
-            "id": "gid://shopify/ShopPolicy/42438689001",
-            "title": "Contact",
-            "body": "<p></p>",
-            "type": "CONTACT_INFORMATION",
-            "url": "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
-            "createdAt": "2026-04-25T11:52:28Z",
-            "updatedAt": "2026-04-25T11:52:29Z",
-            "translations": []
-        }),
-        _ => return None,
-    };
-    Some(selected_json(&full, selection))
+    None
 }
 
 pub(in crate::proxy) fn is_safe_no_data_node_gid(id: &str) -> bool {

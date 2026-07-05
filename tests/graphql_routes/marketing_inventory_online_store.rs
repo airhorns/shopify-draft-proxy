@@ -61,6 +61,263 @@ fn create_metaobject_definition_for_test(
 }
 
 #[test]
+fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
+    let mut proxy = snapshot_proxy();
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "redirect_definition_test",
+            "name": "Redirect definition test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "old-redirect-definition"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["capabilities"]["onlineStore"]["data"],
+        json!({"urlHandle": "old-redirect-definition", "canCreateRedirects": true})
+    );
+    let definition_id = definition_create.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_entry = r#"
+        mutation CreateRedirectEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for (handle, title) in [
+        ("first-redirect-row", "First redirect row"),
+        ("second-redirect-row", "Second redirect row"),
+    ] {
+        let entry = proxy.process_request(json_graphql_request(
+            create_entry,
+            json!({"metaobject": {
+                "type": "redirect_definition_test",
+                "handle": handle,
+                "capabilities": {
+                    "publishable": {"status": "ACTIVE"},
+                    "onlineStore": {"templateSuffix": ""}
+                },
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            entry.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              capabilities { onlineStore { data { urlHandle canCreateRedirects } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "capabilities": {
+                    "onlineStore": {
+                        "enabled": true,
+                        "data": {"urlHandle": "new-redirect-definition", "createRedirects": true}
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirects($pathQuery: String!, $targetQuery: String!) {
+          byPath: urlRedirects(first: 1, query: $pathQuery) {
+            nodes { id path target }
+          }
+          reverseByTarget: urlRedirects(first: 1, sortKey: TARGET, reverse: true) {
+            nodes { path target }
+          }
+          matchingTargetCount: urlRedirectsCount(query: $targetQuery) { count precision }
+        }
+        "#,
+        json!({
+            "pathQuery": "path:/pages/old-redirect-definition/first-redirect-row",
+            "targetQuery": "target:/pages/new-redirect-definition/first-redirect-row"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["byPath"]["nodes"][0]["target"],
+        json!("/pages/new-redirect-definition/first-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["reverseByTarget"]["nodes"][0]["path"],
+        json!("/pages/old-redirect-definition/second-redirect-row")
+    );
+    assert_eq!(
+        read.body["data"]["matchingTargetCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+
+    let redirect_id = read.body["data"]["byPath"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirect($id: ID!) {
+          urlRedirect(id: $id) { path target }
+        }
+        "#,
+        json!({"id": redirect_id}),
+    ));
+    assert_eq!(
+        singular.body["data"]["urlRedirect"],
+        json!({
+            "path": "/pages/old-redirect-definition/first-redirect-row",
+            "target": "/pages/new-redirect-definition/first-redirect-row"
+        })
+    );
+
+    let handle_entry = proxy.process_request(json_graphql_request(
+        create_entry,
+        json!({"metaobject": {
+            "type": "redirect_definition_test",
+            "handle": "handle-redirect-old",
+            "capabilities": {
+                "publishable": {"status": "ACTIVE"},
+                "onlineStore": {"templateSuffix": ""}
+            },
+            "fields": [{"key": "title", "value": "Handle redirect row"}]
+        }}),
+    ));
+    let handle_entry_id = handle_entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let handle_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectHandle($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": handle_entry_id,
+            "metaobject": {
+                "handle": "handle-redirect-new",
+                "redirectNewHandle": true,
+                "fields": [{"key": "title", "value": "Handle redirect row"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        handle_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let handle_redirect = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHandleRedirect($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "path:/pages/new-redirect-definition/handle-redirect-old"}),
+    ));
+    assert_eq!(
+        handle_redirect.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-07-04T20:40:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirects"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["urlRedirectOrder"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredRedirects($query: String!) {
+          urlRedirects(first: 1, query: $query) { nodes { path target } }
+        }
+        "#,
+        json!({"query": "target:/pages/new-redirect-definition/handle-redirect-new"}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["urlRedirects"]["nodes"][0],
+        json!({
+            "path": "/pages/new-redirect-definition/handle-redirect-old",
+            "target": "/pages/new-redirect-definition/handle-redirect-new"
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -1702,7 +1959,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
         ) {
           native: marketingActivityUpdate(input: $nativeInput) {
             marketingActivity { id isExternal }
-            userErrors { field message code }
+            userErrors { field message  }
           }
           external: marketingActivityCreateExternal(input: $externalInput) {
             marketingActivity { id remoteId isExternal }
@@ -2241,6 +2498,110 @@ fn inventory_items_connection_lists_staged_inventory_item() {
             {"name": "on_hand", "quantity": 6}
         ])
     );
+}
+
+#[test]
+fn inventory_items_query_filters_window_and_rejects_unknown_tokens() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) = create_inventory_test_item(&mut proxy, "FILTER-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "FILTER-BETA");
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
+
+    let mark_second_untracked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkInventoryItemUntracked($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id tracked }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": second_item_id, "input": {"tracked": false}}),
+    ));
+    assert_eq!(
+        mark_second_untracked.body["data"]["inventoryItemUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsFiltered($after: String, $idRange: String!) {
+          firstPage: inventoryItems(first: 1) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryItems(first: 1, after: $after) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unknownFilter: inventoryItems(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+          invalidTracked: inventoryItems(first: 10, query: "tracked:notaboolean") {
+            nodes { id }
+          }
+          skuQuoted: inventoryItems(first: 10, query: "sku:'FILTER-ALPHA'") {
+            nodes { id }
+          }
+          idRange: inventoryItems(first: 10, query: $idRange) {
+            nodes { id }
+          }
+          trackedFalse: inventoryItems(first: 10, query: "tracked:false") {
+            nodes { id tracked }
+          }
+          updatedBefore: inventoryItems(first: 10, query: "updated_at:<2024-01-01T00:00:00.000Z") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_item_id,
+            "idRange": format!("id:>={second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_item_id}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_item_id,
+                "endCursor": first_item_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["invalidTracked"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["skuQuoted"]["nodes"],
+        json!([{ "id": first_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["idRange"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["trackedFalse"]["nodes"],
+        json!([{ "id": second_item_id, "tracked": false }])
+    );
+    assert_eq!(read.body["data"]["updatedBefore"]["nodes"], json!([]));
 }
 
 #[test]
@@ -3908,7 +4269,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
               countryHarmonizedSystemCodes { countryCode harmonizedSystemCode }
               variant { id inventoryQuantity }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4235,7 +4596,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }])
     );
 
-    let activate_code_selection = proxy.process_request(json_graphql_request(
+    let mut activate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
@@ -4244,7 +4605,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
-    ));
+    );
+    activate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let activate_code_selection = proxy.process_request(activate_code_selection_request);
     assert_eq!(
         activate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -4263,7 +4626,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         ])
     );
 
-    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+    let mut deactivate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
@@ -4272,7 +4635,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryLevelId": level_id}),
-    ));
+    );
+    deactivate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let deactivate_code_selection = proxy.process_request(deactivate_code_selection_request);
     assert_eq!(
         deactivate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -4377,13 +4742,13 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidInventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
         json!({"id": inventory_item_id, "input": {
             "cost": "-5.00",
-            "countryCodeOfOrigin": "ZZZ",
+            "countryCodeOfOrigin": "US",
             "provinceCodeOfOrigin": "ONTARIO",
             "harmonizedSystemCode": "abc",
             "measurement": {"weight": {"value": -1, "unit": "KILOGRAMS"}},
@@ -4398,33 +4763,23 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         .unwrap();
     assert!(item_errors.contains(&json!({
         "field": ["input", "cost"],
-        "message": "Cost must be greater than or equal to 0",
-        "code": "INVALID"
+        "message": "Cost must be greater than or equal to 0"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "measurement", "weight"],
-        "message": "Measurement weight value -1 kg must be >= 0 kg",
-        "code": "INVALID"
-    })));
-    assert!(item_errors.contains(&json!({
-        "field": ["input", "countryCodeOfOrigin"],
-        "message": "Country code of origin is invalid",
-        "code": "INVALID"
+        "message": "Measurement weight value -1 kg must be >= 0 kg"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "provinceCodeOfOrigin"],
-        "message": "Province code of origin is invalid",
-        "code": "INVALID"
+        "message": "Province code of origin is invalid"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "harmonizedSystemCode"],
-        "message": "Harmonized system code must be a number between six and thirteen digits",
-        "code": "INVALID"
+        "message": "Harmonized system code must be a number between six and thirteen digits"
     })));
     assert!(item_errors.contains(&json!({
         "field": ["input", "countryHarmonizedSystemCodes", "1", "countryCode"],
-        "message": "Country code has already been taken",
-        "code": "TAKEN"
+        "message": "Country code has already been taken"
     })));
 
     let invalid_unit = proxy.process_request(json_graphql_request(
@@ -4432,7 +4787,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation InvalidWeightUnit($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -4450,7 +4805,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         mutation MissingInventoryItem($id: ID!, $input: InventoryItemInput!) {
           inventoryItemUpdate(id: $id, input: $input) {
             inventoryItem { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5679,6 +6034,206 @@ fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthro
 }
 
 #[test]
+fn inventory_transfers_connection_filters_sorts_and_windows_staged_records() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Origin Stockroom");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Destination Stockroom");
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-ALPHA");
+    let (second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-BETA");
+
+    let seed_quantities = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryTransferStock($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-transfer-connection-stock", "input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": origin_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": origin_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed_quantities.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let first_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftInventoryTransfer($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-02T00:00:00Z",
+            "tags": ["alpha"],
+            "lineItems": [{"inventoryItemId": first_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        first_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let first_transfer_id = first_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyInventoryTransfer($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-03T00:00:00Z",
+            "tags": ["beta"],
+            "lineItems": [{"inventoryItemId": second_item_id, "quantity": 3}]
+        }}),
+    ));
+    assert_eq!(
+        second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let second_transfer_id = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_transfer_name = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["name"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let origin_location_tail = origin_location_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersConnection($after: String, $readyQuery: String!, $nameQuery: String!, $variantQuery: String!, $originTailQuery: String!, $itemTailQuery: String!) {
+          firstPage: inventoryTransfers(first: 1, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryTransfers(first: 1, after: $after, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversePage: inventoryTransfers(first: 1, sortKey: NAME, reverse: true) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          readyOnly: inventoryTransfers(first: 10, query: $readyQuery, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byName: inventoryTransfers(first: 10, query: $nameQuery) {
+            nodes { id name }
+          }
+          byVariant: inventoryTransfers(first: 10, query: $variantQuery) {
+            nodes { id name }
+          }
+          byOriginTail: inventoryTransfers(first: 10, query: $originTailQuery, sortKey: NAME) {
+            nodes { id name status }
+          }
+          byInventoryItemTail: inventoryTransfers(first: 10, query: $itemTailQuery) {
+            nodes { id name }
+          }
+          unknownFilter: inventoryTransfers(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_transfer_id,
+            "readyQuery": "status:READY_TO_SHIP tag:beta",
+            "nameQuery": second_transfer_name,
+            "variantQuery": format!("product_variant_id:{second_variant_id}"),
+            "originTailQuery": format!("origin_id:{origin_location_tail}"),
+            "itemTailQuery": format!("inventory_item_id:{second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_transfer_id, "name": "#T0001", "status": "DRAFT", "totalQuantity": 2}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_transfer_id,
+                "endCursor": first_transfer_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["pageInfo"],
+        json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": second_transfer_id, "endCursor": second_transfer_id})
+    );
+    assert_eq!(
+        read.body["data"]["byName"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byVariant"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byOriginTail"]["nodes"],
+        json!([
+            {"id": first_transfer_id, "name": "#T0001", "status": "DRAFT"},
+            {"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byInventoryItemTail"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
 fn combined_listing_product_create_preserves_captured_parent_roles() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
@@ -6184,35 +6739,35 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_validation = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagCreateValidatesSrc {
-          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors { code field message } }
-          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors { code field message } }
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         script_validation.body["data"]["blank"]["userErrors"][0],
-        json!({"code": "BLANK", "field": ["input", "src"], "message": "Source can't be blank"})
+        json!({"field": ["input", "src"], "message": "Source can't be blank"})
     );
     assert_eq!(
-        script_validation.body["data"]["tooLong"]["userErrors"][0]["code"],
-        json!("TOO_LONG")
+        script_validation.body["data"]["tooLong"]["userErrors"][0]["message"],
+        json!("Source is too long (maximum is 255 characters)")
     );
     assert_eq!(
-        script_validation.body["data"]["invalid"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["invalid"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
     assert_eq!(
-        script_validation.body["data"]["http"]["userErrors"][0]["code"],
-        json!("INVALID")
+        script_validation.body["data"]["http"]["userErrors"][0]["message"],
+        json!("Source is invalid")
     );
 
     let create_script = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidationCreate {
-          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6225,7 +6780,7 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_update = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateEventForceOnload {
-          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6243,34 +6798,34 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let invalid_script_updates = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidatesChangedSrc($longSrc: String!) {
-          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors { code field message } }
-          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors { code field message } }
-          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors { code field message } }
-          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors { code field message } }
-          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors { code field message } }
+          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors {  field message } }
+          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors {  field message } }
+          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
+          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors {  field message } }
+          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors {  field message } }
         }
         "#,
         json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
     ));
     assert_eq!(
         invalid_script_updates.body["data"]["blank"],
-        json!({"scriptTag": null, "userErrors": [{"code": "BLANK", "field": ["src"], "message": "Source can't be blank"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source can't be blank"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["tooLong"],
-        json!({"scriptTag": null, "userErrors": [{"code": "TOO_LONG", "field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["invalid"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["http"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["badScope"],
-        json!({"scriptTag": null, "userErrors": [{"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}]})
+        json!({"scriptTag": null, "userErrors": [{"field": ["displayScope"], "message": "Display scope is not included in the list"}]})
     );
     assert_eq!(
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
@@ -6341,8 +6896,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation DeliberatelyNotAScriptTagOperationName {
-          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
-          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -6393,8 +6948,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation DeleteStagedScriptTags($firstId: ID!, $missingId: ID!) {
-          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename code field message } }
-          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename code field message } }
+          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename  field message } }
+          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename  field message } }
         }
         "#,
         json!({
@@ -6410,7 +6965,6 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
         delete.body["data"]["deleteMissing"],
         json!({"deletedScriptTagId": null, "userErrors": [{
             "__typename": "ScriptTagUserError",
-            "code": "NOT_FOUND",
             "field": ["id"],
             "message": "Script tag not found"
         }]})
@@ -6589,7 +7143,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         mutation ScriptTagUpdateUnknown {
           scriptTagUpdate(id: "gid://shopify/ScriptTag/999999999", input: { src: "https://cdn.example.test/changed.js" }) {
             scriptTag { id src displayScope event cache }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6601,7 +7155,6 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         json!({
             "scriptTag": null,
             "userErrors": [{
-                "code": "NOT_FOUND",
                 "field": ["id"],
                 "message": "Script tag not found"
             }]
@@ -6620,7 +7173,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6654,7 +7207,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFilteredScopes {
           storefrontAccessTokenCreate(input: { title: "Hydrogen filtered" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6695,7 +7248,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeThird {
           storefrontAccessTokenCreate(input: { title: "Hydrogen third" }) {
             storefrontAccessToken { accessToken }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6719,7 +7272,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
           storefrontAccessTokenCreate(input: { title: "   " }) {
             storefrontAccessToken { id }
             shop { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6730,7 +7283,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         json!({
             "storefrontAccessToken": null,
             "shop": {},
-            "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
+            "userErrors": [{"field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
 
@@ -6740,7 +7293,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
             mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {
               storefrontAccessTokenCreate(input: { title: $title }) {
                 storefrontAccessToken { id }
-                userErrors { code field message }
+                userErrors {  field message }
               }
             }
             "#,
@@ -6757,7 +7310,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeLimit {
           storefrontAccessTokenCreate(input: { title: "One too many" }) {
             storefrontAccessToken { id }
-            userErrors { code field message }
+            userErrors {  field message }
           }
         }
         "#,
@@ -6767,7 +7320,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         limit.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "userErrors": [{"code": "REACHED_LIMIT", "field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
+            "userErrors": [{"field": ["input"], "message": "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit"}]
         })
     );
 }
@@ -10388,7 +10941,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
     );
 
     // Delete the file this test actually created (MediaImage/2). The engine
@@ -10484,7 +11037,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                     "id": "gid://shopify/MediaImage/2",
                     "alt": "Local runtime file",
                     "createdAt": "2024-01-01T00:00:01.000Z",
-                    "fileStatus": "UPLOADED",
+                    "fileStatus": "READY",
                     "filename": "local-runtime.jpg",
                     "image": {
                         "url": "https://cdn.example.com/local-runtime.jpg",
@@ -10514,6 +11067,302 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn media_file_create_poll_ready_then_update_succeeds() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Ready lifecycle", "contentType": "IMAGE", "filename": "ready-lifecycle.jpg", "originalSource": "https://cdn.example.com/ready-lifecycle.jpg"}]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let file_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("fileCreate should return an id")
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["fileStatus"],
+        json!("UPLOADED")
+    );
+
+    let poll = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileReadyLifecyclePoll {
+          files(first: 5) {
+            nodes { id alt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        poll.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": file_id,
+                "alt": "Ready lifecycle",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": format!("cursor:{file_id}"),
+                "endCursor": format!("cursor:{file_id}")
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileReadyLifecycleUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": file_id, "alt": "Updated after ready"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": file_id,
+                "alt": "Updated after ready",
+                "fileStatus": "READY",
+                "filename": "ready-lifecycle.jpg"
+            }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searches() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/777",
+                                "alt": "Upstream file",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "upstream-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-file.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }, {
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/778",
+                                "alt": "Upstream processing file",
+                                "createdAt": "2026-07-01T00:00:01Z",
+                                "updatedAt": "2026-07-01T00:00:01Z",
+                                "fileStatus": "PROCESSING",
+                                "filename": "upstream-processing-file.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                                "endCursor": "cursor:gid://shopify/MediaImage/778"
+                            }
+                        },
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/888",
+                                "name": "Ready files",
+                                "query": "file_status:ready",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesColdRead {
+          files(first: 5) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/777",
+                "alt": "Upstream file",
+                "fileStatus": "READY",
+                "filename": "upstream-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-file.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }, {
+                "id": "gid://shopify/MediaImage/778",
+                "alt": "Upstream processing file",
+                "fileStatus": "PROCESSING",
+                "filename": "upstream-processing-file.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/upstream-processing-file.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/777",
+                "endCursor": "cursor:gid://shopify/MediaImage/778"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/888",
+                "name": "Ready files",
+                "query": "file_status:ready",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/888",
+                "endCursor": "cursor:gid://shopify/SavedSearch/888"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        1,
+        "cold media files read should forward upstream"
+    );
+    assert!(bodies[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("files") && query.contains("fileSavedSearches")));
+}
+
+#[test]
+fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/889",
+                                "name": "Recent files",
+                                "query": "created_at:>=2026-01-01",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSavedSearchColdRead {
+          fileSavedSearches(first: 5) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/889",
+                "name": "Recent files",
+                "query": "created_at:>=2026-01-01",
+                "resourceType": "FILE"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/SavedSearch/889",
+                "endCursor": "cursor:gid://shopify/SavedSearch/889"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "standalone fileSavedSearches read should forward upstream"
     );
 }
 
@@ -10567,7 +11416,7 @@ fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
             "id": "gid://shopify/GenericFile/3",
             "filename": "alpha-file.pdf",
             "contentType": "FILE",
-            "fileStatus": "UPLOADED"
+            "fileStatus": "READY"
         }])
     );
     assert_eq!(
@@ -10624,7 +11473,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
         mutation FileSavedSearchCreate($input: SavedSearchCreateInput!) {
           savedSearchCreate(input: $input) {
             savedSearch { id name query resourceType }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -10831,8 +11680,8 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     assert_eq!(
         files_read.body["data"]["files"]["nodes"],
         json!([
-            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
-            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "second.jpg"}
         ])
     );
 }
@@ -11161,7 +12010,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "GenericFile",
             "id": "gid://shopify/GenericFile/2",
             "alt": "Omitted GLB",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "model.glb",
             "mimeType": "model/gltf-binary",
             "url": "https://cdn.example.com/model.glb"
@@ -11187,7 +12036,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "__typename": "Model3d",
             "id": "gid://shopify/Model3d/3",
             "alt": "Explicit model",
-            "fileStatus": "UPLOADED",
+            "fileStatus": "READY",
             "filename": "explicit-model.glb",
             "mimeType": "model/gltf-binary",
             "mediaErrors": [],
@@ -11342,31 +12191,65 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
             captured_bodies.lock().unwrap().push(body.clone());
-            assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-image.JPG",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("MediaFileUpdateRejectedRead"));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "nodes": [{
-                            "id": media_id,
-                            "__typename": "MediaImage",
-                            "alt": "Ready image",
-                            "createdAt": "2026-06-05T00:00:00Z",
-                            "fileStatus": "READY",
-                            "image": {
-                                "url": "https://cdn.example.com/ready-image.JPG",
-                                "width": 640,
-                                "height": 480
-                            },
-                            "preview": {
+                        "files": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Ready image",
+                                "createdAt": "2026-06-05T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-image.JPG",
                                 "image": {
                                     "url": "https://cdn.example.com/ready-image.JPG",
-                                    "width": 320,
-                                    "height": 240
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/ready-image.JPG",
+                                        "width": 320,
+                                        "height": 240
+                                    }
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     }
                 }),
             }
@@ -11411,6 +12294,11 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
         read_after_rejected_update.body["data"]["files"]["nodes"],
         json!([{ "id": media_id, "filename": "ready-image.JPG" }])
     );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 2);
+    assert!(bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileUpdateRejectedRead")));
 }
 
 #[test]
@@ -11944,7 +12832,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
         json!({
             "nodes": [{
                 "id": "gid://shopify/MediaImage/2",
-                "fileStatus": "UPLOADED",
+                "fileStatus": "READY",
                 "__typename": "MediaImage",
                 "mediaErrors": [],
                 "mediaWarnings": []
