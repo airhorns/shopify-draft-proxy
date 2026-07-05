@@ -2716,14 +2716,7 @@ impl DraftProxy {
         if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
             || (is_email && marketing_state == "INVALID")
         {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: Value::Null,
                 top_level_error: Some(customer_consent_invalid_state_error(
@@ -2745,14 +2738,7 @@ impl DraftProxy {
             } else {
                 user_error(Value::Null, "Customer not found", None)
             };
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: customer_consent_payload(Value::Null, vec![user_error]),
                 top_level_error: None,
@@ -2761,14 +2747,7 @@ impl DraftProxy {
 
         let marketing_opt_in_level_input = resolved_string_field(&consent, "marketingOptInLevel");
         if marketing_state == "SUBSCRIBED" && marketing_opt_in_level_input.is_none() {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             let customer = if is_email {
                 existing_customer.clone()
             } else {
@@ -2792,14 +2771,7 @@ impl DraftProxy {
 
         if let Some(consent_updated_at) = consent_updated_at.as_deref() {
             if customer_consent_updated_at_is_future(consent_updated_at) {
-                self.record_mutation_log_with_status(
-                    request,
-                    query,
-                    variables,
-                    &field.name,
-                    Vec::new(),
-                    "failed",
-                );
+                self.record_failed_mutation(request, query, variables, &field.name);
                 let customer = if is_email {
                     existing_customer.clone()
                 } else {
@@ -2820,14 +2792,7 @@ impl DraftProxy {
         }
 
         if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             let customer = if is_email {
                 existing_customer.clone()
             } else {
@@ -2847,14 +2812,7 @@ impl DraftProxy {
         }
 
         if !is_email && !customer_has_default_phone(&existing_customer) {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: customer_consent_payload(
                     Value::Null,
@@ -4914,17 +4872,13 @@ impl DraftProxy {
         request_erasure: bool,
     ) -> (Value, &'static str, Vec<String>) {
         if !self.customer_exists_for_mutation(request, customer_id) {
-            return (
-                customer_data_erasure_payload_json(
-                    None,
-                    vec![customer_data_erasure_user_error(
-                        "Customer does not exist",
-                        "DOES_NOT_EXIST",
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(customer_data_erasure_payload_json(
+                None,
+                vec![customer_data_erasure_user_error(
+                    "Customer does not exist",
+                    "DOES_NOT_EXIST",
+                )],
+            ));
         }
         if request_erasure {
             self.store.staged.customer_data_erasure_requests.insert(
@@ -4945,17 +4899,13 @@ impl DraftProxy {
             .and_then(|request| request["status"].as_str())
             == Some("REQUESTED");
         if !is_pending {
-            return (
-                customer_data_erasure_payload_json(
-                    None,
-                    vec![customer_data_erasure_user_error(
-                        "Customer's data is not scheduled for erasure",
-                        "NOT_BEING_ERASED",
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(customer_data_erasure_payload_json(
+                None,
+                vec![customer_data_erasure_user_error(
+                    "Customer's data is not scheduled for erasure",
+                    "NOT_BEING_ERASED",
+                )],
+            ));
         }
         self.store.staged.customer_data_erasure_requests.insert(
             customer_id.to_string(),

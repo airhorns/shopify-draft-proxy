@@ -112,22 +112,18 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
     token_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "delegateAccessToken" => Some(if token.is_null() {
-                Value::Null
-            } else {
-                selected_json(&token, token_selection)
-            }),
+    selected_single_data_field_payload_json(
+        "delegateAccessToken",
+        token,
+        token_selection,
+        "UserError",
+        payload_selection,
+        user_errors,
+        |selection| match selection.name.as_str() {
             "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
             _ => None,
-        }
-    })
+        },
+    )
 }
 
 pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
@@ -368,21 +364,15 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
     app_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "app" => Some(if app.is_null() {
-                Value::Null
-            } else {
-                selected_json(&app, app_selection)
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "AppUninstallError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
+    selected_single_data_field_payload_json(
+        "app",
+        app,
+        app_selection,
+        "AppUninstallError",
+        payload_selection,
+        user_errors,
+        |_| None,
+    )
 }
 
 pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
@@ -417,21 +407,15 @@ pub(in crate::proxy) fn app_usage_record_payload_json(
     usage_record_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "appUsageRecord" => Some(if usage_record.is_null() {
-                Value::Null
-            } else {
-                selected_json(&usage_record, usage_record_selection)
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
+    selected_single_data_field_payload_json(
+        "appUsageRecord",
+        usage_record,
+        usage_record_selection,
+        "UserError",
+        payload_selection,
+        user_errors,
+        |_| None,
+    )
 }
 
 pub(in crate::proxy) fn app_purchase_one_time_payload_json(
@@ -535,6 +519,44 @@ pub(in crate::proxy) fn app_user_errors_json(
             .map(|error| app_user_error_json(error, typename, selection))
             .collect(),
     )
+}
+
+pub(in crate::proxy) fn selected_single_data_field_payload_json(
+    field_name: &'static str,
+    field_value: Value,
+    field_selection: &[SelectedField],
+    user_error_typename: &'static str,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+    extra_field: impl Fn(&SelectedField) -> Option<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        if selection.name == field_name {
+            Some(if field_value.is_null() {
+                Value::Null
+            } else {
+                selected_json(&field_value, field_selection)
+            })
+        } else if selection.name == "userErrors" {
+            Some(app_user_errors_json(
+                user_errors.clone(),
+                user_error_typename,
+                &selection.selection,
+            ))
+        } else {
+            extra_field(selection)
+        }
+    })
+}
+
+pub(in crate::proxy) fn failed_payload_outcome(
+    payload: Value,
+) -> (Value, &'static str, Vec<String>) {
+    (payload, "failed", Vec::new())
+}
+
+pub(in crate::proxy) fn response_is_success(response: &Response) -> bool {
+    (200..300).contains(&response.status)
 }
 
 fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]) -> Value {
@@ -2192,32 +2214,24 @@ impl DraftProxy {
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["companyLocationId"],
-                        "The company location doesn't exist",
-                        Some("RESOURCE_NOT_FOUND"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["companyLocationId"],
+                    "The company location doesn't exist",
+                    Some("RESOURCE_NOT_FOUND"),
+                )],
+            ));
         }
         if tax_exempt_is_null {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["taxExempt"],
-                        "Tax exempt must be true or false",
-                        Some("INVALID_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["taxExempt"],
+                    "Tax exempt must be true or false",
+                    Some("INVALID_INPUT"),
+                )],
+            ));
         }
 
         let mut location = self
@@ -2572,6 +2586,23 @@ pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn record_failed_mutation(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) {
+        self.record_mutation_log_with_status(
+            request,
+            query,
+            variables,
+            root_field,
+            Vec::new(),
+            "failed",
+        );
+    }
+
     pub(in crate::proxy) fn record_mutation_log_with_status(
         &mut self,
         request: &Request,

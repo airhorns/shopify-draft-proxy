@@ -86,6 +86,17 @@ impl DraftProxy {
         outcome.response
     }
 
+    fn finalize_mutation(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        build: impl FnOnce(&mut Self) -> MutationOutcome,
+    ) -> Response {
+        let outcome = build(self);
+        self.finalize_mutation_outcome(request, query, variables, outcome)
+    }
+
     fn root_fields_or_error(
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -1003,51 +1014,58 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productCreate" =>
             {
-                let outcome = self.product_create(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_create(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productUpdate" =>
             {
-                let outcome = self.product_update(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_update(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productDelete" =>
             {
-                let outcome = self.product_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_delete(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productSet" =>
             {
-                let outcome = self.product_set(&query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_set(&query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productDuplicate" =>
             {
-                let outcome = self.product_duplicate(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_duplicate(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
             {
-                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_bundle_mutation(root_field, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "productPublish" | "productUnpublish") =>
             {
-                let outcome =
-                    self.product_publication_mutation(root_field, &query, &variables, request);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_publication_mutation(root_field, &query, &variables, request)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productChangeStatus" =>
             {
-                let outcome = self.product_change_status(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_change_status(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(
@@ -1112,9 +1130,9 @@ impl DraftProxy {
                         root_field,
                     )
                 } else {
-                    let outcome =
-                        self.product_variant_mutation(request, root_field, &query, &variables);
-                    self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                    self.finalize_mutation(request, &query, &variables, |proxy| {
+                        proxy.product_variant_mutation(request, root_field, &query, &variables)
+                    })
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -1129,8 +1147,9 @@ impl DraftProxy {
                         | "collectionReorderProducts"
                 ) =>
             {
-                let outcome = self.collection_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.collection_mutation(root_field, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -1145,9 +1164,9 @@ impl DraftProxy {
                             | "productVariantsBulkReorder"
                     ) =>
             {
-                let outcome =
-                    self.product_variant_mutation(request, root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_variant_mutation(request, root_field, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -1172,8 +1191,9 @@ impl DraftProxy {
                 if !self.selling_plan_mutation_serves_locally(root_field, &query, &variables) {
                     return (self.upstream_transport)(request.clone());
                 }
-                let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.selling_plan_group_mutation(root_field, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -1185,14 +1205,16 @@ impl DraftProxy {
                             | "productOptionsReorder"
                     ) =>
             {
-                let outcome = self.product_option_mutation(root_field, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_option_mutation(root_field, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
-                let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.product_tags_mutation(root_field, &query, &variables, request)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -1200,25 +1222,26 @@ impl DraftProxy {
             {
                 match metafields_set_coercion_error(&query, &variables) {
                     Some(response) => response,
-                    None => {
-                        let outcome = self.owner_metafields_set(request, &query, &variables);
-                        self.finalize_mutation_outcome(request, &query, &variables, outcome)
-                    }
+                    None => self.finalize_mutation(request, &query, &variables, |proxy| {
+                        proxy.owner_metafields_set(request, &query, &variables)
+                    }),
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "metafieldsDelete" =>
             {
-                let outcome = self.owner_metafields_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.owner_metafields_delete(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "metafieldDelete" =>
             {
-                let outcome = self.owner_metafield_delete(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.owner_metafield_delete(request, &query, &variables)
+                })
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -1253,8 +1276,9 @@ impl DraftProxy {
                     ) =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                let outcome = self.inventory_mutation_data(request, &fields);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.inventory_mutation_data(request, &fields)
+                })
             }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
                 self.saved_search_overlay_read_response(request, &query, &variables)
@@ -1263,8 +1287,9 @@ impl DraftProxy {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
                 }
-                let outcome = self.saved_search_mutation_fields(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.saved_search_mutation_fields(request, &query, &variables)
+                })
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
@@ -1420,8 +1445,9 @@ impl DraftProxy {
             (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
             {
-                let outcome = self.discounts_mutation(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.discounts_mutation(request, &query, &variables)
+                })
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
@@ -2571,9 +2597,9 @@ impl DraftProxy {
                         "storeCreditAccountCredit" | "storeCreditAccountDebit"
                     ) =>
             {
-                let outcome =
-                    self.store_credit_account_mutation(root_field, request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.store_credit_account_mutation(root_field, request, &query, &variables)
+                })
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2614,8 +2640,9 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "dataSaleOptOut" =>
             {
-                let outcome = self.data_sale_opt_out(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.data_sale_opt_out(request, &query, &variables)
+                })
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2833,8 +2860,9 @@ impl DraftProxy {
             (CapabilityDomain::Media, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
             {
-                let outcome = self.media_mutation(root_field, request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                self.finalize_mutation(request, &query, &variables, |proxy| {
+                    proxy.media_mutation(root_field, request, &query, &variables)
+                })
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(
