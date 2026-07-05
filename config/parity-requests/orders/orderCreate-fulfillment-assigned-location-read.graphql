@@ -1,0 +1,24 @@
+#graphql
+  fragment OrderCreateFulfillmentAssignedLocationFields on FulfillmentOrder {
+    id
+    status
+    assignedLocation {
+      name
+      location {
+        id
+        name
+      }
+    }
+  }
+
+  query OrderCreateFulfillmentAssignedLocationRead($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      fulfillmentOrders(first: 5) {
+        nodes {
+          ...OrderCreateFulfillmentAssignedLocationFields
+        }
+      }
+    }
+  }
