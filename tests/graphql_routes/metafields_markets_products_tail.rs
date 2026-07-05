@@ -1344,7 +1344,16 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
             {"ownerId": owner_id, "namespace": "custom", "key": "list_integer", "type": "list.number_integer", "value": "[1,\"x\"]"},
             {"ownerId": owner_id, "namespace": "custom", "key": "list_text", "type": "list.single_line_text_field", "value": too_many_list_values},
             {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": "gid://shopify/Product/999999998"},
-            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"}
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": "[\"gid://shopify/Product/999999997\"]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "integer_plus", "type": "number_integer", "value": "+5"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_blank_currency", "type": "money", "value": "{\"amount\":\"1.00\",\"currency_code\":\"\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_amount_type", "type": "money", "value": "{\"amount\":\"abc\",\"currency_code\":\"USD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_out_of_range", "type": "money", "value": "{\"amount\":\"1000000000000000001\",\"currency_code\":\"CAD\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_invalid_shape", "type": "money", "value": "[]"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money_invalid_currency", "type": "money", "value": "{\"amount\":\"1.00\",\"currency_code\":\"ZZZ\"}"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "url_unsupported_scheme", "type": "url", "value": "ftp://x"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "date_time", "type": "date_time", "value": "nope"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "json_blank", "type": "json", "value": ""}
         ]}),
     ));
 
@@ -1356,7 +1365,7 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
     let errors = response.body["data"]["metafieldsSet"]["userErrors"]
         .as_array()
         .unwrap();
-    assert_eq!(errors.len(), 16);
+    assert_eq!(errors.len(), 25);
     for (index, error) in errors.iter().enumerate() {
         assert_eq!(
             error["field"],
@@ -1365,8 +1374,42 @@ fn metafields_set_rejects_extended_invalid_value_types_atomically() {
         );
         assert_eq!(error["code"], json!("INVALID_VALUE"));
     }
+    assert_eq!(
+        errors[2]["message"],
+        json!("Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'")
+    );
     assert_eq!(errors[12]["elementIndex"], json!(1));
     assert_eq!(errors[15]["elementIndex"], Value::Null);
+    assert_eq!(errors[16]["message"], json!("Value must be an integer."));
+    assert_eq!(
+        errors[17]["message"],
+        json!("Value must have a currency code.")
+    );
+    assert_eq!(
+        errors[18]["message"],
+        json!("Value must have a numeric amount.")
+    );
+    assert_eq!(
+        errors[19]["message"],
+        json!("Value must be within +/-1000000000000000000.")
+    );
+    assert_eq!(
+        errors[20]["message"],
+        json!("Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.")
+    );
+    assert_eq!(
+        errors[21]["message"],
+        json!("Value contains an invalid currency, ZZZ.")
+    );
+    assert_eq!(
+        errors[22]["message"],
+        json!("Value must be one of the following URL schemes: http, https, mailto, sms, tel.")
+    );
+    assert_eq!(
+        errors[23]["message"],
+        json!("Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00")
+    );
+    assert_eq!(errors[24]["message"], json!("Value can't be blank."));
 }
 
 #[test]
@@ -1397,7 +1440,7 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         r#"
         mutation ExtendedMetafieldsSetValidValues($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
-            metafields { namespace key type value jsonValue owner { id } }
+            metafields { namespace key type value jsonValue compareDigest owner { id } }
             userErrors { field message code elementIndex }
           }
         }
@@ -1416,7 +1459,15 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
             {"ownerId": owner_id, "namespace": "custom", "key": "multi", "type": "multi_line_text_field", "value": "Line\nBreak"},
             {"ownerId": owner_id, "namespace": "custom", "key": "list_decimal", "type": "list.number_decimal", "value": "[\"1.1\",\"2.2\"]"},
             {"ownerId": owner_id, "namespace": "custom", "key": "product_ref", "type": "product_reference", "value": owner_id},
-            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()}
+            {"ownerId": owner_id, "namespace": "custom", "key": "list_product_ref", "type": "list.product_reference", "value": json!([owner_id]).to_string()},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_one", "type": "boolean", "value": "1"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_trimmed", "type": "boolean", "value": " TRUE "},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_t", "type": "boolean", "value": "t"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_f", "type": "boolean", "value": "f"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_false", "type": "boolean", "value": "false"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "boolean_zero", "type": "boolean", "value": "0"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "integer_decimal", "type": "number_integer", "value": "5.000"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "decimal_truncated", "type": "number_decimal", "value": "1.1234567891"}
         ]}),
     ));
     assert_eq!(set.status, 200);
@@ -1426,15 +1477,49 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
             .as_array()
             .unwrap()
             .len(),
-        14
+        22
+    );
+    let metafields = set.body["data"]["metafieldsSet"]["metafields"]
+        .as_array()
+        .unwrap();
+    let set_by_key = |key: &str| {
+        metafields
+            .iter()
+            .find(|metafield| metafield["key"] == json!(key))
+            .unwrap_or_else(|| panic!("missing mutation metafield {key}"))
+    };
+    assert_eq!(set_by_key("boolean_one")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_one")["jsonValue"], json!(true));
+    assert_eq!(set_by_key("boolean_trimmed")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_trimmed")["jsonValue"], json!(true));
+    assert_eq!(set_by_key("boolean_t")["value"], json!("true"));
+    assert_eq!(set_by_key("boolean_f")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_f")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("boolean_false")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_false")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("boolean_zero")["value"], json!("false"));
+    assert_eq!(set_by_key("boolean_zero")["jsonValue"], json!("false"));
+    assert_eq!(set_by_key("integer_decimal")["value"], json!("5"));
+    assert_eq!(set_by_key("integer_decimal")["jsonValue"], json!(5));
+    assert_eq!(
+        set_by_key("decimal_truncated")["value"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        set_by_key("decimal_truncated")["jsonValue"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        set_by_key("decimal_truncated")["compareDigest"],
+        json!(sha256_hex("1.123456789"))
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ExtendedMetafieldsRead($id: ID!) {
           product(id: $id) {
-            metafields(first: 20, namespace: "custom") {
-              nodes { key type value jsonValue owner { id } }
+            metafields(first: 25, namespace: "custom") {
+              nodes { key type value jsonValue compareDigest owner { id } }
             }
           }
         }
@@ -1445,6 +1530,12 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
     let nodes = read.body["data"]["product"]["metafields"]["nodes"]
         .as_array()
         .unwrap();
+    let read_by_key = |key: &str| {
+        nodes
+            .iter()
+            .find(|node| node["key"] == json!(key))
+            .unwrap_or_else(|| panic!("missing read metafield {key}"))
+    };
     assert!(nodes
         .iter()
         .any(|node| { node["key"] == json!("product_ref") && node["value"] == json!(owner_id) }));
@@ -1455,6 +1546,23 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         node["key"] == json!("money_value")
             && node["jsonValue"] == json!({"amount": "12.00", "currency_code": "CAD"})
     }));
+    assert_eq!(read_by_key("integer_decimal")["value"], json!("5"));
+    assert_eq!(read_by_key("integer_decimal")["jsonValue"], json!(5));
+    assert_eq!(read_by_key("boolean_f")["jsonValue"], json!("false"));
+    assert_eq!(read_by_key("boolean_false")["jsonValue"], json!("false"));
+    assert_eq!(read_by_key("boolean_zero")["jsonValue"], json!("false"));
+    assert_eq!(
+        read_by_key("decimal_truncated")["value"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        read_by_key("decimal_truncated")["jsonValue"],
+        json!("1.123456789")
+    );
+    assert_eq!(
+        read_by_key("decimal_truncated")["compareDigest"],
+        json!(sha256_hex("1.123456789"))
+    );
 }
 
 #[test]
