@@ -1954,7 +1954,10 @@ impl DraftProxy {
                 .saved_search_by_id(&saved_search_id)
                 .filter(|record| record.resource_type == "PRICE_RULE")?;
             let mut arguments = field.arguments.clone();
-            arguments.insert("query".to_string(), ResolvedValue::String(saved_search.query));
+            arguments.insert(
+                "query".to_string(),
+                ResolvedValue::String(saved_search.query),
+            );
             return Some(arguments);
         }
         Some(field.arguments.clone())

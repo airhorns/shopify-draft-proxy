@@ -1,0 +1,41 @@
+mutation DiscountQueryGrammarCreate(
+  $code: DiscountCodeBasicInput!
+  $automatic: DiscountAutomaticBasicInput!
+) {
+  code: discountCodeBasicCreate(basicCodeDiscount: $code) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automatic: discountAutomaticBasicCreate(automaticBasicDiscount: $automatic) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

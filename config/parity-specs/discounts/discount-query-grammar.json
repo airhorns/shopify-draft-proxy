@@ -1,0 +1,53 @@
+{
+  "scenarioId": "discount-query-grammar",
+  "operationNames": ["discountCodeBasicCreate", "discountAutomaticBasicCreate", "discountNodes", "discountNodesCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["search-sort-contract", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-query-grammar.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-query-grammar-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "query-grammar-setup-discounts",
+        "capturePath": "$.create.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.code.codeDiscountNode.codeDiscount.__typename",
+          "$.code.codeDiscountNode.codeDiscount.title",
+          "$.code.codeDiscountNode.codeDiscount.status",
+          "$.code.userErrors",
+          "$.automatic.automaticDiscountNode.automaticDiscount.__typename",
+          "$.automatic.automaticDiscountNode.automaticDiscount.title",
+          "$.automatic.automaticDiscountNode.automaticDiscount.status",
+          "$.automatic.userErrors"
+        ]
+      },
+      {
+        "name": "title-and-method-token-filter",
+        "capturePath": "$.read.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountNodes.nodes", "$.discountNodesCount"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-query-grammar-read.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.requests.read.variables.query"
+            },
+            "first": {
+              "fromCapturePath": "$.requests.read.variables.first"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for tokenized discountNodes(query:) filtering. The recorder creates one scheduled DiscountCodeBasic and one scheduled DiscountAutomaticBasic sharing the same disposable title token, then reads `title:<token> method:code` through discountNodes and discountNodesCount. Pre-fix local behavior treated these tokens as unsupported and failed open to the full staged catalog; parity now requires the query engine to AND the title token with method:code and return only the code discount with an exact count of one."
+}
