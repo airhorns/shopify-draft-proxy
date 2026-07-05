@@ -4,7 +4,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import {
+  ConformanceGraphqlError,
+  createAdminGraphqlClient,
+  type ConformanceGraphqlResult,
+} from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -22,11 +26,24 @@ const fixturePath = path.join(
 );
 
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+async function runCapturedGraphql<TData = unknown>(
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<ConformanceGraphqlResult<TData>> {
+  const result = await runGraphqlRequest<TData>(query, variables);
+
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new ConformanceGraphqlError(result);
+  }
+
+  return result;
+}
 
 function absolutePath(relativePath: string): string {
   return path.join(repoRoot, relativePath);
@@ -235,26 +252,25 @@ const bulkDeleteDocument = `#graphql
   }
 `;
 
-const shopPricingHydrateForCreateResponse = await runGraphqlRequest<JsonRecord>(shopPricingHydrateDocument, {});
-const createResponse = await runGraphql<JsonRecord>(draftOrderCreateDocument, createVariables);
+const shopPricingHydrateForCreateResponse = await runCapturedGraphql<JsonRecord>(shopPricingHydrateDocument);
+const createResponse = (await runCapturedGraphql<JsonRecord>(draftOrderCreateDocument, createVariables)).payload;
 const draftOrderId = readString(readRecord(readRecord(createResponse.data, 'draftOrderCreate'), 'draftOrder'), 'id');
 
 if (!draftOrderId) {
   throw new Error(`Expected draftOrderCreate.draftOrder.id: ${JSON.stringify(createResponse, null, 2)}`);
 }
 
-const shopPricingHydrateForCalculateResponse = await runGraphqlRequest<JsonRecord>(shopPricingHydrateDocument, {});
-const calculateResponse = await runGraphql<JsonRecord>(calculateDocument, createVariables);
-const savedSearchesResponse = await runGraphql<JsonRecord>(savedSearchesDocument, {});
+const shopPricingHydrateForCalculateResponse = await runCapturedGraphql<JsonRecord>(shopPricingHydrateDocument);
+const calculateResponse = (await runCapturedGraphql<JsonRecord>(calculateDocument, createVariables)).payload;
+const savedSearchesResponse = (await runCapturedGraphql<JsonRecord>(savedSearchesDocument)).payload;
 const availableDeliveryOptionsVariables = {
   input: {
     lineItems: createVariables.input.lineItems,
   },
 };
-const availableDeliveryOptionsResponse = await runGraphql<JsonRecord>(
-  availableDeliveryOptionsDocument,
-  availableDeliveryOptionsVariables,
-);
+const availableDeliveryOptionsResponse = (
+  await runCapturedGraphql<JsonRecord>(availableDeliveryOptionsDocument, availableDeliveryOptionsVariables)
+).payload;
 const invoicePreviewVariables = {
   id: draftOrderId,
   email: {
@@ -262,22 +278,27 @@ const invoicePreviewVariables = {
     customMessage: 'Custom note',
   },
 };
-const invoicePreviewResponse = await runGraphql<JsonRecord>(invoicePreviewDocument, invoicePreviewVariables);
+const invoicePreviewResponse = (await runCapturedGraphql<JsonRecord>(invoicePreviewDocument, invoicePreviewVariables))
+  .payload;
 const bulkAddVariables = { ids: [draftOrderId], tags: ['har-318-added'] };
 const bulkAddBySearchVariables = { search: 'tag:har-318-base', tags: ['har-318-search-added'] };
-const bulkAddBySearchResponse = await runGraphql<JsonRecord>(bulkAddBySearchDocument, bulkAddBySearchVariables);
-const afterBulkAddBySearchRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
+const bulkAddBySearchResponse = (
+  await runCapturedGraphql<JsonRecord>(bulkAddBySearchDocument, bulkAddBySearchVariables)
+).payload;
+const afterBulkAddBySearchRead = (await runCapturedGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId }))
+  .payload;
 const bulkRemoveBySearchVariables = { search: 'tag:har-318-search-added', tags: ['har-318-search-added'] };
-const bulkRemoveBySearchResponse = await runGraphql<JsonRecord>(
-  bulkRemoveBySearchDocument,
-  bulkRemoveBySearchVariables,
-);
-const afterBulkRemoveBySearchRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
-const bulkAddResponse = await runGraphql<JsonRecord>(bulkAddDocument, bulkAddVariables);
-const afterBulkAddRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
+const bulkRemoveBySearchResponse = (
+  await runCapturedGraphql<JsonRecord>(bulkRemoveBySearchDocument, bulkRemoveBySearchVariables)
+).payload;
+const afterBulkRemoveBySearchRead = (await runCapturedGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId }))
+  .payload;
+const bulkAddResponse = (await runCapturedGraphql<JsonRecord>(bulkAddDocument, bulkAddVariables)).payload;
+const afterBulkAddRead = (await runCapturedGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId })).payload;
 const bulkRemoveVariables = { ids: [draftOrderId], tags: ['har-318-base'] };
-const bulkRemoveResponse = await runGraphql<JsonRecord>(bulkRemoveDocument, bulkRemoveVariables);
-const afterBulkRemoveRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
+const bulkRemoveResponse = (await runCapturedGraphql<JsonRecord>(bulkRemoveDocument, bulkRemoveVariables)).payload;
+const afterBulkRemoveRead = (await runCapturedGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId }))
+  .payload;
 const draftOrderTagCandidates = [
   'har-318-added',
   'gid://shopify/DraftOrderTag/har-318-added',
@@ -288,7 +309,7 @@ for (const candidate of draftOrderTagCandidates) {
   try {
     draftOrderTagAttempts.push({
       variables: { id: candidate },
-      response: await runGraphql<JsonRecord>(draftOrderTagDocument, { id: candidate }),
+      response: (await runCapturedGraphql<JsonRecord>(draftOrderTagDocument, { id: candidate })).payload,
     });
   } catch (error) {
     draftOrderTagAttempts.push({
@@ -298,8 +319,9 @@ for (const candidate of draftOrderTagCandidates) {
   }
 }
 const bulkDeleteVariables = { ids: [draftOrderId] };
-const bulkDeleteResponse = await runGraphql<JsonRecord>(bulkDeleteDocument, bulkDeleteVariables);
-const afterBulkDeleteRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
+const bulkDeleteResponse = (await runCapturedGraphql<JsonRecord>(bulkDeleteDocument, bulkDeleteVariables)).payload;
+const afterBulkDeleteRead = (await runCapturedGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId }))
+  .payload;
 
 await writeJson(fixturePath, {
   capturedAt: new Date().toISOString(),
