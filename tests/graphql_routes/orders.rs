@@ -10,7 +10,7 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
-fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
+fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64, currency_code: &str) {
     assert_eq!(line["title"], json!("Catalog product title"));
     assert_eq!(line["name"], json!("Catalog product title"));
     assert_eq!(line["sku"], json!("CATALOG-SKU"));
@@ -20,7 +20,7 @@ fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
     assert_eq!(line["taxable"], json!(true));
     assert_eq!(
         line["originalUnitPriceSet"]["shopMoney"],
-        json!({ "amount": "19.95", "currencyCode": "USD" })
+        json!({ "amount": "19.95", "currencyCode": currency_code })
     );
     assert_eq!(
         line["variant"],
@@ -32,7 +32,7 @@ fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
     );
 }
 
-fn assert_draft_order_custom_line(line: &Value) {
+fn assert_draft_order_custom_line(line: &Value, currency_code: &str) {
     assert_eq!(line["title"], json!("Custom-only item"));
     assert_eq!(line["name"], json!("Custom-only item"));
     assert_eq!(line["sku"], json!("CUSTOM-SKU"));
@@ -42,7 +42,7 @@ fn assert_draft_order_custom_line(line: &Value) {
     assert_eq!(line["taxable"], json!(false));
     assert_eq!(
         line["originalUnitPriceSet"]["shopMoney"],
-        json!({ "amount": "7.5", "currencyCode": "USD" })
+        json!({ "amount": "7.5", "currencyCode": currency_code })
     );
     assert_eq!(line["variant"], Value::Null);
 }
@@ -5762,6 +5762,25 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     .with_upstream_transport(move |request| {
         let body: Value =
             serde_json::from_str(&request.body).expect("variant hydrate request body parses");
+        if body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate"))
+        {
+            captured_calls.lock().unwrap().push(body);
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            };
+        }
         assert_eq!(
             body["operationName"],
             json!("OrdersDraftOrderVariantHydrate")
@@ -5831,8 +5850,8 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
         json!([])
     );
     let created_draft = &create.body["data"]["draftOrderCreate"]["draftOrder"];
-    assert_draft_order_variant_catalog_line(&created_draft["lineItems"]["nodes"][0], 2);
-    assert_draft_order_custom_line(&created_draft["lineItems"]["nodes"][1]);
+    assert_draft_order_variant_catalog_line(&created_draft["lineItems"]["nodes"][0], 2, "CAD");
+    assert_draft_order_custom_line(&created_draft["lineItems"]["nodes"][1], "CAD");
 
     let update = proxy.process_request(json_graphql_request(
         r#"
@@ -5871,6 +5890,7 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     assert_draft_order_variant_catalog_line(
         &update.body["data"]["draftOrderUpdate"]["draftOrder"]["lineItems"]["nodes"][0],
         2,
+        "CAD",
     );
 
     let calculate = proxy.process_request(json_graphql_request(
@@ -5903,9 +5923,162 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
     assert_draft_order_variant_catalog_line(
         &calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]["lineItems"][0],
         2,
+        "CAD",
     );
 
-    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|body| {
+                body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate"))
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|body| body["operationName"] == json!("OrdersDraftOrderVariantHydrate"))
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn draft_order_scalar_custom_line_prices_use_hydrated_shop_currency() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop pricing hydrate parses");
+            assert_eq!(
+                body["query"],
+                json!("query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }")
+            );
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderCreateScalarShopCurrency($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              currencyCode
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) {
+                nodes {
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Scalar CAD default",
+                    "quantity": 2,
+                    "originalUnitPrice": "12.50"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    assert_eq!(draft["currencyCode"], json!("CAD"));
+    assert_eq!(
+        draft["lineItems"]["nodes"][0]["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "12.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        draft["lineItems"]["nodes"][0]["originalTotalSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        draft["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        draft["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderCalculateScalarShopCurrency($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              currencyCode
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems {
+                originalUnitPriceSet { shopMoney { amount currencyCode } }
+                originalTotalSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Calculated scalar CAD default",
+                    "quantity": 3,
+                    "originalUnitPrice": "2.50"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    let calculated = &calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"];
+    assert_eq!(calculated["currencyCode"], json!("CAD"));
+    assert_eq!(
+        calculated["lineItems"][0]["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "2.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        calculated["lineItems"][0]["originalTotalSet"]["shopMoney"],
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        calculated["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        calculated["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]

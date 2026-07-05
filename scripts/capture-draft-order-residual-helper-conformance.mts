@@ -22,7 +22,7 @@ const fixturePath = path.join(
 );
 
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -67,6 +67,9 @@ const createVariables = {
     ],
   },
 };
+
+const shopPricingHydrateDocument =
+  'query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }';
 
 const draftOrderCreateDocument = `#graphql
   mutation CreateDraftOrder($input: DraftOrderInput!) {
@@ -232,6 +235,7 @@ const bulkDeleteDocument = `#graphql
   }
 `;
 
+const shopPricingHydrateForCreateResponse = await runGraphqlRequest<JsonRecord>(shopPricingHydrateDocument, {});
 const createResponse = await runGraphql<JsonRecord>(draftOrderCreateDocument, createVariables);
 const draftOrderId = readString(readRecord(readRecord(createResponse.data, 'draftOrderCreate'), 'draftOrder'), 'id');
 
@@ -239,6 +243,7 @@ if (!draftOrderId) {
   throw new Error(`Expected draftOrderCreate.draftOrder.id: ${JSON.stringify(createResponse, null, 2)}`);
 }
 
+const shopPricingHydrateForCalculateResponse = await runGraphqlRequest<JsonRecord>(shopPricingHydrateDocument, {});
 const calculateResponse = await runGraphql<JsonRecord>(calculateDocument, createVariables);
 const savedSearchesResponse = await runGraphql<JsonRecord>(savedSearchesDocument, {});
 const availableDeliveryOptionsVariables = {
@@ -383,6 +388,26 @@ await writeJson(fixturePath, {
       response: afterBulkDeleteRead,
     },
   },
+  upstreamCalls: [
+    {
+      operationName: 'DraftProxyShopPricingHydrate',
+      query: shopPricingHydrateDocument,
+      variables: {},
+      response: {
+        status: shopPricingHydrateForCreateResponse.status,
+        body: shopPricingHydrateForCreateResponse.payload,
+      },
+    },
+    {
+      operationName: 'DraftProxyShopPricingHydrate',
+      query: shopPricingHydrateDocument,
+      variables: {},
+      response: {
+        status: shopPricingHydrateForCalculateResponse.status,
+        body: shopPricingHydrateForCalculateResponse.payload,
+      },
+    },
+  ],
 });
 
 // oxlint-disable-next-line no-console -- CLI scripts intentionally write status output to stdout.
