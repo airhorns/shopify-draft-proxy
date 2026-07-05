@@ -1114,6 +1114,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'collection-smart-ruleset-membership',
+    scriptPath: 'scripts/capture-collection-smart-ruleset-membership-conformance.mts',
+    purpose:
+      'Smart collection ruleSet membership for TITLE, TYPE, VENDOR, TAG, and VARIANT_PRICE rules, including downstream products/productsCount reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-smart-ruleset-membership-parity.json`,
+      'config/parity-specs/products/collection-smart-ruleset-membership-parity.json',
+      'config/parity-requests/products/collection-smart-ruleset-membership-product-set.graphql',
+      'config/parity-requests/products/collection-smart-ruleset-membership-create.graphql',
+      'config/parity-requests/products/collection-smart-ruleset-membership-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and one disposable smart collection, waits for rule membership to materialize, then deletes both in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'collection-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-delete-shop-payload-conformance.ts',

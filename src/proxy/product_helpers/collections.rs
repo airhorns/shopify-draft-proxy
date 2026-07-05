@@ -74,7 +74,9 @@ fn collection_json(
             let has_product = products.iter().any(|entry| entry.product.id == product_id);
             Some(json!(has_product))
         }
-        "productsCount" => Some(
+        "productsCount" => Some(if collection_is_smart(collection) {
+            selected_count_json(products.len(), &selection.selection)
+        } else {
             collection
                 .get("productsCount")
                 .map(|count| selected_json(count, &selection.selection))
@@ -86,8 +88,8 @@ fn collection_json(
                         .map(Vec::len)
                         .unwrap_or(0);
                     selected_count_json(count, &selection.selection)
-                }),
-        ),
+                })
+        }),
         "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
         "sortOrder" => Some(
             collection
@@ -1269,13 +1271,33 @@ impl DraftProxy {
         collection: &Value,
         selections: &[SelectedField],
     ) -> Value {
-        let shop_currency_code = self.store.shop_currency_code();
-        let mut value = collection_json(
+        self.collection_json_with_publication_fields_and_products(
             collection,
-            self.collection_product_entries(collection),
             selections,
-            &shop_currency_code,
-        );
+            self.collection_product_entries(collection),
+        )
+    }
+
+    fn collection_payload_json_with_publication_fields(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        self.collection_json_with_publication_fields_and_products(
+            collection,
+            selections,
+            self.explicit_collection_product_entries(collection),
+        )
+    }
+
+    fn collection_json_with_publication_fields_and_products(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+        products: Vec<CollectionProductEntry>,
+    ) -> Value {
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut value = collection_json(collection, products, selections, &shop_currency_code);
         let Some(fields) = value.as_object_mut() else {
             return value;
         };
@@ -1970,7 +1992,7 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| self.collection_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
+                    "collection" => Some(collection.map(|collection| self.collection_payload_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
                     "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
@@ -2022,6 +2044,16 @@ impl DraftProxy {
     }
 
     fn collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+        if collection_is_smart(collection) {
+            return self.smart_collection_product_entries(collection);
+        }
+        self.explicit_collection_product_entries(collection)
+    }
+
+    fn explicit_collection_product_entries(
+        &self,
+        collection: &Value,
+    ) -> Vec<CollectionProductEntry> {
         collection
             .get("products")
             .and_then(|connection| connection.get("nodes"))
@@ -2041,6 +2073,27 @@ impl DraftProxy {
                     product,
                     variants,
                 })
+            })
+            .collect()
+    }
+
+    fn smart_collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+        let Some(rule_set) = collection.get("ruleSet") else {
+            return Vec::new();
+        };
+        self.store
+            .products()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, product)| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                collection_product_matches_rule_set(&product, &variants, rule_set).then_some(
+                    CollectionProductEntry {
+                        position,
+                        product,
+                        variants,
+                    },
+                )
             })
             .collect()
     }
@@ -2507,6 +2560,166 @@ fn collection_is_smart(collection: &Value) -> bool {
                 .and_then(Value::as_array)
                 .is_some_and(|rules| !rules.is_empty())
     })
+}
+
+fn collection_product_matches_rule_set(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    rule_set: &Value,
+) -> bool {
+    let rules = rule_set
+        .get("rules")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if rules.is_empty() {
+        return false;
+    }
+    let applied_disjunctively = rule_set
+        .get("appliedDisjunctively")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if applied_disjunctively {
+        rules
+            .iter()
+            .any(|rule| collection_product_matches_rule(product, variants, rule))
+    } else {
+        rules
+            .iter()
+            .all(|rule| collection_product_matches_rule(product, variants, rule))
+    }
+}
+
+fn collection_product_matches_rule(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    rule: &Value,
+) -> bool {
+    let column = rule
+        .get("column")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let relation = rule
+        .get("relation")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let condition = rule
+        .get("condition")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    match column {
+        "TITLE" => {
+            collection_rule_string_values_match([product.title.as_str()], relation, condition)
+        }
+        "TYPE" | "PRODUCT_TYPE" => collection_rule_string_values_match(
+            [product.product_type.as_str()],
+            relation,
+            condition,
+        ),
+        "VENDOR" => {
+            collection_rule_string_values_match([product.vendor.as_str()], relation, condition)
+        }
+        "TAG" => collection_rule_string_values_match(
+            product.tags.iter().map(String::as_str),
+            relation,
+            condition,
+        ),
+        "VARIANT_PRICE" => {
+            collection_rule_variant_price_matches(product, variants, relation, condition)
+        }
+        _ => false,
+    }
+}
+
+fn collection_rule_string_values_match<I>(values: I, relation: &str, condition: &str) -> bool
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    let values = values
+        .into_iter()
+        .map(|value| collection_rule_normalized_string(value.as_ref()))
+        .collect::<Vec<_>>();
+    let condition = collection_rule_normalized_string(condition);
+    let has_value = values.iter().any(|value| !value.is_empty());
+    match relation {
+        "EQUALS" => values.iter().any(|value| value == &condition),
+        "NOT_EQUALS" => has_value && values.iter().all(|value| value != &condition),
+        "CONTAINS" => values.iter().any(|value| value.contains(&condition)),
+        "NOT_CONTAINS" => has_value && values.iter().all(|value| !value.contains(&condition)),
+        "STARTS_WITH" => values.iter().any(|value| value.starts_with(&condition)),
+        "ENDS_WITH" => values.iter().any(|value| value.ends_with(&condition)),
+        "IS_SET" => has_value,
+        "IS_NOT_SET" => !has_value,
+        _ => false,
+    }
+}
+
+fn collection_rule_normalized_string(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase()
+}
+
+fn collection_rule_variant_price_matches(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    relation: &str,
+    condition: &str,
+) -> bool {
+    let prices = collection_rule_variant_prices(product, variants);
+    match relation {
+        "IS_SET" => !prices.is_empty(),
+        "IS_NOT_SET" => prices.is_empty(),
+        _ => {
+            let Some(condition) = collection_rule_price_cents(condition) else {
+                return false;
+            };
+            match relation {
+                "EQUALS" => prices.contains(&condition),
+                "NOT_EQUALS" => {
+                    !prices.is_empty() && prices.iter().all(|price| *price != condition)
+                }
+                "GREATER_THAN" => prices.iter().any(|price| *price > condition),
+                "LESS_THAN" => prices.iter().any(|price| *price < condition),
+                "GREATER_THAN_OR_EQUAL_TO" | "GREATER_THAN_OR_EQUAL" => {
+                    prices.iter().any(|price| *price >= condition)
+                }
+                "LESS_THAN_OR_EQUAL_TO" | "LESS_THAN_OR_EQUAL" => {
+                    prices.iter().any(|price| *price <= condition)
+                }
+                _ => false,
+            }
+        }
+    }
+}
+
+fn collection_rule_variant_prices(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> Vec<i64> {
+    if !variants.is_empty() {
+        return variants
+            .iter()
+            .filter_map(|variant| collection_rule_price_cents(&variant.price))
+            .collect();
+    }
+    product
+        .variants
+        .iter()
+        .filter_map(|variant| {
+            variant
+                .get("price")
+                .and_then(Value::as_str)
+                .and_then(collection_rule_price_cents)
+        })
+        .collect()
+}
+
+fn collection_rule_price_cents(value: &str) -> Option<i64> {
+    parse_product_price(value).map(|price| (price * 100.0).round() as i64)
 }
 
 fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Response {
