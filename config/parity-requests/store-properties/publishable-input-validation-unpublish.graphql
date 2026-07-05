@@ -1,18 +1,19 @@
-mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
-  publishableUnpublish(id: $id, input: $input) {
-    publishable {
-      ... on Product {
-        id
-        publishedOnCurrentPublication
-        resourcePublicationsCount {
-          count
-          precision
+#graphql
+  mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
+    publishableUnpublish(id: $id, input: $input) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
         }
       }
-    }
-    userErrors {
-      field
-      message
+      userErrors {
+        field
+        message
+      }
     }
   }
-}

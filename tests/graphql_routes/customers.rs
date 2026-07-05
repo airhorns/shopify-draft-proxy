@@ -641,6 +641,136 @@ fn customers_connection_applies_id_and_location_sort_keys() {
 }
 
 #[test]
+fn customers_query_filters_by_default_address_country() {
+    let mut proxy = snapshot_proxy();
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "toronto-country@example.test",
+            "firstName": "Toronto",
+            "lastName": "Country",
+            "tags": ["VIP"],
+            "addresses": [{
+                "address1": "1 King St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCode": "CA",
+                "zip": "M5H 1A1"
+            }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "seattle-country@example.test",
+            "firstName": "Seattle",
+            "lastName": "Country",
+            "tags": ["standard"],
+            "addresses": [{
+                "address1": "600 4th Ave",
+                "city": "Seattle",
+                "provinceCode": "WA",
+                "countryCode": "US",
+                "zip": "98104"
+            }]
+        }),
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersSearchFields(
+          $countryQuery: String!
+          $stateQuery: String!
+          $defaultQuery: String!
+          $orQuery: String!
+          $exclusionQuery: String!
+          $unsupportedQuery: String!
+        ) {
+          byCountry: customers(first: 10, query: $countryQuery, sortKey: NAME) {
+            nodes { email defaultAddress { country province city } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          countryCount: customersCount(query: $countryQuery) { count precision }
+          byState: customers(first: 10, query: $stateQuery, sortKey: NAME) {
+            nodes { email state }
+          }
+          byDefault: customers(first: 10, query: $defaultQuery, sortKey: NAME) {
+            nodes { email }
+          }
+          byGroupedOr: customers(first: 10, query: $orQuery, sortKey: NAME) {
+            nodes { email tags }
+          }
+          byGroupedExclusion: customers(first: 10, query: $exclusionQuery, sortKey: NAME) {
+            nodes { email tags }
+          }
+          byUnsupported: customers(first: 10, query: $unsupportedQuery, sortKey: NAME) {
+            nodes { email }
+          }
+          unsupportedCount: customersCount(query: $unsupportedQuery) { count precision }
+        }
+        "#,
+        json!({
+            "countryQuery": "country:Canada",
+            "stateQuery": "state:DISABLED",
+            "defaultQuery": "Toronto",
+            "orQuery": "(tag:VIP OR tag:standard) state:DISABLED",
+            "exclusionQuery": "state:DISABLED -tag:VIP",
+            "unsupportedQuery": "made_up_filter:Canada"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byCountry"]["nodes"],
+        json!([{
+            "email": "toronto-country@example.test",
+            "defaultAddress": { "country": "Canada", "province": "Ontario", "city": "Toronto" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["byCountry"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": false })
+    );
+    assert_eq!(
+        read.body["data"]["countryCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["byState"]["nodes"],
+        json!([
+            { "email": "seattle-country@example.test", "state": "DISABLED" },
+            { "email": "toronto-country@example.test", "state": "DISABLED" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byDefault"]["nodes"],
+        json!([{ "email": "toronto-country@example.test" }])
+    );
+    assert_eq!(
+        read.body["data"]["byGroupedOr"]["nodes"],
+        json!([
+            { "email": "seattle-country@example.test", "tags": ["standard"] },
+            { "email": "toronto-country@example.test", "tags": ["VIP"] }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byGroupedExclusion"]["nodes"],
+        json!([{ "email": "seattle-country@example.test", "tags": ["standard"] }])
+    );
+    assert_eq!(
+        read.body["data"]["byUnsupported"]["nodes"],
+        json!([
+            { "email": "seattle-country@example.test" },
+            { "email": "toronto-country@example.test" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["unsupportedCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn customers_sorted_connection_paginates_after_interleaved_create() {
     let mut proxy = snapshot_proxy();
     create_customer(

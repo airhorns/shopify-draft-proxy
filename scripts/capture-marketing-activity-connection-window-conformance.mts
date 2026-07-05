@@ -143,7 +143,7 @@ const zuluVariables = {
   input: {
     title: zuluTitle,
     remoteId: zuluRemoteId,
-    status: 'ACTIVE',
+    status: 'PAUSED',
     remoteUrl: `https://example.com/${zuluRemoteId}`,
     tactic: 'AD',
     marketingChannelType: 'SEARCH',
@@ -187,6 +187,8 @@ try {
     createdAtQuery: `created_at:">=${zuluCreatedAt}" title:${zuluTitle}`,
     idRangeQuery: `id:>${resourceTail(alphaId)} title:${zuluTitle}`,
     scheduledEndQuery: `scheduled_to_end_at:"${zuluScheduledEnd}" title:${zuluTitle}`,
+    booleanOrQuery: `title:${alphaTitle} OR title:${zuluTitle}`,
+    booleanAndQuery: `title:${alphaTitle} AND scheduled_to_end_at:"${alphaScheduledEnd}"`,
   };
 
   readFirstResponse = await runGraphqlRequest(readFirstDocument, readFirstVariables);
@@ -217,6 +219,9 @@ try {
     zuluTitle,
     'scheduledEndFilter',
   );
+  assertNodeTitle(readFirstResponse.payload, ['data', 'booleanOr', 'nodes', '0', 'title'], alphaTitle, 'booleanOr[0]');
+  assertNodeTitle(readFirstResponse.payload, ['data', 'booleanOr', 'nodes', '1', 'title'], zuluTitle, 'booleanOr[1]');
+  assertNodeTitle(readFirstResponse.payload, ['data', 'booleanAnd', 'nodes', '0', 'title'], alphaTitle, 'booleanAnd');
   const latestEventType = readStringPath(
     readFirstResponse.payload,
     ['data', 'latestEvent', 'nodes', '0', 'type'],

@@ -18,7 +18,7 @@ pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> boo
     record
         .get("id")
         .and_then(Value::as_str)
-        .is_some_and(|id| id.starts_with("gid://shopify/ScriptTag/"))
+        .is_some_and(|id| is_shopify_gid_of_type(id, "ScriptTag"))
 }
 
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {

@@ -32,7 +32,7 @@ impl DraftProxy {
                 "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment"
             ) || (field.name == "node"
                 && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                    id.starts_with("gid://shopify/Abandonment/")
+                    is_shopify_gid_of_type(&id, "Abandonment")
                         || self.store.staged.abandonments.contains_key(&id)
                 }))
         });

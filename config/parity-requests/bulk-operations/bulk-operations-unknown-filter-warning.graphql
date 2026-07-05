@@ -1,0 +1,7 @@
+query BulkOperationsUnknownFilterWarning {
+  bulkOperations(first: 1, query: "made_up:value") {
+    nodes {
+      id
+    }
+  }
+}

@@ -1,0 +1,27 @@
+query ShopOwnerMetafieldsRead($namespace: String!, $key: String!) {
+  shop {
+    id
+    single: metafield(namespace: $namespace, key: $key) {
+      namespace
+      key
+      type
+      value
+      ownerType
+      owner {
+        __typename
+        ... on Shop {
+          id
+        }
+      }
+    }
+    list: metafields(first: 10, namespace: $namespace) {
+      nodes {
+        namespace
+        key
+        type
+        value
+        ownerType
+      }
+    }
+  }
+}

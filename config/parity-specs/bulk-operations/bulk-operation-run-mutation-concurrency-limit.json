@@ -1,6 +1,6 @@
 {
   "scenarioId": "bulk-operation-run-mutation-concurrency-limit",
-  "operationNames": ["bulkOperationCancel", "bulkOperationRunMutation"],
+  "operationNames": ["stagedUploadsCreate", "bulkOperationCancel", "bulkOperationRunMutation"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "runtime-staging", "side-effect-boundary"],
   "liveCaptureFiles": [
@@ -103,16 +103,56 @@
         ]
       },
       {
+        "name": "sixth-mutation-staged-upload-user-errors",
+        "capturePath": "$.successfulRuns[0].response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file-staged-upload.graphql",
+          "variables": {
+            "input": [
+              {
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "concurrency-limit-6.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "PUT",
+                "fileSize": 56
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "sixth-mutation-upload-content",
+        "capturePath": "$.scenarioId",
+        "proxyUpload": {
+          "method": "PUT",
+          "path": {
+            "fromPreviousProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": "{\"product\":{\"title\":\"Bulk mutation concurrency limit\"}}\n"
+        }
+      },
+      {
         "name": "sixth-mutation-run-operation-in-progress",
         "capturePath": "$.sixthRun.response.data.bulkOperationRunMutation",
         "proxyPath": "$.data.bulkOperationRunMutation",
+        "preserveProxyState": true,
         "proxyRequest": {
           "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-operation-in-progress.graphql",
-          "variablesCapturePath": "$.sixthRun.variables",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.sixthRun.variables.mutation"
+            },
+            "path": {
+              "fromProxyResponse": "sixth-mutation-staged-upload-user-errors",
+              "path": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
           "apiVersion": "2026-04"
         }
       }
     ]
   },
-  "notes": "Captures Shopify Admin GraphQL 2026-04 accepting five concurrent non-terminal mutation bulk operations for the app/shop and returning OPERATION_IN_PROGRESS on the sixth same-type run. The executable comparison hydrates the five captured non-terminal operations through public bulkOperationCancel requests using the captured upstream cassette, then proves the sixth-run throttle payload."
+  "notes": "Captures Shopify Admin GraphQL 2026-04 accepting five concurrent non-terminal mutation bulk operations for the app/shop and returning OPERATION_IN_PROGRESS on the sixth same-type run. The executable comparison hydrates the five captured non-terminal operations through public bulkOperationCancel requests using the captured upstream cassette, registers a local BULK_MUTATION_VARIABLES target through stagedUploadsCreate and the public staged-upload route, then proves the sixth-run throttle payload."
 }

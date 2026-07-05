@@ -1,0 +1,147 @@
+{
+  "scenarioId": "metafieldsSet-value-type-fidelity",
+  "operationNames": ["metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "value-coercion-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafieldsSet-value-type-fidelity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafieldsSet-value-type-fidelity-set.graphql",
+    "variablesCapturePath": "$.acceptedSet.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for ShopifyMetafields scalar coercion and validation message fidelity in metafieldsSet. The scenario captures accepted boolean aliases, integer decimal-zero coercion, decimal truncation to 9 places, downstream value/jsonValue readback, and INVALID_VALUE message branches for integer, money, URL, date_time, and blank JSON values. The capture creates one disposable product owner and deletes it during cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "accepted-set-coerced-values",
+        "capturePath": "$.acceptedSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "downstream-read-coerced-values",
+        "capturePath": "$.downstreamRead.response.data.product.metafields.nodes",
+        "proxyPath": "$.data.product.metafields.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldsSet-value-type-fidelity-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "integer-plus-userErrors",
+        "capturePath": "$.invalidCases.integerPlus.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.integerPlus.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "money-blank-currency-userErrors",
+        "capturePath": "$.invalidCases.moneyBlankCurrency.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.moneyBlankCurrency.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "money-amount-type-userErrors",
+        "capturePath": "$.invalidCases.moneyAmountType.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.moneyAmountType.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "money-out-of-range-userErrors",
+        "capturePath": "$.invalidCases.moneyOutOfRange.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.moneyOutOfRange.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "money-invalid-shape-userErrors",
+        "capturePath": "$.invalidCases.moneyInvalidShape.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.moneyInvalidShape.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "money-invalid-currency-userErrors",
+        "capturePath": "$.invalidCases.moneyInvalidCurrency.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.moneyInvalidCurrency.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "url-missing-scheme-userErrors",
+        "capturePath": "$.invalidCases.urlMissingScheme.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.urlMissingScheme.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "url-unsupported-scheme-userErrors",
+        "capturePath": "$.invalidCases.urlUnsupportedScheme.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.urlUnsupportedScheme.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "date-time-userErrors",
+        "capturePath": "$.invalidCases.dateTime.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.dateTime.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "json-blank-userErrors",
+        "capturePath": "$.invalidCases.jsonBlank.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.invalidCases.jsonBlank.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

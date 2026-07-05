@@ -1,0 +1,274 @@
+{
+  "proxyVariables": {
+    "input": {
+      "email": "keyed-ca-mr7fy5zc@example.com",
+      "firstName": "KeyedCanadamr7fy5zc",
+      "lastName": "Search",
+      "tags": ["keyedsearchmr7fy5zc", "keyedcanadamr7fy5zc", "VIP"],
+      "addresses": [
+        {
+          "address1": "1 King St W",
+          "city": "Toronto",
+          "provinceCode": "ON",
+          "countryCode": "CA",
+          "zip": "M5H 1A1"
+        }
+      ]
+    }
+  },
+  "canadianCreate": {
+    "query": "mutation CustomersKeyedSearchCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultAddress {\n        address1\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        formattedArea\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "keyed-ca-mr7fy5zc@example.com",
+        "firstName": "KeyedCanadamr7fy5zc",
+        "lastName": "Search",
+        "tags": ["keyedsearchmr7fy5zc", "keyedcanadamr7fy5zc", "VIP"],
+        "addresses": [
+          {
+            "address1": "1 King St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 1A1"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10900217200946",
+            "email": "keyed-ca-mr7fy5zc@example.com",
+            "firstName": "KeyedCanadamr7fy5zc",
+            "lastName": "Search",
+            "displayName": "KeyedCanadamr7fy5zc Search",
+            "state": "DISABLED",
+            "tags": ["keyedcanadamr7fy5zc", "keyedsearchmr7fy5zc", "VIP"],
+            "defaultAddress": {
+              "address1": "1 King St W",
+              "city": "Toronto",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "zip": "M5H 1A1",
+              "formattedArea": "Toronto ON, Canada"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "usCreate": {
+    "query": "mutation CustomersKeyedSearchCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultAddress {\n        address1\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        formattedArea\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "keyed-us-mr7fy5zc@example.com",
+        "firstName": "KeyedUsmr7fy5zc",
+        "lastName": "Search",
+        "tags": ["keyedsearchmr7fy5zc", "keyedusmr7fy5zc", "standard"],
+        "addresses": [
+          {
+            "address1": "600 4th Ave",
+            "city": "Seattle",
+            "provinceCode": "WA",
+            "countryCode": "US",
+            "zip": "98104"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10900217233714",
+            "email": "keyed-us-mr7fy5zc@example.com",
+            "firstName": "KeyedUsmr7fy5zc",
+            "lastName": "Search",
+            "displayName": "KeyedUsmr7fy5zc Search",
+            "state": "DISABLED",
+            "tags": ["keyedsearchmr7fy5zc", "keyedusmr7fy5zc", "standard"],
+            "defaultAddress": {
+              "address1": "600 4th Ave",
+              "city": "Seattle",
+              "province": "Washington",
+              "provinceCode": "WA",
+              "country": "United States",
+              "countryCodeV2": "US",
+              "zip": "98104",
+              "formattedArea": "Seattle WA, United States"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "searchRead": {
+    "query": "query CustomersKeyedSearchRead(\n  $countryQuery: String!\n  $stateQuery: String!\n  $defaultQuery: String!\n  $orQuery: String!\n  $exclusionQuery: String!\n) {\n  byCountry: customers(first: 10, query: $countryQuery, sortKey: NAME) {\n    nodes {\n      email\n      firstName\n      lastName\n      state\n      tags\n      defaultAddress {\n        city\n        province\n        country\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  byState: customers(first: 10, query: $stateQuery, sortKey: NAME) {\n    nodes {\n      email\n      state\n    }\n  }\n  byDefault: customers(first: 10, query: $defaultQuery, sortKey: NAME) {\n    nodes {\n      email\n    }\n  }\n  byGroupedOr: customers(first: 10, query: $orQuery, sortKey: NAME) {\n    nodes {\n      email\n      tags\n    }\n  }\n  byGroupedExclusion: customers(first: 10, query: $exclusionQuery, sortKey: NAME) {\n    nodes {\n      email\n      tags\n    }\n  }\n}\n",
+    "variables": {
+      "countryQuery": "country:Canada tag:keyedcanadamr7fy5zc",
+      "stateQuery": "state:DISABLED tag:keyedsearchmr7fy5zc",
+      "defaultQuery": "keyed-ca-mr7fy5zc@example.com",
+      "orQuery": "(tag:keyedcanadamr7fy5zc OR tag:keyedusmr7fy5zc) state:DISABLED",
+      "exclusionQuery": "tag:keyedsearchmr7fy5zc -tag:keyedcanadamr7fy5zc"
+    },
+    "response": {
+      "data": {
+        "byCountry": {
+          "nodes": [
+            {
+              "email": "keyed-ca-mr7fy5zc@example.com",
+              "firstName": "KeyedCanadamr7fy5zc",
+              "lastName": "Search",
+              "state": "DISABLED",
+              "tags": ["keyedcanadamr7fy5zc", "keyedsearchmr7fy5zc", "VIP"],
+              "defaultAddress": {
+                "city": "Toronto",
+                "province": "Ontario",
+                "country": "Canada"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "byState": {
+          "nodes": [
+            {
+              "email": "keyed-ca-mr7fy5zc@example.com",
+              "state": "DISABLED"
+            },
+            {
+              "email": "keyed-us-mr7fy5zc@example.com",
+              "state": "DISABLED"
+            }
+          ]
+        },
+        "byDefault": {
+          "nodes": [
+            {
+              "email": "keyed-ca-mr7fy5zc@example.com"
+            }
+          ]
+        },
+        "byGroupedOr": {
+          "nodes": [
+            {
+              "email": "keyed-ca-mr7fy5zc@example.com",
+              "tags": ["keyedcanadamr7fy5zc", "keyedsearchmr7fy5zc", "VIP"]
+            },
+            {
+              "email": "keyed-us-mr7fy5zc@example.com",
+              "tags": ["keyedsearchmr7fy5zc", "keyedusmr7fy5zc", "standard"]
+            }
+          ]
+        },
+        "byGroupedExclusion": {
+          "nodes": [
+            {
+              "email": "keyed-us-mr7fy5zc@example.com",
+              "tags": ["keyedsearchmr7fy5zc", "keyedusmr7fy5zc", "standard"]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "canada": {
+      "query": "#graphql\n  mutation CustomersKeyedSearchCleanup($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10900217200946"
+        }
+      },
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10900217200946",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "us": {
+      "query": "#graphql\n  mutation CustomersKeyedSearchCleanup($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10900217233714"
+        }
+      },
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10900217233714",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

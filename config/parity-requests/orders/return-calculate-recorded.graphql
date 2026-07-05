@@ -1,0 +1,41 @@
+query ReturnCalculateRecorded($input: CalculateReturnInput!) {
+  returnCalculate(input: $input) {
+    returnLineItems {
+      fulfillmentLineItem {
+        id
+        lineItem {
+          id
+          title
+        }
+      }
+      quantity
+      subtotalBeforeOrderDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      subtotalSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    returnShippingFee {
+      id
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+}
