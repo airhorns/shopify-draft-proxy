@@ -126,6 +126,66 @@ const GIFT_CARD_DEBIT_TRANSACTION: GiftCardTransactionSpec = GiftCardTransaction
     is_credit: false,
 };
 
+fn gift_card_lifecycle_base_card(id: &str, _shop_currency_code: &str) -> Value {
+    let timestamp = default_product_timestamp();
+    json!({
+        "__typename": "GiftCard",
+        "id": id,
+        "legacyResourceId": resource_id_path_tail(id),
+        "lastCharacters": null,
+        "maskedCode": null,
+        "giftCardCode": null,
+        "enabled": true,
+        "deactivatedAt": null,
+        "disabledAt": null,
+        "expiresOn": null,
+        "note": null,
+        "templateSuffix": null,
+        "createdAt": timestamp.clone(),
+        "updatedAt": timestamp,
+        "initialValue": null,
+        "balance": null,
+        "customer": null,
+        "recipientAttributes": null,
+        "transactions": connection_json(Vec::new())
+    })
+}
+
+fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
+    json!({
+        "issueLimit": money_value("3000.0", shop_currency_code),
+        "purchaseLimit": money_value("14000.0", shop_currency_code)
+    })
+}
+
+fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
+    if !card.get("transactions").is_some_and(Value::is_object) {
+        card["transactions"] = connection_json(Vec::new());
+    } else {
+        if !card["transactions"]
+            .get("nodes")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["nodes"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("edges")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["edges"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("pageInfo")
+            .is_some_and(Value::is_object)
+        {
+            card["transactions"]["pageInfo"] = empty_page_info();
+        }
+    }
+    if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
+        nodes.push(transaction);
+    }
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn gift_card_read_response(
         &mut self,
