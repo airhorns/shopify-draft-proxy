@@ -1310,7 +1310,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
-fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_values() {
+fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_values() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(
         r#"
@@ -1321,7 +1321,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
             status: ACTIVE,
             tactic: AD,
             marketingChannelType: SEARCH,
-            channelHandle: "social-feed",
+            channelHandle: "email",
             remoteUrl: "https://example.com/social-launch",
             previewUrl: "https://example.com/social-preview",
             utm: { campaign: "social-campaign", source: "social", medium: "paid" }
@@ -1374,7 +1374,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
             "marketingEvent": {
                 "id": created["marketingEvent"]["id"],
                 "remoteId": "social-remote-1",
-                "channelHandle": "social-feed",
+                "channelHandle": "email",
                 "utmCampaign": "social-campaign",
                 "utmSource": "social",
                 "utmMedium": "paid"
@@ -1528,13 +1528,12 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
-fn marketing_channel_handles_accept_non_empty_values() {
+fn marketing_unknown_channel_handles_return_captured_user_errors() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingChannelHandleAcceptance(
+        mutation MarketingChannelHandleValidation(
           $createInput: MarketingActivityCreateExternalInput!
-          $upsertInput: MarketingActivityUpsertExternalInput!
           $engagement: MarketingEngagementInput!
         ) {
           customEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
@@ -1545,40 +1544,21 @@ fn marketing_channel_handles_accept_non_empty_values() {
             marketingActivity { id }
             userErrors { field message code }
           }
-          customUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
-            marketingActivity { id }
-            userErrors { field message code }
-          }
         }
         "#,
         json!({
             "createInput": {"title": "Invalid create channel", "remoteId": "invalid-create-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-create-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-create-channel", "source": "email", "medium": "newsletter"}},
-            "upsertInput": {"title": "Invalid upsert channel", "remoteId": "invalid-upsert-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-upsert-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-upsert-channel", "source": "email", "medium": "newsletter"}},
             "engagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00"}
         }),
     ));
 
     assert_eq!(
         response.body["data"]["customEngagement"],
-        json!({"marketingEngagement": {"occurredOn": "2026-04-01"}, "userErrors": []})
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
     assert_eq!(
-        response.body["data"]["customCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        response.body["data"]["customUpsert"]["userErrors"],
-        json!([])
-    );
-    assert!(
-        response.body["data"]["customCreate"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
-    );
-    assert!(
-        response.body["data"]["customUpsert"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
+        response.body["data"]["customCreate"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
 }
 
@@ -1886,6 +1866,7 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
           $validEngagement: MarketingEngagementInput!
         ) {
           activityWithoutEvent: marketingActivityUpdate(input: $activityInput) { marketingActivity { id marketingEvent { id } } userErrors { field message } }
+          unknownChannelCurrency: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           unknownRemoteCurrency: marketingEngagementCreate(remoteId: $missingRemoteId, marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingActivity: marketingEngagementCreate(marketingActivityId: $missingActivityId, marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingEvent: marketingEngagementCreate(marketingActivityId: "gid://shopify/MarketingActivity/1", marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
@@ -1900,6 +1881,10 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
         }),
     ));
 
+    assert_eq!(
+        response.body["data"]["unknownChannelCurrency"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
     assert_eq!(
         response.body["data"]["unknownRemoteCurrency"],
         json!({"marketingEngagement": null, "userErrors": [{"field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT"}]})

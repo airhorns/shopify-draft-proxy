@@ -10928,6 +10928,38 @@ fn segment_delete_matches_shopify_validation_shapes() {
 #[test]
 fn segment_mutations_validate_inputs_without_operation_name_markers() {
     let mut proxy = snapshot_proxy();
+    let missing_create_args = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentCreateMissingNameAndQuery {
+          segmentCreate {
+            segment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_create_args.status, 200);
+    assert_eq!(missing_create_args.body.get("data"), None);
+    let missing_arg_errors = missing_create_args.body["errors"]
+        .as_array()
+        .expect("missing argument response should include top-level errors");
+    assert_eq!(missing_arg_errors.len(), 1);
+    assert_eq!(
+        missing_arg_errors[0]["message"],
+        json!("Field 'segmentCreate' is missing required arguments: name, query")
+    );
+    assert_eq!(
+        missing_arg_errors[0]["extensions"],
+        json!({
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "segmentCreate",
+            "arguments": "name, query"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
     let create_query = r#"
         mutation LocalSegmentCreate($name: String!, $query: String!) {
           segmentCreate(name: $name, query: $query) {
