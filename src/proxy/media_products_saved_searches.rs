@@ -194,13 +194,7 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selection,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_from_base(product, selection, base)
             }
             None if Self::owner_field_selects_direct_metafields(selection) => {
                 let owner_id = id.clone();
@@ -242,13 +236,7 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selection,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_from_base(product, selection, base)
             }
             None => match identifier.get("id") {
                 Some(ResolvedValue::String(id))
@@ -329,6 +317,45 @@ impl DraftProxy {
         self.store.has_product_state() || self.store.has_product_feed_state()
     }
 
+    fn product_json_with_store_currency(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+    ) -> Value {
+        product_json_with_variants_and_currency(
+            product,
+            variants,
+            selections,
+            &self.store.shop_currency_code(),
+        )
+    }
+
+    fn product_owner_json_with_store_currency(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+    ) -> Value {
+        let base = self.product_json_with_store_currency(product, variants, selections);
+        self.product_owner_json_from_base(product, selections, base)
+    }
+
+    fn product_owner_json_from_base(
+        &self,
+        product: &ProductRecord,
+        selections: &[SelectedField],
+        base: Value,
+    ) -> Value {
+        self.owner_metafield_overlay_owner_json_with_product_variants(
+            "product",
+            &product.id,
+            selections,
+            &product.variants,
+            base,
+        )
+    }
+
     pub(in crate::proxy) fn products_connection_value(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
@@ -343,19 +370,7 @@ impl DraftProxy {
             product_staged_sort_key,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = self.product_json_with_variants_and_currency_context(
-                    product,
-                    &variants,
-                    selections,
-                    &self.store.shop_currency_code(),
-                );
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selections,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_with_store_currency(product, &variants, selections)
             },
             |product| product_cursor(product).to_string(),
         )
@@ -1355,11 +1370,10 @@ impl DraftProxy {
                 "product" => Some(match self.store.product_by_id(product_id) {
                     Some(product) if user_errors.is_empty() => {
                         let variants = self.store.product_variants_for_product(product_id);
-                        self.product_json_with_variants_and_currency_context(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &selection.selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     _ => Value::Null,
@@ -2250,11 +2264,10 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        self.product_json_with_variants_and_currency_context(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &selection.selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     None => Value::Null,
@@ -2387,11 +2400,10 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        self.product_json_with_variants_and_currency_context(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &product_selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     None => Value::Null,
