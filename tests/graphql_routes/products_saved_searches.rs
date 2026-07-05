@@ -1801,6 +1801,173 @@ fn product_and_variant_media_connections_return_windowed_edges_and_page_info() {
 }
 
 #[test]
+fn product_images_and_featured_media_reflect_staged_image_media() {
+    let product_id = "gid://shopify/Product/image-fields";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("product image reads should use local state"));
+    let front_id = create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Front image");
+    let side_id = create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Side image");
+    for media_id in [&front_id, &side_id] {
+        settle_product_media_for_test(&mut proxy, product_id, media_id);
+    }
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductImageFields($id: ID!, $after: String!) {
+          product(id: $id) {
+            firstImages: images(first: 1) {
+              nodes { id url altText }
+              edges { cursor node { aliasedUrl: url aliasedAlt: altText } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            afterImages: images(first: 1, after: $after) {
+              nodes { id url altText }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            reverseImages: images(first: 1, reverse: true) {
+              nodes { id url altText }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            heroImage: featuredImage {
+              imageUrl: url
+              imageAlt: altText
+            }
+            heroMedia: featuredMedia {
+              __typename
+              ... on MediaImage {
+                mediaId: id
+                mediaAlt: alt
+                image { url }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "after": "gid://shopify/ProductImage/1" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let product = &response.body["data"]["product"];
+    assert_eq!(
+        product["firstImages"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductImage/1",
+            "url": "https://shopify-draft-proxy.local/media/mediaimage-1.png",
+            "altText": "Front image"
+        }])
+    );
+    assert_eq!(
+        product["firstImages"]["edges"],
+        json!([{
+            "cursor": "gid://shopify/ProductImage/1",
+            "node": {
+                "aliasedUrl": "https://shopify-draft-proxy.local/media/mediaimage-1.png",
+                "aliasedAlt": "Front image"
+            }
+        }])
+    );
+    assert_eq!(
+        product["firstImages"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/ProductImage/1",
+            "endCursor": "gid://shopify/ProductImage/1"
+        })
+    );
+    assert_eq!(
+        product["afterImages"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductImage/2",
+            "url": "https://shopify-draft-proxy.local/media/mediaimage-2.png",
+            "altText": "Side image"
+        }])
+    );
+    assert_eq!(
+        product["afterImages"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "gid://shopify/ProductImage/2",
+            "endCursor": "gid://shopify/ProductImage/2"
+        })
+    );
+    assert_eq!(
+        product["reverseImages"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductImage/2",
+            "url": "https://shopify-draft-proxy.local/media/mediaimage-2.png",
+            "altText": "Side image"
+        }])
+    );
+    assert_eq!(
+        product["heroImage"],
+        json!({
+            "imageUrl": "https://shopify-draft-proxy.local/media/mediaimage-1.png",
+            "imageAlt": "Front image"
+        })
+    );
+    assert_eq!(
+        product["heroMedia"],
+        json!({
+            "__typename": "MediaImage",
+            "mediaId": front_id,
+            "mediaAlt": "Front image",
+            "image": {
+                "url": "https://shopify-draft-proxy.local/media/mediaimage-1.png"
+            }
+        })
+    );
+}
+
+#[test]
+fn product_image_fields_return_empty_and_null_without_image_media() {
+    let product_id = "gid://shopify/Product/no-image-media";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("empty image reads should use local state"));
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductNoImageFields($id: ID!) {
+          product(id: $id) {
+            images(first: 10) {
+              nodes { id url altText }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            featuredImage { url altText }
+            featuredMedia { ... on MediaImage { id image { url } } }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"]["images"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["product"]["featuredImage"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["product"]["featuredMedia"],
+        Value::Null
+    );
+}
+
+#[test]
 fn product_read_serializes_only_requested_scalar_fields() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
