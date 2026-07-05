@@ -91,18 +91,10 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = product_json_with_variants_and_currency(
+            let product_json = self.product_owner_json_with_store_currency(
                 &product,
                 &variants,
                 &product_selection,
-                &self.store.shop_currency_code(),
-            );
-            let product_json = self.owner_metafield_overlay_owner_json_with_product_variants(
-                "product",
-                &product.id,
-                &product_selection,
-                &product.variants,
-                product_json,
             );
             rows.push(product_json);
 

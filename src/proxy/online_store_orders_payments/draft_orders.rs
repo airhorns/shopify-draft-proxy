@@ -6,10 +6,27 @@ pub(in crate::proxy) use self::helpers::*;
 pub(in crate::proxy) fn draft_order_create_first_line_title(
     field: &RootFieldSelection,
 ) -> Option<String> {
-    let input = resolved_object_field(&field.arguments, "input")?;
-    let line_items = resolved_object_list_field(&input, "lineItems");
-    let first_line = line_items.first()?;
-    resolved_string_field(first_line, "title")
+    resolved_object_field(&field.arguments, "input")
+        .and_then(|input| {
+            let line_items = resolved_object_list_field(&input, "lineItems");
+            let first_line = line_items.first()?;
+            resolved_string_field(first_line, "title")
+        })
+        .or_else(|| {
+            let RawArgumentValue::Object(input) = field.raw_arguments.get("input")? else {
+                return None;
+            };
+            let RawArgumentValue::List(line_items) = input.get("lineItems")? else {
+                return None;
+            };
+            let Some(RawArgumentValue::Object(first_line)) = line_items.first() else {
+                return None;
+            };
+            match first_line.get("title") {
+                Some(RawArgumentValue::String(title)) => Some(title.clone()),
+                _ => None,
+            }
+        })
 }
 
 pub(in crate::proxy) fn draft_order_input_custom_attributes(

@@ -75,15 +75,7 @@ impl DraftProxy {
                 .metafields_set_effective_type(&input, api_client_id.as_deref())
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + metafields.len()
-                + 1;
+            let index = self.next_owner_metafield_index(metafields.len());
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id: &owner_id,
@@ -875,14 +867,7 @@ impl DraftProxy {
             let metafield_type = resolved_string_field(&metafield, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + 1;
+            let index = self.next_owner_metafield_index(0);
             let record = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id,
                 namespace: &namespace,
@@ -908,21 +893,7 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base = product_json_with_variants_and_currency(
-                    product,
-                    &variants,
-                    selections,
-                    &self.store.shop_currency_code(),
-                );
-                Some(
-                    self.owner_metafield_overlay_owner_json_with_product_variants(
-                        root_field,
-                        owner_id,
-                        selections,
-                        &product.variants,
-                        base,
-                    ),
-                )
+                Some(self.product_owner_json_with_store_currency(product, &variants, selections))
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
@@ -1435,14 +1406,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&metafield_input, "value").unwrap_or_default();
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + 1;
+            let index = self.next_owner_metafield_index(0);
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id,
                 namespace: &namespace,
@@ -1466,6 +1430,19 @@ impl DraftProxy {
                 .or_default()
                 .push(metafield);
         }
+    }
+}
+
+impl DraftProxy {
+    fn next_owner_metafield_index(&self, pending_offset: usize) -> usize {
+        self.store
+            .staged
+            .owner_metafields
+            .values()
+            .map(Vec::len)
+            .sum::<usize>()
+            + pending_offset
+            + 1
     }
 }
 
