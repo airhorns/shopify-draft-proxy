@@ -4485,35 +4485,6 @@ pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction
     }
 }
 
-pub(in crate::proxy) fn backup_region_country_code_coercion_error(
-    message: &str,
-    operation_path: &str,
-    code: &str,
-    location: SourceLocation,
-) -> Value {
-    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
-    if code == "missingRequiredInputObjectAttribute" {
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
-        extensions.insert(
-            "inputObjectType".to_string(),
-            json!("BackupRegionUpdateInput"),
-        );
-    } else {
-        extensions.insert("typeName".to_string(), json!("InputObject"));
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-    }
-
-    json!({
-        "errors": [{
-            "message": message,
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
-            "extensions": extensions
-        }]
-    })
-}
-
 pub(in crate::proxy) fn merge_shipping_package_input(
     package: &mut Value,
     input: &BTreeMap<String, ResolvedValue>,

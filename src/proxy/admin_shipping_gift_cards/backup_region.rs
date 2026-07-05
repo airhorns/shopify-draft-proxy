@@ -47,6 +47,11 @@ impl DraftProxy {
             .as_ref()
             .map(|document| document.operation_path.as_str())
             .unwrap_or("mutation");
+        let access_denied_location = root_field
+            .map(|field| field.location)
+            .unwrap_or(SourceLocation { line: 1, column: 1 });
+        let access_denied_body =
+            || backup_region_update_access_denied_body(&response_key, access_denied_location);
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
             BackupRegionCountryCodeInput::CountryCode(country_code) => {
@@ -82,28 +87,18 @@ impl DraftProxy {
             }
         };
         if self.backup_region_update_lacks_markets_access(request) {
-            return ok_json(backup_region_update_access_denied_body(
-                &response_key,
-                root_field
-                    .map(|field| field.location)
-                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
-            ));
+            return ok_json(access_denied_body());
         }
+        let hydrate_current = Self::hydrate_current_backup_region_from_upstream;
+        let hydrate_markets = Self::hydrate_backup_region_markets_from_upstream;
 
         let region = match country_code.as_deref() {
             None => {
                 if self.store.staged.backup_region.is_null()
                     && self.config.read_mode != ReadMode::Snapshot
+                    && self.hydrate_access_denied(request, hydrate_current)
                 {
-                    let hydrate = self.hydrate_current_backup_region_from_upstream(request);
-                    if backup_region_response_is_access_denied(&hydrate.body) {
-                        return ok_json(backup_region_update_access_denied_body(
-                            &response_key,
-                            root_field
-                                .map(|field| field.location)
-                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                        ));
-                    }
+                    return ok_json(access_denied_body());
                 }
                 (!self.store.staged.backup_region.is_null())
                     .then(|| self.store.staged.backup_region.clone())
@@ -111,30 +106,17 @@ impl DraftProxy {
             Some(code) => {
                 let mut region = self.backup_region_country_for_code(code);
                 if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
-                    let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
-                    if backup_region_response_is_access_denied(&hydrate.body) {
-                        return ok_json(backup_region_update_access_denied_body(
-                            &response_key,
-                            root_field
-                                .map(|field| field.location)
-                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                        ));
+                    if self.hydrate_access_denied(request, hydrate_markets) {
+                        return ok_json(access_denied_body());
                     }
                     region = self.backup_region_country_for_code(code);
                 }
                 if region.is_none() {
                     if self.store.staged.backup_region.is_null()
                         && self.config.read_mode != ReadMode::Snapshot
+                        && self.hydrate_access_denied(request, hydrate_current)
                     {
-                        let hydrate = self.hydrate_current_backup_region_from_upstream(request);
-                        if backup_region_response_is_access_denied(&hydrate.body) {
-                            return ok_json(backup_region_update_access_denied_body(
-                                &response_key,
-                                root_field
-                                    .map(|field| field.location)
-                                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                            ));
-                        }
+                        return ok_json(access_denied_body());
                     }
                     region = self.current_backup_region_for_code(code);
                 }
@@ -227,19 +209,18 @@ impl DraftProxy {
             return (self.store.staged.backup_region["code"].as_str() == Some(country_code))
                 .then(|| self.store.staged.backup_region.clone());
         }
-        let current_code = self.current_backup_region_country_code()?;
+        let shop = self.store.effective_shop();
+        let current_code = shop_country_code(&shop).map(str::to_ascii_uppercase)?;
         (current_code == country_code).then(|| backup_region_country_from_code(country_code))
     }
 
-    fn current_backup_region_country_code(&self) -> Option<String> {
-        let shop = self.store.effective_shop();
-        shop.pointer("/shopAddress/countryCodeV2")
-            .and_then(Value::as_str)
-            .or_else(|| {
-                shop.pointer("/shopAddress/countryCode")
-                    .and_then(Value::as_str)
-            })
-            .map(str::to_ascii_uppercase)
+    fn hydrate_access_denied(
+        &mut self,
+        request: &Request,
+        hydrate: fn(&mut Self, &Request) -> Response,
+    ) -> bool {
+        let hydrate = hydrate(self, request);
+        backup_region_response_is_access_denied(&hydrate.body)
     }
 
     pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
@@ -294,6 +275,35 @@ fn backup_region_update_access_denied_body(response_key: &str, location: SourceL
             "path": [response_key]
         }],
         "data": { response_key: null }
+    })
+}
+
+fn backup_region_country_code_coercion_error(
+    message: &str,
+    operation_path: &str,
+    code: &str,
+    location: SourceLocation,
+) -> Value {
+    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
+    if code == "missingRequiredInputObjectAttribute" {
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
+        extensions.insert(
+            "inputObjectType".to_string(),
+            json!("BackupRegionUpdateInput"),
+        );
+    } else {
+        extensions.insert("typeName".to_string(), json!("InputObject"));
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+    }
+
+    json!({
+        "errors": [{
+            "message": message,
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
+            "extensions": extensions
+        }]
     })
 }
 
