@@ -1179,16 +1179,7 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
 }
 
 fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
-    match field.arguments.get("deliveryMethodTypes") {
-        Some(ResolvedValue::List(values)) => values
-            .iter()
-            .filter_map(|value| match value {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_string_field(&field.arguments, "deliveryMethodTypes")
 }
 
 fn fulfillment_constraint_rule_delivery_method_error(

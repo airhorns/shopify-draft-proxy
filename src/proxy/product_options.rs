@@ -916,7 +916,7 @@ fn option_extra_fields(input: &BTreeMap<String, ResolvedValue>) -> BTreeMap<Stri
     if let Some(linked_metafield) = resolved_object_field(input, "linkedMetafield") {
         fields.insert(
             "linkedMetafield".to_string(),
-            resolved_object_json(&linked_metafield),
+            resolved_variables_json(&linked_metafield),
         );
     }
     fields
@@ -1623,17 +1623,5 @@ fn variant_sort_key(variant: &ProductVariantRecord, graph: &ProductOptionGraph) 
 }
 
 fn resolved_variant_strategy(variables: &BTreeMap<String, ResolvedValue>) -> Option<String> {
-    match variables.get("variantStrategy") {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
-
-fn resolved_object_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    Value::Object(
-        input
-            .iter()
-            .map(|(key, value)| (key.clone(), resolved_value_json(value)))
-            .collect(),
-    )
+    resolved_string_field(variables, "variantStrategy")
 }
