@@ -1,0 +1,12 @@
+mutation ShopFeedbackFoobarState {
+  shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }) {
+    feedback {
+      state
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -310,13 +310,13 @@ pub(in crate::proxy) fn length_user_error(
     field_name: &str,
     bound: LengthUserErrorBound,
 ) -> Value {
-    let (message, code) = match bound {
-        LengthUserErrorBound::TooLong { maximum } => (
-            too_long_message(field_name, maximum),
-            TOO_LONG_USER_ERROR_CODE,
+    match bound {
+        LengthUserErrorBound::TooLong { maximum } => user_error(
+            field,
+            &too_long_message(field_name, maximum),
+            Some(TOO_LONG_USER_ERROR_CODE),
         ),
-    };
-    user_error(field, &message, Some(code))
+    }
 }
 
 pub(in crate::proxy) fn max_input_size_exceeded_error(
@@ -542,18 +542,21 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
                 context,
             ));
         }
-        for (argument_name, argument_schema) in arguments {
-            if argument_schema.type_ref.non_null
-                && !argument_schema.has_default
-                && !field.raw_arguments.contains_key(argument_name)
-            {
-                errors.push(required_root_argument_error(
-                    field,
-                    argument_name,
-                    &argument_schema.type_ref,
-                    context,
-                ));
-            }
+        let missing_required_arguments = arguments
+            .iter()
+            .filter(|(argument_name, argument_schema)| {
+                argument_schema.type_ref.non_null
+                    && !argument_schema.has_default
+                    && !field.raw_arguments.contains_key(*argument_name)
+            })
+            .map(|(argument_name, _)| argument_name.as_str())
+            .collect::<Vec<_>>();
+        if !missing_required_arguments.is_empty() {
+            errors.push(required_root_arguments_error(
+                field,
+                &missing_required_arguments,
+                context,
+            ));
         }
     }
     for error in product_feed_required_input_errors(&document) {
@@ -2221,15 +2224,15 @@ fn root_argument_not_accepted_error(
     })
 }
 
-fn required_root_argument_error(
+fn required_root_arguments_error(
     field: &RootFieldSelection,
-    argument_name: &str,
-    _type_ref: &SchemaTypeRef,
+    argument_names: &[&str],
     context: ValidationContext<'_>,
 ) -> Value {
+    let arguments = argument_names.join(", ");
     missing_required_arguments_error(
         &field.name,
-        argument_name,
+        &arguments,
         context.field_location,
         vec![json!(context.operation_path), json!(context.response_key)],
     )

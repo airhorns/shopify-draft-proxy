@@ -1,6 +1,37 @@
 use super::*;
 use crate::graphql::ParsedDocument;
 
+fn segment_gid_tail_sort_value(segment: &Value) -> StagedSortValue {
+    let tail = segment
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn segment_string_sort_value(segment: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        segment
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn segment_staged_sort_key(segment: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key {
+        Some("CREATION_DATE") => segment_string_sort_value(segment, "creationDate"),
+        Some("LAST_EDIT_DATE") => segment_string_sort_value(segment, "lastEditDate"),
+        None | Some("ID") | Some("RELEVANCE") => segment_gid_tail_sort_value(segment),
+        Some(_) => segment_gid_tail_sort_value(segment),
+    };
+    vec![primary, segment_gid_tail_sort_value(segment)]
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
         &self,
@@ -81,10 +112,13 @@ impl DraftProxy {
                             .values()
                             .cloned()
                             .collect::<Vec<_>>();
-                        selected_connection_json_with_args(
+                        selected_staged_connection_with_args(
                             records,
                             &field.arguments,
                             &field.selection,
+                            |_, _| StagedSearchDecision::Match,
+                            segment_staged_sort_key,
+                            selected_json,
                             value_id_cursor,
                         )
                     }
@@ -463,6 +497,51 @@ fn segment_catalog_root(name: &str) -> bool {
             | "segmentValueSuggestions"
             | "segmentMigrations"
     )
+}
+
+pub(in crate::proxy) fn segment_payload_json(
+    segment: Value,
+    deleted_segment_id: Value,
+    payload_selection: &[SelectedField],
+    segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "segment" => Some(if segment.is_null() {
+                Value::Null
+            } else {
+                selected_json(&segment, segment_selection)
+            }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn customer_segment_members_query_payload_json(
+    query_record: Value,
+    payload_selection: &[SelectedField],
+    query_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&query_record, query_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
 }
 
 fn segment_user_error(field: Value, message: &str) -> Value {

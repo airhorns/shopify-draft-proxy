@@ -66,58 +66,21 @@ pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
     Vec::new()
 }
 
-pub(in crate::proxy) fn b2b_company_create_validation_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-    companies: &BTreeMap<String, Value>,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
-    if let Some(name) = resolved_string_field(input, "name") {
-        // Shopify strips HTML tags before validating, so a name that is only
-        // markup/whitespace (e.g. "<b>  </b>") collapses to blank and is rejected.
-        if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
-        } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    if let Some(external_id) = resolved_string_field(input, "externalId") {
-        errors.extend(b2b_external_id_errors(
-            &external_id,
-            vec!["input", "company", "externalId"],
-            companies,
-            None,
-        ));
-    }
-    if let Some(note) = resolved_string_field(input, "note") {
-        if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    errors
+#[derive(Clone, Copy)]
+enum B2bCompanyValidationMode<'a> {
+    Create,
+    Update { current_company_id: &'a str },
 }
 
-pub(in crate::proxy) fn b2b_company_update_validation_errors(
+fn b2b_company_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     companies: &BTreeMap<String, Value>,
-    current_company_id: &str,
+    mode: B2bCompanyValidationMode<'_>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    if input.contains_key("customerSince") {
+    if matches!(mode, B2bCompanyValidationMode::Update { .. })
+        && input.contains_key("customerSince")
+    {
         errors.push(b2b_company_user_error(
             vec!["input", "customerSince"],
             "This field may only be set on creation.",
@@ -126,41 +89,56 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(name) = resolved_string_field(input, "name") {
+        // Shopify strips HTML tags before validating, so a name that is only
+        // markup/whitespace (e.g. "<b>  </b>") collapses to blank and is rejected.
         if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
+            let mut error =
+                presence_user_error(b2b_company_validation_field_path(mode, "name"), "Name");
+            error["detail"] = Value::Null;
+            errors.push(error);
         } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+            let mut error = length_user_error(
+                b2b_company_validation_field_path(mode, "name"),
+                "Name",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     if let Some(external_id) = resolved_string_field(input, "externalId") {
         errors.extend(b2b_external_id_errors(
             &external_id,
-            vec!["input", "externalId"],
+            b2b_company_validation_field_path(mode, "externalId"),
             companies,
-            Some(current_company_id),
+            match mode {
+                B2bCompanyValidationMode::Create => None,
+                B2bCompanyValidationMode::Update { current_company_id } => Some(current_company_id),
+            },
         ));
     }
     if let Some(note) = resolved_string_field(input, "note") {
         if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+            let mut error = length_user_error(
+                b2b_company_validation_field_path(mode, "notes"),
+                "Notes",
+                LengthUserErrorBound::TooLong { maximum: 5000 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     errors
+}
+
+fn b2b_company_validation_field_path(
+    mode: B2bCompanyValidationMode<'_>,
+    field: &'static str,
+) -> Vec<&'static str> {
+    match mode {
+        B2bCompanyValidationMode::Create => vec!["input", "company", field],
+        B2bCompanyValidationMode::Update { .. } => vec!["input", field],
+    }
 }
 
 pub(in crate::proxy) fn b2b_external_id_errors(
@@ -377,14 +355,16 @@ struct B2bOrderAggregate {
 
 type B2bCompanyPayloadHandler =
     fn(&mut DraftProxy, &RootFieldSelection) -> (Value, &'static str, Vec<String>);
-type B2bPassthroughCascadeArgs<'a> = (
-    &'a Request,
-    &'a str,
-    &'a BTreeMap<String, ResolvedValue>,
-    OperationType,
-    &'a [String],
-    &'a str,
-);
+
+#[derive(Clone, Copy)]
+struct B2bPassthroughCascadeArgs<'a> {
+    request: &'a Request,
+    query: &'a str,
+    variables: &'a BTreeMap<String, ResolvedValue>,
+    operation_type: OperationType,
+    parsed_root_fields: &'a [String],
+    root_field: &'a str,
+}
 
 const B2B_BULK_ACTIONS_MAX_SIZE: usize = 50;
 const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
@@ -478,6 +458,32 @@ fn b2b_null_when_failed(status: &str, value: Value) -> Value {
     }
 }
 
+fn b2b_passthrough_cascade_args<'a>(
+    request: &'a Request,
+    query: &'a str,
+    variables: &'a BTreeMap<String, ResolvedValue>,
+    operation_type: OperationType,
+    parsed_root_fields: &'a [String],
+    root_field: &'a str,
+) -> B2bPassthroughCascadeArgs<'a> {
+    B2bPassthroughCascadeArgs {
+        request,
+        query,
+        variables,
+        operation_type,
+        parsed_root_fields,
+        root_field,
+    }
+}
+
+fn b2b_resolved_id_argument(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    primary_name: &str,
+) -> Option<String> {
+    resolved_string_field(arguments, primary_name)
+        .or_else(|| resolved_string_field(arguments, "id"))
+}
+
 impl DraftProxy {
     fn b2b_passthrough_cascade<Extracted, Extract, Cascade>(
         &mut self,
@@ -489,15 +495,14 @@ impl DraftProxy {
         Extract: FnOnce(&[RootFieldSelection]) -> Extracted,
         Cascade: FnOnce(&mut Self, Extracted, &Response),
     {
-        let (request, query, variables, operation_type, parsed_root_fields, root_field) = args;
-        let extracted = root_fields(query, variables).map(|fields| extract(&fields));
+        let extracted = root_fields(args.query, args.variables).map(|fields| extract(&fields));
         let response = self.dispatch_unknown_passthrough_or_legacy_error(
-            request,
-            query,
-            variables,
-            operation_type,
-            parsed_root_fields,
-            root_field,
+            args.request,
+            args.query,
+            args.variables,
+            args.operation_type,
+            args.parsed_root_fields,
+            args.root_field,
         );
         if let Some(extracted) = extracted {
             cascade(self, extracted, &response);
@@ -1022,8 +1027,11 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
-        let errors =
-            b2b_company_create_validation_errors(&company_input, &self.store.staged.b2b_companies);
+        let errors = b2b_company_validation_errors(
+            &company_input,
+            &self.store.staged.b2b_companies,
+            B2bCompanyValidationMode::Create,
+        );
         if !errors.is_empty() {
             return failed_payload_outcome(b2b_company_payload(None, errors));
         }
@@ -1230,10 +1238,12 @@ impl DraftProxy {
                 )],
             ));
         }
-        let errors = b2b_company_update_validation_errors(
+        let errors = b2b_company_validation_errors(
             &input,
             &self.store.staged.b2b_companies,
-            &company_id,
+            B2bCompanyValidationMode::Update {
+                current_company_id: &company_id,
+            },
         );
         if !errors.is_empty() {
             return failed_payload_outcome(b2b_company_payload(None, errors));
@@ -1381,15 +1391,9 @@ impl DraftProxy {
         if resolved_string_field(&input, "name")
             .is_some_and(|name| b2b_strip_html_tags(&name).trim().is_empty())
         {
-            return failed_payload_outcome(b2b_company_location_payload(
-                None,
-                vec![b2b_company_user_error(
-                    vec!["input", "name"],
-                    "Name can't be blank",
-                    BLANK_USER_ERROR_CODE,
-                    None,
-                )],
-            ));
+            let mut error = presence_user_error(vec!["input", "name"], "Name");
+            error["detail"] = Value::Null;
+            return failed_payload_outcome(b2b_company_location_payload(None, vec![error]));
         }
 
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
@@ -2924,7 +2928,7 @@ impl DraftProxy {
             &field.arguments,
             &field.selection,
             b2b_company_search_decision,
-            b2b_company_sort_key,
+            b2b_company_resource_sort_key,
             |company, selections| self.b2b_company_selected_json(company, selections),
             value_id_cursor,
         )
@@ -2946,7 +2950,7 @@ impl DraftProxy {
             &field.arguments,
             &field.selection,
             b2b_company_location_search_decision,
-            b2b_company_location_sort_key,
+            b2b_company_resource_sort_key,
             |location, selections| self.b2b_company_location_selected_json(location, selections),
             value_id_cursor,
         )
@@ -3057,7 +3061,14 @@ impl DraftProxy {
             .staged
             .markets
             .values()
-            .find(|market| b2b_value_contains_company_location_id(market, location_id))
+            .find(|market| {
+                b2b_value_contains_resource_id(
+                    market,
+                    location_id,
+                    B2B_COMPANY_LOCATION_ID_FIELDS,
+                    B2B_COMPANY_LOCATION_OBJECT_FIELDS,
+                )
+            })
             .map(|market| selected_json(market, selections))
             .unwrap_or(Value::Null)
     }
@@ -3519,7 +3530,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_success_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3563,7 +3574,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_success_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3575,10 +3586,7 @@ impl DraftProxy {
                 fields
                     .iter()
                     .filter(|field| field.name == "companyAddressDelete")
-                    .filter_map(|field| {
-                        resolved_string_field(&field.arguments, "addressId")
-                            .or_else(|| resolved_string_field(&field.arguments, "id"))
-                    })
+                    .filter_map(|field| b2b_resolved_id_argument(&field.arguments, "addressId"))
                     .collect::<Vec<String>>()
             },
             |proxy, address_ids, _| {
@@ -3627,7 +3635,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_success_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3687,7 +3695,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_success_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3723,7 +3731,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_success_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3757,7 +3765,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_deleted_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3791,7 +3799,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_deleted_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -3804,8 +3812,7 @@ impl DraftProxy {
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
                         "companyLocationDelete" => {
-                            resolved_string_field(&field.arguments, "companyLocationId")
-                                .or_else(|| resolved_string_field(&field.arguments, "id"))
+                            b2b_resolved_id_argument(&field.arguments, "companyLocationId")
                                 .into_iter()
                                 .collect::<Vec<String>>()
                         }
@@ -3830,7 +3837,7 @@ impl DraftProxy {
         root_field: &str,
     ) -> Response {
         self.b2b_passthrough_with_deleted_cascade(
-            (
+            b2b_passthrough_cascade_args(
                 request,
                 query,
                 variables,
@@ -4021,12 +4028,13 @@ fn b2b_location_input_errors(
         if name.chars().count() > 255 {
             let mut field = prefix.to_vec();
             field.push("name");
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 field,
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
-                None,
-            ));
+                "Name",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     if let Some(phone) = resolved_string_field(input, "phone") {
@@ -4127,11 +4135,13 @@ fn b2b_address_input_errors(
         None => None,
     };
 
-    if let Some((country_code, zones)) = country {
+    if let Some(country_code) = country {
         // Zone: only validated when the country publishes subdivisions (e.g. SG
         // has none) and a zoneCode was supplied.
         if let Some(zone_code) = resolved_string_field(address, "zoneCode") {
-            if !zones.is_empty() && b2b_zone_name_by_code(zones, &zone_code).is_none() {
+            if b2b_country_has_zone_catalog(country_code)
+                && b2b_zone_name_by_code(country_code, &zone_code).is_none()
+            {
                 let mut field = prefix.to_vec();
                 field.push("zoneCode");
                 errors.push(b2b_company_user_error(
@@ -4188,32 +4198,27 @@ fn b2b_address_input_errors(
     errors
 }
 
-/// Empty subdivision list for countries with no zone catalog (e.g. Singapore).
-const B2B_NO_ZONES: &[(&str, &str)] = &[];
-
-/// The supported B2B country catalog: a country code resolves to its canonical
-/// code and subdivision (zone) list. Countries outside this set are reported as
-/// invalid, matching the captured live-Admin validation boundary for the B2B
-/// address scenarios.
-fn b2b_country_catalog_by_code(
-    code: &str,
-) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
-    match code.to_ascii_uppercase().as_str() {
-        "CA" => Some(("CA", B2B_CANADA_ZONES)),
-        "US" => Some(("US", B2B_UNITED_STATES_ZONES)),
-        "SG" => Some(("SG", B2B_NO_ZONES)),
-        _ => None,
-    }
+/// B2B address validation currently accepts the captured live-Admin country
+/// boundary while sourcing known display names from the shared location module.
+fn b2b_country_catalog_by_code(code: &str) -> Option<&'static str> {
+    let country_code = match code.to_ascii_uppercase().as_str() {
+        "CA" => "CA",
+        "US" => "US",
+        "SG" => "SG",
+        _ => return None,
+    };
+    country_name_for_code(country_code)?;
+    Some(country_code)
 }
 
-/// Resolves a zone code (case-insensitively) to its subdivision name, or `None`
-/// when the code is not a subdivision of the country.
-fn b2b_zone_name_by_code<'a>(zones: &'a [(&str, &str)], code: &str) -> Option<&'a str> {
-    let normalized = code.to_ascii_uppercase();
-    zones
-        .iter()
-        .find(|(zone_code, _)| *zone_code == normalized)
-        .map(|(_, name)| *name)
+fn b2b_country_has_zone_catalog(country_code: &str) -> bool {
+    matches!(country_code, "CA" | "US")
+}
+
+/// Resolves a zone code (case-insensitively) through the shared province table,
+/// or `None` when the code is not a subdivision of the country.
+fn b2b_zone_name_by_code(country_code: &str, code: &str) -> Option<&'static str> {
+    province_name_for_code(country_code, &code.to_ascii_uppercase())
 }
 
 /// Validates a postal code's shape against the country (and, for the US, the
@@ -4322,78 +4327,6 @@ fn b2b_contains_emoji(value: &str) -> bool {
     })
 }
 
-/// Canada subdivision (province/territory) catalog.
-const B2B_CANADA_ZONES: &[(&str, &str)] = &[
-    ("AB", "Alberta"),
-    ("BC", "British Columbia"),
-    ("MB", "Manitoba"),
-    ("NB", "New Brunswick"),
-    ("NL", "Newfoundland and Labrador"),
-    ("NT", "Northwest Territories"),
-    ("NS", "Nova Scotia"),
-    ("NU", "Nunavut"),
-    ("ON", "Ontario"),
-    ("PE", "Prince Edward Island"),
-    ("QC", "Quebec"),
-    ("SK", "Saskatchewan"),
-    ("YT", "Yukon"),
-];
-
-/// United States subdivision (state/territory) catalog.
-const B2B_UNITED_STATES_ZONES: &[(&str, &str)] = &[
-    ("AL", "Alabama"),
-    ("AK", "Alaska"),
-    ("AZ", "Arizona"),
-    ("AR", "Arkansas"),
-    ("CA", "California"),
-    ("CO", "Colorado"),
-    ("CT", "Connecticut"),
-    ("DE", "Delaware"),
-    ("DC", "District of Columbia"),
-    ("FL", "Florida"),
-    ("GA", "Georgia"),
-    ("HI", "Hawaii"),
-    ("ID", "Idaho"),
-    ("IL", "Illinois"),
-    ("IN", "Indiana"),
-    ("IA", "Iowa"),
-    ("KS", "Kansas"),
-    ("KY", "Kentucky"),
-    ("LA", "Louisiana"),
-    ("ME", "Maine"),
-    ("MD", "Maryland"),
-    ("MA", "Massachusetts"),
-    ("MI", "Michigan"),
-    ("MN", "Minnesota"),
-    ("MS", "Mississippi"),
-    ("MO", "Missouri"),
-    ("MT", "Montana"),
-    ("NE", "Nebraska"),
-    ("NV", "Nevada"),
-    ("NH", "New Hampshire"),
-    ("NJ", "New Jersey"),
-    ("NM", "New Mexico"),
-    ("NY", "New York"),
-    ("NC", "North Carolina"),
-    ("ND", "North Dakota"),
-    ("OH", "Ohio"),
-    ("OK", "Oklahoma"),
-    ("OR", "Oregon"),
-    ("PA", "Pennsylvania"),
-    ("RI", "Rhode Island"),
-    ("SC", "South Carolina"),
-    ("SD", "South Dakota"),
-    ("TN", "Tennessee"),
-    ("TX", "Texas"),
-    ("UT", "Utah"),
-    ("VT", "Vermont"),
-    ("VA", "Virginia"),
-    ("WA", "Washington"),
-    ("WV", "West Virginia"),
-    ("WI", "Wisconsin"),
-    ("WY", "Wyoming"),
-];
-
 /// Validation for a CompanyContactInput supplied to companyCreate (nested under
 /// `["input","companyContact"]`). Missing email rejects the nested contact
 /// before the company tree is staged. A malformed email surfaces as
@@ -4412,7 +4345,7 @@ fn b2b_contact_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             let mut field = prefix.to_vec();
             field.push("email");
             errors.push(b2b_company_user_error(
@@ -4470,9 +4403,7 @@ fn b2b_company_location_input_currency_code(
 fn b2b_address_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(input, "countryCode")
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
-        .and_then(|code| {
-            b2b_country_catalog_by_code(&code).map(|(country_code, _)| country_code.to_string())
-        })
+        .and_then(|code| b2b_country_catalog_by_code(&code).map(str::to_string))
 }
 
 fn b2b_company_location_currency_code(location: &Value, default_currency_code: &str) -> String {
@@ -4485,7 +4416,7 @@ fn b2b_company_location_currency_code(location: &Value, default_currency_code: &
 }
 
 fn b2b_country_currency_code(country_code: &str) -> Option<&'static str> {
-    match b2b_country_catalog_by_code(country_code)?.0 {
+    match b2b_country_catalog_by_code(country_code)? {
         "CA" => Some("CAD"),
         "SG" => Some("SGD"),
         "US" => Some("USD"),
@@ -4505,8 +4436,7 @@ fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
 }
 
 fn b2b_address_record_country_code(address: &Value) -> Option<&str> {
-    value_country_code(address)
-        .and_then(|code| b2b_country_catalog_by_code(code).map(|(country_code, _)| country_code))
+    value_country_code(address).and_then(b2b_country_catalog_by_code)
 }
 
 fn b2b_customer_record_country_code(customer: &Value) -> Option<&str> {
@@ -4695,7 +4625,7 @@ fn b2b_contact_create_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             errors.push(user_error(
                 json!(field_path("email")),
                 "Email is invalid",
@@ -4719,37 +4649,48 @@ fn b2b_missing_contact_customer_reference_error(field: Vec<&str>) -> Value {
 /// its purchasing entity (directly, or through a draft order's nested completed
 /// order) — i.e. the company is still in use and cannot be deleted.
 fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
-    b2b_record_references(record, company_id, b2b_value_contains_company_id)
+    b2b_record_references(
+        record,
+        company_id,
+        B2B_COMPANY_ID_FIELDS,
+        B2B_COMPANY_OBJECT_FIELDS,
+    )
 }
 
 /// True when a staged order/draft-order record references the given company
 /// location through its purchasing entity.
 fn b2b_record_references_company_location(record: &Value, location_id: &str) -> bool {
-    b2b_record_references(record, location_id, b2b_value_contains_company_location_id)
+    b2b_record_references(
+        record,
+        location_id,
+        B2B_COMPANY_LOCATION_ID_FIELDS,
+        B2B_COMPANY_LOCATION_OBJECT_FIELDS,
+    )
 }
 
-fn b2b_record_references<F>(record: &Value, id: &str, contains_id: F) -> bool
-where
-    F: Fn(&Value, &str) -> bool,
-{
-    if contains_id(record, id) {
+fn b2b_record_references(
+    record: &Value,
+    id: &str,
+    direct_id_fields: &[&str],
+    nested_id_object_fields: &[&str],
+) -> bool {
+    if b2b_value_contains_resource_id(record, id, direct_id_fields, nested_id_object_fields) {
         return true;
     }
     if let Some(entity) = record.get("purchasingEntity") {
-        if contains_id(entity, id) {
+        if b2b_value_contains_resource_id(entity, id, direct_id_fields, nested_id_object_fields) {
             return true;
         }
     }
     if let Some(entity) = record.get("__draftProxyPurchasingEntity") {
-        if contains_id(entity, id) {
+        if b2b_value_contains_resource_id(entity, id, direct_id_fields, nested_id_object_fields) {
             return true;
         }
     }
     if let Some(order) = record.get("order") {
-        if order
-            .get("purchasingEntity")
-            .is_some_and(|entity| contains_id(entity, id))
-        {
+        if order.get("purchasingEntity").is_some_and(|entity| {
+            b2b_value_contains_resource_id(entity, id, direct_id_fields, nested_id_object_fields)
+        }) {
             return true;
         }
     }
@@ -4772,65 +4713,53 @@ fn b2b_order_total_money(order: &Value) -> Option<(f64, String)> {
     })
 }
 
-/// Recursively searches a value for a reference to a company id, matching a
-/// `companyId` field, a nested `company.id`, or the bare id as a string.
-fn b2b_value_contains_company_id(value: &Value, company_id: &str) -> bool {
-    match value {
-        Value::Object(map) => {
-            if map.get("companyId").and_then(Value::as_str) == Some(company_id) {
-                return true;
-            }
-            if map
-                .get("company")
-                .and_then(|company| company.get("id"))
-                .and_then(Value::as_str)
-                == Some(company_id)
-            {
-                return true;
-            }
-            map.values()
-                .any(|value| b2b_value_contains_company_id(value, company_id))
-        }
-        Value::Array(items) => items
-            .iter()
-            .any(|item| b2b_value_contains_company_id(item, company_id)),
-        Value::String(string) => string == company_id,
-        _ => false,
-    }
-}
+const B2B_COMPANY_ID_FIELDS: &[&str] = &["companyId"];
+const B2B_COMPANY_OBJECT_FIELDS: &[&str] = &["company"];
+const B2B_COMPANY_LOCATION_ID_FIELDS: &[&str] = &["companyLocationId"];
+const B2B_COMPANY_LOCATION_OBJECT_FIELDS: &[&str] = &["location", "companyLocation"];
 
-/// Recursively searches a purchasing entity for a company-location reference,
-/// covering both public input (`companyLocationId`) and staged read shapes
-/// (`location.id` / `companyLocation.id`).
-fn b2b_value_contains_company_location_id(value: &Value, location_id: &str) -> bool {
+/// Recursively searches a value for a resource id, matching configured direct id
+/// fields, configured nested object `id` fields, or the bare id as a string.
+fn b2b_value_contains_resource_id(
+    value: &Value,
+    resource_id: &str,
+    direct_id_fields: &[&str],
+    nested_id_object_fields: &[&str],
+) -> bool {
     match value {
         Value::Object(map) => {
-            if map.get("companyLocationId").and_then(Value::as_str) == Some(location_id) {
-                return true;
-            }
-            if map
-                .get("location")
-                .and_then(|location| location.get("id"))
-                .and_then(Value::as_str)
-                == Some(location_id)
+            if direct_id_fields
+                .iter()
+                .any(|field| map.get(*field).and_then(Value::as_str) == Some(resource_id))
             {
                 return true;
             }
-            if map
-                .get("companyLocation")
-                .and_then(|location| location.get("id"))
-                .and_then(Value::as_str)
-                == Some(location_id)
-            {
+            if nested_id_object_fields.iter().any(|field| {
+                map.get(*field)
+                    .and_then(|resource| resource.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(resource_id)
+            }) {
                 return true;
             }
-            map.values()
-                .any(|value| b2b_value_contains_company_location_id(value, location_id))
+            map.values().any(|value| {
+                b2b_value_contains_resource_id(
+                    value,
+                    resource_id,
+                    direct_id_fields,
+                    nested_id_object_fields,
+                )
+            })
         }
-        Value::Array(items) => items
-            .iter()
-            .any(|item| b2b_value_contains_company_location_id(item, location_id)),
-        Value::String(string) => string == location_id,
+        Value::Array(items) => items.iter().any(|item| {
+            b2b_value_contains_resource_id(
+                item,
+                resource_id,
+                direct_id_fields,
+                nested_id_object_fields,
+            )
+        }),
+        Value::String(string) => string == resource_id,
         _ => false,
     }
 }
@@ -5113,7 +5042,7 @@ fn b2b_nested_connection_sort_key(
     sort_key: Option<&str>,
 ) -> StagedSortKey {
     match id_list_field {
-        "locationIds" => b2b_company_location_sort_key(record, sort_key),
+        "locationIds" => b2b_company_resource_sort_key(record, sort_key),
         "contactIds" => b2b_company_contact_sort_key(record, sort_key),
         "contactRoleIds" => b2b_company_contact_role_sort_key(record, sort_key),
         "roleAssignmentIds" => b2b_role_assignment_sort_key(record, sort_key),
@@ -5122,25 +5051,12 @@ fn b2b_nested_connection_sort_key(
     }
 }
 
-fn b2b_company_sort_key(company: &Value, sort_key: Option<&str>) -> StagedSortKey {
+fn b2b_company_resource_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
     match b2b_normalized_sort_key(sort_key).as_str() {
-        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(company, "name"), company),
-        "CREATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(company, "createdAt"), company),
-        "UPDATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(company, "updatedAt"), company),
-        _ => b2b_id_sort_key(company),
-    }
-}
-
-fn b2b_company_location_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
-    match b2b_normalized_sort_key(sort_key).as_str() {
-        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(location, "name"), location),
-        "CREATED_AT" => {
-            b2b_sort_key_with_id(b2b_string_sort_value(location, "createdAt"), location)
-        }
-        "UPDATED_AT" => {
-            b2b_sort_key_with_id(b2b_string_sort_value(location, "updatedAt"), location)
-        }
-        _ => b2b_id_sort_key(location),
+        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(record, "name"), record),
+        "CREATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(record, "createdAt"), record),
+        "UPDATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(record, "updatedAt"), record),
+        _ => b2b_id_sort_key(record),
     }
 }
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::split_search_query_terms;
 
 pub(in crate::proxy) fn saved_search_connection_json(
     records: &[SavedSearchRecord],
@@ -538,7 +539,7 @@ fn saved_search_base_filter_key(key: &str) -> &str {
 const DEFAULT_SAVED_SEARCH_API_CLIENT_ID: &str = "shopify-draft-proxy-local-app";
 
 pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .map(|value| saved_search_namespace_api_client_id(&value))
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_SAVED_SEARCH_API_CLIENT_ID.to_string())
@@ -840,25 +841,7 @@ pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(St
 }
 
 pub(in crate::proxy) fn saved_search_query_tokens(query: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    for ch in query.chars() {
-        if ch == '"' {
-            in_quotes = !in_quotes;
-            current.push(ch);
-        } else if ch.is_whitespace() && !in_quotes {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
-            }
-        } else {
-            current.push(ch);
-        }
-    }
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-    tokens
+    split_search_query_terms(query, '"')
 }
 
 impl DraftProxy {

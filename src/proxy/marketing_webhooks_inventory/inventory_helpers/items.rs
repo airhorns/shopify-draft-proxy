@@ -2259,7 +2259,10 @@ impl DraftProxy {
             .unwrap_or_else(|| location_id.to_string())
     }
 
-    fn inventory_level_parts_from_id_or_fallback(&self, id: &str) -> Option<(String, String)> {
+    pub(in crate::proxy) fn inventory_level_parts_from_id_or_fallback(
+        &self,
+        id: &str,
+    ) -> Option<(String, String)> {
         let (_, query) = inventory_level_id_tail_and_query(id)?;
         let inventory_item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
             query.to_string()
@@ -2433,7 +2436,7 @@ impl DraftProxy {
     /// store-backed item payload (so `tracked`/`variant` resolve correctly).
     /// The free `inventory_level_selected_json` only knows the item id; reads of
     /// `inventoryLevel { item { tracked } }` need this `&self` override.
-    fn inventory_level_json_with_item(
+    pub(in crate::proxy) fn inventory_level_json_with_item(
         &self,
         inventory_item_id: &str,
         location_id: &str,

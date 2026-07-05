@@ -114,6 +114,43 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
+    domain: 'admin-platform',
+    captureId: 'connection-sort-key-coverage',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-connection-sort-key-coverage-conformance.ts',
+    purpose:
+      'Cross-domain staged connection sort-key evidence for products(sortKey: INVENTORY_TOTAL), orders(sortKey: TOTAL_PRICE), and segments sort keys over resources created through public Admin GraphQL mutations.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_customers',
+      'write_customers',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}connection-sort-key-coverage.json`,
+      'config/parity-specs/products/products-sort-key-inventory-total-staged.json',
+      'config/parity-specs/orders/orders-sort-key-total-price-staged.json',
+      'config/parity-specs/segments/segments-sort-key-staged.json',
+      'config/parity-requests/products/products-sort-key-inventory-total-set.graphql',
+      'config/parity-requests/products/products-sort-key-inventory-total-read.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-draft-create.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-draft-complete.graphql',
+      'config/parity-requests/orders/orders-sort-key-total-price-read.graphql',
+      'config/parity-requests/segments/segments-sort-key-create.graphql',
+      'config/parity-requests/segments/segments-sort-key-update.graphql',
+      'config/parity-requests/segments/segments-sort-key-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable products, three disposable draft-completed test orders, and three disposable segments; deletes products and segments and cancels orders after the captured reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The RELEVANCE enum values remain documented as deterministic local fallbacks because Shopify relevance scoring is opaque and query-score dependent; this capture covers the computable ordering branches required to prevent silent default fallbacks.',
+  },
+  {
     domain: 'b2b',
     captureId: 'b2b-quantity-rules-extended-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
@@ -271,6 +308,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-contact-location-assignments-tax.json`,
       'config/parity-specs/b2b/b2b-contact-location-assignments-tax.json',
+      'config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax-inline-invalid.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable company with additional disposable company locations; revokes explicit assignments, deletes the staged billing address, and deletes the company during cleanup.',
@@ -1408,6 +1446,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/product-merchandising-product-full-sync.graphql',
       'config/parity-requests/products/product-feedback-invalid-state.graphql',
       'config/parity-requests/products/shop-feedback-invalid-state.graphql',
+      'config/parity-requests/products/product-feedback-foobar-state.graphql',
+      'config/parity-requests/products/shop-feedback-foobar-state.graphql',
     ],
     cleanupBehavior:
       'Validation/access-blocker probes only; productFeedCreate is rejected by Shopify before a feed is created, unknown-id probes do not mutate state, and feedback probes either fail schema validation or access checks.',
@@ -7910,7 +7950,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-abandoned-checkout-conformance.ts',
     purpose:
-      'Abandoned checkout empty/no-data reads and unknown abandonment delivery-status validation against the disposable conformance store.',
+      'Abandoned checkout empty/no-data reads and positive-tail unknown abandonment delivery-status validation against the disposable conformance store.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}abandoned-checkout-empty-read.json`,
@@ -11738,7 +11778,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'delivery-profiles',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
-    purpose: 'Delivery profile read/write lifecycle behavior.',
+    purpose:
+      'Delivery profile read/write lifecycle behavior, including post-create deliveryProfiles catalog readback that keeps the merchant default profile visible.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-validation.json',
@@ -13326,6 +13367,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_blocked_by_orders.json',
       'config/parity-specs/customers/customer_delete_no_orders_control.json',
       'config/parity-specs/customers/customer_delete_blocked_by_orders.json',
+      'config/parity-requests/customers/customer-delete-order-precondition-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and deletes remaining customers.',
@@ -13467,6 +13509,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}customer-add-tax-exemptions-parity.json`,
       `${CAPTURE_ROOT}customer-remove-tax-exemptions-parity.json`,
       `${CAPTURE_ROOT}customer-replace-tax-exemptions-parity.json`,
+      'config/parity-specs/customers/customerAddTaxExemptions-parity.json',
+      'config/parity-specs/customers/customerRemoveTaxExemptions-parity.json',
+      'config/parity-specs/customers/customerReplaceTaxExemptions-parity.json',
+      'config/parity-requests/customers/customerAddTaxExemptions-inline-invalid-enum.graphql',
+      'config/parity-requests/customers/customerRemoveTaxExemptions-inline-invalid-enum.graphql',
+      'config/parity-requests/customers/customerReplaceTaxExemptions-inline-invalid-enum.graphql',
     ],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

@@ -181,7 +181,10 @@ inventing defaults. Omitting `taxExempt` or `taxRegistrationId` preserves the
 current staged value; literal `taxExempt: null` and variable `taxExempt: null`
 return `INVALID_INPUT`, while an unbound optional `$taxExempt` variable is
 treated as omitted. Supplying no tax-setting knobs is a successful no-op that
-returns the unchanged company location.
+returns the unchanged company location. Invalid `TaxExemption` variables and
+inline literals are top-level GraphQL errors before staging; inline literal
+messages echo the submitted enum literal in Shopify's field-level coercion
+shape rather than a fixed fallback value or suggestion.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
 `checkoutToDraft`, `paymentTermsTemplate`, and `deposit`. Deposit input is

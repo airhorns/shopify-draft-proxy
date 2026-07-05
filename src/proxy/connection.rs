@@ -303,6 +303,28 @@ pub(in crate::proxy) enum StagedSortValue {
 
 pub(in crate::proxy) type StagedSortKey = Vec<StagedSortValue>;
 
+pub(in crate::proxy) fn sorted_indexed_records<T, SortKey, Cursor>(
+    records: Vec<T>,
+    reverse: bool,
+    sort_key: SortKey,
+    cursor: Cursor,
+) -> Vec<T>
+where
+    SortKey: Fn(&T, usize) -> StagedSortKey,
+    Cursor: Fn(&T) -> String,
+{
+    let mut indexed = records.into_iter().enumerate().collect::<Vec<_>>();
+    indexed.sort_by(|left, right| {
+        sort_key(&left.1, left.0)
+            .cmp(&sort_key(&right.1, right.0))
+            .then_with(|| cursor(&left.1).cmp(&cursor(&right.1)))
+    });
+    if reverse {
+        indexed.reverse();
+    }
+    indexed.into_iter().map(|(_, record)| record).collect()
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::proxy) enum StagedSearchDecision {
     Match,

@@ -18,6 +18,8 @@ use crate::operation_registry::{
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
+pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
+pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -268,6 +270,7 @@ struct BaseState {
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
+    delivery_profiles: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     shop: Value,
@@ -1904,6 +1907,7 @@ mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
+mod markets_catalog_data;
 mod markets_catalog_helpers;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
@@ -1922,6 +1926,7 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod schema_validation;
+mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;
@@ -1937,6 +1942,7 @@ pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
+pub(in crate::proxy) use self::markets_catalog_data::*;
 pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
@@ -1950,7 +1956,6 @@ pub(in crate::proxy) use self::product_options::*;
 pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;

@@ -1,7 +1,8 @@
 use crate::proxy::*;
+use std::cmp::Ordering;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
-const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
+const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
         id
@@ -41,61 +42,15 @@ const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
             processedAt
             amount { amount currencyCode }
           }
-        }
-      }
-      giftCardConfiguration {
-        issueLimit { amount currencyCode }
-        purchaseLimit { amount currencyCode }
-      }
-    }
-  "#;
-const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
-    query GiftCardHydrate($id: ID!) {
-      giftCard(id: $id) {
-        id
-        lastCharacters
-        maskedCode
-        enabled
-        deactivatedAt
-        expiresOn
-        note
-        templateSuffix
-        createdAt
-        updatedAt
-        initialValue { amount currencyCode }
-        balance { amount currencyCode }
-        customer {
-          id
-          email
-          defaultEmailAddress { emailAddress }
-          defaultPhoneNumber { phoneNumber }
-        }
-        recipientAttributes {
-          message
-          preferredName
-          sendNotificationAt
-          recipient {
-            id
-            email
-            defaultEmailAddress { emailAddress }
-            defaultPhoneNumber { phoneNumber }
-          }
-        }
-        transactions(first: 250) {
-          nodes {
-            __typename
-            id
-            note
-            processedAt
-            amount { amount currencyCode }
-          }
-          pageInfo {
+"#;
+const GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO: &str = r#"          pageInfo {
             hasNextPage
             hasPreviousPage
             startCursor
             endCursor
           }
-        }
+"#;
+const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"        }
       }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
@@ -103,6 +58,15 @@ const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
       }
     }
   "#;
+
+fn gift_card_hydrate_query(include_transactions_page_info: bool) -> String {
+    let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
+    if include_transactions_page_info {
+        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO);
+    }
+    query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
+    query
+}
 
 #[derive(Clone, Copy)]
 struct GiftCardTransactionSpec {
@@ -1061,7 +1025,7 @@ impl DraftProxy {
                         "The gift card has no customer.",
                     ));
                 } else if field.name == "giftCardSendNotificationToCustomer"
-                    && gift_card_customer_has_no_contact(card)
+                    && gift_card_person_has_no_contact(&card["customer"])
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
@@ -1079,7 +1043,7 @@ impl DraftProxy {
                         "The gift card has no recipient.",
                     ));
                 } else if field.name == "giftCardSendNotificationToRecipient"
-                    && gift_card_recipient_has_no_contact(card)
+                    && gift_card_person_has_no_contact(&card["recipientAttributes"]["recipient"])
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
@@ -1102,22 +1066,23 @@ impl DraftProxy {
     }
 
     fn hydrate_gift_card_for_mutation(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card_with_query(request, id, GIFT_CARD_MUTATION_HYDRATE_QUERY)
+        self.hydrate_gift_card(request, id, false)
     }
 
     fn hydrate_gift_card_for_notification(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card_with_query(request, id, GIFT_CARD_NOTIFICATION_HYDRATE_QUERY)
+        self.hydrate_gift_card(request, id, true)
     }
 
-    fn hydrate_gift_card_with_query(
+    fn hydrate_gift_card(
         &mut self,
         request: &Request,
         id: &str,
-        query: &str,
+        include_transactions_page_info: bool,
     ) -> Option<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
+        let query = gift_card_hydrate_query(include_transactions_page_info);
         let response = self.upstream_post(
             request,
             json!({
@@ -1856,13 +1821,7 @@ fn gift_card_matches_string_comparator(actual: Option<&str>, query_value: &str) 
     let (operator, expected) = gift_card_split_search_comparator(query_value);
     let actual = gift_card_search_date_value(actual);
     let expected = gift_card_search_date_value(expected);
-    match operator {
-        ">=" => actual >= expected,
-        ">" => actual > expected,
-        "<=" => actual <= expected,
-        "<" => actual < expected,
-        _ => actual == expected,
-    }
+    gift_card_matches_comparator_order(operator, actual.cmp(expected), actual == expected)
 }
 
 fn gift_card_matches_numeric_comparator(actual: Option<f64>, query_value: &str) -> bool {
@@ -1871,12 +1830,19 @@ fn gift_card_matches_numeric_comparator(actual: Option<f64>, query_value: &str) 
     };
     let (operator, expected) = gift_card_split_search_comparator(query_value);
     let expected = expected.parse::<f64>().ok().unwrap_or(actual);
+    let Some(ordering) = actual.partial_cmp(&expected) else {
+        return false;
+    };
+    gift_card_matches_comparator_order(operator, ordering, (actual - expected).abs() < f64::EPSILON)
+}
+
+fn gift_card_matches_comparator_order(operator: &str, ordering: Ordering, is_equal: bool) -> bool {
     match operator {
-        ">=" => actual >= expected,
-        ">" => actual > expected,
-        "<=" => actual <= expected,
-        "<" => actual < expected,
-        _ => (actual - expected).abs() < f64::EPSILON,
+        ">=" => matches!(ordering, Ordering::Greater | Ordering::Equal),
+        ">" => ordering == Ordering::Greater,
+        "<=" => matches!(ordering, Ordering::Less | Ordering::Equal),
+        "<" => ordering == Ordering::Less,
+        _ => is_equal,
     }
 }
 
@@ -1912,30 +1878,16 @@ fn gift_card_has_no_recipient(card: &Value) -> bool {
         .is_none_or(str::is_empty)
 }
 
-fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
-    let recipient = &card["recipientAttributes"]["recipient"];
-    let has_contact_projection = recipient.get("email").is_some()
-        || recipient.get("phone").is_some()
-        || recipient.get("defaultEmailAddress").is_some()
-        || recipient.get("defaultPhoneNumber").is_some();
+fn gift_card_person_has_no_contact(person: &Value) -> bool {
+    let has_contact_projection = person.get("email").is_some()
+        || person.get("phone").is_some()
+        || person.get("defaultEmailAddress").is_some()
+        || person.get("defaultPhoneNumber").is_some();
     has_contact_projection
-        && recipient["email"].is_null()
-        && recipient["phone"].is_null()
-        && recipient["defaultEmailAddress"]["emailAddress"].is_null()
-        && recipient["defaultPhoneNumber"]["phoneNumber"].is_null()
-}
-
-fn gift_card_customer_has_no_contact(card: &Value) -> bool {
-    let customer = &card["customer"];
-    let has_contact_projection = customer.get("email").is_some()
-        || customer.get("phone").is_some()
-        || customer.get("defaultEmailAddress").is_some()
-        || customer.get("defaultPhoneNumber").is_some();
-    has_contact_projection
-        && customer["email"].is_null()
-        && customer["phone"].is_null()
-        && customer["defaultEmailAddress"]["emailAddress"].is_null()
-        && customer["defaultPhoneNumber"]["phoneNumber"].is_null()
+        && person["email"].is_null()
+        && person["phone"].is_null()
+        && person["defaultEmailAddress"]["emailAddress"].is_null()
+        && person["defaultPhoneNumber"]["phoneNumber"].is_null()
 }
 
 fn gift_card_read_value_has_model_fields(card: &Value) -> bool {
@@ -1970,6 +1922,51 @@ fn format_gift_card_currency_limit(amount: f64) -> String {
     }
     let whole = formatted.chars().rev().collect::<String>();
     format!("${whole}.{cents}")
+}
+
+pub(in crate::proxy) fn gift_card_payload_json(
+    gift_card: &Value,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
+}
+
+pub(in crate::proxy) fn gift_card_transaction_payload(
+    selections: &[SelectedField],
+    transaction_field: &str,
+    transaction: Option<Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        name if name == transaction_field => Some(match transaction.as_ref() {
+            Some(transaction) => selected_json(transaction, &selection.selection),
+            None => Value::Null,
+        }),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+        _ => None,
+    })
+}
+
+pub(in crate::proxy) fn gift_card_payload_json_nullable(
+    gift_card: Option<&Value>,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "giftCard" => Some(match gift_card {
+            Some(card) => selected_json(card, &selection.selection),
+            None => Value::Null,
+        }),
+        "giftCardCode" => Some(
+            gift_card
+                .and_then(|card| card.get("giftCardCode"))
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+        _ => None,
+    })
 }
 
 fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {

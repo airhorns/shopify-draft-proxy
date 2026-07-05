@@ -6118,6 +6118,35 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
         json!("state")
     );
 
+    let product_feedback_foobar_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackInvalidFoobarEnum {
+          bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: "gid://shopify/Product/optioned", state: FOOBAR, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_feedback_foobar_enum.status, 200);
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["message"],
+        json!("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.")
+    );
+    assert!(!product_feedback_foobar_enum.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("BANANAS"));
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        product_feedback_foobar_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
+    );
+
     let shop_feedback_enum = proxy.process_request(json_graphql_request(
         r#"
         mutation RustShopFeedbackInvalidEnum {
@@ -6136,6 +6165,35 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
+    );
+
+    let shop_feedback_foobar_enum = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustShopFeedbackInvalidFoobarEnum {
+          shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(shop_feedback_foobar_enum.status, 200);
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["message"],
+        json!("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.")
+    );
+    assert!(!shop_feedback_foobar_enum.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("BANANAS"));
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        shop_feedback_foobar_enum.body["errors"][0]["extensions"]["argumentName"],
+        json!("state")
     );
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
@@ -9283,6 +9341,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     zulu.handle = "zulu-probe-product".to_string();
     zulu.vendor = "Beta Vendor".to_string();
     zulu.product_type = "Outerwear".to_string();
+    zulu.total_inventory = 1;
     zulu.created_at = "2024-01-03T00:00:00.000Z".to_string();
     zulu.updated_at = "2024-01-05T00:00:00.000Z".to_string();
     zulu.extra_fields
@@ -9293,6 +9352,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     alpha.handle = "alpha-probe-product".to_string();
     alpha.vendor = "Alpha Vendor".to_string();
     alpha.product_type = "Accessories".to_string();
+    alpha.total_inventory = 9;
     alpha.created_at = "2024-01-01T00:00:00.000Z".to_string();
     alpha.updated_at = "2024-01-07T00:00:00.000Z".to_string();
     alpha
@@ -9304,6 +9364,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     middle.handle = "middle-probe-product".to_string();
     middle.vendor = "Gamma Vendor".to_string();
     middle.product_type = "Footwear".to_string();
+    middle.total_inventory = 4;
     middle.created_at = "2024-01-02T00:00:00.000Z".to_string();
     middle.updated_at = "2024-01-06T00:00:00.000Z".to_string();
     middle
@@ -9347,6 +9408,9 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
           }
           updatedAtReverse: products(first: 10, query: $query, sortKey: UPDATED_AT, reverse: true) {
             nodes { title updatedAt }
+          }
+          inventoryTotalOrder: products(first: 10, query: $query, sortKey: INVENTORY_TOTAL) {
+            nodes { title totalInventory }
           }
           relevanceOrder: products(first: 10, query: $query, sortKey: RELEVANCE) {
             nodes { title createdAt }
@@ -9424,6 +9488,14 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
             { "title": "Alpha Probe Product", "updatedAt": "2024-01-07T00:00:00.000Z" },
             { "title": "Middle Probe Product", "updatedAt": "2024-01-06T00:00:00.000Z" },
             { "title": "Zulu Probe Product", "updatedAt": "2024-01-05T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["inventoryTotalOrder"]["nodes"],
+        json!([
+            { "title": "Zulu Probe Product", "totalInventory": 1 },
+            { "title": "Middle Probe Product", "totalInventory": 4 },
+            { "title": "Alpha Probe Product", "totalInventory": 9 }
         ])
     );
     assert_eq!(
@@ -10816,6 +10888,97 @@ fn segment_delete_stages_local_removal_and_keeps_raw_mutation_for_commit() {
 }
 
 #[test]
+fn segments_connection_honors_sort_keys_before_reverse_and_windowing() {
+    fn create_segment(proxy: &mut DraftProxy, name: &str, query: &str) -> String {
+        let created = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateSegmentForSortKeys($name: String!, $query: String!) {
+              segmentCreate(name: $name, query: $query) {
+                segment { id name query creationDate lastEditDate }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "name": name, "query": query }),
+        ));
+        assert_eq!(created.status, 200);
+        assert_eq!(
+            created.body["data"]["segmentCreate"]["userErrors"],
+            json!([])
+        );
+        created.body["data"]["segmentCreate"]["segment"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let alpha_id = create_segment(&mut proxy, "Alpha Segment Sort", "number_of_orders >= 1");
+    let beta_id = create_segment(&mut proxy, "Beta Segment Sort", "number_of_orders >= 2");
+    let gamma_id = create_segment(&mut proxy, "Gamma Segment Sort", "number_of_orders >= 3");
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSegmentForLastEditSort($id: ID!) {
+          segmentUpdate(id: $id, name: "Alpha Segment Sort Updated") {
+            segment { id name lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": alpha_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["segmentUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentSortKeys {
+          byLastEditReverse: segments(first: 10, sortKey: LAST_EDIT_DATE, reverse: true) {
+            nodes { id name }
+          }
+          idWindow: segments(first: 1, sortKey: ID, reverse: true) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byLastEditReverse"]["nodes"],
+        json!([
+            { "id": alpha_id, "name": "Alpha Segment Sort Updated" },
+            { "id": gamma_id.clone(), "name": "Gamma Segment Sort" },
+            { "id": beta_id, "name": "Beta Segment Sort" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["idWindow"],
+        json!({
+            "edges": [{
+                "cursor": gamma_id.clone(),
+                "node": {
+                    "id": gamma_id.clone(),
+                    "name": "Gamma Segment Sort"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": gamma_id.clone(),
+                "endCursor": gamma_id
+            }
+        })
+    );
+}
+
+#[test]
 fn segment_delete_matches_shopify_validation_shapes() {
     let mut proxy = snapshot_proxy();
     let delete_query = r#"
@@ -10870,6 +11033,38 @@ fn segment_delete_matches_shopify_validation_shapes() {
 #[test]
 fn segment_mutations_validate_inputs_without_operation_name_markers() {
     let mut proxy = snapshot_proxy();
+    let missing_create_args = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentCreateMissingNameAndQuery {
+          segmentCreate {
+            segment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_create_args.status, 200);
+    assert_eq!(missing_create_args.body.get("data"), None);
+    let missing_arg_errors = missing_create_args.body["errors"]
+        .as_array()
+        .expect("missing argument response should include top-level errors");
+    assert_eq!(missing_arg_errors.len(), 1);
+    assert_eq!(
+        missing_arg_errors[0]["message"],
+        json!("Field 'segmentCreate' is missing required arguments: name, query")
+    );
+    assert_eq!(
+        missing_arg_errors[0]["extensions"],
+        json!({
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "segmentCreate",
+            "arguments": "name, query"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
     let create_query = r#"
         mutation LocalSegmentCreate($name: String!, $query: String!) {
           segmentCreate(name: $name, query: $query) {

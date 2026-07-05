@@ -582,7 +582,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
         let record = self.webhook_subscription_record(
             &id,
@@ -623,7 +623,7 @@ impl DraftProxy {
                 )],
             );
         };
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
         let record = self.webhook_subscription_record(
             &id,
@@ -710,24 +710,31 @@ impl DraftProxy {
         record: &Value,
         request: &Request,
     ) -> Vec<Value> {
-        let mut errors = Vec::new();
         let uri = record["uri"]
             .as_str()
             .or_else(|| record["callbackUrl"].as_str())
             .unwrap_or_default();
-        let address_field = webhook_subscription_address_error_field(root_field);
-        let address_err = |message| user_error_omit_code(address_field.clone(), message, None);
-        let callback_err =
-            |message| user_error_omit_code(["webhookSubscription", "callbackUrl"], message, None);
+        let mut errors =
+            Self::webhook_subscription_address_validation_errors(root_field, uri, request);
+        errors.extend(self.webhook_subscription_record_validation_errors(id, record, uri));
+        errors
+    }
+
+    fn webhook_subscription_address_validation_errors(
+        root_field: &str,
+        uri: &str,
+        request: &Request,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
         if uri.trim().is_empty() {
-            errors.push(callback_err("Address can't be blank"));
+            errors.push(callback_error("Address can't be blank"));
         }
         if uri.starts_with("http://") {
-            errors.push(callback_err("Address protocol http:// is not supported"));
+            errors.push(callback_error("Address protocol http:// is not supported"));
         }
         if uri.starts_with("kafka://") {
-            errors.push(callback_err("Address protocol kafka:// is not supported"));
-            errors.push(callback_err("Address is not a valid kafka topic"));
+            errors.push(callback_error("Address protocol kafka:// is not supported"));
+            errors.push(callback_error("Address is not a valid kafka topic"));
         }
         let invalid_http_address = webhook_https_uri_is_invalid(uri)
             || (!uri.trim().is_empty()
@@ -737,17 +744,16 @@ impl DraftProxy {
                 && !uri.starts_with("arn:aws:events:")
                 && !uri.starts_with("https://"));
         if let Some(protocol) = webhook_uri_unsupported_protocol(uri) {
-            errors.push(address_err(&format!(
-                "Address protocol {protocol}:// is not supported"
-            )));
+            let message = format!("Address protocol {protocol}:// is not supported");
+            errors.push(webhook_address_error(root_field, &message));
         } else if invalid_http_address {
-            errors.push(address_err("Address is invalid"));
+            errors.push(webhook_address_error(root_field, "Address is invalid"));
         }
         if uri.len() > 65_535 {
-            errors.push(callback_err("Address is too big (maximum is 64 KB)"));
+            errors.push(callback_error("Address is too big (maximum is 64 KB)"));
         }
         if webhook_uri_uses_disallowed_host(uri) {
-            errors.push(callback_err(
+            errors.push(callback_error(
                 "Address cannot be a Shopify or an internal domain",
             ));
         }
@@ -755,76 +761,74 @@ impl DraftProxy {
             let pubsub_parts = pubsub_tail.split_once(':');
             let (project, topic) = pubsub_parts.unwrap_or((pubsub_tail, ""));
             if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
-                errors.push(callback_err("Address protocol pubsub:// is not supported"));
-                errors.push(callback_err("Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"));
+                errors.push(callback_error(
+                    "Address protocol pubsub:// is not supported",
+                ));
+                errors.push(callback_error("Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"));
             } else if root_field.starts_with("pubSubWebhookSubscription") {
                 if !valid_gcp_project_id(project) {
-                    errors.push(user_error_omit_code(
+                    errors.push(webhook_error(
                         ["webhookSubscription", "pubSubProject"],
                         "Google Cloud Pub/Sub project ID is not valid",
-                        None,
                     ));
                 }
                 if !valid_gcp_pubsub_topic_id(topic) {
-                    errors.push(user_error_omit_code(
+                    errors.push(webhook_error(
                         ["webhookSubscription", "pubSubTopic"],
                         "Google Cloud Pub/Sub topic ID is not valid",
-                        None,
                     ));
                 }
             } else if !valid_gcp_project_id(project) {
-                errors.push(callback_err("Address is invalid"));
-                errors.push(callback_err("Address is not a valid GCP project id."));
+                errors.push(callback_error("Address is invalid"));
+                errors.push(callback_error("Address is not a valid GCP project id."));
             } else if !valid_gcp_pubsub_topic_id(topic) {
-                errors.push(callback_err("Address is invalid"));
-                errors.push(callback_err("Address is not a valid GCP topic id."));
+                errors.push(callback_error("Address is invalid"));
+                errors.push(callback_error("Address is not a valid GCP topic id."));
             }
         }
         if uri.starts_with("arn:aws:events:") {
             if let Some(arn_api_client_id) = eventbridge_arn_api_client_id(uri) {
-                if let Some(caller_api_client_id) =
-                    request.headers.get("x-shopify-draft-proxy-api-client-id")
-                {
+                if let Some(caller_api_client_id) = request.headers.get(API_CLIENT_ID_HEADER) {
                     if arn_api_client_id != caller_api_client_id {
-                        errors.push(user_error_omit_code(
-                            json!(address_field),
-                            "Address is invalid",
-                            None,
-                        ));
-                        errors.push(user_error_omit_code(json!(address_field), &format!(
-                                "Address is an AWS ARN and includes api_client_id '{}' instead of '{}'",
-                                arn_api_client_id, caller_api_client_id
-                            ), None));
+                        errors.push(webhook_address_error(root_field, "Address is invalid"));
+                        let message = format!(
+                            "Address is an AWS ARN and includes api_client_id '{}' instead of '{}'",
+                            arn_api_client_id, caller_api_client_id
+                        );
+                        errors.push(webhook_address_error(root_field, &message));
                     }
                 }
             } else {
-                errors.push(user_error_omit_code(
-                    json!(address_field),
-                    "Address is invalid",
-                    None,
-                ));
-                errors.push(user_error_omit_code(
-                    json!(address_field),
+                errors.push(webhook_address_error(root_field, "Address is invalid"));
+                errors.push(webhook_address_error(
+                    root_field,
                     "Address is not a valid AWS ARN",
-                    None,
                 ));
             }
         }
+        errors
+    }
+
+    fn webhook_subscription_record_validation_errors(
+        &self,
+        id: &str,
+        record: &Value,
+        uri: &str,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
         let topic = record["topic"].as_str().unwrap_or_default();
         let format = record["format"].as_str().unwrap_or_default();
         if (uri.starts_with("pubsub://") || uri.starts_with("arn:aws:events:"))
             && !format.eq_ignore_ascii_case("JSON")
         {
-            errors.push(user_error_omit_code(
+            errors.push(webhook_error(
                 ["webhookSubscription", "format"],
                 "Format can only be used with format: 'json'",
-                None,
             ));
         } else if topic == "RETURNS_APPROVE" && format.eq_ignore_ascii_case("XML") {
-            errors.push(user_error_omit_code(
+            errors.push(webhook_error(
                 ["webhookSubscription", "format"],
                 "Format 'xml' is invalid for this webhook topic. Allowed formats: json",
-                None,
             ));
         }
         if self
@@ -846,20 +850,19 @@ impl DraftProxy {
                         == webhook_subscription_optional_string_key(record, "apiPermissionId")
             })
         {
-            errors.push(callback_err(
+            errors.push(callback_error(
                 "Address for this topic has already been taken",
             ));
         }
         if let Some(name) = record["name"].as_str() {
             if name.is_empty() {
-                errors.push(user_error_omit_code(
+                errors.push(webhook_error(
                     ["webhookSubscription", "name"],
                     "Name is too short (minimum is 1 character)",
-                    None,
                 ));
             }
             if name.is_empty() || !token_chars_valid(name) {
-                errors.push(user_error_omit_code(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens", None));
+                errors.push(webhook_error(["webhookSubscription", "name"], "Name name field can only contain alphanumeric characters, underscores, and hyphens"));
             }
             if name.chars().count() > 50 {
                 errors.push(length_user_error(
@@ -880,25 +883,22 @@ impl DraftProxy {
                             .is_some_and(|existing_name| existing_name.eq_ignore_ascii_case(name))
                 })
             {
-                errors.push(user_error_omit_code(
+                errors.push(webhook_error(
                     ["webhookSubscription", "name"],
                     "Name already exists, no duplicate allowed",
-                    None,
                 ));
             }
         }
         if let Some(filter) = record["filter"].as_str() {
             if webhook_filter_exceeds_byte_size_limit(filter) {
-                errors.push(user_error_omit_code(
+                errors.push(webhook_error(
                     ["webhookSubscription"],
                     "The specified filter exceeds the maximum allowed size.",
-                    None,
                 ));
             } else if webhook_filter_is_invalid(filter) {
-                errors.push(user_error_omit_code(
+                errors.push(webhook_error(
                     ["webhookSubscription"],
                     "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
-                    None,
                 ));
             }
         }
@@ -1272,14 +1272,19 @@ fn missing_pubsub_resolved_fields(value: &BTreeMap<String, ResolvedValue>) -> Ve
         .collect()
 }
 
-fn webhook_subscription_address_error_field(root_field: &str) -> Value {
+fn webhook_address_error(root_field: &str, message: &str) -> Value {
     if root_field.starts_with("eventBridgeWebhookSubscription") {
-        json!(["webhookSubscription", "arn"])
+        webhook_error(["webhookSubscription", "arn"], message)
     } else {
-        json!(["webhookSubscription", "callbackUrl"])
+        callback_error(message)
     }
 }
-
+fn webhook_error(field: impl Into<UserErrorField>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+fn callback_error(message: &str) -> Value {
+    webhook_error(["webhookSubscription", "callbackUrl"], message)
+}
 fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option<String> {
     record[key].as_str().map(ToString::to_string)
 }

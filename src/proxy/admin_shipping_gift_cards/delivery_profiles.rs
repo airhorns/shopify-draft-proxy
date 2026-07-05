@@ -10,16 +10,11 @@ const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str =
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
 const DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES: &[usize] = &[250, 3, 2, 1];
-
-#[derive(Clone)]
-struct DeliveryProfileConnectionRecord {
-    profile: Value,
-    cursor: String,
-}
+const DELIVERY_PROFILE_GID_PREFIX: &str = "gid://shopify/DeliveryProfile/";
 
 impl DraftProxy {
     pub(in crate::proxy) fn delivery_profile_read_response(
-        &self,
+        &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
@@ -33,11 +28,14 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid
             && self.delivery_profile_read_needs_upstream(fields)
         {
-            let mut response = (self.upstream_transport)(request.clone());
-            if (200..300).contains(&response.status) && self.has_delivery_profile_overlay_state() {
-                self.overlay_delivery_profile_read_response(fields, &mut response.body["data"]);
+            let response = (self.upstream_transport)(request.clone());
+            let observed_profiles = self.observe_delivery_profiles_response(&response);
+            if !self.has_local_delivery_profile_overlay() {
+                return response;
             }
-            return response;
+            if !observed_profiles && self.store.base.delivery_profiles.order.is_empty() {
+                return response;
+            }
         }
         ok_json(json!({ "data": self.delivery_profile_read_data(fields) }))
     }
@@ -46,16 +44,58 @@ impl DraftProxy {
         fields.iter().any(|field| match field.name.as_str() {
             "deliveryProfile" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                !self.store.staged.delivery_profiles.contains_key(&id)
-                    && !self.store.staged.delivery_profiles.is_tombstoned(&id)
+                !self.has_local_delivery_profile_overlay()
+                    || !self.delivery_profile_is_known_locally(&id)
             }
             "deliveryProfiles" => true,
             _ => false,
         })
     }
 
-    fn has_delivery_profile_overlay_state(&self) -> bool {
-        !self.store.staged.delivery_profiles.is_empty()
+    fn delivery_profile_is_known_locally(&self, id: &str) -> bool {
+        if self.store.staged.delivery_profiles.is_tombstoned(id) {
+            return true;
+        }
+        self.store.staged.delivery_profiles.contains_key(id)
+            || self.store.base.delivery_profiles.get(id).is_some()
+    }
+
+    fn has_local_delivery_profile_overlay(&self) -> bool {
+        self.store
+            .staged
+            .delivery_profiles
+            .order
+            .iter()
+            .any(|id| !self.store.staged.delivery_profiles.is_tombstoned(id))
+            || !self.store.staged.delivery_profiles.tombstones.is_empty()
+    }
+
+    fn observe_delivery_profiles_response(&mut self, response: &Response) -> bool {
+        if !(200..300).contains(&response.status) {
+            return false;
+        }
+        let mut profiles = Vec::new();
+        collect_delivery_profile_response_values(&response.body["data"], &mut profiles);
+        let mut observed = false;
+        for profile in profiles {
+            observed |= self.observe_base_delivery_profile(profile);
+        }
+        observed
+    }
+
+    fn observe_base_delivery_profile(&mut self, profile: Value) -> bool {
+        let Some(profile) = normalized_delivery_profile_read_model(profile) else {
+            return false;
+        };
+        let Some(id) = profile
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return false;
+        };
+        self.store.base.delivery_profiles.insert(id, profile);
+        true
     }
 
     pub(in crate::proxy) fn delivery_profile_read_data(
@@ -366,9 +406,23 @@ impl DraftProxy {
         profile: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
     ) {
+        self.delivery_profile_delete_conditions(profile, input);
+        self.delivery_profile_create_location_groups(profile, input);
+        self.delivery_profile_update_location_groups(profile, input);
+        refresh_delivery_profile_counts(profile);
+    }
+
+    fn delivery_profile_delete_conditions(
+        &self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         let delete_ids = list_string_field(input, "conditionsToDelete")
             .into_iter()
             .collect::<BTreeSet<_>>();
+        if delete_ids.is_empty() {
+            return;
+        }
         for group in profile["profileLocationGroups"]
             .as_array_mut()
             .into_iter()
@@ -395,13 +449,26 @@ impl DraftProxy {
                 }
             }
         }
+    }
 
+    fn delivery_profile_create_location_groups(
+        &mut self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         for group_input in resolved_object_list_field(input, "locationGroupsToCreate") {
             let group = self.delivery_location_group_from_input(&group_input);
             if let Some(groups) = profile["profileLocationGroups"].as_array_mut() {
                 groups.push(group);
             }
         }
+    }
+
+    fn delivery_profile_update_location_groups(
+        &mut self,
+        profile: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
         for group_update in resolved_object_list_field(input, "locationGroupsToUpdate") {
             let group_id = resolved_string_field(&group_update, "id").unwrap_or_default();
             let Some(group) = profile["profileLocationGroups"]
@@ -412,75 +479,107 @@ impl DraftProxy {
             else {
                 continue;
             };
-            if let Some(locations) = group["locationGroup"]["locations"].as_array_mut() {
-                for location_id in list_string_field(&group_update, "locationsToAdd") {
-                    if !locations.iter().any(|location| {
-                        location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
-                    }) {
-                        locations.push(self.delivery_profile_location_record(&location_id));
-                    }
-                }
-                let count = locations.len();
-                group["locationGroup"]["locationsCount"] = count_object(count);
-            }
-            for zone_update in resolved_object_list_field(&group_update, "zonesToUpdate") {
-                let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();
-                let Some(zone) = group["locationGroupZones"]
-                    .as_array_mut()
-                    .into_iter()
-                    .flatten()
-                    .find(|zone| zone["zone"]["id"].as_str() == Some(zone_id.as_str()))
-                else {
-                    continue;
-                };
-                if let Some(name) = resolved_string_field(&zone_update, "name") {
-                    zone["zone"]["name"] = json!(name);
-                }
-                if zone_update.contains_key("countries") {
-                    zone["zone"]["countries"] =
-                        json!(delivery_profile_countries_from_input(&zone_update));
-                }
-                for method_update in
-                    resolved_object_list_field(&zone_update, "methodDefinitionsToUpdate")
-                {
-                    let method_id = resolved_string_field(&method_update, "id").unwrap_or_default();
-                    let Some(method) = zone["methodDefinitions"]
-                        .as_array_mut()
-                        .into_iter()
-                        .flatten()
-                        .find(|method| method["id"].as_str() == Some(method_id.as_str()))
-                    else {
-                        continue;
-                    };
-                    if let Some(name) = resolved_string_field(&method_update, "name") {
-                        method["name"] = json!(name);
-                    }
-                    if let Some(active) = resolved_bool_field(&method_update, "active") {
-                        method["active"] = json!(active);
-                    }
-                    if method_update.contains_key("description") {
-                        method["description"] =
-                            delivery_method_description_from_input(&method_update);
-                    }
-                    if method_update.contains_key("rateDefinition") {
-                        method["rateProvider"]["price"] =
-                            delivery_price_from_method_input(&method_update);
-                    }
-                }
-                let mut new_methods =
-                    resolved_object_list_field(&zone_update, "methodDefinitionsToCreate")
-                        .into_iter()
-                        .map(|method_input| {
-                            self.delivery_method_definition_from_input(&method_input)
-                        })
-                        .collect::<Vec<_>>();
-                if let Some(methods) = zone["methodDefinitions"].as_array_mut() {
-                    methods.append(&mut new_methods);
-                }
-            }
+            self.delivery_profile_add_locations_to_group(group, &group_update);
+            self.delivery_profile_update_zones(group, &group_update);
             refresh_delivery_location_group_countries(group);
         }
-        refresh_delivery_profile_counts(profile);
+    }
+
+    fn delivery_profile_add_locations_to_group(
+        &mut self,
+        group: &mut Value,
+        group_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let Some(locations) = group["locationGroup"]["locations"].as_array_mut() else {
+            return;
+        };
+        for location_id in list_string_field(group_update, "locationsToAdd") {
+            if !locations.iter().any(|location| {
+                location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
+            }) {
+                locations.push(self.delivery_profile_location_record(&location_id));
+            }
+        }
+        let count = locations.len();
+        group["locationGroup"]["locationsCount"] = count_object(count);
+    }
+
+    fn delivery_profile_update_zones(
+        &mut self,
+        group: &mut Value,
+        group_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for zone_update in resolved_object_list_field(group_update, "zonesToUpdate") {
+            let zone_id = resolved_string_field(&zone_update, "id").unwrap_or_default();
+            let Some(zone) = group["locationGroupZones"]
+                .as_array_mut()
+                .into_iter()
+                .flatten()
+                .find(|zone| zone["zone"]["id"].as_str() == Some(zone_id.as_str()))
+            else {
+                continue;
+            };
+            self.delivery_profile_update_zone(zone, &zone_update);
+        }
+    }
+
+    fn delivery_profile_update_zone(
+        &mut self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if let Some(name) = resolved_string_field(zone_update, "name") {
+            zone["zone"]["name"] = json!(name);
+        }
+        if zone_update.contains_key("countries") {
+            zone["zone"]["countries"] = json!(delivery_profile_countries_from_input(zone_update));
+        }
+        self.delivery_profile_update_method_definitions(zone, zone_update);
+        self.delivery_profile_create_method_definitions(zone, zone_update);
+    }
+
+    fn delivery_profile_update_method_definitions(
+        &self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for method_update in resolved_object_list_field(zone_update, "methodDefinitionsToUpdate") {
+            let method_id = resolved_string_field(&method_update, "id").unwrap_or_default();
+            let Some(method) = zone["methodDefinitions"]
+                .as_array_mut()
+                .into_iter()
+                .flatten()
+                .find(|method| method["id"].as_str() == Some(method_id.as_str()))
+            else {
+                continue;
+            };
+            if let Some(name) = resolved_string_field(&method_update, "name") {
+                method["name"] = json!(name);
+            }
+            if let Some(active) = resolved_bool_field(&method_update, "active") {
+                method["active"] = json!(active);
+            }
+            if method_update.contains_key("description") {
+                method["description"] = delivery_method_description_from_input(&method_update);
+            }
+            if method_update.contains_key("rateDefinition") {
+                method["rateProvider"]["price"] = delivery_price_from_method_input(&method_update);
+            }
+        }
+    }
+
+    fn delivery_profile_create_method_definitions(
+        &mut self,
+        zone: &mut Value,
+        zone_update: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let mut new_methods = resolved_object_list_field(zone_update, "methodDefinitionsToCreate")
+            .into_iter()
+            .map(|method_input| self.delivery_method_definition_from_input(&method_input))
+            .collect::<Vec<_>>();
+        if let Some(methods) = zone["methodDefinitions"].as_array_mut() {
+            methods.append(&mut new_methods);
+        }
     }
 
     fn delivery_profile_apply_associations(
@@ -625,7 +724,49 @@ impl DraftProxy {
     }
 
     fn delivery_profile_for_read(&self, profile_id: &str) -> Option<Value> {
-        self.store.staged.delivery_profiles.get(profile_id).cloned()
+        if self
+            .store
+            .staged
+            .delivery_profiles
+            .is_tombstoned(profile_id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .delivery_profiles
+            .get(profile_id)
+            .cloned()
+            .or_else(|| self.store.base.delivery_profiles.get(profile_id).cloned())
+    }
+
+    fn effective_delivery_profiles(&self) -> Vec<Value> {
+        let mut profiles = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.base.delivery_profiles.order {
+            if self.store.staged.delivery_profiles.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(profile) = self
+                .store
+                .staged
+                .delivery_profiles
+                .get(id)
+                .or_else(|| self.store.base.delivery_profiles.get(id))
+            {
+                profiles.push(profile.clone());
+                seen.insert(id.clone());
+            }
+        }
+        for id in &self.store.staged.delivery_profiles.order {
+            if seen.contains(id) || self.store.staged.delivery_profiles.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(profile) = self.store.staged.delivery_profiles.get(id) {
+                profiles.push(profile.clone());
+            }
+        }
+        profiles
     }
 
     fn delivery_profile_location_record(&self, id: &str) -> Value {
@@ -687,119 +828,19 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let mut records = self
-            .store
-            .staged
-            .delivery_profiles
-            .order
-            .iter()
-            .filter(|id| !self.store.staged.delivery_profiles.is_tombstoned(id))
-            .filter_map(|id| self.store.staged.delivery_profiles.get(id).cloned())
-            .filter_map(|profile| delivery_profile_connection_record(profile, None))
-            .collect::<Vec<_>>();
+        let mut profiles = self.effective_delivery_profiles();
         if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-            records.reverse();
+            profiles.reverse();
         }
-        let (records, page_info) =
-            connection_window(&records, arguments, |record| record.cursor.clone());
-        selected_typed_connection_with_page_info(
-            &records,
+        let (profiles, page_info) = connection_window(&profiles, arguments, value_id_cursor);
+        selected_json(
+            &connection_json_with_cursor(
+                profiles,
+                |_, profile| value_id_cursor(profile),
+                page_info,
+            ),
             selections,
-            |record, node_selection| {
-                delivery_profile_selected_json(&record.profile, node_selection)
-            },
-            |record| record.cursor.clone(),
-            page_info,
         )
-    }
-
-    fn overlay_delivery_profile_read_response(
-        &self,
-        fields: &[RootFieldSelection],
-        data: &mut Value,
-    ) {
-        for field in fields {
-            match field.name.as_str() {
-                "deliveryProfile" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if self.store.staged.delivery_profiles.is_tombstoned(&id) {
-                        data[&field.response_key] = Value::Null;
-                    } else if let Some(profile) = self.store.staged.delivery_profiles.get(&id) {
-                        data[&field.response_key] =
-                            delivery_profile_selected_json(profile, &field.selection);
-                    }
-                }
-                "deliveryProfiles" => {
-                    data[&field.response_key] = self.overlay_delivery_profiles_connection_json(
-                        &data[&field.response_key],
-                        &field.arguments,
-                        &field.selection,
-                    );
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn overlay_delivery_profiles_connection_json(
-        &self,
-        connection: &Value,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let mut records = self.delivery_profiles_merged_connection_records(
-            delivery_profiles_connection_records(connection),
-        );
-        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-        let (records, page_info) =
-            connection_window(&records, arguments, |record| record.cursor.clone());
-        selected_typed_connection_with_page_info(
-            &records,
-            selections,
-            |record, node_selection| {
-                delivery_profile_selected_json(&record.profile, node_selection)
-            },
-            |record| record.cursor.clone(),
-            page_info,
-        )
-    }
-
-    fn delivery_profiles_merged_connection_records(
-        &self,
-        base_records: Vec<DeliveryProfileConnectionRecord>,
-    ) -> Vec<DeliveryProfileConnectionRecord> {
-        let mut records = Vec::new();
-        let mut seen_ids = BTreeSet::new();
-        for mut record in base_records {
-            let Some(id) = record.profile.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-            let id = id.to_string();
-            if self.store.staged.delivery_profiles.is_tombstoned(&id) {
-                seen_ids.insert(id);
-                continue;
-            }
-            if let Some(staged) = self.store.staged.delivery_profiles.get(&id) {
-                record.profile = staged.clone();
-            }
-            seen_ids.insert(id);
-            records.push(record);
-        }
-
-        for id in &self.store.staged.delivery_profiles.order {
-            if seen_ids.contains(id) || self.store.staged.delivery_profiles.is_tombstoned(id) {
-                continue;
-            }
-            if let Some(profile) = self.store.staged.delivery_profiles.get(id) {
-                records.push(DeliveryProfileConnectionRecord {
-                    profile: profile.clone(),
-                    cursor: value_id_cursor(profile),
-                });
-            }
-        }
-        records
     }
 
     pub(in crate::proxy) fn delivery_profile_locations_read_response(
@@ -921,54 +962,71 @@ impl DraftProxy {
     }
 }
 
-fn delivery_profiles_connection_records(
-    connection: &Value,
-) -> Vec<DeliveryProfileConnectionRecord> {
-    let mut records = Vec::new();
-    let mut seen_ids = BTreeSet::new();
-    if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
-        for edge in edges {
-            let Some(node) = edge.get("node") else {
-                continue;
-            };
-            let cursor = edge
-                .get("cursor")
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            if let Some(record) = delivery_profile_connection_record(node.clone(), cursor) {
-                if seen_ids.insert(value_id_cursor(&record.profile)) {
-                    records.push(record);
-                }
-            }
-        }
-    }
-    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
-        for node in nodes {
-            if let Some(record) = delivery_profile_connection_record(node.clone(), None) {
-                if seen_ids.insert(value_id_cursor(&record.profile)) {
-                    records.push(record);
-                }
-            }
-        }
-    }
-    records
-}
-
-fn delivery_profile_connection_record(
-    profile: Value,
-    cursor: Option<String>,
-) -> Option<DeliveryProfileConnectionRecord> {
-    let id = profile.get("id").and_then(Value::as_str)?;
-    Some(DeliveryProfileConnectionRecord {
-        cursor: cursor.unwrap_or_else(|| id.to_string()),
-        profile,
-    })
-}
-
 fn delivery_profile_locations_hydrate_query(first: usize) -> String {
     format!(
         "query ShippingDeliveryProfileLocationsHydrate {{\n    locationsAvailableForDeliveryProfilesConnection(first: {first}) {{\n      nodes {{\n        id\n        name\n        isActive\n        isFulfillmentService\n      }}\n    }}\n  }}"
     )
+}
+
+fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Value>) {
+    if value
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id.starts_with(DELIVERY_PROFILE_GID_PREFIX))
+    {
+        profiles.push(value.clone());
+        return;
+    }
+
+    if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+        for node in nodes {
+            collect_delivery_profile_response_values(node, profiles);
+        }
+    }
+    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
+        for edge in edges {
+            if let Some(node) = edge.get("node") {
+                collect_delivery_profile_response_values(node, profiles);
+            }
+        }
+    }
+    if value.get("nodes").is_some() || value.get("edges").is_some() {
+        return;
+    }
+
+    if let Some(object) = value.as_object() {
+        for child in object.values() {
+            collect_delivery_profile_response_values(child, profiles);
+        }
+    } else if let Some(items) = value.as_array() {
+        for item in items {
+            collect_delivery_profile_response_values(item, profiles);
+        }
+    }
+}
+
+fn normalized_delivery_profile_read_model(mut profile: Value) -> Option<Value> {
+    profile
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| id.starts_with(DELIVERY_PROFILE_GID_PREFIX))?;
+    ensure_delivery_profile_collection_defaults(&mut profile);
+    Some(profile)
+}
+
+fn ensure_delivery_profile_collection_defaults(profile: &mut Value) {
+    if profile.get("profileLocationGroups").is_none() {
+        profile["profileLocationGroups"] = json!([]);
+    }
+    if profile.get("profileItems").is_none() {
+        profile["profileItems"] = json!([]);
+    }
+    if profile.get("sellingPlanGroups").is_none() {
+        profile["sellingPlanGroups"] = json!([]);
+    }
+    if profile.get("unassignedLocations").is_none() {
+        profile["unassignedLocations"] = json!([]);
+    }
 }
 
 fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Value, Vec<String>) {

@@ -590,7 +590,8 @@ pub(super) fn connection_has_nodes(connection: &Value) -> bool {
     connection
         .get("nodes")
         .and_then(Value::as_array)
-        .map(|nodes| !nodes.is_empty())
+        .or_else(|| connection.get("edges").and_then(Value::as_array))
+        .map(|entries| !entries.is_empty())
         .unwrap_or(false)
 }
 

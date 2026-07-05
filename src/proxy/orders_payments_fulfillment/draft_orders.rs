@@ -6,10 +6,27 @@ pub(in crate::proxy) use self::helpers::*;
 pub(in crate::proxy) fn draft_order_create_first_line_title(
     field: &RootFieldSelection,
 ) -> Option<String> {
-    let input = resolved_object_field(&field.arguments, "input")?;
-    let line_items = resolved_object_list_field(&input, "lineItems");
-    let first_line = line_items.first()?;
-    resolved_string_field(first_line, "title")
+    resolved_object_field(&field.arguments, "input")
+        .and_then(|input| {
+            let line_items = resolved_object_list_field(&input, "lineItems");
+            let first_line = line_items.first()?;
+            resolved_string_field(first_line, "title")
+        })
+        .or_else(|| {
+            let RawArgumentValue::Object(input) = field.raw_arguments.get("input")? else {
+                return None;
+            };
+            let RawArgumentValue::List(line_items) = input.get("lineItems")? else {
+                return None;
+            };
+            let Some(RawArgumentValue::Object(first_line)) = line_items.first() else {
+                return None;
+            };
+            match first_line.get("title") {
+                Some(RawArgumentValue::String(title)) => Some(title.clone()),
+                _ => None,
+            }
+        })
 }
 
 fn merge_draft_order_string_field(
@@ -1015,7 +1032,9 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
                 None,
             )]);
         }
-        if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+        if resolved_string_field(input, "email")
+            .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+        {
             return Some(vec![user_error_omit_code(
                 ["email"],
                 "Email is invalid",
@@ -1111,7 +1130,9 @@ pub(in crate::proxy) fn draft_order_calculate_user_errors(
             None,
         )]);
     }
-    if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+    if resolved_string_field(input, "email")
+        .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+    {
         return Some(vec![user_error_omit_code(
             ["email"],
             "Email is invalid",
@@ -2266,13 +2287,14 @@ impl DraftProxy {
         let mut order = json!({
             "id": order_id.clone(),
             "name": order_name,
+            "email": draft_order["email"].clone(),
             "sourceName": source_name,
             "note": order_note,
             "tags": order_tags,
-            "paymentGatewayNames": payment_gateway_names,
-            "transactions": order_transactions,
             "currencyCode": currency_code,
             "presentmentCurrencyCode": currency_code,
+            "paymentGatewayNames": payment_gateway_names,
+            "transactions": order_transactions,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
             "subtotalPriceSet": money_bag(subtotal_amount, &currency_code),

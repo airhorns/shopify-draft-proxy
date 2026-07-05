@@ -6,7 +6,8 @@
     "Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.",
     "The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.",
     "Missing ProductFeedInput country/language is captured as top-level schema validation before Shopify creates any feed.",
-    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots."
+    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots.",
+    "Feedback invalid enum fixture literals and foobar literals are both captured so local errors echo the caller-provided invalid value instead of a canned sentinel."
   ],
   "schemaEvidence": {
     "ProductFeed": {
@@ -342,6 +343,64 @@
               }
             ],
             "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulkProductResourceFeedbackCreate-foobar-state",
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "query": "mutation ProductFeedbackFoobarState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: FOOBAR\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "mutation ProductFeedbackFoobarState",
+              "bulkProductResourceFeedbackCreate",
+              "feedbackInput",
+              0,
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-foobar-state",
+      "operationNames": ["shopResourceFeedbackCreate"],
+      "query": "mutation ShopFeedbackFoobarState {\n  shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "path": ["mutation ShopFeedbackFoobarState", "shopResourceFeedbackCreate", "input", "state"],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "InputObject",

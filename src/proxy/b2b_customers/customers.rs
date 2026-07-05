@@ -329,6 +329,7 @@ impl DraftProxy {
         // that recorded page is projected verbatim instead.
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "canDelete" => Some(json!(self.customer_can_delete_value(id, customer))),
             "orders" => Some(match mapped_orders {
                 Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
@@ -379,6 +380,29 @@ impl DraftProxy {
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
         })
+    }
+
+    fn customer_can_delete_value(&self, id: &str, customer: &Value) -> bool {
+        if self.customer_has_effective_orders(id, customer) {
+            return false;
+        }
+        customer
+            .get("canDelete")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+    }
+
+    fn customer_has_effective_orders(&self, id: &str, customer: &Value) -> bool {
+        self.store
+            .staged
+            .customer_orders
+            .get(id)
+            .is_some_and(|orders| !orders.is_empty())
+            || connection_has_nodes(&customer["orders"])
+            || customer_order_count(customer).is_some_and(|count| count > 0)
+            || customer
+                .get("lastOrder")
+                .is_some_and(|last_order| !last_order.is_null())
     }
 
     pub(in crate::proxy) fn store_credit_account_read_fields(
@@ -1015,6 +1039,10 @@ impl DraftProxy {
             .cloned()
             .unwrap_or(Value::Null);
         let id = self.next_proxy_synthetic_gid("Order");
+        let mut customer = customer;
+        if !customer.is_null() {
+            customer["canDelete"] = json!(false);
+        }
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
             self.store
@@ -3293,6 +3321,16 @@ fn customer_number_of_orders_matches(customer: &Value, value: &str) -> bool {
     }) == Some(expected)
 }
 
+fn customer_order_count(customer: &Value) -> Option<u64> {
+    customer
+        .get("numberOfOrders")
+        .and_then(|count| match count {
+            Value::String(value) => value.parse::<u64>().ok(),
+            Value::Number(value) => value.as_u64(),
+            _ => None,
+        })
+}
+
 /// Surface Shopify's order-summary defaults on a freshly staged customer record:
 /// `numberOfOrders` is the string `"0"`, `lastOrder` is explicitly null, and
 /// `orders` is an empty connection (with the `pageInfo` shape a `first:`/`last:`
@@ -3418,7 +3456,7 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
-    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+    parse_rfc3339_epoch_seconds(expires_at)
         .map(|expires_at| expires_at <= now_epoch)
         .unwrap_or(false)
 }
@@ -3456,29 +3494,6 @@ fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> 
         }],
         "data": Value::Object(data)
     })))
-}
-
-/// Basic email format validation matching Shopify's rules:
-/// must contain exactly one @, with non-empty local and domain parts,
-pub(in crate::proxy) fn is_valid_customer_email(email: &str) -> bool {
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    let local = parts[0];
-    let domain = parts[1];
-    if local.is_empty() || domain.is_empty() {
-        return false;
-    }
-    // Domain must contain a dot and not start/end with a dot
-    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
-        return false;
-    }
-    // No spaces allowed
-    if email.contains(' ') {
-        return false;
-    }
-    true
 }
 
 #[cfg(test)]

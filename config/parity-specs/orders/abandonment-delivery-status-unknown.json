@@ -11,7 +11,7 @@
     "variablesPath": "config/parity-requests/orders/abandonment-delivery-status-unknown.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable safe mutation parity for an unknown abandonment id. This validates the local side-effect-free userError branch; seeded integration tests cover the local staging branch for existing in-memory abandonment records.",
+  "notes": "Executable safe mutation parity for an ordinary positive-tail unknown abandonment id. This validates the local side-effect-free userError branch that used to be missed by positive-id existence sentinels; seeded integration tests cover the local staging branch for existing in-memory abandonment records.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
