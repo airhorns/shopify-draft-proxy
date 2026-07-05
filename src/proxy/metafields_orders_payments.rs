@@ -36,6 +36,86 @@ pub(in crate::proxy) type MetafieldNamespaceKeyValidation = (
     &'static str, // message
 );
 
+#[derive(Clone, Copy)]
+pub(in crate::proxy) struct QuantityBounds {
+    minimum: i64,
+    maximum: Option<i64>,
+    increment: i64,
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::proxy) enum QuantityBoundsViolation {
+    MinimumLessThanOne,
+    IncrementLessThanOne,
+    IncrementGreaterThanMinimum,
+    MinimumGreaterThanMaximum,
+    MinimumNotMultipleOfIncrement,
+    MaximumNotMultipleOfIncrement,
+}
+
+pub(in crate::proxy) fn quantity_bounds_from_rule(
+    rule: &BTreeMap<String, ResolvedValue>,
+) -> QuantityBounds {
+    QuantityBounds {
+        minimum: resolved_int_field(rule, "minimum").unwrap_or(1),
+        maximum: resolved_int_field(rule, "maximum"),
+        increment: resolved_int_field(rule, "increment").unwrap_or(1),
+    }
+}
+
+pub(in crate::proxy) fn quantity_pricing_bounds_violations(
+    bounds: QuantityBounds,
+) -> Option<Vec<QuantityBoundsViolation>> {
+    if bounds.minimum < 1 {
+        return Some(vec![
+            QuantityBoundsViolation::MinimumLessThanOne,
+            QuantityBoundsViolation::IncrementGreaterThanMinimum,
+        ]);
+    }
+    if bounds.increment < 1 {
+        return Some(vec![QuantityBoundsViolation::IncrementLessThanOne]);
+    }
+    if bounds.maximum.is_some_and(|max| bounds.minimum > max) {
+        return Some(vec![QuantityBoundsViolation::MinimumGreaterThanMaximum]);
+    }
+    if bounds.minimum % bounds.increment != 0 {
+        return Some(vec![QuantityBoundsViolation::MinimumNotMultipleOfIncrement]);
+    }
+    if bounds
+        .maximum
+        .is_some_and(|max| max % bounds.increment != 0)
+    {
+        return Some(vec![QuantityBoundsViolation::MaximumNotMultipleOfIncrement]);
+    }
+    None
+}
+
+pub(in crate::proxy) fn quantity_rule_bounds_violations(
+    bounds: QuantityBounds,
+) -> Vec<QuantityBoundsViolation> {
+    let mut violations = Vec::new();
+    if bounds.minimum < 1 {
+        violations.push(QuantityBoundsViolation::MinimumLessThanOne);
+    }
+    if bounds.increment < 1 {
+        violations.push(QuantityBoundsViolation::IncrementLessThanOne);
+    } else if bounds.increment > bounds.minimum {
+        violations.push(QuantityBoundsViolation::IncrementGreaterThanMinimum);
+    }
+    if bounds.maximum.is_some_and(|max| bounds.minimum > max) {
+        violations.push(QuantityBoundsViolation::MinimumGreaterThanMaximum);
+    } else if bounds.increment > 0 && bounds.minimum % bounds.increment != 0 {
+        violations.push(QuantityBoundsViolation::MinimumNotMultipleOfIncrement);
+    } else if bounds.increment > 0
+        && bounds
+            .maximum
+            .is_some_and(|max| max % bounds.increment != 0)
+    {
+        violations.push(QuantityBoundsViolation::MaximumNotMultipleOfIncrement);
+    }
+    violations
+}
+
 pub(in crate::proxy) fn metafield_namespace_key_validation(
     namespace: &str,
     key: &str,

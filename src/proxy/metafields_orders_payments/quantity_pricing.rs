@@ -134,9 +134,6 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
     let quantity_rules = resolved_object_list_field(input, "quantityRulesToAdd");
     for (index, rule) in quantity_rules.iter().enumerate() {
         let index = index.to_string();
-        let minimum = resolved_int_field(rule, "minimum").unwrap_or(1);
-        let maximum = resolved_int_field(rule, "maximum");
-        let increment = resolved_int_field(rule, "increment").unwrap_or(1);
         let variant_id = resolved_string_field(rule, "variantId").unwrap_or_default();
         if !store.has_product_variant_reference(&variant_id) {
             return vec![quantity_pricing_error(
@@ -145,50 +142,50 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
                 "Variant not found.",
             )];
         }
-        if minimum < 1 {
-            return vec![
-                quantity_pricing_error(
-                    vec!["input", "quantityRulesToAdd", &index],
-                    "QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE",
-                    "Minimum is less than one",
-                ),
-                quantity_pricing_error(
-                    vec!["input", "quantityRulesToAdd", &index],
-                    "QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM",
-                    "Increment is greater than minimum",
-                ),
-            ];
-        }
-        if increment < 1 {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE",
-                "Increment is less than one",
-            )];
-        }
-        if maximum.map(|max| minimum > max).unwrap_or(false) {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM",
-                "Minimum is greater than maximum",
-            )];
-        }
-        if minimum % increment != 0 {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
-                "minimum is not a multiple of increment",
-            )];
-        }
-        if maximum.map(|max| max % increment != 0).unwrap_or(false) {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
-                "Maximum is not a multiple of increment",
-            )];
+        let bounds = quantity_bounds_from_rule(rule);
+        if let Some(violations) = quantity_pricing_bounds_violations(bounds) {
+            return violations
+                .into_iter()
+                .map(|violation| quantity_pricing_bounds_error(&index, violation))
+                .collect();
         }
     }
     Vec::new()
+}
+
+fn quantity_pricing_bounds_error(index: &str, violation: QuantityBoundsViolation) -> Value {
+    match violation {
+        QuantityBoundsViolation::MinimumLessThanOne => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE",
+            "Minimum is less than one",
+        ),
+        QuantityBoundsViolation::IncrementLessThanOne => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE",
+            "Increment is less than one",
+        ),
+        QuantityBoundsViolation::IncrementGreaterThanMinimum => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM",
+            "Increment is greater than minimum",
+        ),
+        QuantityBoundsViolation::MinimumGreaterThanMaximum => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM",
+            "Minimum is greater than maximum",
+        ),
+        QuantityBoundsViolation::MinimumNotMultipleOfIncrement => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+            "minimum is not a multiple of increment",
+        ),
+        QuantityBoundsViolation::MaximumNotMultipleOfIncrement => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+            "Maximum is not a multiple of increment",
+        ),
+    }
 }
 
 pub(in crate::proxy) fn quantity_pricing_error(
