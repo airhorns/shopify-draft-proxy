@@ -800,23 +800,15 @@ fn product_option_node_from_json(value: &Value) -> Option<ProductOptionNode> {
         .flatten()
         .filter_map(product_option_value_node_from_json)
         .collect::<Vec<_>>();
-    let mut extra_fields = BTreeMap::new();
-    if let Some(object) = value.as_object() {
-        for (key, value) in object {
-            if !matches!(
-                key.as_str(),
-                "id" | "name" | "position" | "values" | "optionValues"
-            ) {
-                extra_fields.insert(key.clone(), value.clone());
-            }
-        }
-    }
     Some(ProductOptionNode {
         id,
         name,
         position,
         values,
-        extra_fields,
+        extra_fields: object_extra_fields_except(
+            value,
+            &["id", "name", "position", "values", "optionValues"],
+        ),
     })
 }
 
@@ -831,20 +823,22 @@ fn product_option_value_node_from_json(value: &Value) -> Option<ProductOptionVal
         .get("hasVariants")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let mut extra_fields = BTreeMap::new();
-    if let Some(object) = value.as_object() {
-        for (key, value) in object {
-            if !matches!(key.as_str(), "id" | "name" | "hasVariants") {
-                extra_fields.insert(key.clone(), value.clone());
-            }
-        }
-    }
     Some(ProductOptionValueNode {
         id,
         name,
         has_variants,
-        extra_fields,
+        extra_fields: object_extra_fields_except(value, &["id", "name", "hasVariants"]),
     })
+}
+
+fn object_extra_fields_except(value: &Value, excluded_keys: &[&str]) -> BTreeMap<String, Value> {
+    value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| !excluded_keys.contains(&key.as_str()))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
 }
 
 fn option_input_value_nodes(
@@ -970,24 +964,12 @@ fn validate_product_options_create(
         .collect::<BTreeSet<_>>();
     for (index, input) in input_options.iter().enumerate() {
         let name = resolved_string_field(input, "name").unwrap_or_default();
-        if name.trim().is_empty() {
-            errors.push(ProductOptionUserError::new(
-                json!(["options", index.to_string()]),
-                "Option name can't be blank.",
-                Some("INVALID_NAME"),
-            ));
-        } else if name.chars().count() > PRODUCT_OPTION_NAME_LIMIT {
-            errors.push(ProductOptionUserError::new(
-                json!(["options", index.to_string()]),
-                "Option name is too long.",
-                Some("OPTION_NAME_TOO_LONG"),
-            ));
-        } else if product_option_name_has_title_delimiter(&name) {
-            errors.push(ProductOptionUserError::new(
-                json!(["options", index.to_string(), "name"]),
-                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
-                Some("INVALID_NAME"),
-            ));
+        if let Some(error) = product_option_name_error(
+            &name,
+            json!(["options", index.to_string()]),
+            json!(["options", index.to_string(), "name"]),
+        ) {
+            errors.push(error);
         }
         let normalized_name = name.to_ascii_lowercase();
         if !seen_names.insert(normalized_name.clone()) {
@@ -1060,24 +1042,10 @@ fn validate_product_option_update(
 ) -> Vec<ProductOptionUserError> {
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(option_input, "name") {
-        if name.trim().is_empty() {
-            errors.push(ProductOptionUserError::new(
-                json!(["option", "name"]),
-                "Option name can't be blank.",
-                Some("INVALID_NAME"),
-            ));
-        } else if name.chars().count() > PRODUCT_OPTION_NAME_LIMIT {
-            errors.push(ProductOptionUserError::new(
-                json!(["option", "name"]),
-                "Option name is too long.",
-                Some("OPTION_NAME_TOO_LONG"),
-            ));
-        } else if product_option_name_has_title_delimiter(&name) {
-            errors.push(ProductOptionUserError::new(
-                json!(["option", "name"]),
-                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
-                Some("INVALID_NAME"),
-            ));
+        if let Some(error) =
+            product_option_name_error(&name, json!(["option", "name"]), json!(["option", "name"]))
+        {
+            errors.push(error);
         }
         if graph
             .options
@@ -1132,6 +1100,34 @@ fn validate_product_option_update(
         ));
     }
     errors
+}
+
+fn product_option_name_error(
+    name: &str,
+    field: Value,
+    delimiter_field: Value,
+) -> Option<ProductOptionUserError> {
+    if name.trim().is_empty() {
+        Some(ProductOptionUserError::new(
+            field,
+            "Option name can't be blank.",
+            Some("INVALID_NAME"),
+        ))
+    } else if name.chars().count() > PRODUCT_OPTION_NAME_LIMIT {
+        Some(ProductOptionUserError::new(
+            field,
+            "Option name is too long.",
+            Some("OPTION_NAME_TOO_LONG"),
+        ))
+    } else if product_option_name_has_title_delimiter(name) {
+        Some(ProductOptionUserError::new(
+            delimiter_field,
+            PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+            Some("INVALID_NAME"),
+        ))
+    } else {
+        None
+    }
 }
 
 fn validate_product_options_reorder(
@@ -1325,11 +1321,14 @@ fn product_with_option_graph(
     mut product: ProductRecord,
     graph: &ProductOptionGraph,
 ) -> ProductRecord {
-    product.extra_fields.insert(
-        "options".to_string(),
-        Value::Array(graph.options.iter().map(product_option_json).collect()),
-    );
     product
+        .extra_fields
+        .insert("options".to_string(), product_option_graph_json(graph));
+    product
+}
+
+fn product_option_graph_json(graph: &ProductOptionGraph) -> Value {
+    Value::Array(graph.options.iter().map(product_option_json).collect())
 }
 
 fn product_option_payload_json(
@@ -1370,13 +1369,9 @@ fn product_option_product_json(
     let Some(product) = product else {
         return Value::Null;
     };
-    let mut record = product.clone();
-    if let Some(graph) = graph {
-        record.extra_fields.insert(
-            "options".to_string(),
-            Value::Array(graph.options.iter().map(product_option_json).collect()),
-        );
-    }
+    let record = graph
+        .map(|graph| product_with_option_graph(product.clone(), graph))
+        .unwrap_or_else(|| product.clone());
     product_json_with_variants_and_currency(&record, &variants, selections, currency_code)
 }
 

@@ -1,5 +1,10 @@
 use super::*;
 
+use crate::proxy::orders_payments_fulfillment::{
+    data_response, fulfillment_order_display_status, fulfillment_order_nodes,
+    fulfillment_order_nodes_mut,
+};
+
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
   node(id: $id) {
@@ -63,6 +68,10 @@ struct FulfillmentOrderStoreBackedPreamble {
     id: String,
     order_id: String,
     index: usize,
+}
+
+fn fulfillment_order_data_response(response_key: &str, value: Value) -> Response {
+    ok_json(data_response(response_key, value))
 }
 
 const SHIPPING_FULFILLMENT_ORDER_DIRECT_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -444,17 +453,20 @@ impl DraftProxy {
             Err(response) => return response,
         };
         let Some(input) = resolved_object_field(&arguments, "fulfillmentHold") else {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["fulfillmentHold"], "Fulfillment hold is required.", Some("INVALID"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["fulfillmentHold"],
+                        "Fulfillment hold is required.",
+                        Some("INVALID"),
+                    )],
+                ),
+            );
         };
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let hold = self.shipping_fulfillment_hold_from_input(&input);
@@ -466,34 +478,45 @@ impl DraftProxy {
             resolved_string_field(item, "id").is_some_and(|id| !seen_line_item_ids.insert(id))
         });
         if has_duplicate_line_items {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "must contain unique line item ids", Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["fulfillmentHold", "fulfillmentOrderLineItems"],
+                        "must contain unique line item ids",
+                        Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"),
+                    )],
+                ),
+            );
         }
         if requested_line_items.iter().any(|item| {
             resolved_int_field(item, "quantity")
                 .map(|quantity| quantity <= 0)
                 .unwrap_or(false)
         }) {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"], "You must select at least one item to place on partial hold.", Some("GREATER_THAN_ZERO"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        [
+                            "fulfillmentHold",
+                            "fulfillmentOrderLineItems",
+                            "0",
+                            "quantity",
+                        ],
+                        "You must select at least one item to place on partial hold.",
+                        Some("GREATER_THAN_ZERO"),
+                    )],
+                ),
+            );
         }
         let existing_fulfillment_order = self
             .shipping_fulfillment_order_by_id(&id)
@@ -504,43 +527,52 @@ impl DraftProxy {
             .iter()
             .any(|existing| existing["handle"].as_str() == Some(hold_handle.as_str()))
         {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["fulfillmentHold", "handle"], "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.", Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["fulfillmentHold", "handle"],
+                        "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                        Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"),
+                    )],
+                ),
+            );
         }
         if existing_holds.len() >= 10 {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["id"], "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.", Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["id"],
+                        "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                        Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"),
+                    )],
+                ),
+            );
         }
         if !existing_holds.is_empty() && !requested.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_hold_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["fulfillmentHold", "fulfillmentOrderLineItems"], "The fulfillment order is not in a splittable state.", Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"))]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_hold_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["fulfillmentHold", "fulfillmentOrderLineItems"],
+                        "The fulfillment order is not in a splittable state.",
+                        Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"),
+                    )],
+                ),
+            );
         }
         let mut held = Value::Null;
         let mut remaining = Value::Null;
@@ -601,17 +633,10 @@ impl DraftProxy {
             update_order_display_fulfillment_status(order);
         }
         self.record_mutation_log_entry(request, query, variables, "fulfillmentOrderHold", vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_hold_payload_json(
-                    hold,
-                    held,
-                    remaining,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_hold_payload_json(hold, held, remaining, &payload_selection, vec![]),
+        )
     }
 
     fn fulfillment_order_release_hold_store_backed(
@@ -688,15 +713,10 @@ impl DraftProxy {
             "fulfillmentOrderReleaseHold",
             vec![id],
         );
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_simple_payload_json(
-                    released,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_simple_payload_json(released, &payload_selection, vec![]),
+        )
     }
 
     fn fulfillment_order_move_store_backed(
@@ -731,17 +751,20 @@ impl DraftProxy {
             })
             .unwrap_or(false)
         {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_move_payload_json(
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_move_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
                         Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(Value::Null, "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.", None)]
-                    )
-                }
-            }));
+                        "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                        None,
+                    )],
+                ),
+            );
         }
         let new_location_id =
             resolved_string_field(&arguments, "newLocationId").unwrap_or_default();
@@ -774,17 +797,16 @@ impl DraftProxy {
             None
         };
         if let Some(error) = move_error {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_move_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![error]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_move_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![error],
+                ),
+            );
         }
         let assigned_location =
             self.shipping_assigned_location(destination_location.as_ref().expect("validated"));
@@ -850,17 +872,16 @@ impl DraftProxy {
             update_order_display_fulfillment_status(order);
         }
         self.record_mutation_log_entry(request, query, variables, "fulfillmentOrderMove", vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_move_payload_json(
-                    moved,
-                    original,
-                    remaining,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_move_payload_json(
+                moved,
+                original,
+                remaining,
+                &payload_selection,
+                vec![],
+            ),
+        )
     }
 
     fn fulfillment_order_status_store_backed(
@@ -910,15 +931,14 @@ impl DraftProxy {
                 _ => None,
             };
         if let Some((message, field, code)) = invalid {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_simple_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(field, &message, code)]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_simple_payload_json(
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(field, &message, code)],
+                ),
+            );
         }
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let mut updated = Value::Null;
@@ -943,15 +963,10 @@ impl DraftProxy {
             update_order_display_fulfillment_status(order);
         }
         self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_simple_payload_json(
-                    updated,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_simple_payload_json(updated, &payload_selection, vec![]),
+        )
     }
 
     fn fulfillment_order_cancel_store_backed(
@@ -982,28 +997,34 @@ impl DraftProxy {
             .and_then(|order| order["status"].as_str().map(str::to_string))
             .unwrap_or_default();
         if status == "CLOSED" || status == "CANCELLED" {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_cancel_payload_json(
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_cancel_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
                         Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(Value::Null, "Fulfillment order is not in cancelable request state and can't be canceled.", None)]
-                    )
-                }
-            }));
+                        "Fulfillment order is not in cancelable request state and can't be canceled.",
+                        None,
+                    )],
+                ),
+            );
         }
         if status == "IN_PROGRESS" {
-            return ok_json(json!({
-                "data": {
-                    response_key: fulfillment_order_cancel_payload_json(
-                        Value::Null,
-                        Value::Null,
-                        &payload_selection,
-                        vec![user_error(["id"], "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.", None)]
-                    )
-                }
-            }));
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_cancel_payload_json(
+                    Value::Null,
+                    Value::Null,
+                    &payload_selection,
+                    vec![user_error(
+                        ["id"],
+                        "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
+                        None,
+                    )],
+                ),
+            );
         }
         let timestamp = self.next_shipping_fulfillment_timestamp();
         let replacement_id = self.next_proxy_synthetic_gid("FulfillmentOrder");
@@ -1034,16 +1055,15 @@ impl DraftProxy {
             "fulfillmentOrderCancel",
             vec![id],
         );
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_cancel_payload_json(
-                    cancelled,
-                    replacement,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_cancel_payload_json(
+                cancelled,
+                replacement,
+                &payload_selection,
+                vec![],
+            ),
+        )
     }
 
     fn fulfillment_order_set_deadline_store_backed(
@@ -1104,15 +1124,10 @@ impl DraftProxy {
             );
             (true, vec![])
         };
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_deadline_payload_json(
-                    success,
-                    &payload_selection,
-                    errors
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_deadline_payload_json(success, &payload_selection, errors),
+        )
     }
 
     fn fulfillment_order_close_store_backed(
@@ -1176,15 +1191,10 @@ impl DraftProxy {
             "fulfillmentOrderClose",
             vec![id],
         );
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_simple_payload_json(
-                    closed,
-                    &payload_selection,
-                    vec![]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_simple_payload_json(closed, &payload_selection, vec![]),
+        )
     }
 
     fn fulfillment_order_guardrail_response(
@@ -1195,15 +1205,14 @@ impl DraftProxy {
     ) -> Response {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_simple_payload_json(
-                    Value::Null,
-                    &payload_selection,
-                    vec![user_error(Value::Null, message, None)]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_simple_payload_json(
+                Value::Null,
+                &payload_selection,
+                vec![user_error(Value::Null, message, None)],
+            ),
+        )
     }
 
     fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> Response {
@@ -1211,15 +1220,18 @@ impl DraftProxy {
             primary_root_response_selection(query, &BTreeMap::new(), || {
                 "fulfillmentOrdersReroute".to_string()
             });
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_orders_reroute_payload_json(
-                    Vec::new(),
-                    &payload_selection,
-                    vec![user_error(Value::Null, "Fulfillment orders could not be rerouted locally.", Some("NOT_IMPLEMENTED"))]
-                )
-            }
-        }))
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_orders_reroute_payload_json(
+                Vec::new(),
+                &payload_selection,
+                vec![user_error(
+                    Value::Null,
+                    "Fulfillment orders could not be rerouted locally.",
+                    Some("NOT_IMPLEMENTED"),
+                )],
+            ),
+        )
     }
 
     fn fulfillment_order_not_found_response(
@@ -1597,14 +1609,6 @@ impl DraftProxy {
     }
 }
 
-fn fulfillment_order_nodes(order: &Value) -> Option<&Vec<Value>> {
-    order["fulfillmentOrders"]["nodes"].as_array()
-}
-
-fn fulfillment_order_nodes_mut(order: &mut Value) -> Option<&mut Vec<Value>> {
-    order["fulfillmentOrders"]["nodes"].as_array_mut()
-}
-
 fn fulfillment_order_holds(order: &Value) -> Vec<Value> {
     if let Some(holds) = order["fulfillmentHolds"].as_array() {
         holds.clone()
@@ -1935,21 +1939,11 @@ fn shipping_fulfillment_open_actions(include_split: bool) -> Value {
 }
 
 fn update_order_display_fulfillment_status(order: &mut Value) {
-    let statuses = fulfillment_order_nodes(order)
-        .into_iter()
-        .flatten()
-        .filter_map(|node| node["status"].as_str())
-        .collect::<Vec<_>>();
-    let display = if statuses.contains(&"IN_PROGRESS") {
-        "IN_PROGRESS"
-    } else if statuses.contains(&"ON_HOLD") && !statuses.contains(&"OPEN") {
-        "ON_HOLD"
-    } else if statuses.iter().all(|status| *status == "CLOSED") && !statuses.is_empty() {
-        "FULFILLED"
-    } else {
-        "UNFULFILLED"
-    };
-    order["displayFulfillmentStatus"] = json!(display);
+    if let Some(display) = fulfillment_order_nodes(order)
+        .and_then(|nodes| fulfillment_order_display_status(nodes, true, "UNFULFILLED"))
+    {
+        order["displayFulfillmentStatus"] = json!(display);
+    }
 }
 
 fn fulfillment_hold_display_reason(reason: &str) -> String {

@@ -1,0 +1,48 @@
+mutation B2BCompanyLocationOrderAggregatesDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {
+    draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+      draftOrder {
+        id
+        status
+        order {
+          id
+          name
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          displayFinancialStatus
+          totalReceivedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          purchasingEntity {
+            ... on PurchasingCompany {
+              company {
+                id
+              }
+              contact {
+                id
+              }
+              location {
+                id
+              }
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

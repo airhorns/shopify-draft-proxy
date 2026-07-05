@@ -64,7 +64,7 @@ const latestOrderQuery = `#graphql
 `;
 
 // Byte-for-byte copy of the proxy's ORDER_LIFECYCLE_HYDRATE_QUERY
-// (online_store_orders_payments.rs `OrderManagementDownstreamRead`). The proxy
+// (orders_payments_fulfillment.rs `OrderManagementDownstreamRead`). The proxy
 // forwards this verbatim for a cold `orderCustomerSet` to earn the order from
 // the backend instead of a precondition seed, so the recorded cassette must
 // match the emitted query exactly (cassette matching is byte-exact on the

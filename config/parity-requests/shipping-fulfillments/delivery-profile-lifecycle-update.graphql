@@ -11,6 +11,37 @@ mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput
         count
         precision
       }
+      profileLocationGroups {
+        countriesInAnyZone {
+          zone
+          country {
+            code {
+              countryCode
+              restOfWorld
+            }
+          }
+        }
+        locationGroupZones(first: 5) {
+          nodes {
+            zone {
+              name
+              countries {
+                code {
+                  countryCode
+                  restOfWorld
+                }
+              }
+            }
+            methodDefinitions(first: 5) {
+              nodes {
+                name
+                active
+                description
+              }
+            }
+          }
+        }
+      }
       profileItems(first: 5) {
         nodes {
           product {

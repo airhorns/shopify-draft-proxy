@@ -55,6 +55,18 @@ const deleteByIdDocument = `#graphql
   }
 `;
 
+const appContextDocument = `#graphql
+  query MarketingActivityReadAfterWriteAppContext {
+    currentAppInstallation {
+      app {
+        id
+        handle
+        title
+      }
+    }
+  }
+`;
+
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -107,6 +119,36 @@ function readStringPath(payload: unknown, parts: string[], label: string): strin
   return value;
 }
 
+function readAppContext(payload: unknown): Record<string, string> {
+  const app = readRecord(readPath(payload, ['data', 'currentAppInstallation', 'app']));
+  if (!app) {
+    throw new Error(`current app context missing app: ${JSON.stringify(payload)}`);
+  }
+  const id = readStringPath(payload, ['data', 'currentAppInstallation', 'app', 'id'], 'appContext.id');
+  const title = readStringPath(payload, ['data', 'currentAppInstallation', 'app', 'title'], 'appContext.title');
+  const handle = readStringPath(payload, ['data', 'currentAppInstallation', 'app', 'handle'], 'appContext.handle');
+  const idTail = id.split('/').pop();
+  if (title === idTail) {
+    throw new Error(`current app title unexpectedly matched numeric app id tail ${idTail}`);
+  }
+  return { id, title, handle };
+}
+
+function assertActivityAppMatches(label: string, value: unknown, expectedApp: Record<string, string>): void {
+  const app = readRecord(readPath(value, ['app']));
+  if (!app) {
+    throw new Error(`${label} missing app object: ${JSON.stringify(value)}`);
+  }
+  const expected = { id: expectedApp.id, title: expectedApp.title };
+  const actual = {
+    id: app.id,
+    title: app.title,
+  };
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label}.app expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
 function assertRoundTripFields(label: string, value: unknown): void {
   const record = readRecord(value);
   if (!record) {
@@ -132,6 +174,10 @@ const cleanupResponses: Record<string, unknown> = {};
 let primaryResponse: GraphqlResult | null = null;
 let readAfterUpdateResponse: GraphqlResult | null = null;
 let activityId: string | null = null;
+
+const appContextResponse = await runGraphqlRequest(appContextDocument);
+await assertGraphqlOk('app-context', appContextResponse);
+const appContext = readAppContext(appContextResponse.payload);
 
 const primaryVariables = {
   remoteId,
@@ -165,9 +211,19 @@ try {
     'createExternal.marketingActivity',
     readPath(primaryResponse.payload, ['data', 'createExternal', 'marketingActivity']),
   );
+  assertActivityAppMatches(
+    'createExternal.marketingActivity',
+    readPath(primaryResponse.payload, ['data', 'createExternal', 'marketingActivity']),
+    appContext,
+  );
   assertRoundTripFields(
     'updateExternal.marketingActivity',
     readPath(primaryResponse.payload, ['data', 'updateExternal', 'marketingActivity']),
+  );
+  assertActivityAppMatches(
+    'updateExternal.marketingActivity',
+    readPath(primaryResponse.payload, ['data', 'updateExternal', 'marketingActivity']),
+    appContext,
   );
 
   activityId = readStringPath(
@@ -185,6 +241,18 @@ try {
     'readAfterUpdate.marketingActivity',
     readPath(readAfterUpdateResponse.payload, ['data', 'marketingActivity']),
   );
+  assertActivityAppMatches(
+    'readAfterUpdate.marketingActivity',
+    readPath(readAfterUpdateResponse.payload, ['data', 'marketingActivity']),
+    appContext,
+  );
+  const connectionNodes = readPath(readAfterUpdateResponse.payload, ['data', 'marketingActivities', 'nodes']);
+  if (!Array.isArray(connectionNodes) || !connectionNodes[0]) {
+    throw new Error(
+      `readAfterUpdate.marketingActivities.nodes[0] missing: ${JSON.stringify(readAfterUpdateResponse.payload)}`,
+    );
+  }
+  assertActivityAppMatches('readAfterUpdate.marketingActivities.nodes[0]', connectionNodes[0], appContext);
   const readTitle = readStringPath(
     readAfterUpdateResponse.payload,
     ['data', 'marketingActivity', 'title'],
@@ -213,7 +281,15 @@ await writeFile(
       apiVersion,
       storeDomain,
       capturedAt: new Date().toISOString(),
+      scopeEvidence: {
+        app: appContext,
+      },
       operations: {
+        appContext: {
+          query: appContextDocument,
+          variables: {},
+          response: appContextResponse,
+        },
         primary: {
           query: primaryDocument,
           variables: primaryVariables,

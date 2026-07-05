@@ -2,21 +2,57 @@
   "scenarioId": "marketing-activity-create-external-read-after-write",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-06-15T02:28:24.910Z",
+  "capturedAt": "2026-07-05T05:59:32.673Z",
+  "scopeEvidence": {
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "title": "hermes-conformance-products",
+      "handle": "hermes-conformance-products"
+    }
+  },
   "operations": {
+    "appContext": {
+      "query": "#graphql\n  query MarketingActivityReadAfterWriteAppContext {\n    currentAppInstallation {\n      app {\n        id\n        handle\n        title\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "currentAppInstallation": {
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "handle": "hermes-conformance-products",
+                "title": "hermes-conformance-products"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "primary": {
-      "query": "mutation MarketingActivityLifecycle(\n  $createInput: MarketingActivityCreateExternalInput!\n  $remoteId: String!\n  $updateInput: MarketingActivityUpdateExternalInput!\n) {\n  createExternal: marketingActivityCreateExternal(input: $createInput) {\n    marketingActivity {\n      id\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateExternal: marketingActivityUpdateExternal(remoteId: $remoteId, input: $updateInput) {\n    marketingActivity {\n      id\n      title\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "query": "mutation MarketingActivityLifecycle(\n  $createInput: MarketingActivityCreateExternalInput!\n  $remoteId: String!\n  $updateInput: MarketingActivityUpdateExternalInput!\n) {\n  createExternal: marketingActivityCreateExternal(input: $createInput) {\n    marketingActivity {\n      id\n      app {\n        id\n        title\n      }\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateExternal: marketingActivityUpdateExternal(remoteId: $remoteId, input: $updateInput) {\n    marketingActivity {\n      id\n      title\n      app {\n        id\n        title\n      }\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "remoteId": "marketing-read-after-write-1781490504245-aupqed",
+        "remoteId": "marketing-read-after-write-1783231171986-mvp5sj",
         "createInput": {
-          "title": "Marketing read after write 1781490504245-aupqed",
-          "remoteId": "marketing-read-after-write-1781490504245-aupqed",
+          "title": "Marketing read after write 1783231171986-mvp5sj",
+          "remoteId": "marketing-read-after-write-1783231171986-mvp5sj",
           "status": "ACTIVE",
-          "remoteUrl": "https://example.com/marketing-read-after-write-1781490504245-aupqed",
+          "remoteUrl": "https://example.com/marketing-read-after-write-1783231171986-mvp5sj",
           "tactic": "AD",
           "marketingChannelType": "SEARCH",
           "utm": {
-            "campaign": "marketing-read-after-write-1781490504245-aupqed",
+            "campaign": "marketing-read-after-write-1783231171986-mvp5sj",
             "source": "ads",
             "medium": "cpc"
           },
@@ -36,7 +72,7 @@
           "referringDomain": "ads.example.com"
         },
         "updateInput": {
-          "title": "Marketing read after write updated 1781490504245-aupqed"
+          "title": "Marketing read after write updated 1783231171986-mvp5sj"
         }
       },
       "response": {
@@ -45,7 +81,11 @@
           "data": {
             "createExternal": {
               "marketingActivity": {
-                "id": "gid://shopify/MarketingActivity/197870420274",
+                "id": "gid://shopify/MarketingActivity/198248104242",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products"
+                },
                 "adSpend": {
                   "amount": "25.0",
                   "currencyCode": "USD"
@@ -58,8 +98,12 @@
             },
             "updateExternal": {
               "marketingActivity": {
-                "id": "gid://shopify/MarketingActivity/197870420274",
-                "title": "Marketing read after write updated 1781490504245-aupqed",
+                "id": "gid://shopify/MarketingActivity/198248104242",
+                "title": "Marketing read after write updated 1783231171986-mvp5sj",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products"
+                },
                 "adSpend": {
                   "amount": "25.0",
                   "currencyCode": "USD"
@@ -73,11 +117,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 22,
-              "actualQueryCost": 22,
+              "requestedQueryCost": 24,
+              "actualQueryCost": 24,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
@@ -86,17 +130,21 @@
       }
     },
     "readAfterUpdate": {
-      "query": "query MarketingActivityRead($activityId: ID!, $remoteIds: [String!]) {\n  marketingActivity(id: $activityId) {\n    title\n    adSpend {\n      amount\n      currencyCode\n    }\n    marketingEvent {\n      scheduledToEndAt\n    }\n  }\n  marketingActivities(first: 10, remoteIds: $remoteIds) {\n    nodes {\n      title\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n  }\n}\n",
+      "query": "query MarketingActivityRead($activityId: ID!, $remoteIds: [String!]) {\n  marketingActivity(id: $activityId) {\n    title\n    app {\n      id\n      title\n    }\n    adSpend {\n      amount\n      currencyCode\n    }\n    marketingEvent {\n      scheduledToEndAt\n    }\n  }\n  marketingActivities(first: 10, remoteIds: $remoteIds) {\n    nodes {\n      title\n      app {\n        id\n        title\n      }\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n  }\n}\n",
       "variables": {
-        "activityId": "gid://shopify/MarketingActivity/197870420274",
-        "remoteIds": ["marketing-read-after-write-1781490504245-aupqed"]
+        "activityId": "gid://shopify/MarketingActivity/198248104242",
+        "remoteIds": ["marketing-read-after-write-1783231171986-mvp5sj"]
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketingActivity": {
-              "title": "Marketing read after write updated 1781490504245-aupqed",
+              "title": "Marketing read after write updated 1783231171986-mvp5sj",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products"
+              },
               "adSpend": {
                 "amount": "25.0",
                 "currencyCode": "USD"
@@ -108,7 +156,11 @@
             "marketingActivities": {
               "nodes": [
                 {
-                  "title": "Marketing read after write updated 1781490504245-aupqed",
+                  "title": "Marketing read after write updated 1783231171986-mvp5sj",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products"
+                  },
                   "adSpend": {
                     "amount": "25.0",
                     "currencyCode": "USD"
@@ -122,11 +174,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 12,
-              "actualQueryCost": 5,
+              "requestedQueryCost": 17,
+              "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -169,7 +221,7 @@
       "payload": {
         "data": {
           "marketingActivityDeleteExternal": {
-            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197870420274",
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198248104242",
             "userErrors": []
           }
         },
@@ -179,7 +231,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }

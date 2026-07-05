@@ -2,14 +2,14 @@
   "scenarioId": "comment-moderation-state-transitions",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-06-21T23:46:09.419Z",
+  "capturedAt": "2026-07-05T08:02:48.097Z",
   "setup": {
     "blogCreate": {
       "request": {
         "query": "#graphql\n  mutation CommentModerationStateBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle commentPolicy }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "blog": {
-            "title": "Comment Moderation State Blog 20260621234607",
+            "title": "Comment Moderation State Blog 20260705080246",
             "commentPolicy": "MODERATED"
           }
         }
@@ -19,9 +19,9 @@
         "data": {
           "blogCreate": {
             "blog": {
-              "id": "gid://shopify/Blog/121560596786",
-              "title": "Comment Moderation State Blog 20260621234607",
-              "handle": "comment-moderation-state-blog-20260621234607",
+              "id": "gid://shopify/Blog/121719685426",
+              "title": "Comment Moderation State Blog 20260705080246",
+              "handle": "comment-moderation-state-blog-20260705080246",
               "commentPolicy": "MODERATED"
             },
             "userErrors": []
@@ -45,9 +45,9 @@
         "query": "#graphql\n  mutation CommentModerationStateArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "article": {
-            "title": "Comment Moderation State Article 20260621234607",
-            "body": "<p>Comment Moderation State Article 20260621234607</p>",
-            "blogId": "gid://shopify/Blog/121560596786",
+            "title": "Comment Moderation State Article 20260705080246",
+            "body": "<p>Comment Moderation State Article 20260705080246</p>",
+            "blogId": "gid://shopify/Blog/121719685426",
             "author": {
               "name": "Comment Moderation Author"
             },
@@ -60,9 +60,9 @@
         "data": {
           "articleCreate": {
             "article": {
-              "id": "gid://shopify/Article/684248105266",
-              "title": "Comment Moderation State Article 20260621234607",
-              "handle": "comment-moderation-state-article-20260621234607"
+              "id": "gid://shopify/Article/684626608434",
+              "title": "Comment Moderation State Article 20260705080246",
+              "handle": "comment-moderation-state-article-20260705080246"
             },
             "userErrors": []
           }
@@ -82,46 +82,46 @@
     },
     "restComments": [
       {
-        "id": 135015366962,
-        "body": "comment moderation published 20260621234607",
-        "body_html": "<p>comment moderation published 20260621234607</p>",
+        "id": 135023624498,
+        "body": "comment moderation published 20260705080246",
+        "body_html": "<p>comment moderation published 20260705080246</p>",
         "author": "Comment Moderation Fixture",
         "email": "comment-moderation@example.com",
         "status": "pending",
-        "article_id": 684248105266,
-        "blog_id": 121560596786,
-        "created_at": "2026-06-21T19:46:07-04:00",
-        "updated_at": "2026-06-21T19:46:07-04:00",
+        "article_id": 684626608434,
+        "blog_id": 121719685426,
+        "created_at": "2026-07-05T04:02:46-04:00",
+        "updated_at": "2026-07-05T04:02:46-04:00",
         "ip": "127.0.0.1",
         "user_agent": null,
         "published_at": null
       },
       {
-        "id": 135015399730,
-        "body": "comment moderation spam 20260621234607",
-        "body_html": "<p>comment moderation spam 20260621234607</p>",
+        "id": 135023657266,
+        "body": "comment moderation spam 20260705080246",
+        "body_html": "<p>comment moderation spam 20260705080246</p>",
         "author": "Comment Moderation Fixture",
         "email": "comment-moderation@example.com",
         "status": "pending",
-        "article_id": 684248105266,
-        "blog_id": 121560596786,
-        "created_at": "2026-06-21T19:46:08-04:00",
-        "updated_at": "2026-06-21T19:46:08-04:00",
+        "article_id": 684626608434,
+        "blog_id": 121719685426,
+        "created_at": "2026-07-05T04:02:47-04:00",
+        "updated_at": "2026-07-05T04:02:47-04:00",
         "ip": "127.0.0.1",
         "user_agent": null,
         "published_at": null
       },
       {
-        "id": 135015432498,
-        "body": "comment moderation unapproved 20260621234607",
-        "body_html": "<p>comment moderation unapproved 20260621234607</p>",
+        "id": 135023690034,
+        "body": "comment moderation unapproved 20260705080246",
+        "body_html": "<p>comment moderation unapproved 20260705080246</p>",
         "author": "Comment Moderation Fixture",
         "email": "comment-moderation@example.com",
         "status": "pending",
-        "article_id": 684248105266,
-        "blog_id": 121560596786,
-        "created_at": "2026-06-21T19:46:08-04:00",
-        "updated_at": "2026-06-21T19:46:08-04:00",
+        "article_id": 684626608434,
+        "blog_id": 121719685426,
+        "created_at": "2026-07-05T04:02:47-04:00",
+        "updated_at": "2026-07-05T04:02:47-04:00",
         "ip": "127.0.0.1",
         "user_agent": null,
         "published_at": null
@@ -129,9 +129,9 @@
     ],
     "approvePublishedSetup": {
       "request": {
-        "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n        article {\n          id\n          title\n          handle\n          publishedAt\n          author {\n            name\n          }\n          blog {\n            id\n            title\n            handle\n            commentPolicy\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Comment/135015366962"
+          "id": "gid://shopify/Comment/135023624498"
         }
       },
       "status": 200,
@@ -139,21 +139,36 @@
         "data": {
           "commentApprove": {
             "comment": {
-              "id": "gid://shopify/Comment/135015366962",
+              "id": "gid://shopify/Comment/135023624498",
               "status": "PUBLISHED",
               "isPublished": true,
-              "publishedAt": "2026-06-21T23:46:07Z"
+              "publishedAt": "2026-07-05T08:02:46Z",
+              "article": {
+                "id": "gid://shopify/Article/684626608434",
+                "title": "Comment Moderation State Article 20260705080246",
+                "handle": "comment-moderation-state-article-20260705080246",
+                "publishedAt": "2026-07-05T08:02:46Z",
+                "author": {
+                  "name": "Comment Moderation Author"
+                },
+                "blog": {
+                  "id": "gid://shopify/Blog/121719685426",
+                  "title": "Comment Moderation State Blog 20260705080246",
+                  "handle": "comment-moderation-state-blog-20260705080246",
+                  "commentPolicy": "MODERATED"
+                }
+              }
             },
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -164,7 +179,7 @@
       "request": {
         "query": "#graphql\n  mutation CommentModerationStateSpam($id: ID!) {\n    commentSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Comment/135015399730"
+          "id": "gid://shopify/Comment/135023657266"
         }
       },
       "status": 200,
@@ -172,7 +187,7 @@
         "data": {
           "commentSpam": {
             "comment": {
-              "id": "gid://shopify/Comment/135015399730",
+              "id": "gid://shopify/Comment/135023657266",
               "status": "SPAM",
               "isPublished": false,
               "publishedAt": null
@@ -195,15 +210,15 @@
     }
   },
   "variables": {
-    "publishedId": "gid://shopify/Comment/135015366962",
-    "spamId": "gid://shopify/Comment/135015399730",
-    "unapprovedId": "gid://shopify/Comment/135015432498"
+    "publishedId": "gid://shopify/Comment/135023624498",
+    "spamId": "gid://shopify/Comment/135023657266",
+    "unapprovedId": "gid://shopify/Comment/135023690034"
   },
   "approvePublished": {
     "request": {
-      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n        article {\n          id\n          title\n          handle\n          publishedAt\n          author {\n            name\n          }\n          blog {\n            id\n            title\n            handle\n            commentPolicy\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/135015366962"
+        "id": "gid://shopify/Comment/135023624498"
       }
     },
     "status": 200,
@@ -211,21 +226,36 @@
       "data": {
         "commentApprove": {
           "comment": {
-            "id": "gid://shopify/Comment/135015366962",
+            "id": "gid://shopify/Comment/135023624498",
             "status": "PUBLISHED",
             "isPublished": true,
-            "publishedAt": "2026-06-21T23:46:07Z"
+            "publishedAt": "2026-07-05T08:02:46Z",
+            "article": {
+              "id": "gid://shopify/Article/684626608434",
+              "title": "Comment Moderation State Article 20260705080246",
+              "handle": "comment-moderation-state-article-20260705080246",
+              "publishedAt": "2026-07-05T08:02:46Z",
+              "author": {
+                "name": "Comment Moderation Author"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121719685426",
+                "title": "Comment Moderation State Blog 20260705080246",
+                "handle": "comment-moderation-state-blog-20260705080246",
+                "commentPolicy": "MODERATED"
+              }
+            }
           },
           "userErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -236,7 +266,7 @@
     "request": {
       "query": "#graphql\n  mutation CommentModerationStateNotSpam($id: ID!) {\n    commentNotSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/135015366962"
+        "id": "gid://shopify/Comment/135023624498"
       }
     },
     "status": 200,
@@ -244,10 +274,10 @@
       "data": {
         "commentNotSpam": {
           "comment": {
-            "id": "gid://shopify/Comment/135015366962",
+            "id": "gid://shopify/Comment/135023624498",
             "status": "PUBLISHED",
             "isPublished": true,
-            "publishedAt": "2026-06-21T23:46:07Z"
+            "publishedAt": "2026-07-05T08:02:46Z"
           },
           "userErrors": []
         }
@@ -258,7 +288,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -269,7 +299,7 @@
     "request": {
       "query": "#graphql\n  mutation CommentModerationStateSpam($id: ID!) {\n    commentSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/135015399730"
+        "id": "gid://shopify/Comment/135023657266"
       }
     },
     "status": 200,
@@ -277,7 +307,7 @@
       "data": {
         "commentSpam": {
           "comment": {
-            "id": "gid://shopify/Comment/135015399730",
+            "id": "gid://shopify/Comment/135023657266",
             "status": "SPAM",
             "isPublished": false,
             "publishedAt": null
@@ -300,9 +330,9 @@
   },
   "approveSpam": {
     "request": {
-      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n        article {\n          id\n          title\n          handle\n          publishedAt\n          author {\n            name\n          }\n          blog {\n            id\n            title\n            handle\n            commentPolicy\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/135015399730"
+        "id": "gid://shopify/Comment/135023657266"
       }
     },
     "status": 200,
@@ -321,11 +351,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 10,
+          "requestedQueryCost": 13,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -336,7 +366,7 @@
     "request": {
       "query": "#graphql\n  mutation CommentModerationStateNotSpam($id: ID!) {\n    commentNotSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Comment/135015432498"
+        "id": "gid://shopify/Comment/135023690034"
       }
     },
     "status": 200,
@@ -371,14 +401,14 @@
       "request": {
         "query": "#graphql\n  mutation CommentModerationStateArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Article/684248105266"
+          "id": "gid://shopify/Article/684626608434"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "articleDelete": {
-            "deletedArticleId": "gid://shopify/Article/684248105266",
+            "deletedArticleId": "gid://shopify/Article/684626608434",
             "userErrors": []
           }
         },
@@ -388,7 +418,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -399,14 +429,14 @@
       "request": {
         "query": "#graphql\n  mutation CommentModerationStateBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Blog/121560596786"
+          "id": "gid://shopify/Blog/121719685426"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "blogDelete": {
-            "deletedBlogId": "gid://shopify/Blog/121560596786",
+            "deletedBlogId": "gid://shopify/Blog/121719685426",
             "userErrors": []
           }
         },
@@ -428,7 +458,7 @@
     {
       "operationName": "OnlineStoreCommentHydrate",
       "variables": {
-        "id": "gid://shopify/Comment/135015366962"
+        "id": "gid://shopify/Comment/135023624498"
       },
       "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
       "response": {
@@ -437,16 +467,16 @@
           "data": {
             "comment": {
               "__typename": "Comment",
-              "id": "gid://shopify/Comment/135015366962",
+              "id": "gid://shopify/Comment/135023624498",
               "status": "PUBLISHED",
-              "body": "comment moderation published 20260621234607",
-              "bodyHtml": "<p>comment moderation published 20260621234607</p>",
+              "body": "comment moderation published 20260705080246",
+              "bodyHtml": "<p>comment moderation published 20260705080246</p>",
               "isPublished": true,
-              "publishedAt": "2026-06-21T23:46:07Z",
-              "createdAt": "2026-06-21T23:46:07Z",
-              "updatedAt": "2026-06-21T23:46:07Z",
+              "publishedAt": "2026-07-05T08:02:46Z",
+              "createdAt": "2026-07-05T08:02:46Z",
+              "updatedAt": "2026-07-05T08:02:46Z",
               "article": {
-                "id": "gid://shopify/Article/684248105266"
+                "id": "gid://shopify/Article/684626608434"
               }
             }
           },
@@ -456,7 +486,62 @@
               "actualQueryCost": 2,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentArticleHydrate",
+      "variables": {
+        "id": "gid://shopify/Article/684626608434"
+      },
+      "query": "query OnlineStoreCommentArticleHydrate($id: ID!) { article(id: $id) { __typename id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix author { name } blog { __typename id title handle commentPolicy createdAt updatedAt } commentsCount { count precision } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/684626608434",
+              "title": "Comment Moderation State Article 20260705080246",
+              "handle": "comment-moderation-state-article-20260705080246",
+              "body": "<p>Comment Moderation State Article 20260705080246</p>",
+              "summary": null,
+              "tags": [],
+              "isPublished": true,
+              "publishedAt": "2026-07-05T08:02:46Z",
+              "createdAt": "2026-07-05T08:02:46Z",
+              "updatedAt": "2026-07-05T08:02:46Z",
+              "templateSuffix": null,
+              "author": {
+                "name": "Comment Moderation Author"
+              },
+              "blog": {
+                "__typename": "Blog",
+                "id": "gid://shopify/Blog/121719685426",
+                "title": "Comment Moderation State Blog 20260705080246",
+                "handle": "comment-moderation-state-blog-20260705080246",
+                "commentPolicy": "MODERATED",
+                "createdAt": "2026-07-05T08:02:46Z",
+                "updatedAt": "2026-07-05T08:02:46Z"
+              },
+              "commentsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -467,7 +552,7 @@
     {
       "operationName": "OnlineStoreCommentHydrate",
       "variables": {
-        "id": "gid://shopify/Comment/135015399730"
+        "id": "gid://shopify/Comment/135023657266"
       },
       "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
       "response": {
@@ -476,16 +561,16 @@
           "data": {
             "comment": {
               "__typename": "Comment",
-              "id": "gid://shopify/Comment/135015399730",
+              "id": "gid://shopify/Comment/135023657266",
               "status": "SPAM",
-              "body": "comment moderation spam 20260621234607",
-              "bodyHtml": "<p>comment moderation spam 20260621234607</p>",
+              "body": "comment moderation spam 20260705080246",
+              "bodyHtml": "<p>comment moderation spam 20260705080246</p>",
               "isPublished": false,
               "publishedAt": null,
-              "createdAt": "2026-06-21T23:46:08Z",
-              "updatedAt": "2026-06-21T23:46:08Z",
+              "createdAt": "2026-07-05T08:02:47Z",
+              "updatedAt": "2026-07-05T08:02:47Z",
               "article": {
-                "id": "gid://shopify/Article/684248105266"
+                "id": "gid://shopify/Article/684626608434"
               }
             }
           },
@@ -506,7 +591,7 @@
     {
       "operationName": "OnlineStoreCommentHydrate",
       "variables": {
-        "id": "gid://shopify/Comment/135015432498"
+        "id": "gid://shopify/Comment/135023690034"
       },
       "query": "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }",
       "response": {
@@ -515,16 +600,16 @@
           "data": {
             "comment": {
               "__typename": "Comment",
-              "id": "gid://shopify/Comment/135015432498",
+              "id": "gid://shopify/Comment/135023690034",
               "status": "UNAPPROVED",
-              "body": "comment moderation unapproved 20260621234607",
-              "bodyHtml": "<p>comment moderation unapproved 20260621234607</p>",
+              "body": "comment moderation unapproved 20260705080246",
+              "bodyHtml": "<p>comment moderation unapproved 20260705080246</p>",
               "isPublished": false,
               "publishedAt": null,
-              "createdAt": "2026-06-21T23:46:08Z",
-              "updatedAt": "2026-06-21T23:46:08Z",
+              "createdAt": "2026-07-05T08:02:47Z",
+              "updatedAt": "2026-07-05T08:02:47Z",
               "article": {
-                "id": "gid://shopify/Article/684248105266"
+                "id": "gid://shopify/Article/684626608434"
               }
             }
           },

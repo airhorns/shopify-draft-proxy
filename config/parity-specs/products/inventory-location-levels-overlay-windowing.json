@@ -1,0 +1,300 @@
+{
+  "scenarioId": "inventory-location-levels-overlay-windowing",
+  "operationNames": [
+    "locationAdd",
+    "productSet",
+    "inventorySetQuantities",
+    "inventoryAdjustQuantities",
+    "location",
+    "inventoryItem"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["read-after-write-parity", "connection-window-parity", "query-filter-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-location-levels-overlay-windowing.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+    "variablesCapturePath": "$.operations.locationAdd.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-add",
+        "capturePath": "$.operations.locationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable location ids."
+          }
+        ]
+      },
+      {
+        "name": "product-set",
+        "capturePath": "$.operations.productSet.response.data.productSet",
+        "proxyPath": "$.data.productSet",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.product.title",
+          "$.product.status",
+          "$.product.variants.nodes[*].title",
+          "$.product.variants.nodes[*].sku",
+          "$.product.variants.nodes[*].inventoryQuantity",
+          "$.product.variants.nodes[*].inventoryItem.tracked",
+          "$.product.variants.nodes[*].inventoryItem.requiresShipping",
+          "$.productSetOperation",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-product-set.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "synchronous": true,
+            "input": {
+              "title": {
+                "fromCapturePath": "$.operations.productSet.variables.input.title"
+              },
+              "status": "ACTIVE",
+              "productOptions": [
+                {
+                  "name": "Title",
+                  "position": 1,
+                  "values": [{ "name": "Alpha" }, { "name": "Beta" }]
+                }
+              ],
+              "variants": [
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Alpha" }],
+                  "price": "10.00",
+                  "sku": {
+                    "fromCapturePath": "$.setup.skuAlpha"
+                  },
+                  "inventoryItem": { "tracked": true, "requiresShipping": true },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Beta" }],
+                  "price": "11.00",
+                  "sku": {
+                    "fromCapturePath": "$.setup.skuBeta"
+                  },
+                  "inventoryItem": { "tracked": true, "requiresShipping": true },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "inventory-set",
+        "capturePath": "$.operations.inventorySet.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.changes[*].name",
+          "$.inventoryAdjustmentGroup.changes[*].delta",
+          "$.inventoryAdjustmentGroup.changes[*].location.name",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-location-levels-set.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": 4
+                },
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[1].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": 8
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "inventory-adjust",
+        "capturePath": "$.operations.inventoryAdjust.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.changes[*].name",
+          "$.inventoryAdjustmentGroup.changes[*].delta",
+          "$.inventoryAdjustmentGroup.changes[*].location.name",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-location-levels-adjust.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                  },
+                  "delta": 3
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "location-inventory-levels-overlay-read",
+        "capturePath": "$.operations.overlayRead.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.location.inventoryLevels.nodes[*].item.id",
+          "$.location.inventoryLevels.nodes[*].quantities",
+          "$.location.inventoryLevels.pageInfo.hasNextPage",
+          "$.location.inventoryLevels.pageInfo.hasPreviousPage",
+          "$.location.firstPage.nodes[*].quantities",
+          "$.location.firstPage.pageInfo.hasNextPage",
+          "$.location.firstPage.pageInfo.hasPreviousPage",
+          "$.location.filtered.nodes[*].item.id",
+          "$.location.filtered.nodes[*].quantities",
+          "$.location.filtered.pageInfo.hasNextPage",
+          "$.location.filtered.pageInfo.hasPreviousPage"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-location-levels-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            },
+            "inventoryItemQuery": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id",
+              "resourceIdTail": true,
+              "prefix": "inventory_item_id:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.inventoryLevels.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.location.filtered.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          }
+        ]
+      },
+      {
+        "name": "inventory-item-level-read",
+        "capturePath": "$.operations.itemRead.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": ["$.firstItem.inventoryLevel.item.id", "$.firstItem.inventoryLevel.quantities"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-location-levels-item-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            },
+            "firstInventoryItemId": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.firstItem.inventoryLevel.item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          }
+        ]
+      },
+      {
+        "name": "location-inventory-levels-window",
+        "capturePath": "$.operations.windowRead.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.location.afterFirst.nodes[*].quantities",
+          "$.location.afterFirst.pageInfo.hasNextPage",
+          "$.location.afterFirst.pageInfo.hasPreviousPage",
+          "$.location.beforeSecond.nodes[*].quantities",
+          "$.location.beforeSecond.pageInfo.hasNextPage",
+          "$.location.beforeSecond.pageInfo.hasPreviousPage"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-location-levels-window.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            },
+            "after": {
+              "fromProxyResponse": "location-inventory-levels-overlay-read",
+              "path": "$.data.location.inventoryLevels.edges[0].cursor"
+            },
+            "before": {
+              "fromProxyResponse": "location-inventory-levels-overlay-read",
+              "path": "$.data.location.inventoryLevels.edges[1].cursor"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2025-01 evidence that Location.inventoryLevels reflects inventorySetQuantities plus inventoryAdjustQuantities, agrees with inventoryItem.inventoryLevel(locationId:), honors inventory_item_id query filtering, and returns Shopify-style cursor windows."
+}

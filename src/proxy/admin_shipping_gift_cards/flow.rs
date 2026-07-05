@@ -75,7 +75,7 @@ impl DraftProxy {
         }
 
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        if !id.starts_with("gid://shopify/FlowActionDefinition/") {
+        if !is_shopify_gid_of_type(&id, "FlowActionDefinition") {
             return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
         }
 
@@ -387,7 +387,7 @@ fn flow_trigger_body_validation_message(body: &str) -> Option<String> {
 }
 
 fn is_local_flow_trigger_reference(value: &str) -> bool {
-    value.starts_with("local-") || value.starts_with("gid://shopify/FlowTrigger/")
+    value.starts_with("local-") || is_shopify_gid_of_type(value, "FlowTrigger")
 }
 
 fn is_local_flow_handle(value: &str) -> bool {
