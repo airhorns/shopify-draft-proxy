@@ -1,6 +1,9 @@
 #graphql
-  mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
-    publishableUnpublish(id: $id, input: $input) {
+  mutation PublishableInputValidationUnpublishInlineEmpty($id: ID!) {
+    publishableUnpublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
       publishable {
         ... on Product {
           id

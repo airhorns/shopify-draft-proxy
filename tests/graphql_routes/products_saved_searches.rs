@@ -72,6 +72,21 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+fn location_of_empty_publication_id_object_literal(query: &str) -> Value {
+    let needle = "{ publicationId: \"\"";
+    let offset = query
+        .rfind(needle)
+        .expect("query should include an empty publicationId object literal");
+    let before = &query[..offset];
+    let line = before.chars().filter(|ch| *ch == '\n').count() + 1;
+    let column = before
+        .rsplit('\n')
+        .next()
+        .map(|line| line.chars().count() + 1)
+        .unwrap_or(1);
+    json!({ "line": line, "column": column })
+}
+
 #[test]
 fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
     let upstream_calls = Arc::new(Mutex::new(Vec::new()));
@@ -7388,7 +7403,7 @@ fn publishable_mutations_validate_publication_input_locally() {
 
         let empty_string = proxy.process_request(json_graphql_request(
             query,
-            json!({ "id": product_id, "input": [{ "publicationId": "" }] }),
+            json!({ "id": product_id, "input": [{ "publicationId": publication_id }, { "publicationId": "" }] }),
         ));
         assert_eq!(empty_string.body.get("data"), None);
         assert_eq!(
@@ -7396,12 +7411,90 @@ fn publishable_mutations_validate_publication_input_locally() {
             json!("INVALID_VARIABLE")
         );
         assert_eq!(
+            empty_string.body["errors"][0]["message"],
+            json!("Variable $input of type [PublicationInput!]! was provided invalid value for 1.publicationId (Invalid global id '')")
+        );
+        assert_eq!(
             empty_string.body["errors"][0]["extensions"]["problems"][0]["path"],
-            json!([0, "publicationId"])
+            json!([1, "publicationId"])
         );
         assert_eq!(
             empty_string.body["errors"][0]["extensions"]["problems"][0]["message"],
             json!("Invalid global id ''")
+        );
+    }
+
+    for (root, operation) in [
+        ("publishablePublish", "PublishableLiteralInputValidation"),
+        (
+            "publishableUnpublish",
+            "PublishableLiteralInputValidationUnpublish",
+        ),
+    ] {
+        let literal_query = format!(
+            r#"
+        mutation {operation} {{
+          {root}(id: "{product_id}", input: [{{ publicationId: "{publication_id}" }}, {{ publicationId: "" }}]) {{
+            publishable {{ ... on Product {{ id }} }}
+            userErrors {{ field message }}
+          }}
+        }}
+    "#
+        );
+        let empty_string = proxy.process_request(json_graphql_request(&literal_query, json!({})));
+        assert_eq!(empty_string.status, 200);
+        assert_eq!(empty_string.body.get("data"), None);
+        assert_eq!(
+            empty_string.body["errors"][0],
+            json!({
+                "message": "Invalid global id ''",
+                "locations": [location_of_empty_publication_id_object_literal(&literal_query)],
+                "path": [
+                    format!("mutation {operation}"),
+                    root,
+                    "input",
+                    1,
+                    "publicationId"
+                ],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "CoercionError"
+                }
+            })
+        );
+    }
+
+    for (root, operation) in [
+        (
+            "publishablePublishToCurrentChannel",
+            "PublishableCurrentChannelInputValidation",
+        ),
+        (
+            "publishableUnpublishToCurrentChannel",
+            "PublishableCurrentChannelInputValidationUnpublish",
+        ),
+    ] {
+        let current_channel_query = format!(
+            r#"
+        mutation {operation} {{
+          {root}(id: "{product_id}", input: [{{ publicationId: "{publication_id}" }}, {{ publicationId: "" }}]) {{
+            publishable {{ ... on Product {{ id }} }}
+            userErrors {{ field message }}
+          }}
+        }}
+    "#
+        );
+        let response =
+            proxy.process_request(json_graphql_request(&current_channel_query, json!({})));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body.get("data"), None);
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("argumentNotAccepted")
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"],
+            json!([format!("mutation {operation}"), root, "input"])
         );
     }
 
