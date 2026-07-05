@@ -12,6 +12,20 @@ mutation ProductDerivedFieldsPriceUpdate($productId: ID!, $variants: [ProductVar
           currencyCode
         }
       }
+      variantsCount {
+        count
+        precision
+      }
+      compareAtPriceRange {
+        minVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+        maxVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+      }
       totalVariants
       hasOnlyDefaultVariant
       hasOutOfStockVariants
@@ -21,6 +35,7 @@ mutation ProductDerivedFieldsPriceUpdate($productId: ID!, $variants: [ProductVar
     productVariants {
       id
       price
+      compareAtPrice
     }
     userErrors {
       field

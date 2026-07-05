@@ -454,21 +454,16 @@ pub(in crate::proxy) fn fixed_price_by_product_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "PriceListFixedPricesByProductBulkUpdateUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "__typename": "PriceListPriceUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("PriceListPriceUserError", field, message, Some(code))
 }
 
 // ----------------------------------------------------------------------------
@@ -495,6 +490,134 @@ fn price_edge_cursor(edge: &Value) -> String {
 
 pub(in crate::proxy) fn fixed_price_edge_variant_id(edge: &Value) -> Option<String> {
     edge["node"]["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_rule_node_variant_id(node: &Value) -> Option<String> {
+    node["productVariant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_rule_edges(price_list: &Value) -> Vec<Value> {
+    let edges = price_list["quantityRules"]["edges"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if !edges.is_empty() {
+        return edges;
+    }
+    price_list["quantityRules"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|node| {
+            json!({
+                "cursor": quantity_rule_node_variant_id(node).unwrap_or_default(),
+                "node": node,
+            })
+        })
+        .collect()
+}
+
+fn quantity_rule_edge_cursor(edge: &Value) -> String {
+    edge["cursor"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| edge.get("node").and_then(quantity_rule_node_variant_id))
+        .unwrap_or_default()
+}
+
+fn quantity_rule_nodes(price_list: &Value) -> Vec<Value> {
+    let edge_nodes = quantity_rule_edges(price_list)
+        .into_iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    if !edge_nodes.is_empty() {
+        return edge_nodes;
+    }
+    price_list["quantityRules"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn quantity_rule_connection_from_nodes(nodes: Vec<Value>) -> Value {
+    let cursors = nodes
+        .iter()
+        .filter_map(quantity_rule_node_variant_id)
+        .collect::<Vec<_>>();
+    connection_json_with_cursor(
+        nodes,
+        |_, node| quantity_rule_node_variant_id(node).unwrap_or_default(),
+        connection_page_info(
+            false,
+            false,
+            cursors.first().cloned(),
+            cursors.last().cloned(),
+        ),
+    )
+}
+
+fn quantity_rule_node_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "minimum": resolved_int_field(input, "minimum").unwrap_or(1),
+        "maximum": resolved_int_field(input, "maximum"),
+        "increment": resolved_int_field(input, "increment").unwrap_or(1),
+        "isDefault": false,
+        "originType": "FIXED",
+        "productVariant": {"id": resolved_string_field(input, "variantId").unwrap_or_default()}
+    })
+}
+
+pub(in crate::proxy) fn upsert_quantity_rule_nodes(
+    price_list: &mut Value,
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) {
+    let input_variant_ids = inputs
+        .iter()
+        .filter_map(|input| resolved_string_field(input, "variantId"))
+        .collect::<BTreeSet<_>>();
+    let mut retained = quantity_rule_nodes(price_list)
+        .into_iter()
+        .filter(|node| {
+            quantity_rule_node_variant_id(node)
+                .map(|variant_id| !input_variant_ids.contains(&variant_id))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    let mut nodes = inputs
+        .iter()
+        .rev()
+        .filter_map(|input| {
+            let variant_id = resolved_string_field(input, "variantId")?;
+            input_variant_ids
+                .contains(&variant_id)
+                .then(|| quantity_rule_node_from_input(input))
+        })
+        .collect::<Vec<_>>();
+    nodes.reverse();
+    nodes.append(&mut retained);
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert(
+            "quantityRules".to_string(),
+            quantity_rule_connection_from_nodes(nodes),
+        );
+    }
+}
+
+pub(in crate::proxy) fn delete_quantity_rule_nodes(price_list: &mut Value, variant_ids: &[String]) {
+    let nodes = quantity_rule_nodes(price_list)
+        .into_iter()
+        .filter(|node| {
+            quantity_rule_node_variant_id(node)
+                .map(|variant_id| !variant_ids.contains(&variant_id))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert(
+            "quantityRules".to_string(),
+            quantity_rule_connection_from_nodes(nodes),
+        );
+    }
 }
 
 fn price_edge_product_id(edge: &Value) -> Option<String> {
@@ -558,6 +681,27 @@ pub(in crate::proxy) fn selected_price_list_prices(
         .filter(|edge| price_edge_matches_args(edge, arguments))
         .collect::<Vec<_>>();
     let (edges, page_info) = connection_window(&matched, arguments, price_edge_cursor);
+    let nodes = edges
+        .iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    selected_json(
+        &json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": page_info
+        }),
+        selection,
+    )
+}
+
+pub(in crate::proxy) fn selected_price_list_quantity_rules(
+    price_list: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let matched = quantity_rule_edges(price_list);
+    let (edges, page_info) = connection_window(&matched, arguments, quantity_rule_edge_cursor);
     let nodes = edges
         .iter()
         .filter_map(|edge| edge.get("node").cloned())
@@ -742,6 +886,192 @@ fn rebuild_price_list_prices(price_list: &mut Value, edges: Vec<Value>) {
         object.insert("fixedPricesCount".to_string(), json!(fixed_count));
         object.insert("prices".to_string(), price_connection_from_edges(&edges));
     }
+}
+
+fn quantity_price_break_nodes(edge: &Value) -> Vec<Value> {
+    let edge_nodes = edge["node"]["quantityPriceBreaks"]["edges"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    if !edge_nodes.is_empty() {
+        return edge_nodes;
+    }
+    edge["node"]["quantityPriceBreaks"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn quantity_price_break_node_id(node: &Value) -> Option<String> {
+    node["id"].as_str().map(str::to_string)
+}
+
+fn quantity_price_break_node_variant_id(node: &Value) -> Option<String> {
+    node["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn quantity_price_break_node_minimum(node: &Value) -> Option<i64> {
+    node["minimumQuantity"].as_i64()
+}
+
+pub(in crate::proxy) fn quantity_price_break_id_for_variant_minimum(
+    price_list: &Value,
+    variant_id: &str,
+    minimum_quantity: i64,
+) -> Option<String> {
+    price_edges(price_list).into_iter().find_map(|edge| {
+        quantity_price_break_nodes(&edge)
+            .into_iter()
+            .find_map(|node| {
+                let matches_variant =
+                    quantity_price_break_node_variant_id(&node).as_deref() == Some(variant_id);
+                let matches_minimum =
+                    quantity_price_break_node_minimum(&node) == Some(minimum_quantity);
+                (matches_variant && matches_minimum)
+                    .then(|| quantity_price_break_node_id(&node))
+                    .flatten()
+            })
+    })
+}
+
+fn quantity_price_break_connection_from_nodes(nodes: Vec<Value>) -> Value {
+    let cursors = nodes
+        .iter()
+        .filter_map(quantity_price_break_node_id)
+        .collect::<Vec<_>>();
+    connection_json_with_cursor(
+        nodes,
+        |index, node| {
+            quantity_price_break_node_id(node).unwrap_or_else(|| {
+                format!(
+                    "{}:{}",
+                    quantity_price_break_node_variant_id(node).unwrap_or_default(),
+                    index
+                )
+            })
+        },
+        connection_page_info(
+            false,
+            false,
+            cursors.first().cloned(),
+            cursors.last().cloned(),
+        ),
+    )
+}
+
+fn rebuild_quantity_price_breaks(edge: &mut Value, nodes: Vec<Value>) {
+    if let Some(node) = edge.get_mut("node").and_then(Value::as_object_mut) {
+        node.insert(
+            "quantityPriceBreaks".to_string(),
+            quantity_price_break_connection_from_nodes(nodes),
+        );
+    }
+}
+
+pub(in crate::proxy) fn delete_quantity_price_break_nodes(
+    price_list: &mut Value,
+    break_ids: &[String],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let nodes = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                quantity_price_break_node_id(node)
+                    .map(|id| !break_ids.contains(&id))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
+}
+
+pub(in crate::proxy) fn delete_quantity_price_break_nodes_for_variants(
+    price_list: &mut Value,
+    variant_ids: &[String],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let nodes = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                quantity_price_break_node_variant_id(node)
+                    .or_else(|| fixed_price_edge_variant_id(edge))
+                    .map(|variant_id| !variant_ids.contains(&variant_id))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
+}
+
+pub(in crate::proxy) fn quantity_price_break_node_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    id: String,
+    currency: &str,
+) -> Value {
+    let resolved = ResolvedValue::Object(input.clone());
+    let amount = fixed_price_input_amount(&resolved, "price").unwrap_or_else(|| "0.0".to_string());
+    let currency_code = fixed_price_input_currency(&resolved, "price")
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| currency.to_string());
+    let variant_id = resolved_string_field(input, "variantId").unwrap_or_default();
+    json!({
+        "__typename": "QuantityPriceBreak",
+        "id": id,
+        "minimumQuantity": resolved_int_field(input, "minimumQuantity").unwrap_or(1),
+        "price": money_value(&amount, &currency_code),
+        "variant": {"id": variant_id}
+    })
+}
+
+pub(in crate::proxy) fn upsert_quantity_price_break_nodes(
+    price_list: &mut Value,
+    inputs: &[(BTreeMap<String, ResolvedValue>, String)],
+) {
+    let mut edges = price_edges(price_list);
+    for edge in &mut edges {
+        let Some(variant_id) = fixed_price_edge_variant_id(edge) else {
+            continue;
+        };
+        let currency = price_list_currency(price_list);
+        let new_nodes = inputs
+            .iter()
+            .filter(|(input, _)| {
+                resolved_string_field(input, "variantId").as_deref() == Some(variant_id.as_str())
+            })
+            .map(|(input, id)| quantity_price_break_node_from_input(input, id.clone(), &currency))
+            .collect::<Vec<_>>();
+        if new_nodes.is_empty() {
+            continue;
+        }
+        let replacement_keys = new_nodes
+            .iter()
+            .filter_map(|node| {
+                Some((
+                    quantity_price_break_node_variant_id(node)?,
+                    quantity_price_break_node_minimum(node)?,
+                ))
+            })
+            .collect::<BTreeSet<_>>();
+        let mut retained = quantity_price_break_nodes(edge)
+            .into_iter()
+            .filter(|node| {
+                let key = quantity_price_break_node_variant_id(node)
+                    .zip(quantity_price_break_node_minimum(node));
+                key.map(|key| !replacement_keys.contains(&key))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+        let mut nodes = new_nodes;
+        nodes.append(&mut retained);
+        rebuild_quantity_price_breaks(edge, nodes);
+    }
+    rebuild_price_list_prices(price_list, edges);
 }
 
 /// Dedupe inputs by `variantId`, keeping the last occurrence.
@@ -1362,342 +1692,8 @@ pub(in crate::proxy) fn market_currency_settings_json(
     })
 }
 
-pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
-    match code {
-        "AED" => "United Arab Emirates Dirham",
-        "AFN" => "Afghan Afghani",
-        "ALL" => "Albanian Lek",
-        "AMD" => "Armenian Dram",
-        "ANG" => "Netherlands Antillean Guilder",
-        "AOA" => "Angolan Kwanza",
-        "ARS" => "Argentine Peso",
-        "AUD" => "Australian Dollar",
-        "AWG" => "Aruban Florin",
-        "AZN" => "Azerbaijani Manat",
-        "BAM" => "Bosnia-Herzegovina Convertible Mark",
-        "BBD" => "Barbadian Dollar",
-        "BDT" => "Bangladeshi Taka",
-        "BGN" => "Bulgarian Lev",
-        "BHD" => "Bahraini Dinar",
-        "BIF" => "Burundian Franc",
-        "BMD" => "Bermudian Dollar",
-        "BND" => "Brunei Dollar",
-        "BOB" => "Bolivian Boliviano",
-        "BRL" => "Brazilian Real",
-        "BSD" => "Bahamian Dollar",
-        "BTN" => "Bhutanese Ngultrum",
-        "BWP" => "Botswanan Pula",
-        "BYN" => "Belarusian Ruble",
-        "BZD" => "Belize Dollar",
-        "CAD" => "Canadian Dollar",
-        "CDF" => "Congolese Franc",
-        "CHF" => "Swiss Franc",
-        "CLP" => "Chilean Peso",
-        "CNY" => "Chinese Yuan",
-        "COP" => "Colombian Peso",
-        "CRC" => "Costa Rican Colon",
-        "CVE" => "Cape Verdean Escudo",
-        "CZK" => "Czech Koruna",
-        "DJF" => "Djiboutian Franc",
-        "DKK" => "Danish Krone",
-        "DOP" => "Dominican Peso",
-        "DZD" => "Algerian Dinar",
-        "EGP" => "Egyptian Pound",
-        "ERN" => "Eritrean Nakfa",
-        "ETB" => "Ethiopian Birr",
-        "EUR" => "Euro",
-        "FJD" => "Fijian Dollar",
-        "FKP" => "Falkland Islands Pound",
-        "GBP" => "British Pound",
-        "GEL" => "Georgian Lari",
-        "GHS" => "Ghanaian Cedi",
-        "GIP" => "Gibraltar Pound",
-        "GMD" => "Gambian Dalasi",
-        "GNF" => "Guinean Franc",
-        "GTQ" => "Guatemalan Quetzal",
-        "GYD" => "Guyanese Dollar",
-        "HKD" => "Hong Kong Dollar",
-        "HNL" => "Honduran Lempira",
-        "HRK" => "Croatian Kuna",
-        "HTG" => "Haitian Gourde",
-        "HUF" => "Hungarian Forint",
-        "IDR" => "Indonesian Rupiah",
-        "ILS" => "Israeli New Shekel",
-        "INR" => "Indian Rupee",
-        "IQD" => "Iraqi Dinar",
-        "ISK" => "Icelandic Krona",
-        "JMD" => "Jamaican Dollar",
-        "JOD" => "Jordanian Dinar",
-        "JPY" => "Japanese Yen",
-        "KES" => "Kenyan Shilling",
-        "KGS" => "Kyrgyzstani Som",
-        "KHR" => "Cambodian Riel",
-        "KID" => "Kiribati Dollar",
-        "KMF" => "Comorian Franc",
-        "KRW" => "South Korean Won",
-        "KWD" => "Kuwaiti Dinar",
-        "KYD" => "Cayman Islands Dollar",
-        "KZT" => "Kazakhstani Tenge",
-        "LAK" => "Lao Kip",
-        "LBP" => "Lebanese Pound",
-        "LKR" => "Sri Lankan Rupee",
-        "LRD" => "Liberian Dollar",
-        "LSL" => "Lesotho Loti",
-        "LTL" => "Lithuanian Litas",
-        "LVL" => "Latvian Lats",
-        "LYD" => "Libyan Dinar",
-        "MAD" => "Moroccan Dirham",
-        "MDL" => "Moldovan Leu",
-        "MGA" => "Malagasy Ariary",
-        "MKD" => "Macedonian Denar",
-        "MMK" => "Myanmar Kyat",
-        "MNT" => "Mongolian Tugrik",
-        "MOP" => "Macanese Pataca",
-        "MRU" => "Mauritanian Ouguiya",
-        "MUR" => "Mauritian Rupee",
-        "MVR" => "Maldivian Rufiyaa",
-        "MWK" => "Malawian Kwacha",
-        "MXN" => "Mexican Peso",
-        "MYR" => "Malaysian Ringgit",
-        "MZN" => "Mozambican Metical",
-        "NAD" => "Namibian Dollar",
-        "NGN" => "Nigerian Naira",
-        "NIO" => "Nicaraguan Cordoba",
-        "NOK" => "Norwegian Krone",
-        "NPR" => "Nepalese Rupee",
-        "NZD" => "New Zealand Dollar",
-        "OMR" => "Omani Rial",
-        "PAB" => "Panamanian Balboa",
-        "PEN" => "Peruvian Sol",
-        "PGK" => "Papua New Guinean Kina",
-        "PHP" => "Philippine Peso",
-        "PKR" => "Pakistani Rupee",
-        "PLN" => "Polish Zloty",
-        "PYG" => "Paraguayan Guarani",
-        "QAR" => "Qatari Riyal",
-        "RON" => "Romanian Leu",
-        "RSD" => "Serbian Dinar",
-        "RUB" => "Russian Ruble",
-        "RWF" => "Rwandan Franc",
-        "SAR" => "Saudi Riyal",
-        "SBD" => "Solomon Islands Dollar",
-        "SCR" => "Seychellois Rupee",
-        "SDG" => "Sudanese Pound",
-        "SEK" => "Swedish Krona",
-        "SGD" => "Singapore Dollar",
-        "SHP" => "Saint Helena Pound",
-        "SLE" => "Sierra Leonean Leone",
-        "SLL" => "Sierra Leonean Leone",
-        "SOS" => "Somali Shilling",
-        "SRD" => "Surinamese Dollar",
-        "SSP" => "South Sudanese Pound",
-        "STN" => "Sao Tome and Principe Dobra",
-        "SYP" => "Syrian Pound",
-        "SZL" => "Swazi Lilangeni",
-        "THB" => "Thai Baht",
-        "TJS" => "Tajikistani Somoni",
-        "TMT" => "Turkmenistani Manat",
-        "TND" => "Tunisian Dinar",
-        "TOP" => "Tongan Pa'anga",
-        "TRY" => "Turkish Lira",
-        "TTD" => "Trinidad and Tobago Dollar",
-        "TWD" => "New Taiwan Dollar",
-        "TZS" => "Tanzanian Shilling",
-        "UAH" => "Ukrainian Hryvnia",
-        "UGX" => "Ugandan Shilling",
-        "USD" => "US Dollar",
-        "UYU" => "Uruguayan Peso",
-        "UZS" => "Uzbekistani Som",
-        "VES" => "Venezuelan Bolivar",
-        "VND" => "Vietnamese Dong",
-        "VUV" => "Vanuatu Vatu",
-        "WST" => "Samoan Tala",
-        "XAF" => "Central African CFA Franc",
-        "XCD" => "East Caribbean Dollar",
-        "YER" => "Yemeni Rial",
-        "ZAR" => "South African Rand",
-        "ZMW" => "Zambian Kwacha",
-        _ => "Unknown Currency",
-    }
-}
-
 pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code: Value) -> Value {
     user_error_typed_with_code_value("MarketUserError", field, message, code)
-}
-
-static DEFAULT_AVAILABLE_LOCALES: std::sync::LazyLock<BTreeMap<String, String>> =
-    std::sync::LazyLock::new(|| {
-        BTreeMap::from([
-            ("af".to_string(), "Afrikaans".to_string()),
-            ("ak".to_string(), "Akan".to_string()),
-            ("sq".to_string(), "Albanian".to_string()),
-            ("am".to_string(), "Amharic".to_string()),
-            ("ar".to_string(), "Arabic".to_string()),
-            ("hy".to_string(), "Armenian".to_string()),
-            ("as".to_string(), "Assamese".to_string()),
-            ("az".to_string(), "Azerbaijani".to_string()),
-            ("bm".to_string(), "Bambara".to_string()),
-            ("bn".to_string(), "Bangla".to_string()),
-            ("eu".to_string(), "Basque".to_string()),
-            ("be".to_string(), "Belarusian".to_string()),
-            ("bs".to_string(), "Bosnian".to_string()),
-            ("br".to_string(), "Breton".to_string()),
-            ("bg".to_string(), "Bulgarian".to_string()),
-            ("my".to_string(), "Burmese".to_string()),
-            ("ca".to_string(), "Catalan".to_string()),
-            ("ckb".to_string(), "Central Kurdish".to_string()),
-            ("ce".to_string(), "Chechen".to_string()),
-            ("zh-CN".to_string(), "Chinese (Simplified)".to_string()),
-            ("zh-TW".to_string(), "Chinese (Traditional)".to_string()),
-            ("kw".to_string(), "Cornish".to_string()),
-            ("hr".to_string(), "Croatian".to_string()),
-            ("cs".to_string(), "Czech".to_string()),
-            ("da".to_string(), "Danish".to_string()),
-            ("nl".to_string(), "Dutch".to_string()),
-            ("dz".to_string(), "Dzongkha".to_string()),
-            ("en".to_string(), "English".to_string()),
-            ("eo".to_string(), "Esperanto".to_string()),
-            ("et".to_string(), "Estonian".to_string()),
-            ("ee".to_string(), "Ewe".to_string()),
-            ("fo".to_string(), "Faroese".to_string()),
-            ("fil".to_string(), "Filipino".to_string()),
-            ("fi".to_string(), "Finnish".to_string()),
-            ("fr".to_string(), "French".to_string()),
-            ("ff".to_string(), "Fulah".to_string()),
-            ("gl".to_string(), "Galician".to_string()),
-            ("lg".to_string(), "Ganda".to_string()),
-            ("ka".to_string(), "Georgian".to_string()),
-            ("de".to_string(), "German".to_string()),
-            ("el".to_string(), "Greek".to_string()),
-            ("gu".to_string(), "Gujarati".to_string()),
-            ("ha".to_string(), "Hausa".to_string()),
-            ("he".to_string(), "Hebrew".to_string()),
-            ("hi".to_string(), "Hindi".to_string()),
-            ("hu".to_string(), "Hungarian".to_string()),
-            ("is".to_string(), "Icelandic".to_string()),
-            ("ig".to_string(), "Igbo".to_string()),
-            ("id".to_string(), "Indonesian".to_string()),
-            ("ia".to_string(), "Interlingua".to_string()),
-            ("ga".to_string(), "Irish".to_string()),
-            ("it".to_string(), "Italian".to_string()),
-            ("ja".to_string(), "Japanese".to_string()),
-            ("jv".to_string(), "Javanese".to_string()),
-            ("kl".to_string(), "Kalaallisut".to_string()),
-            ("kn".to_string(), "Kannada".to_string()),
-            ("ks".to_string(), "Kashmiri".to_string()),
-            ("kk".to_string(), "Kazakh".to_string()),
-            ("km".to_string(), "Khmer".to_string()),
-            ("ki".to_string(), "Kikuyu".to_string()),
-            ("rw".to_string(), "Kinyarwanda".to_string()),
-            ("ko".to_string(), "Korean".to_string()),
-            ("ku".to_string(), "Kurdish".to_string()),
-            ("ky".to_string(), "Kyrgyz".to_string()),
-            ("lo".to_string(), "Lao".to_string()),
-            ("lv".to_string(), "Latvian".to_string()),
-            ("ln".to_string(), "Lingala".to_string()),
-            ("lt".to_string(), "Lithuanian".to_string()),
-            ("lu".to_string(), "Luba-Katanga".to_string()),
-            ("lb".to_string(), "Luxembourgish".to_string()),
-            ("mk".to_string(), "Macedonian".to_string()),
-            ("mg".to_string(), "Malagasy".to_string()),
-            ("ms".to_string(), "Malay".to_string()),
-            ("ml".to_string(), "Malayalam".to_string()),
-            ("mt".to_string(), "Maltese".to_string()),
-            ("gv".to_string(), "Manx".to_string()),
-            ("mr".to_string(), "Marathi".to_string()),
-            ("mn".to_string(), "Mongolian".to_string()),
-            ("mi".to_string(), "M\u{101}ori".to_string()),
-            ("ne".to_string(), "Nepali".to_string()),
-            ("nd".to_string(), "North Ndebele".to_string()),
-            ("se".to_string(), "Northern Sami".to_string()),
-            ("no".to_string(), "Norwegian".to_string()),
-            ("nb".to_string(), "Norwegian (Bokm\u{e5}l)".to_string()),
-            ("nn".to_string(), "Norwegian Nynorsk".to_string()),
-            ("or".to_string(), "Odia".to_string()),
-            ("om".to_string(), "Oromo".to_string()),
-            ("os".to_string(), "Ossetic".to_string()),
-            ("ps".to_string(), "Pashto".to_string()),
-            ("fa".to_string(), "Persian".to_string()),
-            ("pl".to_string(), "Polish".to_string()),
-            ("pt-BR".to_string(), "Portuguese (Brazil)".to_string()),
-            ("pt-PT".to_string(), "Portuguese (Portugal)".to_string()),
-            ("pa".to_string(), "Punjabi".to_string()),
-            ("qu".to_string(), "Quechua".to_string()),
-            ("ro".to_string(), "Romanian".to_string()),
-            ("rm".to_string(), "Romansh".to_string()),
-            ("rn".to_string(), "Rundi".to_string()),
-            ("ru".to_string(), "Russian".to_string()),
-            ("sg".to_string(), "Sango".to_string()),
-            ("sa".to_string(), "Sanskrit".to_string()),
-            ("sc".to_string(), "Sardinian".to_string()),
-            ("gd".to_string(), "Scottish Gaelic".to_string()),
-            ("sr".to_string(), "Serbian".to_string()),
-            ("sn".to_string(), "Shona".to_string()),
-            ("ii".to_string(), "Sichuan Yi".to_string()),
-            ("sd".to_string(), "Sindhi".to_string()),
-            ("si".to_string(), "Sinhala".to_string()),
-            ("sk".to_string(), "Slovak".to_string()),
-            ("sl".to_string(), "Slovenian".to_string()),
-            ("so".to_string(), "Somali".to_string()),
-            ("es".to_string(), "Spanish".to_string()),
-            ("su".to_string(), "Sundanese".to_string()),
-            ("sw".to_string(), "Swahili".to_string()),
-            ("sv".to_string(), "Swedish".to_string()),
-            ("tg".to_string(), "Tajik".to_string()),
-            ("ta".to_string(), "Tamil".to_string()),
-            ("tt".to_string(), "Tatar".to_string()),
-            ("te".to_string(), "Telugu".to_string()),
-            ("th".to_string(), "Thai".to_string()),
-            ("bo".to_string(), "Tibetan".to_string()),
-            ("ti".to_string(), "Tigrinya".to_string()),
-            ("to".to_string(), "Tongan".to_string()),
-            ("tr".to_string(), "Turkish".to_string()),
-            ("tk".to_string(), "Turkmen".to_string()),
-            ("uk".to_string(), "Ukrainian".to_string()),
-            ("ur".to_string(), "Urdu".to_string()),
-            ("ug".to_string(), "Uyghur".to_string()),
-            ("uz".to_string(), "Uzbek".to_string()),
-            ("vi".to_string(), "Vietnamese".to_string()),
-            ("cy".to_string(), "Welsh".to_string()),
-            ("fy".to_string(), "Western Frisian".to_string()),
-            ("wo".to_string(), "Wolof".to_string()),
-            ("xh".to_string(), "Xhosa".to_string()),
-            ("yi".to_string(), "Yiddish".to_string()),
-            ("yo".to_string(), "Yoruba".to_string()),
-            ("zu".to_string(), "Zulu".to_string()),
-        ])
-    });
-
-pub(in crate::proxy) fn available_locales() -> &'static BTreeMap<String, String> {
-    &DEFAULT_AVAILABLE_LOCALES
-}
-
-pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
-    available_locales().clone()
-}
-
-pub(in crate::proxy) fn default_available_locale_is_supported(locale: &str) -> bool {
-    available_locales().contains_key(locale)
-}
-
-pub(in crate::proxy) fn default_available_locale_name(locale: &str) -> Option<&'static str> {
-    available_locales().get(locale).map(String::as_str)
-}
-
-pub(in crate::proxy) fn default_available_language_subtag_is_supported(language: &str) -> bool {
-    available_locales()
-        .keys()
-        .any(|locale| locale.split('-').next() == Some(language))
-}
-
-pub(in crate::proxy) fn default_available_language_subtag_name(
-    language: &str,
-) -> Option<&'static str> {
-    available_locales()
-        .iter()
-        .find_map(|(available_locale, name)| {
-            (available_locale.split('-').next() == Some(language)).then_some(name.as_str())
-        })
 }
 
 pub(in crate::proxy) fn shop_locale_record(
@@ -1768,8 +1764,8 @@ pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
 
 pub(in crate::proxy) fn market_localization_error(
     field: Vec<&str>,
-    code: &str,
     message: &str,
+    code: &str,
 ) -> Value {
     user_error_typed("TranslationUserError", field, message, Some(code))
 }

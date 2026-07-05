@@ -1,0 +1,696 @@
+{
+  "capturedAt": "2026-07-05T06:57:44.729Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live public Admin GraphQL capture for returnableFulfillments and returnCalculate on a disposable fulfilled order. The parity replay creates and fulfills a local staged order through public GraphQL mutations before exercising the query roots.",
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnQueryRootsOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            originalUnitPriceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n              presentmentMoney {\n                amount\n                currencyCode\n              }\n            }\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  mutation ReturnQueryRootsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnQueryRootsOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "return-query-roots-20260705065742@example.com",
+          "note": "return query roots capture 20260705065742",
+          "tags": ["return-query-roots", "20260705065742"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Return query roots item 20260705065742",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8892118008114",
+                "name": "#1749",
+                "createdAt": "2026-07-05T06:57:42Z",
+                "updatedAt": "2026-07-05T06:57:42Z",
+                "currencyCode": "USD",
+                "presentmentCurrencyCode": "USD",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19711585714482",
+                      "title": "Return query roots item 20260705065742",
+                      "quantity": 2,
+                      "currentQuantity": 2,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "20.0",
+                          "currencyCode": "USD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "20.0",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9830307365170",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19881442509106",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19711585714482",
+                              "title": "Return query roots item 20260705065742"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 85,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnQueryRootsFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "RETURN-QUERY-FULFILL-20260705065742",
+            "url": "https://example.com/track/return-query-roots-20260705065742",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9830307365170",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19881442509106",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "return query roots fulfillment 20260705065742"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/8040204304690",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-07-05T06:57:43Z",
+                "updatedAt": "2026-07-05T06:57:43Z",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                      "quantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19711585714482",
+                        "title": "Return query roots item 20260705065742"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnQueryRootsOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            originalUnitPriceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n              presentmentMoney {\n                amount\n                currencyCode\n              }\n            }\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 5) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n\n  query ReturnQueryRootsOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnQueryRootsOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8892118008114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8892118008114",
+              "name": "#1749",
+              "createdAt": "2026-07-05T06:57:42Z",
+              "updatedAt": "2026-07-05T06:57:43Z",
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19711585714482",
+                    "title": "Return query roots item 20260705065742",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8040204304690",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-07-05T06:57:43Z",
+                  "updatedAt": "2026-07-05T06:57:43Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19711585714482",
+                          "title": "Return query roots item 20260705065742",
+                          "originalUnitPriceSet": {
+                            "shopMoney": {
+                              "amount": "20.0",
+                              "currencyCode": "USD"
+                            },
+                            "presentmentMoney": {
+                              "amount": "20.0",
+                              "currencyCode": "USD"
+                            }
+                          },
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9830307365170",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19881442509106",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19711585714482",
+                            "title": "Return query roots item 20260705065742"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 76,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "returnableFulfillments": {
+    "query": "query ReturnableFulfillmentsRecorded($orderId: ID!) {\n  returnableFulfillments(orderId: $orderId, first: 5) {\n    nodes {\n      fulfillment {\n        id\n      }\n      returnableFulfillmentLineItems(first: 5) {\n        nodes {\n          fulfillmentLineItem {\n            id\n            lineItem {\n              id\n              title\n            }\n          }\n          quantity\n        }\n      }\n    }\n  }\n}",
+    "variables": {
+      "orderId": "gid://shopify/Order/8892118008114"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnableFulfillments": {
+            "nodes": [
+              {
+                "fulfillment": {
+                  "id": "gid://shopify/Fulfillment/8040204304690"
+                },
+                "returnableFulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "fulfillmentLineItem": {
+                        "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19711585714482",
+                          "title": "Return query roots item 20260705065742"
+                        }
+                      },
+                      "quantity": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "returnCalculate": {
+    "query": "query ReturnCalculateRecorded($input: CalculateReturnInput!) {\n  returnCalculate(input: $input) {\n    returnLineItems {\n      fulfillmentLineItem {\n        id\n        lineItem {\n          id\n          title\n        }\n      }\n      quantity\n      subtotalBeforeOrderDiscountsSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      subtotalSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    returnShippingFee {\n      id\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8892118008114",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17487343124786",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnCalculate": {
+            "returnLineItems": [
+              {
+                "fulfillmentLineItem": {
+                  "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19711585714482",
+                    "title": "Return query roots item 20260705065742"
+                  }
+                },
+                "quantity": 1,
+                "subtotalBeforeOrderDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "-20.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "subtotalSet": {
+                  "shopMoney": {
+                    "amount": "-20.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ],
+            "returnShippingFee": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "errors": [],
+    "orderCancel": {
+      "query": "mutation ReturnQueryRootsOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8892118008114",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/67b04fd4-4eac-4031-bf8f-f38bd3f23590"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderDelete": {
+      "query": "mutation ReturnQueryRootsOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8892118008114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8892118008114",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8892118008114"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8892118008114",
+              "name": "#1749",
+              "createdAt": "2026-07-05T06:57:42Z",
+              "updatedAt": "2026-07-05T06:57:43Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19711585714482",
+                    "title": "Return query roots item 20260705065742",
+                    "quantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8040204304690",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-07-05T06:57:43Z",
+                  "updatedAt": "2026-07-05T06:57:43Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19711585714482",
+                          "title": "Return query roots item 20260705065742",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ReturnCalculationOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8892118008114"
+      },
+      "query": "query ReturnCalculationOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            originalUnitPriceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n              presentmentMoney {\n                amount\n                currencyCode\n              }\n            }\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8892118008114",
+              "name": "#1749",
+              "createdAt": "2026-07-05T06:57:42Z",
+              "updatedAt": "2026-07-05T06:57:43Z",
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19711585714482",
+                    "title": "Return query roots item 20260705065742",
+                    "quantity": 2,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8040204304690",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-07-05T06:57:43Z",
+                  "updatedAt": "2026-07-05T06:57:43Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17487343124786",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19711585714482",
+                          "title": "Return query roots item 20260705065742",
+                          "originalUnitPriceSet": {
+                            "shopMoney": {
+                              "amount": "20.0",
+                              "currencyCode": "USD"
+                            },
+                            "presentmentMoney": {
+                              "amount": "20.0",
+                              "currencyCode": "USD"
+                            }
+                          },
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

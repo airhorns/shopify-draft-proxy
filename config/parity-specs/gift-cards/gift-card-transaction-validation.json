@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.setup.active.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures giftCardCredit/giftCardDebit validation branches for ordinary recent-past expired cards, deactivated cards, mismatched-currency, ordinary future processedAt, ordinary pre-epoch processedAt, and the typed credit transaction success payload. The capture creates disposable gift cards, deactivates them during cleanup, and relies on runtime tests for local no-mutation state preservation.",
+  "notes": "Captures giftCardCredit/giftCardDebit validation branches for stable-past expired cards, deactivated cards, mismatched-currency, stable far-future processedAt, ordinary pre-epoch processedAt, and the typed credit transaction success payload. The capture creates disposable gift cards, deactivates them during cleanup, and relies on runtime tests for local no-mutation state preservation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

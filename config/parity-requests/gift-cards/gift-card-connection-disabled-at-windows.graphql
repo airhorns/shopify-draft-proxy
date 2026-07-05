@@ -1,0 +1,18 @@
+query GiftCardConnectionDisabledAtWindows($query: String!, $reverseAfter: String!) {
+  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: DISABLED_AT, reverse: true, after: $reverseAfter) {
+    edges {
+      cursor
+      node {
+        lastCharacters
+        enabled
+        deactivatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

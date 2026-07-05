@@ -163,7 +163,9 @@ fn record_authoritative_id_mappings(
             continue;
         };
         let mut authoritative_ids = Vec::new();
-        collect_authoritative_ids(response_body, resource_type, &mut authoritative_ids);
+        collect_ids_matching(response_body, &mut authoritative_ids, &|id| {
+            shopify_gid_resource_type(id) == Some(resource_type) && !is_synthetic_gid(id)
+        });
         if let Some(authoritative_id) = authoritative_ids
             .into_iter()
             .find(|candidate| !id_map.values().any(|mapped_id| mapped_id == candidate))
@@ -177,42 +179,21 @@ fn record_authoritative_id_mappings(
 
 fn staged_synthetic_ids(entry: &Value) -> Vec<String> {
     let mut ids = Vec::new();
-    collect_synthetic_ids(&entry["stagedResourceIds"], &mut ids);
+    collect_ids_matching(&entry["stagedResourceIds"], &mut ids, &is_synthetic_gid);
     ids
 }
 
-fn collect_synthetic_ids(value: &Value, ids: &mut Vec<String>) {
+fn collect_ids_matching(value: &Value, ids: &mut Vec<String>, matches_id: &impl Fn(&str) -> bool) {
     match value {
-        Value::String(id) if is_synthetic_gid(id) => ids.push(id.clone()),
+        Value::String(id) if matches_id(id) => ids.push(id.clone()),
         Value::Array(values) => {
             for value in values {
-                collect_synthetic_ids(value, ids);
+                collect_ids_matching(value, ids, matches_id);
             }
         }
         Value::Object(fields) => {
             for value in fields.values() {
-                collect_synthetic_ids(value, ids);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn collect_authoritative_ids(value: &Value, resource_type: &str, ids: &mut Vec<String>) {
-    match value {
-        Value::String(id)
-            if shopify_gid_resource_type(id) == Some(resource_type) && !is_synthetic_gid(id) =>
-        {
-            ids.push(id.clone());
-        }
-        Value::Array(values) => {
-            for value in values {
-                collect_authoritative_ids(value, resource_type, ids);
-            }
-        }
-        Value::Object(fields) => {
-            for value in fields.values() {
-                collect_authoritative_ids(value, resource_type, ids);
+                collect_ids_matching(value, ids, matches_id);
             }
         }
         _ => {}

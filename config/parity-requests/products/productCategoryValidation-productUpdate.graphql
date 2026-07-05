@@ -1,0 +1,16 @@
+mutation ProductCategoryValidationUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      category {
+        id
+        fullName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

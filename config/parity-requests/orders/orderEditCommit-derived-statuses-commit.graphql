@@ -1,0 +1,32 @@
+mutation OrderEditCommitDerivedStatusesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+    order {
+      id
+      displayFinancialStatus
+      displayFulfillmentStatus
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    successMessages
+    userErrors {
+      field
+      message
+    }
+  }
+}

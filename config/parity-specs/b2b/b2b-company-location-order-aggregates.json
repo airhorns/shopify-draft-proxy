@@ -1,0 +1,164 @@
+{
+  "scenarioId": "b2b-company-location-order-aggregates",
+  "operationNames": [
+    "companyCreate",
+    "draftOrderCreate",
+    "draftOrderComplete",
+    "catalogCreate",
+    "company",
+    "companyLocation",
+    "node"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "aggregate-derivation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-location-order-aggregates.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-company-location-order-aggregates-company-create.graphql",
+    "variablesCapturePath": "$.operations.companyCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify 2025-01 capture for B2B Company and CompanyLocation aggregate/relation reads after a disposable company, completed B2B draft order, and company-location catalogCreate. The replay earns every setup object through public GraphQL requests, then verifies totalSpent, ordersCount aliases, lifetimeDuration, location currency, catalogs, and generic node reads from staged state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-setup",
+        "capturePath": "$.operations.companyCreate.response.payload.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "selectedPaths": ["$.company.name", "$.company.locations.nodes[0].name", "$.userErrors"]
+      },
+      {
+        "name": "draft-order-create-b2b-setup",
+        "capturePath": "$.operations.draftOrderCreate.response.payload.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-location-order-aggregates-draft-order-create.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "purchasingEntity": {
+                "purchasingCompany": {
+                  "companyId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+                  },
+                  "companyContactId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+                  },
+                  "companyLocationId": {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                }
+              },
+              "email": {
+                "fromCapturePath": "$.operations.draftOrderCreate.variables.input.email"
+              },
+              "note": {
+                "fromCapturePath": "$.operations.draftOrderCreate.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.operations.draftOrderCreate.variables.input.tags"
+              },
+              "visibleToCustomer": {
+                "fromCapturePath": "$.operations.draftOrderCreate.variables.input.visibleToCustomer"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.operations.draftOrderCreate.variables.input.lineItems"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "draft-order-complete-b2b-setup",
+        "capturePath": "$.operations.draftOrderComplete.response.payload.data.draftOrderComplete",
+        "proxyPath": "$.data.draftOrderComplete",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-location-order-aggregates-draft-order-complete.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-order-create-b2b-setup",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": {
+              "fromCapturePath": "$.operations.draftOrderComplete.variables.paymentPending"
+            }
+          }
+        }
+      },
+      {
+        "name": "catalog-create-company-location-setup",
+        "capturePath": "$.operations.catalogCreate.response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-location-order-aggregates-catalog-create.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.operations.catalogCreate.variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.operations.catalogCreate.variables.input.status"
+              },
+              "context": {
+                "companyLocationIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-b2b-order-and-catalog-aggregates",
+        "capturePath": "$.operations.aggregateRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-location-order-aggregates-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          },
+          {
+            "path": "$.companyLocation.catalogs.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocationCatalog",
+            "reason": "Live Shopify and local staging allocate different catalog IDs."
+          },
+          {
+            "path": "$.locationNode.catalogs.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocationCatalog",
+            "reason": "Live Shopify and local staging allocate different catalog IDs."
+          }
+        ]
+      }
+    ]
+  }
+}
