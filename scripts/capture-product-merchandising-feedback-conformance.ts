@@ -58,6 +58,8 @@ const variantRelationshipBulkUpdate = await readRequest(
 );
 const productFeedbackInvalidState = await readRequest('product-feedback-invalid-state.graphql');
 const shopFeedbackInvalidState = await readRequest('shop-feedback-invalid-state.graphql');
+const productFeedbackFoobarState = await readRequest('product-feedback-foobar-state.graphql');
+const shopFeedbackFoobarState = await readRequest('shop-feedback-foobar-state.graphql');
 
 const bulkProductFeedbackAccess = `#graphql
   mutation BulkProductResourceFeedbackAccessBlocker($feedbackInput: [ProductResourceFeedbackInput!]!) {
@@ -156,6 +158,13 @@ const merchandisingProbes: Probe[] = [
     shopFeedbackInvalidState,
     {},
   ),
+  await capture(
+    'bulkProductResourceFeedbackCreate-foobar-state',
+    ['bulkProductResourceFeedbackCreate'],
+    productFeedbackFoobarState,
+    {},
+  ),
+  await capture('shopResourceFeedbackCreate-foobar-state', ['shopResourceFeedbackCreate'], shopFeedbackFoobarState, {}),
   await capture('productFeedCreate-missing-country-language', ['productFeedCreate'], productFeedCreate, {
     input: {},
   }),

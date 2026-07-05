@@ -96,6 +96,24 @@
         }
       },
       {
+        "name": "product-feedback-foobar-state-schema-error",
+        "capturePath": "$.probes[9].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-foobar-state.graphql"
+        }
+      },
+      {
+        "name": "shop-feedback-foobar-state-schema-error",
+        "capturePath": "$.probes[10].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-foobar-state.graphql"
+        }
+      },
+      {
         "name": "product-feed-create-missing-country-language-schema-error",
         "capturePath": "$.probes[9].response.errors",
         "proxyPath": "$.errors",
@@ -107,5 +125,5 @@
       }
     ]
   },
-  "notes": "Executable guardrail parity for product-adjacent merchandising and feedback roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store blocks productFeedCreate success with automatic channel/spec feed management and missing feed webhook registration, and feedback success remains blocked by write_resource_feedbacks plus Storefront API / Sales Channel configuration. Strict targets cover productFeedCreate missing required input, productFeedDelete and productFullSync unknown-feed payloads, product bundle/listing/relationship validation payloads, and schema-level invalid-state errors for product and shop feedback mutation roots."
+  "notes": "Executable guardrail parity for product-adjacent merchandising and feedback roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store blocks productFeedCreate success with automatic channel/spec feed management and missing feed webhook registration, and feedback success remains blocked by write_resource_feedbacks plus Storefront API / Sales Channel configuration. Strict targets cover productFeedCreate missing required input, productFeedDelete and productFullSync unknown-feed payloads, product bundle/listing/relationship validation payloads, and schema-level invalid-state errors for product and shop feedback mutation roots, including fixture and non-fixture invalid enum literals."
 }

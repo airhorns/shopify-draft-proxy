@@ -657,9 +657,8 @@ impl DraftProxy {
         variants: Vec<ProductVariantRecord>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
         let payload = product_option_payload_json(
             &payload_selection,
             product,
@@ -680,9 +679,10 @@ impl DraftProxy {
         deleted_options_ids: Vec<String>,
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("productOptionsDelete".to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, &BTreeMap::new(), || {
+                "productOptionsDelete".to_string()
+            });
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let error_selection =
@@ -916,7 +916,7 @@ fn option_extra_fields(input: &BTreeMap<String, ResolvedValue>) -> BTreeMap<Stri
     if let Some(linked_metafield) = resolved_object_field(input, "linkedMetafield") {
         fields.insert(
             "linkedMetafield".to_string(),
-            resolved_object_json(&linked_metafield),
+            resolved_variables_json(&linked_metafield),
         );
     }
     fields
@@ -1623,17 +1623,5 @@ fn variant_sort_key(variant: &ProductVariantRecord, graph: &ProductOptionGraph) 
 }
 
 fn resolved_variant_strategy(variables: &BTreeMap<String, ResolvedValue>) -> Option<String> {
-    match variables.get("variantStrategy") {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
-
-fn resolved_object_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    Value::Object(
-        input
-            .iter()
-            .map(|(key, value)| (key.clone(), resolved_value_json(value)))
-            .collect(),
-    )
+    resolved_string_field(variables, "variantStrategy")
 }

@@ -309,8 +309,7 @@ fn payment_schedule_due_state(
     let Some(due_at) = due_at else {
         return false;
     };
-    let Some(due_at_epoch) = super::app_shipping_helpers::parse_rfc3339_epoch_seconds(due_at)
-    else {
+    let Some(due_at_epoch) = super::parse_rfc3339_epoch_seconds(due_at) else {
         return false;
     };
     due_at_epoch <= now_epoch
