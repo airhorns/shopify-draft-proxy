@@ -1,10 +1,10 @@
 {
-  "capturedAt": "2026-05-06T22:03:11.151Z",
+  "capturedAt": "2026-07-05T00:42:19.845Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "variables": {
-    "abandonmentId": "gid://shopify/Abandonment/0",
-    "marketingActivityId": "gid://shopify/MarketingActivity/0"
+    "abandonmentId": "gid://shopify/Abandonment/3102",
+    "marketingActivityId": "gid://shopify/MarketingActivity/4102"
   },
   "response": {
     "data": {
@@ -24,7 +24,7 @@
         "actualQueryCost": 10,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1989,
+          "currentlyAvailable": 1990,
           "restoreRate": 100
         }
       }

@@ -266,6 +266,7 @@ impl DraftProxy {
                 "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
                 "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
+                "abandonments": self.store.staged.abandonments.clone(),
                 "orders": self.store.staged.orders.records.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "nextDraftOrderId": self.store.staged.next_draft_order_id,
@@ -1256,6 +1257,8 @@ impl DraftProxy {
             });
         self.store.staged.next_customer_payment_method_id =
             counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
+        self.store.staged.abandonments =
+            value_map_from_json(state["stagedState"].get("abandonments"));
         self.store.staged.order_customer_orders =
             value_map_from_json(state["stagedState"].get("orderCustomerOrders"));
         self.store.staged.order_customer_cancelled_ids = state["stagedState"]
