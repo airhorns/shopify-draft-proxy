@@ -863,6 +863,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
 #[test]
 fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
     let mut proxy = snapshot_proxy();
+    let _default_location_id = add_platform_location(&mut proxy, "Assigned filter warehouse", true);
     let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
     let fulfillment_order_id = fulfillment_order["id"].clone();
     let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
@@ -1005,6 +1006,74 @@ fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
         cancellation_requested.body["data"]["accepted"]["nodes"],
         json!([])
     );
+}
+
+#[test]
+fn created_order_fulfillment_order_uses_staged_default_location_assignment() {
+    let mut proxy = snapshot_proxy();
+    let default_location_id = add_platform_location(&mut proxy, "Warehouse Zero", true);
+    let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            fulfillmentOrderLineItems: $lineItems
+            message: "please ship"
+            notifyCustomer: false
+          ) {
+            submittedFulfillmentOrder {
+              id
+              assignedLocation { name location { id name } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{ "id": fulfillment_order_line_item_id, "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]
+            ["submittedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        default_location_id
+    );
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]
+            ["submittedFulfillmentOrder"]["assignedLocation"]["name"],
+        json!("Warehouse Zero")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAssignedFulfillmentOrders {
+          assignedFulfillmentOrders(first: 5) {
+            nodes {
+              id
+              assignedLocation { name location { id name } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let assigned_location =
+        &read.body["data"]["assignedFulfillmentOrders"]["nodes"][0]["assignedLocation"];
+    assert_eq!(assigned_location["location"]["id"], default_location_id);
+    assert_eq!(
+        assigned_location["location"]["name"],
+        json!("Warehouse Zero")
+    );
+    assert_eq!(assigned_location["name"], json!("Warehouse Zero"));
 }
 
 #[test]

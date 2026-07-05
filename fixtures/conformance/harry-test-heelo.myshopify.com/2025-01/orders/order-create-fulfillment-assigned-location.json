@@ -1,0 +1,195 @@
+{
+  "scenarioId": "order-create-fulfillment-assigned-location",
+  "capturedAt": "2026-07-04T23:17:35.712Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Captured from live Shopify Admin GraphQL. A delivery-profile locations read is recorded before creating a shippable test order so parity replay can observe location state through the public request surface; the order is cancelled in cleanup.",
+  "operations": {
+    "locations": {
+      "query": "query OrderCreateFulfillmentAssignedLocationLocations($first: Int!) {\n    locationsAvailableForDeliveryProfilesConnection(first: $first) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
+      "variables": {
+        "first": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "create": {
+      "query": "#graphql\n  fragment OrderCreateFulfillmentAssignedLocationFields on FulfillmentOrder {\n    id\n    status\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n  }\n\n  mutation OrderCreateFulfillmentAssignedLocation($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...OrderCreateFulfillmentAssignedLocationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "assigned-location-20260704231734@example.com",
+          "note": "assigned location parity 20260704231734",
+          "tags": ["assigned-location-parity"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Assigned location shippable item 20260704231734",
+              "quantity": 1,
+              "sku": "ASSIGNED-LOCATION-20260704231734",
+              "requiresShipping": true,
+              "taxable": false,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "USD"
+                }
+              },
+              "taxLines": []
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8891466154290",
+                "name": "#1721",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9829595414834",
+                      "status": "OPEN",
+                      "assignedLocation": {
+                        "name": "Shop location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318430514",
+                          "name": "Shop location"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "query": "#graphql\n  fragment OrderCreateFulfillmentAssignedLocationFields on FulfillmentOrder {\n    id\n    status\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n  }\n\n  query OrderCreateFulfillmentAssignedLocationRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      fulfillmentOrders(first: 5) {\n        nodes {\n          ...OrderCreateFulfillmentAssignedLocationFields\n        }\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8891466154290"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8891466154290",
+              "name": "#1721",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9829595414834",
+                    "status": "OPEN",
+                    "assignedLocation": {
+                      "name": "Shop location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation OrderCreateFulfillmentAssignedLocationCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8891466154290",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/49605dc1-3035-4a88-b750-ab374aaf185e",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
