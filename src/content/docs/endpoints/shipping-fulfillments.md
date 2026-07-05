@@ -179,15 +179,17 @@ to `false`, `sortKey: ID` and timestamp-like sort keys are applied before
 `Order.fulfillmentOrders(...)` keeps the public Order-field argument boundary
 captured from Shopify: local projection applies `displayable`, `first`/`last`,
 cursors, and `reverse` there instead of inventing top-level `includeClosed` /
-`sortKey` behavior for the nested field. These slices operate on local
-order-backed fulfillment records and are not a general fulfillment-service
-execution engine.
-`fulfillmentOrdersSetFulfillmentDeadline` stages `fulfillBy` for every
-requested fulfillment order that exists in local or hydrated order state,
-including `CLOSED` and `CANCELLED` fulfillment orders. When none of the
-requested IDs resolve, it returns `success: false` with a single user error:
-`field: null`, message `Fulfillment orders could not be found.`, and
-`code: null`.
+`sortKey` behavior for the nested field. Locally created order fulfillment
+orders derive their initial `assignedLocation` from the first active
+observed/staged shop location that fulfills online orders; the runtime does not
+fabricate `gid://shopify/Location/1` when no such location is known. These
+slices operate on local order-backed fulfillment records and are not a general
+fulfillment-service execution engine. `fulfillmentOrdersSetFulfillmentDeadline`
+stages `fulfillBy` for every requested fulfillment order that exists in local or
+hydrated order state, including `CLOSED` and `CANCELLED` fulfillment orders.
+When none of the requested IDs resolve, it returns `success: false` with a single
+user error: `field: null`, message
+`Fulfillment orders could not be found.`, and `code: null`.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the

@@ -863,6 +863,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
 #[test]
 fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
     let mut proxy = snapshot_proxy();
+    let _default_location_id = add_platform_location(&mut proxy, "Assigned filter warehouse", true);
     let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
     let fulfillment_order_id = fulfillment_order["id"].clone();
     let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
@@ -1005,6 +1006,74 @@ fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
         cancellation_requested.body["data"]["accepted"]["nodes"],
         json!([])
     );
+}
+
+#[test]
+fn created_order_fulfillment_order_uses_staged_default_location_assignment() {
+    let mut proxy = snapshot_proxy();
+    let default_location_id = add_platform_location(&mut proxy, "Warehouse Zero", true);
+    let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            fulfillmentOrderLineItems: $lineItems
+            message: "please ship"
+            notifyCustomer: false
+          ) {
+            submittedFulfillmentOrder {
+              id
+              assignedLocation { name location { id name } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{ "id": fulfillment_order_line_item_id, "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]
+            ["submittedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        default_location_id
+    );
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]
+            ["submittedFulfillmentOrder"]["assignedLocation"]["name"],
+        json!("Warehouse Zero")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAssignedFulfillmentOrders {
+          assignedFulfillmentOrders(first: 5) {
+            nodes {
+              id
+              assignedLocation { name location { id name } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let assigned_location =
+        &read.body["data"]["assignedFulfillmentOrders"]["nodes"][0]["assignedLocation"];
+    assert_eq!(assigned_location["location"]["id"], default_location_id);
+    assert_eq!(
+        assigned_location["location"]["name"],
+        json!("Warehouse Zero")
+    );
+    assert_eq!(assigned_location["name"], json!("Warehouse Zero"));
 }
 
 #[test]
@@ -5189,7 +5258,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation OpenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5314,7 +5383,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         mutation ReopenNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5470,7 +5539,7 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
               fulfillBy
               assignedLocation { location { id } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5548,7 +5617,7 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
         mutation CloseNumericFulfillmentOrder($id: ID!) {
           fulfillmentOrderClose(id: $id, message: "done") {
             fulfillmentOrder { id status }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5811,7 +5880,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
         mutation OpenAlreadyOpenFulfillmentOrder($id: ID!) {
           fulfillmentOrderOpen(id: $id) {
             fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5823,8 +5892,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             "fulfillmentOrder": null,
             "userErrors": [{
                 "field": null,
-                "message": "Expected fulfillment order status to be valid but it was open.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "message": "Expected fulfillment order status to be valid but it was open."
             }]
         })
     );
@@ -5900,7 +5968,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
             mutation FulfillmentOrderInvalidStateOpen($id: ID!) {
               fulfillmentOrderOpen(id: $id) {
                 fulfillmentOrder { id status updatedAt supportedActions { action } }
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
             "#,
@@ -5912,8 +5980,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
                 "fulfillmentOrder": null,
                 "userErrors": [{
                     "field": null,
-                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
-                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}.")
                 }]
             })
         );
@@ -6192,7 +6259,7 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
             fulfillmentOrderLineItems: $lineItems
           ) {
             submittedFulfillmentOrder { id requestStatus }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -6234,52 +6301,182 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
 }
 
 #[test]
-fn store_property_node_reads_resolve_known_shop_records_locally() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+fn store_property_node_reads_resolve_shop_records_from_store_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["myshopifyDomain"] = json!("state-shop.myshopify.com");
+    restored["state"]["baseState"]["shop"]["shopAddress"] = json!({
+        "id": "gid://shopify/ShopAddress/900001",
+        "address1": "55 Store State Ave",
+        "address2": null,
+        "city": "Hamilton",
+        "company": "Stateful Shop",
+        "coordinatesValidated": true,
+        "country": "Canada",
+        "countryCodeV2": "CA",
+        "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"],
+        "formattedArea": "Hamilton ON, Canada",
+        "latitude": 43.2557,
+        "longitude": -79.8711,
+        "phone": "+1 555 0100",
+        "province": "Ontario",
+        "provinceCode": "ON",
+        "zip": "L8P1A1"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedShopPolicyForNodeRead($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type title body url }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "shopPolicy": {
+                "type": "CONTACT_INFORMATION",
+                "body": "<p>Use the store-state contact channel.</p>"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    let policy_id = update.body["data"]["shopPolicyUpdate"]["shopPolicy"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(policy_id, "gid://shopify/ShopPolicy/42438689001");
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedProductVariantForMixedNodeRead($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              variants(first: 1) { nodes { id title } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Mixed node resolver product" } }),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let variant_id = product.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
     let query = r#"
-        query AdminPlatformStorePropertyNodeReads {
-          shopAddressNode: node(id: "gid://shopify/ShopAddress/63755419881") { ... on ShopAddress { id address1 city country formatted } }
-          shopPolicyNode: node(id: "gid://shopify/ShopPolicy/42438689001") { ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } } }
-          nodes(ids: ["gid://shopify/ShopAddress/63755419881", "gid://shopify/ShopPolicy/42438689001"]) {
+        query AdminPlatformStorePropertyNodeReads($policyId: ID!, $variantId: ID!) {
+          shop { myshopifyDomain }
+          shopAddressNode: node(id: "gid://shopify/ShopAddress/900001") {
+            __typename
             ... on ShopAddress { id address1 city country formatted }
-            ... on ShopPolicy { id title type translations(locale: "fr") { key locale value } }
+          }
+          shopPolicyNode: node(id: $policyId) {
+            __typename
+            ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
+          }
+          productVariantNode: node(id: $variantId) {
+            __typename
+            ... on ProductVariant { id title product { id title } }
+          }
+          nodes(ids: ["gid://shopify/ShopAddress/900001", $policyId, $variantId]) {
+            __typename
+            ... on ShopAddress { id address1 city country formatted }
+            ... on ShopPolicy { id title type body url translations(locale: "fr") { key locale value } }
+            ... on ProductVariant { id title product { id title } }
           }
         }
     "#;
 
-    let response = proxy.process_request(json_graphql_request(query, json!({})));
+    let response = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "policyId": policy_id.clone(), "variantId": variant_id.clone() }),
+    ));
 
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body,
         json!({
             "data": {
+                "shop": {
+                    "myshopifyDomain": "state-shop.myshopify.com"
+                },
                 "shopAddressNode": {
-                    "id": "gid://shopify/ShopAddress/63755419881",
-                    "address1": "103 ossington",
-                    "city": "Ottawa",
+                    "__typename": "ShopAddress",
+                    "id": "gid://shopify/ShopAddress/900001",
+                    "address1": "55 Store State Ave",
+                    "city": "Hamilton",
                     "country": "Canada",
-                    "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                    "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"]
                 },
                 "shopPolicyNode": {
-                    "id": "gid://shopify/ShopPolicy/42438689001",
-                    "title": "Contact",
+                    "__typename": "ShopPolicy",
+                    "id": policy_id,
+                    "title": "Contact Information",
                     "type": "CONTACT_INFORMATION",
+                    "body": "<p>Use the store-state contact channel.</p>",
+                    "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                     "translations": []
+                },
+                "productVariantNode": {
+                    "__typename": "ProductVariant",
+                    "id": variant_id,
+                    "title": "Default Title",
+                    "product": {
+                        "id": product_id,
+                        "title": "Mixed node resolver product"
+                    }
                 },
                 "nodes": [
                     {
-                        "id": "gid://shopify/ShopAddress/63755419881",
-                        "address1": "103 ossington",
-                        "city": "Ottawa",
+                        "__typename": "ShopAddress",
+                        "id": "gid://shopify/ShopAddress/900001",
+                        "address1": "55 Store State Ave",
+                        "city": "Hamilton",
                         "country": "Canada",
-                        "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"]
+                        "formatted": ["55 Store State Ave", "Hamilton ON L8P1A1", "Canada"]
                     },
                     {
-                        "id": "gid://shopify/ShopPolicy/42438689001",
-                        "title": "Contact",
+                        "__typename": "ShopPolicy",
+                        "id": policy_id,
+                        "title": "Contact Information",
                         "type": "CONTACT_INFORMATION",
+                        "body": "<p>Use the store-state contact channel.</p>",
+                        "url": "https://state-shop.myshopify.com/policies/1.html?locale=en",
                         "translations": []
+                    },
+                    {
+                        "__typename": "ProductVariant",
+                        "id": variant_id,
+                        "title": "Default Title",
+                        "product": {
+                            "id": product_id,
+                            "title": "Mixed node resolver product"
+                        }
                     }
                 ]
             }

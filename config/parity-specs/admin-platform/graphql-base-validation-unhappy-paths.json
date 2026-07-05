@@ -1,6 +1,6 @@
 {
   "scenarioId": "graphql-base-validation-unhappy-paths",
-  "operationNames": ["shop", "products", "productCreate", "pubSubWebhookSubscriptionCreate"],
+  "operationNames": ["shop", "products", "orders", "productCreate", "pubSubWebhookSubscriptionCreate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["graphql-validation-parity", "schema-validation", "no-upstream-passthrough"],
   "liveCaptureFiles": [
@@ -58,7 +58,15 @@
           "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-missing-required-argument.graphql",
           "variablesCapturePath": "$.cases.missingRequiredArgument.request.variables",
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.extensions",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify includes volatile cost/throttle extensions on this schema-validation envelope; the proxy intentionally omits them instead of returning a fixed canned throttle model."
+          }
+        ]
       },
       {
         "name": "unknown-query-root-errors",
@@ -90,6 +98,17 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql",
           "variablesCapturePath": "$.cases.unknownProductField.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-order-field-errors",
+        "capturePath": "$.cases.unknownOrderField.expected.body",
+        "proxyPath": "$",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-base-validation-unknown-order-field.graphql",
+          "variablesCapturePath": "$.cases.unknownOrderField.request.variables",
           "apiVersion": "2025-01"
         }
       },
