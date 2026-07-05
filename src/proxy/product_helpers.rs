@@ -1245,51 +1245,6 @@ fn media_missing_ids_error(field: &str, ids: &[String]) -> Value {
     user_error_omit_code([field], &message, Some("MEDIA_DOES_NOT_EXIST"))
 }
 
-pub(in crate::proxy) fn gift_card_payload_json(
-    gift_card: &Value,
-    selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
-}
-
-pub(in crate::proxy) fn gift_card_transaction_payload(
-    selections: &[SelectedField],
-    transaction_field: &str,
-    transaction: Option<Value>,
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        name if name == transaction_field => Some(match transaction.as_ref() {
-            Some(transaction) => selected_json(transaction, &selection.selection),
-            None => Value::Null,
-        }),
-        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-        _ => None,
-    })
-}
-
-pub(in crate::proxy) fn gift_card_payload_json_nullable(
-    gift_card: Option<&Value>,
-    selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "giftCard" => Some(match gift_card {
-            Some(card) => selected_json(card, &selection.selection),
-            None => Value::Null,
-        }),
-        "giftCardCode" => Some(
-            gift_card
-                .and_then(|card| card.get("giftCardCode"))
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-        _ => None,
-    })
-}
-
 pub(in crate::proxy) fn default_product_timestamp() -> String {
     "2024-01-01T00:00:00.000Z".to_string()
 }
