@@ -9100,6 +9100,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-upstream-fixed-amount-activate',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-upstream-fixed-amount-activate-conformance.ts',
+    purpose:
+      'Upstream-only fixed-amount code basic discount activate plus readback preserving customerGets, minimum requirement, usage limit, applies-once, and related hydrated config.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-upstream-fixed-amount-activate.json`,
+      'config/parity-specs/discounts/discount-upstream-fixed-amount-activate.json',
+      'config/parity-requests/discounts/discount-upstream-fixed-amount-activate.graphql',
+      'config/parity-requests/discounts/discount-upstream-fixed-amount-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active code basic fixed-amount discount, records hydrate/activate/read behavior, then deletes the discount with finally-block cleanup on failure.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-activate-deactivate-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-activate-deactivate-edge-cases-conformance.ts',
