@@ -1,0 +1,24 @@
+mutation B2BCompanyLocationOrderAggregatesCatalogCreate($input: CatalogCreateInput!) {
+    catalogCreate(input: $input) {
+      catalog {
+        __typename
+        id
+        title
+        status
+        ... on CompanyLocationCatalog {
+          companyLocations(first: 5) {
+            nodes {
+              id
+              name
+            }
+          }
+        }
+      }
+      userErrors {
+        __typename
+        field
+        message
+        code
+      }
+    }
+  }

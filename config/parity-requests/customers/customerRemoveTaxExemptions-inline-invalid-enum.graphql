@@ -1,0 +1,12 @@
+mutation CustomerRemoveTaxExemptionsInlineInvalidEnum($customerId: ID!) {
+  customerRemoveTaxExemptions(customerId: $customerId, taxExemptions: [FOO_BAR]) {
+    customer {
+      id
+      taxExemptions
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

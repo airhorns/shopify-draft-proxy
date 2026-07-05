@@ -7,17 +7,10 @@ fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
 }
 
 fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
-    let tail = id.map(resource_id_tail).unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(id)
 }
 
-fn marketing_activity_cursor(record: &Value) -> String {
-    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
-}
-
-fn marketing_event_cursor(record: &Value) -> String {
+fn marketing_record_cursor(record: &Value) -> String {
     format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
 }
 
@@ -54,7 +47,7 @@ fn marketing_activity_connection(
         marketing_activity_search_decision,
         marketing_activity_staged_sort_key,
         selected_json,
-        marketing_activity_cursor,
+        marketing_record_cursor,
     )
 }
 
@@ -70,7 +63,7 @@ fn marketing_event_connection(
         marketing_event_search_decision,
         marketing_event_staged_sort_key,
         selected_json,
-        marketing_event_cursor,
+        marketing_record_cursor,
     )
 }
 
@@ -81,6 +74,12 @@ pub(in crate::proxy) fn marketing_activity_payload(
     json!({ "marketingActivity": activity.unwrap_or(Value::Null), "userErrors": user_errors })
 }
 
+fn marketing_activity_error(error: Value) -> Value {
+    marketing_activity_payload(None, vec![error])
+}
+fn marketing_input_error(message: &str, code: Option<&str>) -> Value {
+    marketing_activity_error(user_error(["input"], message, code))
+}
 pub(in crate::proxy) fn marketing_engagement_payload(
     engagement: Option<Value>,
     user_errors: Vec<Value>,
@@ -89,121 +88,132 @@ pub(in crate::proxy) fn marketing_engagement_payload(
 }
 
 pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing activity does not exist.",
-        "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing activity does not exist.",
+        Some("MARKETING_ACTIVITY_DOES_NOT_EXIST"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
-    json!({
-        "field": null,
-        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
-        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
-    })
+    user_error(
+        Value::Null,
+        "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        Some("CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_to_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
-        "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+        Some("CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_from_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic from STOREFRONT_APP.",
-        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic from STOREFRONT_APP.",
+        Some("CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing event does not exist.",
-        "code": "MARKETING_EVENT_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing event does not exist.",
+        Some("MARKETING_EVENT_DOES_NOT_EXIST"),
+    )
 }
 
 const MARKETING_EVENT_ID_OFFSET: u64 = 1_000_000;
 
-fn marketing_app_json(api_client_id: Option<&str>) -> Value {
-    let Some(api_client_id) = api_client_id.map(str::trim).filter(|id| !id.is_empty()) else {
-        return json!({ "id": "gid://shopify/App/local", "title": "local" });
-    };
-    let app_id = if api_client_id.starts_with("gid://shopify/App/") {
-        api_client_id.to_string()
-    } else {
-        shopify_gid("App", api_client_id)
-    };
-    json!({ "id": app_id, "title": resource_id_tail(api_client_id) })
+#[derive(Clone)]
+pub(in crate::proxy) struct MarketingActivityAppContext {
+    api_client_id: Option<String>,
+    app: Value,
+}
+
+fn marketing_app_json(app: Option<&Value>, fallback_app_id: &str) -> Value {
+    let app_id = app
+        .and_then(|app| app.get("id"))
+        .and_then(Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| fallback_app_id.to_string());
+    let handle = app
+        .and_then(|app| app.get("handle"))
+        .and_then(Value::as_str)
+        .filter(|handle| !handle.trim().is_empty())
+        .unwrap_or("shopify-draft-proxy");
+    let title = app
+        .and_then(|app| app.get("title"))
+        .and_then(Value::as_str)
+        .filter(|title| !title.trim().is_empty())
+        .filter(|title| !resource_id_tail(&app_id).eq_ignore_ascii_case(title.trim()))
+        .unwrap_or(handle);
+    json!({ "__typename": "App", "id": app_id, "handle": handle, "title": title })
 }
 
 fn non_empty_channel_handle(handle: &str) -> bool {
     !handle.trim().is_empty()
 }
 
+fn recognized_marketing_channel_handle(handle: &str) -> bool {
+    matches!(handle.trim(), "email")
+}
+
+fn old_pointer_string(old: &Value, pointer: &str) -> Option<String> {
+    old.pointer(pointer)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
 pub(in crate::proxy) fn marketing_activity_from_input(
     id: &str,
     input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    api_client_id: Option<String>,
+    app_context: MarketingActivityAppContext,
     new_marketing_event_id: Option<String>,
     timestamp: &str,
     shop_currency_code: &str,
 ) -> Value {
+    let MarketingActivityAppContext { api_client_id, app } = app_context;
     let old = existing.cloned().unwrap_or_else(|| json!({}));
-    let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
-        old["title"]
-            .as_str()
-            .unwrap_or("Marketing activity")
-            .to_string()
-    });
-    let remote_id = resolved_string_field(&input, "remoteId")
-        .or_else(|| old["remoteId"].as_str().map(str::to_string));
-    let status = resolved_string_field(&input, "status")
-        .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
-    let tactic = resolved_string_field(&input, "tactic")
-        .unwrap_or_else(|| old["tactic"].as_str().unwrap_or("NEWSLETTER").to_string());
-    let channel_type = resolved_string_field(&input, "marketingChannelType").unwrap_or_else(|| {
-        old["marketingChannelType"]
-            .as_str()
-            .unwrap_or("EMAIL")
-            .to_string()
-    });
-    let remote_url = resolved_string_field(&input, "remoteUrl").or_else(|| {
-        old["marketingEvent"]["manageUrl"]
-            .as_str()
-            .map(str::to_string)
-    });
-    let preview_url = resolved_string_field(&input, "previewUrl").or_else(|| {
-        old["marketingEvent"]["previewUrl"]
-            .as_str()
-            .map(str::to_string)
-    });
-    let url_parameter_value = resolved_string_field(&input, "urlParameterValue")
-        .or_else(|| old["urlParameterValue"].as_str().map(str::to_string));
-    let channel_handle = resolved_string_field(&input, "channelHandle")
-        .map(Value::String)
-        .or_else(|| old["marketingEvent"].get("channelHandle").cloned())
-        .unwrap_or(Value::Null);
     let utm = resolved_object_field(&input, "utm");
-    let old_utm = &old["utmParameters"];
-    let campaign = utm
-        .as_ref()
-        .and_then(|u| resolved_string_field(u, "campaign"))
-        .or_else(|| old_utm["campaign"].as_str().map(str::to_string));
-    let source = utm
-        .as_ref()
-        .and_then(|u| resolved_string_field(u, "source"))
-        .or_else(|| old_utm["source"].as_str().map(str::to_string));
-    let medium = utm
-        .as_ref()
-        .and_then(|u| resolved_string_field(u, "medium"))
-        .or_else(|| old_utm["medium"].as_str().map(str::to_string));
+    macro_rules! input_or_old {
+        ($key:literal, $pointer:literal) => {
+            resolved_string_field(&input, $key).or_else(|| old_pointer_string(&old, $pointer))
+        };
+    }
+    macro_rules! input_or_old_value {
+        ($key:literal, $pointer:literal) => {
+            input_or_old!($key, $pointer)
+                .map(Value::String)
+                .unwrap_or_else(|| old.pointer($pointer).cloned().unwrap_or(Value::Null))
+        };
+    }
+    macro_rules! utm_or_old {
+        ($key:literal, $pointer:literal) => {
+            utm.as_ref()
+                .and_then(|u| resolved_string_field(u, $key))
+                .or_else(|| old_pointer_string(&old, $pointer))
+        };
+    }
+    let title =
+        input_or_old!("title", "/title").unwrap_or_else(|| "Marketing activity".to_string());
+    let remote_id = input_or_old!("remoteId", "/remoteId");
+    let status = input_or_old!("status", "/status").unwrap_or_else(|| "UNDEFINED".to_string());
+    let tactic = input_or_old!("tactic", "/tactic").unwrap_or_else(|| "NEWSLETTER".to_string());
+    let channel_type = input_or_old!("marketingChannelType", "/marketingChannelType")
+        .unwrap_or_else(|| "EMAIL".to_string());
+    let remote_url = input_or_old!("remoteUrl", "/marketingEvent/manageUrl");
+    let preview_url = input_or_old!("previewUrl", "/marketingEvent/previewUrl");
+    let url_parameter_value = input_or_old!("urlParameterValue", "/urlParameterValue");
+    let channel_handle = input_or_old_value!("channelHandle", "/marketingEvent/channelHandle");
+    let campaign = utm_or_old!("campaign", "/utmParameters/campaign");
+    let source = utm_or_old!("source", "/utmParameters/source");
+    let medium = utm_or_old!("medium", "/utmParameters/medium");
     let source_medium = marketing_source_and_medium(
         &channel_type,
         &tactic,
@@ -233,14 +243,12 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             })
         })
         .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
-    let scheduled_to_end_at = resolved_string_field(&input, "scheduledEnd")
-        .map(Value::String)
-        .unwrap_or_else(|| old["marketingEvent"]["scheduledToEndAt"].clone());
+    let scheduled_to_end_at =
+        input_or_old_value!("scheduledEnd", "/marketingEvent/scheduledToEndAt");
     let created_at = old["createdAt"].as_str().unwrap_or(timestamp);
     let started_at = old["marketingEvent"]["startedAt"]
         .as_str()
         .unwrap_or(timestamp);
-    let app = marketing_app_json(api_client_id.as_deref());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -258,12 +266,8 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "isExternal": true,
         "inMainWorkflowVersion": false,
         "urlParameterValue": url_parameter_value,
-        "parentRemoteId": resolved_string_field(&input, "parentRemoteId")
-            .map(Value::String)
-            .unwrap_or_else(|| old.get("parentRemoteId").cloned().unwrap_or(Value::Null)),
-        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel")
-            .map(Value::String)
-            .unwrap_or_else(|| old.get("hierarchyLevel").cloned().unwrap_or(Value::Null)),
+        "parentRemoteId": input_or_old_value!("parentRemoteId", "/parentRemoteId"),
+        "hierarchyLevel": input_or_old_value!("hierarchyLevel", "/hierarchyLevel"),
         "utmParameters": {
             "campaign": campaign_value.clone(),
             "source": source_value.clone(),
@@ -297,7 +301,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
     id: &str,
     mut input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    api_client_id: Option<String>,
+    app_context: MarketingActivityAppContext,
     timestamp: &str,
     shop_currency_code: &str,
 ) -> Value {
@@ -317,7 +321,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
         id,
         input,
         existing,
-        api_client_id,
+        app_context,
         None,
         timestamp,
         shop_currency_code,
@@ -457,11 +461,11 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     ] {
         if let Some(url) = value {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
-                return Some(json!({
-                    "field": ["input", field],
-                    "message": format!("{} is not a valid URL", field),
-                    "code": "INVALID"
-                }));
+                return Some(user_error(
+                    vec!["input".to_string(), field.to_string()],
+                    &format!("{field} is not a valid URL"),
+                    Some("INVALID"),
+                ));
             }
         }
     }
@@ -605,6 +609,30 @@ pub(in crate::proxy) fn marketing_source_and_medium(
 }
 
 impl DraftProxy {
+    fn marketing_app_context_for_request(&self, request: &Request) -> MarketingActivityAppContext {
+        let request_installation = current_app_installation_from_request(request);
+        let request_app_id = app_id_from_installation(&request_installation)
+            .unwrap_or_else(|| request_app_gid(request));
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .cloned();
+        if let Some(installed_app_id) =
+            self.current_app_installation_app_id_for_request(&request_app_id)
+        {
+            if let Some(installation) = self.store.staged.installed_apps.get(&installed_app_id) {
+                return MarketingActivityAppContext {
+                    api_client_id,
+                    app: marketing_app_json(installation.get("app"), &request_app_id),
+                };
+            }
+        }
+        MarketingActivityAppContext {
+            api_client_id,
+            app: marketing_app_json(request_installation.get("app"), &request_app_id),
+        }
+    }
+
     pub(in crate::proxy) fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
@@ -803,14 +831,12 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = native_marketing_activity_from_input(
             &id,
             input,
             None,
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             &timestamp,
             &shop_currency_code,
         );
@@ -835,14 +861,12 @@ impl DraftProxy {
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = native_marketing_activity_from_input(
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             &timestamp,
             &shop_currency_code,
         );
@@ -883,7 +907,7 @@ impl DraftProxy {
                 || target_by_remote != target_by_utm
             {
                 return selected_json(
-                    &marketing_activity_payload(None, vec![marketing_activity_missing_error()]),
+                    &marketing_activity_error(marketing_activity_missing_error()),
                     &field.selection,
                 );
             }
@@ -901,7 +925,7 @@ impl DraftProxy {
             });
         let Some(existing_id) = existing_id else {
             return selected_json(
-                &marketing_activity_payload(None, vec![marketing_activity_missing_error()]),
+                &marketing_activity_error(marketing_activity_missing_error()),
                 &field.selection,
             );
         };
@@ -919,16 +943,7 @@ impl DraftProxy {
             selector_utm.as_ref(),
             request,
         ) {
-            return selected_json(
-                &marketing_activity_payload(None, vec![err]),
-                &field.selection,
-            );
-        }
-        if let Some(err) = invalid_marketing_url_error(&input, &field.name) {
-            return selected_json(
-                &marketing_activity_payload(None, vec![err]),
-                &field.selection,
-            );
+            return selected_json(&marketing_activity_error(err), &field.selection);
         }
         let payload = self.marketing_create_or_update_payload(
             field,
@@ -962,10 +977,7 @@ impl DraftProxy {
                 if let Some(err) =
                     self.marketing_external_immutable_update_error(existing, &input, None, request)
                 {
-                    return selected_json(
-                        &marketing_activity_payload(None, vec![err]),
-                        &field.selection,
-                    );
+                    return selected_json(&marketing_activity_error(err), &field.selection);
                 }
             }
         }
@@ -982,103 +994,126 @@ impl DraftProxy {
         create_if_missing: bool,
         request: &Request,
     ) -> Value {
+        if let Some(payload) = self.marketing_create_or_update_error(
+            field,
+            &input,
+            existing_id.as_deref(),
+            create_if_missing,
+            request,
+        ) {
+            return payload;
+        }
+        let activity = self.stage_marketing_create_or_update(input, existing_id, request);
+        marketing_activity_payload(Some(activity), Vec::new())
+    }
+
+    fn marketing_create_or_update_error(
+        &self,
+        field: &RootFieldSelection,
+        input: &BTreeMap<String, ResolvedValue>,
+        existing_id: Option<&str>,
+        create_if_missing: bool,
+        request: &Request,
+    ) -> Option<Value> {
         if self.store.staged.marketing_delete_all_external
             && existing_id.is_none()
             && field.name == "marketingActivityCreateExternal"
         {
-            return marketing_activity_payload(
-                None,
-                vec![user_error(Value::Null, "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.", Some("DELETE_JOB_ENQUEUED"))],
-            );
+            return Some(marketing_activity_error(user_error(Value::Null, "Cannot perform this operation because a job to delete all external activities has been enqueued, which happens either from calling the marketingActivitiesDeleteAllExternal mutation or as a result of an app uninstall. Please either check the status of the job returned by the mutation or try again later.", Some("DELETE_JOB_ENQUEUED"))));
         }
         if !input.contains_key("utm")
             && !input.contains_key("urlParameterValue")
             && create_if_missing
         {
-            return marketing_activity_payload(
-                None,
-                vec![user_error(["input"], "Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.", Some("NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER"))],
-            );
+            return Some(marketing_input_error("Non-hierarchical marketing activities must have UTM parameters or a URL parameter value.", Some("NON_HIERARCHIAL_REQUIRES_UTM_URL_PARAMETER")));
         }
-        if has_marketing_currency_mismatch(&input) {
-            return marketing_activity_payload(
-                None,
-                vec![user_error(
-                    ["input"],
-                    "Currency code is not matching between budget and ad spend",
-                    None,
-                )],
-            );
+        if let (false, Some(err)) = (
+            create_if_missing,
+            invalid_marketing_url_error(input, &field.name),
+        ) {
+            return Some(marketing_activity_error(err));
         }
-        if let Some(err) = invalid_marketing_url_error(&input, &field.name) {
-            // Top-level GraphQL coercion in Shopify; parity compares errors for these cases.
-            return marketing_activity_payload(None, vec![err]);
+        if has_marketing_currency_mismatch(input) {
+            return Some(marketing_input_error(
+                "Currency code is not matching between budget and ad spend",
+                None,
+            ));
+        }
+        // Top-level GraphQL coercion in Shopify; parity compares errors for these cases.
+        if let (true, Some(err)) = (
+            create_if_missing,
+            invalid_marketing_url_error(input, &field.name),
+        ) {
+            return Some(marketing_activity_error(err));
         }
         if create_if_missing
             && existing_id.is_none()
-            && resolved_string_field(&input, "channelHandle")
-                .is_some_and(|handle| !non_empty_channel_handle(&handle))
+            && resolved_string_field(input, "channelHandle")
+                .is_some_and(|handle| !recognized_marketing_channel_handle(&handle))
         {
-            return marketing_activity_payload(
-                None,
-                vec![user_error(["input"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
-            );
+            return Some(marketing_input_error("The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE")));
         }
-        let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
         if create_if_missing && existing_id.is_none() {
-            if !remote.is_empty()
-                && self
-                    .find_marketing_activity_by_remote(&remote, request)
-                    .is_some()
-            {
-                return marketing_activity_payload(
-                    None,
-                    vec![user_error(
-                        ["input"],
-                        "Validation failed: Remote ID has already been taken",
-                        None,
-                    )],
-                );
-            }
-            if resolved_object_field(&input, "utm")
-                .and_then(|utm| resolved_string_field(&utm, "campaign"))
-                .is_some_and(|campaign| {
-                    self.find_marketing_activity_by_utm(&campaign, request)
-                        .is_some()
-                })
-            {
-                return marketing_activity_payload(
-                    None,
-                    vec![user_error(
-                        ["input"],
-                        "Validation failed: Utm campaign has already been taken",
-                        None,
-                    )],
-                );
-            }
-            if resolved_string_field(&input, "urlParameterValue").is_some_and(|value| {
-                self.find_marketing_activity_by_url_parameter(&value, request)
-                    .is_some()
-            }) {
-                let message = if field.name == "marketingActivityUpsertExternal" {
-                    "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken"
-                } else {
-                    "Validation failed: Url parameter value has already been taken"
-                };
-                return marketing_activity_payload(
-                    None,
-                    vec![user_error(["input"], message, None)],
-                );
-            }
+            return self.marketing_create_duplicate_error(field, input, request);
         }
-        let new_marketing_event_id = if existing_id.is_none() {
-            Some(shopify_gid(
+        None
+    }
+
+    fn marketing_create_duplicate_error(
+        &self,
+        field: &RootFieldSelection,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Option<Value> {
+        let remote = resolved_string_field(input, "remoteId").unwrap_or_default();
+        if !remote.is_empty()
+            && self
+                .find_marketing_activity_by_remote(&remote, request)
+                .is_some()
+        {
+            return Some(marketing_input_error(
+                "Validation failed: Remote ID has already been taken",
+                None,
+            ));
+        }
+        if resolved_object_field(input, "utm")
+            .and_then(|utm| resolved_string_field(&utm, "campaign"))
+            .is_some_and(|campaign| {
+                self.find_marketing_activity_by_utm(&campaign, request)
+                    .is_some()
+            })
+        {
+            return Some(marketing_input_error(
+                "Validation failed: Utm campaign has already been taken",
+                None,
+            ));
+        }
+        if resolved_string_field(input, "urlParameterValue").is_some_and(|value| {
+            self.find_marketing_activity_by_url_parameter(&value, request)
+                .is_some()
+        }) {
+            let message = if field.name == "marketingActivityUpsertExternal" {
+                "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken"
+            } else {
+                "Validation failed: Url parameter value has already been taken"
+            };
+            return Some(marketing_input_error(message, None));
+        }
+        None
+    }
+
+    fn stage_marketing_create_or_update(
+        &mut self,
+        input: BTreeMap<String, ResolvedValue>,
+        existing_id: Option<String>,
+        request: &Request,
+    ) -> Value {
+        let new_marketing_event_id = existing_id.is_none().then(|| {
+            shopify_gid(
                 "MarketingEvent",
                 self.next_synthetic_id + MARKETING_EVENT_ID_OFFSET,
-            ))
-        } else {
-            None
-        };
+            )
+        });
         let id = existing_id.unwrap_or_else(|| {
             let id = shopify_gid("MarketingActivity", self.next_synthetic_id);
             self.next_synthetic_id += 1;
@@ -1087,14 +1122,12 @@ impl DraftProxy {
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
+        let app_context = self.marketing_app_context_for_request(request);
         let activity = marketing_activity_from_input(
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            app_context,
             new_marketing_event_id,
             &timestamp,
             &shop_currency_code,
@@ -1103,7 +1136,7 @@ impl DraftProxy {
             .staged
             .marketing_activities
             .insert(id, activity.clone());
-        marketing_activity_payload(Some(activity), Vec::new())
+        activity
     }
 
     pub(in crate::proxy) fn marketing_delete_external(
@@ -1162,7 +1195,7 @@ impl DraftProxy {
             return None;
         }
         let activity = self.store.staged.marketing_activities.get(id)?;
-        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         if activity["apiClientId"].as_str() == request_app.map(String::as_str) {
             Some(activity)
         } else {
@@ -1223,7 +1256,7 @@ impl DraftProxy {
             );
         }
         if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
-            if !non_empty_channel_handle(&channel) {
+            if !recognized_marketing_channel_handle(&channel) {
                 return selected_json(
                     &marketing_engagement_payload(
                         None,
@@ -1361,7 +1394,7 @@ impl DraftProxy {
     }
 
     fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {
-        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
             .staged
             .marketing_activities
@@ -1419,7 +1452,7 @@ impl DraftProxy {
         request: &Request,
         matches_record: impl Fn(&Value) -> bool,
     ) -> Option<String> {
-        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
             .staged
             .marketing_activities
@@ -1577,15 +1610,30 @@ fn marketing_search_decision(
     if query.is_empty() {
         return StagedSearchDecision::Match;
     }
+    let mut group_matches = true;
+    let mut group_has_terms = false;
     for term in marketing_query_terms(query) {
+        if term.eq_ignore_ascii_case("OR") {
+            if group_has_terms && group_matches {
+                return StagedSearchDecision::Match;
+            }
+            group_matches = true;
+            group_has_terms = false;
+            continue;
+        }
         if term.eq_ignore_ascii_case("AND") {
             continue;
         }
+        group_has_terms = true;
         if !term_matches(record, &term) {
-            return StagedSearchDecision::NoMatch;
+            group_matches = false;
         }
     }
-    StagedSearchDecision::Match
+    if !group_has_terms || group_matches {
+        StagedSearchDecision::Match
+    } else {
+        StagedSearchDecision::NoMatch
+    }
 }
 
 fn marketing_query_terms(query: &str) -> Vec<String> {
@@ -1791,15 +1839,9 @@ fn marketing_ordered_text_matches(actual: Option<&str>, expected: &str) -> bool 
 }
 
 fn marketing_query_comparison(value: &str) -> Option<(&str, &str)> {
-    for operator in [">=", "<=", ">", "<"] {
-        if let Some(target) = value.strip_prefix(operator) {
-            let target = marketing_unquote(target.trim());
-            if !target.is_empty() {
-                return Some((operator, target));
-            }
-        }
-    }
-    None
+    let (operator, target) = comparison_operator_prefix(value, &[">=", "<=", ">", "<"])?;
+    let target = marketing_unquote(target.trim());
+    (!target.is_empty()).then_some((operator, target))
 }
 
 fn marketing_ordered_compare(actual: &str, target: &str, operator: &str) -> bool {

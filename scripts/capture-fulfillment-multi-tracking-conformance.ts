@@ -137,7 +137,7 @@ mutation FulfillmentMultiTrackingOrderCreate($order: OrderCreateOrderInput!, $op
 `;
 
 // Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
-// (src/proxy/online_store_orders_payments.rs). On a cold fulfillmentCreate the
+// (src/proxy/orders_payments_fulfillment.rs). On a cold fulfillmentCreate the
 // proxy forwards this document to resolve the owning order from the supplied
 // fulfillmentOrderId; recording its live response is what replaces the seeded
 // order. Kept flush-left so cleanGraphql leaves it identical to the constant.

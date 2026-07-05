@@ -1,0 +1,13 @@
+query MetafieldsSetValueTypeFidelityRead($id: ID!, $namespace: String!) {
+  product(id: $id) {
+    metafields(first: 20, namespace: $namespace) {
+      nodes {
+        namespace
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+  }
+}

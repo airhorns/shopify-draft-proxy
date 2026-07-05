@@ -629,6 +629,14 @@ Practical rule:
 
 - model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
 
+### Current: BulkOperation search warnings can still match all jobs
+
+A 2026-04 live probe on `harry-test-heelo.myshopify.com` showed that `bulkOperations(query:)` accepts case-insensitive `status:` values and date-only `created_at` comparator terms such as `created_at:>2000-01-01`. Unknown fielded terms such as `made_up:whatever` did not fail closed: Shopify returned the usual job list plus `extensions.search[].warnings[{ code: "invalid_field" }]`.
+
+Practical rule:
+
+- model supported `status:` and `created_at:` filters normally, but keep unsupported fielded terms as warning-backed match-all terms instead of silently matching everything with no `extensions.search` warning
+
 ## Current: Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
@@ -3408,6 +3416,23 @@ Practical rule:
 - model public `commentDelete` as true local deletion, not a `REMOVED` moderation transition; the `REMOVED` state is still useful for legacy snapshots and dependent-destroy guardrails
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
+### 69b. Nested online-store content connections are real windows, with narrower args than the top-level roots
+
+A 2025-01 live capture for nested online-store content connections showed
+`Blog.articles` and `Article.comments` behaving like ordinary connections for
+`first`, `after`, `before`, `reverse`, and `last` when `before` is supplied.
+The same capture showed `Article.comments(query: "status:SPAM")` filtering the
+nested comment connection.
+
+Captured schema boundaries were narrower than the top-level content roots:
+
+- `Blog.articles(sortKey:)`, `Blog.articles(query:)`, and `Article.comments(sortKey:)` were rejected by Admin GraphQL 2025-01
+- bare `last` without `before` was rejected on both nested connections with `using last without before is not supported`
+
+Practical rule:
+
+- route nested online-store content reads through the shared connection engine so child windows, cursors, and `pageInfo` are computed from the sliced child graph, but do not claim nested `sortKey` or `Blog.articles(query:)` fidelity unless a later schema capture proves those arguments are accepted.
+
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`.
@@ -4096,3 +4121,39 @@ Practical rule:
 - compare the actual windowed nodes and stable pageInfo fields, but do not make
   the local staged model reproduce the transient root `companyLocations`
   second-page `hasNextPage` overstatement
+
+## 97. Delivery profile zone countries are sorted in write/read projections
+
+Admin GraphQL 2026-04 live capture for the delivery-profile lifecycle on
+`harry-test-heelo.myshopify.com` sent `countries: [{ code: "US" }, { code:
+"CA" }]` in a delivery profile zone. Shopify returned the zone `countries` and
+the derived `countriesInAnyZone` list as `CA`, then `US`, not in request order.
+
+Practical rule:
+
+- normalize staged delivery-profile zone countries by code before building
+  `DeliveryCountry` records
+- derive `countriesInAnyZone` from the normalized zone country records so
+  downstream delivery-profile reads match the captured order
+
+## 98. Bulk mutation staged-upload validation can hide throttling
+
+Admin GraphQL 2026-04 returns `NO_SUCH_FILE` for
+`bulkOperationRunMutation(stagedUploadPath:)` when the supplied path is missing,
+even when five same-type mutation bulk operations are already non-terminal. The
+`bulk-operation-run-mutation-no-such-file-precedence` capture exists for that
+exact branch.
+
+That does not contradict the `bulk-operation-run-mutation-operation-in-progress`
+and `bulk-operation-run-mutation-concurrency-limit` captures. Those scenarios
+first create and upload a real `BULK_MUTATION_VARIABLES` staged file, so staged
+upload validation passes and the same-type `OPERATION_IN_PROGRESS` throttle is
+the first failing condition.
+
+Practical rule:
+
+- validate the `stagedUploadPath` object and file metadata before same-type
+  mutation throttling
+- when proving the throttle branch, register the staged upload and write a
+  non-empty JSONL body through the public staged-upload route before calling
+  `bulkOperationRunMutation`

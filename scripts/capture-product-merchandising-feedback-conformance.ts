@@ -58,6 +58,8 @@ const variantRelationshipBulkUpdate = await readRequest(
 );
 const productFeedbackInvalidState = await readRequest('product-feedback-invalid-state.graphql');
 const shopFeedbackInvalidState = await readRequest('shop-feedback-invalid-state.graphql');
+const productFeedbackFoobarState = await readRequest('product-feedback-foobar-state.graphql');
+const shopFeedbackFoobarState = await readRequest('shop-feedback-foobar-state.graphql');
 
 const bulkProductFeedbackAccess = `#graphql
   mutation BulkProductResourceFeedbackAccessBlocker($feedbackInput: [ProductResourceFeedbackInput!]!) {
@@ -156,6 +158,16 @@ const merchandisingProbes: Probe[] = [
     shopFeedbackInvalidState,
     {},
   ),
+  await capture(
+    'bulkProductResourceFeedbackCreate-foobar-state',
+    ['bulkProductResourceFeedbackCreate'],
+    productFeedbackFoobarState,
+    {},
+  ),
+  await capture('shopResourceFeedbackCreate-foobar-state', ['shopResourceFeedbackCreate'], shopFeedbackFoobarState, {}),
+  await capture('productFeedCreate-missing-country-language', ['productFeedCreate'], productFeedCreate, {
+    input: {},
+  }),
 ];
 
 const feedbackAccessProbes: Probe[] = [
@@ -195,6 +207,7 @@ await writeFile(
       notes: [
         'Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.',
         'The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.',
+        'Missing ProductFeedInput country/language is captured as top-level schema validation before Shopify creates any feed.',
         'Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots.',
       ],
       schemaEvidence: {

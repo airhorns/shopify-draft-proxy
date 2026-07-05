@@ -15,6 +15,16 @@ type CapturedRequest = {
   response: ConformanceGraphqlResult;
 };
 
+type RecordedCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
 type SetupIds = {
   customers: string[];
   giftCards: string[];
@@ -23,12 +33,18 @@ type SetupIds = {
 type PayloadKind = 'create' | 'update';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
-  defaultApiVersion: '2025-01',
+  defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'gift-cards');
 const outputPath = path.join(outputDir, 'gift-card-recipient-validation.json');
+const captureStartedAt = new Date();
+const DAY_MS = 86_400_000;
+
+function isoDateTimeDaysFromCaptureStart(days: number): string {
+  return new Date(captureStartedAt.getTime() + days * DAY_MS).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+}
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -108,15 +124,20 @@ function capturedMessage(capture: CapturedRequest, liveData: unknown, alias: str
 }
 
 function errorPayload(kind: PayloadKind, field: string, code: string, message: string): Record<string, unknown> {
+  const userError =
+    kind === 'create'
+      ? {
+          field: ['input', 'recipientAttributes', field],
+          code,
+          message,
+        }
+      : {
+          field: ['input', 'recipientAttributes', field],
+          message,
+        };
   const base = {
     giftCard: null,
-    userErrors: [
-      {
-        field: ['input', 'recipientAttributes', field],
-        code,
-        message,
-      },
-    ],
+    userErrors: [userError],
   };
 
   return kind === 'create' ? { ...base, giftCardCode: null } : base;
@@ -129,6 +150,21 @@ async function capture(
 ): Promise<CapturedRequest> {
   const response = await runGraphqlRequest(query, variables);
   return { label, query, variables, response };
+}
+
+async function hydrateShopPricing(): Promise<RecordedCall> {
+  const query = `query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }`;
+  const variables = {};
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName: 'DraftProxyShopPricingHydrate',
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
 }
 
 async function createCustomer(
@@ -637,11 +673,12 @@ const recipientValidationMutation = `#graphql
   }
 `;
 
-const stamp = Date.now();
+const stamp = captureStartedAt.getTime();
 const runSuffix = stamp.toString(36).slice(-8);
 const setupIds: SetupIds = { customers: [], giftCards: [] };
 const setup: CapturedRequest[] = [];
 const cleanup: CapturedRequest[] = [];
+const upstreamCalls: RecordedCall[] = [await hydrateShopPricing()];
 
 try {
   const customer = await createCustomer(
@@ -684,9 +721,9 @@ try {
       tooLongMessage: 'x'.repeat(201),
       htmlPreferredName: '<b>Recipient</b>',
       htmlMessage: '<script>alert(1)</script>',
-      futureSendAt: '2026-10-01T00:00:00Z',
-      pastSendAt: '2026-04-28T09:31:02Z',
-      validSendAt: '2026-07-01T00:00:00Z',
+      futureSendAt: '2099-01-01T00:00:00Z',
+      pastSendAt: '2000-01-01T00:00:00Z',
+      validSendAt: isoDateTimeDaysFromCaptureStart(30),
       missingRecipientId: 'gid://shopify/Customer/999999999999',
       noContactSentinelRecipientId: 'gid://shopify/Customer/no-contact-recipient',
     },
@@ -904,10 +941,11 @@ try {
         storeDomain,
         apiVersion,
         notes: [
-          'Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.',
+          'Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, stable past sendNotificationAt, and stable too-far-future sendNotificationAt range bounds.',
           'The no-contact sentinel branch records Shopify rejecting a structurally invalid Customer GID as a top-level RESOURCE_NOT_FOUND error instead of treating it as a no-contact recipient.',
           'Setup creates one disposable customer and one active gift card; cleanup deactivates the setup gift card and deletes the setup customer.',
-          'The public giftCardUpdate userErrors type in the captured API exposes field/message only; replay expectations add local typed code values.',
+          'The recorder also captures valid in-range sendNotificationAt controls for manual review, but parity does not compare those absolute timestamps because they age as wall time advances; the runtime clock-shift acceptance branch is covered by Rust tests.',
+          'The public giftCardUpdate userErrors type in the captured API exposes field/message only; update replay targets compare that public shape.',
         ],
         proxyVariables,
         setup,
@@ -919,7 +957,7 @@ try {
         },
         expected,
         cleanup,
-        upstreamCalls: [],
+        upstreamCalls,
       },
       null,
       2,
