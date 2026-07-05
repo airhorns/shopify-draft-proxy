@@ -76,6 +76,27 @@ const functionCatalogDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const activePaymentCustomizationsDocument = `#graphql
   query PaymentCustomizationCreateValidationActiveSet {
     paymentCustomizations(first: 50, query: "enabled:true") {
@@ -97,6 +118,7 @@ const validationDocument = `#graphql
     $missingEnabled: PaymentCustomizationInput!
     $bothIdentifiers: PaymentCustomizationInput!
     $missingIdentifier: PaymentCustomizationInput!
+    $unknownHandle: PaymentCustomizationInput!
     $seed1: PaymentCustomizationInput!
     $seed2: PaymentCustomizationInput!
     $seed3: PaymentCustomizationInput!
@@ -125,6 +147,10 @@ const validationDocument = `#graphql
       userErrors { field code message }
     }
     missingIdentifier: paymentCustomizationCreate(paymentCustomization: $missingIdentifier) {
+      paymentCustomization { id }
+      userErrors { field code message }
+    }
+    unknownHandle: paymentCustomizationCreate(paymentCustomization: $unknownHandle) {
       paymentCustomization { id }
       userErrors { field code message }
     }
@@ -232,6 +258,12 @@ const variables = {
     enabled: true,
     metafields: [],
   },
+  unknownHandle: {
+    title: `${titlePrefix} unknown handle`,
+    enabled: true,
+    functionHandle: `definitely-absent-payment-customization-${runId}`,
+    metafields: [],
+  },
   seed1: {
     title: `${titlePrefix} seed 1`,
     enabled: true,
@@ -269,6 +301,14 @@ const variables = {
     metafields: [],
   },
 };
+
+const unknownFunctionHandle = variables.unknownHandle.functionHandle;
+const unknownHandleHydrateVariables = {
+  handle: unknownFunctionHandle,
+  apiType: 'PAYMENT_CUSTOMIZATION',
+};
+const unknownHandleHydrate = await runGraphqlRequest(functionHydrateByHandleDocument, unknownHandleHydrateVariables);
+assertNoTopLevelErrors(unknownHandleHydrate, 'paymentCustomization unknown functionHandle hydrate cassette');
 
 let validationResult: ConformanceGraphqlResult | null = null;
 const cleanup: JsonRecord[] = [];
@@ -309,9 +349,19 @@ const fixture = {
     payload: validationResult.payload,
   },
   cleanup,
-  upstreamCalls: [],
+  upstreamCalls: [
+    {
+      operationName: 'FunctionHydrateByHandle',
+      variables: unknownHandleHydrateVariables,
+      query: functionHydrateByHandleDocument,
+      response: {
+        status: unknownHandleHydrate.status,
+        body: unknownHandleHydrate.payload,
+      },
+    },
+  ],
   notes:
-    'Captured against a disposable shop after deleting active PaymentCustomization rows. Public Shopify 2026-04 accepted the missing-metafields and sixth-active create branches in this test shop; Function identifier validation branches are executable parity targets.',
+    'Captured against a disposable shop after deleting active PaymentCustomization rows. Public Shopify 2026-04 accepted the missing-metafields and sixth-active create branches in this test shop; Function identifier validation branches and arbitrary unknown functionHandle rejection are executable parity targets.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

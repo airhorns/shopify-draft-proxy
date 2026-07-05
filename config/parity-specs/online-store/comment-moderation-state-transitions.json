@@ -2,7 +2,13 @@
   "scenarioId": "comment-moderation-state-transitions",
   "operationNames": ["commentApprove", "commentSpam", "commentNotSpam"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["mutation-lifecycle", "user-errors-parity", "state-machine-preconditions"],
+  "assertionKinds": [
+    "mutation-lifecycle",
+    "user-errors-parity",
+    "state-machine-preconditions",
+    "payload-shape",
+    "downstream-read-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/comment-moderation-state-transitions.json"
   ],
@@ -22,7 +28,7 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "commentApprove-published-noop",
+        "name": "commentApprove-published-noop includes full Comment.article parent",
         "capturePath": "$.approvePublished.response.data.commentApprove",
         "proxyPath": "$.data.commentApprove"
       },
@@ -84,5 +90,5 @@
       }
     ]
   },
-  "notes": "Live 2025-01 capture creates a disposable moderated blog/article and REST article comments, uses Admin GraphQL moderation roots to prepare PUBLISHED and SPAM source states, records idempotent published/spam branches and invalid spam/unapproved preconditions, then deletes the article/blog in cleanup. Proxy replay hydrates each source comment through cassette-backed `comment(id:)` reads before staging or rejecting the supported moderation root locally."
+  "notes": "Live 2025-01 capture creates a disposable moderated blog/article and REST article comments, uses Admin GraphQL moderation roots to prepare PUBLISHED and SPAM source states, records idempotent published/spam branches, invalid spam/unapproved preconditions, and the `commentApprove.comment.article` parent payload, then deletes the article/blog in cleanup. Proxy replay hydrates each source comment and, when the mutation response selects `Comment.article`, hydrates the parent article through cassette-backed reads before staging or rejecting the supported moderation root locally."
 }

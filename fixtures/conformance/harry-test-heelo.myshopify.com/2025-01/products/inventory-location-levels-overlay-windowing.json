@@ -1,0 +1,611 @@
+{
+  "scenario": "inventory-location-levels-overlay-windowing",
+  "capturedAt": "2026-07-05T07:36:27.110Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "skuAlpha": "INV-LOC-LEVEL-1783236984499-ALPHA",
+    "skuBeta": "INV-LOC-LEVEL-1783236984499-BETA",
+    "productId": "gid://shopify/Product/10232109826354",
+    "locationId": "gid://shopify/Location/113801167154",
+    "alphaInventoryItemId": "gid://shopify/InventoryItem/53530226229554",
+    "betaInventoryItemId": "gid://shopify/InventoryItem/53530226262322"
+  },
+  "operations": {
+    "locationAdd": {
+      "query": "mutation InventoryConnectionLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Inventory Location Levels 1783236984499",
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "locationAdd": {
+            "location": {
+              "id": "gid://shopify/Location/113801167154",
+              "name": "Inventory Location Levels 1783236984499",
+              "isActive": true
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productSet": {
+      "query": "mutation InventoryConnectionProductSet($input: ProductSetInput!, $synchronous: Boolean!) {\n  productSet(input: $input, synchronous: $synchronous) {\n    product {\n      id\n      title\n      handle\n      status\n      variants(first: 10) {\n        nodes {\n          id\n          title\n          sku\n          inventoryQuantity\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n    productSetOperation {\n      id\n      status\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Inventory location levels 1783236984499",
+          "status": "ACTIVE",
+          "productOptions": [
+            {
+              "name": "Title",
+              "position": 1,
+              "values": [
+                {
+                  "name": "Alpha"
+                },
+                {
+                  "name": "Beta"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Title",
+                  "name": "Alpha"
+                }
+              ],
+              "price": "10.00",
+              "sku": "INV-LOC-LEVEL-1783236984499-ALPHA",
+              "inventoryItem": {
+                "tracked": true,
+                "requiresShipping": true
+              },
+              "inventoryQuantities": [
+                {
+                  "locationId": "gid://shopify/Location/113801167154",
+                  "name": "available",
+                  "quantity": 0
+                }
+              ]
+            },
+            {
+              "optionValues": [
+                {
+                  "optionName": "Title",
+                  "name": "Beta"
+                }
+              ],
+              "price": "11.00",
+              "sku": "INV-LOC-LEVEL-1783236984499-BETA",
+              "inventoryItem": {
+                "tracked": true,
+                "requiresShipping": true
+              },
+              "inventoryQuantities": [
+                {
+                  "locationId": "gid://shopify/Location/113801167154",
+                  "name": "available",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10232109826354",
+              "title": "Inventory location levels 1783236984499",
+              "handle": "inventory-location-levels-1783236984499",
+              "status": "ACTIVE",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51425134149938",
+                    "title": "Alpha",
+                    "sku": "INV-LOC-LEVEL-1783236984499-ALPHA",
+                    "inventoryQuantity": 0,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53530226229554",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51425134182706",
+                    "title": "Beta",
+                    "sku": "INV-LOC-LEVEL-1783236984499-BETA",
+                    "inventoryQuantity": 0,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53530226262322",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "productSetOperation": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventorySet": {
+      "query": "mutation InventoryLocationLevelsSet($input: InventorySetQuantitiesInput!) {\n  inventorySetQuantities(input: $input) {\n    inventoryAdjustmentGroup {\n      reason\n      changes {\n        name\n        delta\n        quantityAfterChange\n        location {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53530226229554",
+              "locationId": "gid://shopify/Location/113801167154",
+              "quantity": 4
+            },
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53530226262322",
+              "locationId": "gid://shopify/Location/113801167154",
+              "quantity": 8
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                },
+                {
+                  "name": "available",
+                  "delta": 8,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 8,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventoryAdjust": {
+      "query": "mutation InventoryLocationLevelsAdjust($input: InventoryAdjustQuantitiesInput!) {\n  inventoryAdjustQuantities(input: $input) {\n    inventoryAdjustmentGroup {\n      reason\n      changes {\n        name\n        delta\n        quantityAfterChange\n        location {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53530226229554",
+              "locationId": "gid://shopify/Location/113801167154",
+              "delta": 3
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 3,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 3,
+                  "quantityAfterChange": null,
+                  "location": {
+                    "id": "gid://shopify/Location/113801167154",
+                    "name": "Inventory Location Levels 1783236984499"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overlayRead": {
+      "query": "query InventoryLocationLevelsRead($locationId: ID!, $inventoryItemQuery: String!) {\n  location(id: $locationId) {\n    inventoryLevels(first: 50) {\n      edges {\n        cursor\n        node {\n          item {\n            id\n          }\n          quantities(names: [\"available\", \"on_hand\"]) {\n            name\n            quantity\n          }\n        }\n      }\n      nodes {\n        item {\n          id\n        }\n        quantities(names: [\"available\", \"on_hand\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    firstPage: inventoryLevels(first: 1) {\n      nodes {\n        quantities(names: [\"available\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    filtered: inventoryLevels(first: 5, query: $inventoryItemQuery) {\n      nodes {\n        item {\n          id\n        }\n        quantities(names: [\"available\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113801167154",
+        "inventoryItemQuery": "inventory_item_id:53530226229554"
+      },
+      "response": {
+        "data": {
+          "location": {
+            "inventoryLevels": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+                  "node": {
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53530226229554"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 7
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 7
+                      }
+                    ]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQzNzYxOCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDM3NjE4In0=",
+                  "node": {
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53530226262322"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 8
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 8
+                      }
+                    ]
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53530226229554"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 7
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 7
+                    }
+                  ]
+                },
+                {
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53530226262322"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 8
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 8
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQzNzYxOCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDM3NjE4In0="
+              }
+            },
+            "firstPage": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 7
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0="
+              }
+            },
+            "filtered": {
+              "nodes": [
+                {
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53530226229554"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 7
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 60,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "itemRead": {
+      "query": "query InventoryLocationLevelsItemRead($locationId: ID!, $firstInventoryItemId: ID!) {\n  firstItem: inventoryItem(id: $firstInventoryItemId) {\n    inventoryLevel(locationId: $locationId) {\n      item {\n        id\n      }\n      quantities(names: [\"available\", \"on_hand\"]) {\n        name\n        quantity\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113801167154",
+        "firstInventoryItemId": "gid://shopify/InventoryItem/53530226229554"
+      },
+      "response": {
+        "data": {
+          "firstItem": {
+            "inventoryLevel": {
+              "item": {
+                "id": "gid://shopify/InventoryItem/53530226229554"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 7
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 7
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "windowRead": {
+      "query": "query InventoryLocationLevelsWindow($locationId: ID!, $after: String!, $before: String!) {\n  location(id: $locationId) {\n    afterFirst: inventoryLevels(first: 1, after: $after) {\n      nodes {\n        quantities(names: [\"available\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    beforeSecond: inventoryLevels(last: 1, before: $before) {\n      nodes {\n        quantities(names: [\"available\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/113801167154",
+        "after": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+        "before": "eyJsYXN0X2lkIjo1Njc0MDI0NzQzNzYxOCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDM3NjE4In0="
+      },
+      "response": {
+        "data": {
+          "location": {
+            "afterFirst": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 8
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQzNzYxOCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDM3NjE4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQzNzYxOCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDM3NjE4In0="
+              }
+            },
+            "beforeSecond": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 7
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc0MDI0NzQwNDg1MCwibGFzdF92YWx1ZSI6IjU2NzQwMjQ3NDA0ODUwIn0="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9,
+            "actualQueryCost": 9,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1991,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10232109826354",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "relocationDestinationLocationId": "gid://shopify/Location/112829759794",
+    "locationDeactivate": {
+      "data": {
+        "locationDeactivate": {
+          "location": {
+            "id": "gid://shopify/Location/113801167154",
+            "isActive": false
+          },
+          "locationDeactivateUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationDelete": {
+      "data": {
+        "locationDelete": {
+          "deletedLocationId": "gid://shopify/Location/113801167154",
+          "locationDeleteUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
