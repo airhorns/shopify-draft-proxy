@@ -2808,6 +2808,475 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
 }
 
 #[test]
+fn location_inventory_levels_overlay_and_args() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-BETA");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Location Level Source");
+    let destination_location_id =
+        add_inventory_test_location(&mut proxy, "Location Level Destination");
+    let source_level_id = inventory_level_id_for_test(&first_item_id, &source_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLocationInventoryLevels($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": source_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustLocationInventoryLevel($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "delta": 3, "changeFromQuantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsActive($locationId: ID!, $firstItemQuery: String!) {
+          location(id: $locationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+            firstPage: inventoryLevels(first: 1) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, query: $firstItemQuery) {
+              nodes { item { id } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "locationId": source_location_id,
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    let location_levels = &active_read.body["data"]["location"]["inventoryLevels"]["nodes"];
+    assert_eq!(
+        location_levels,
+        &json!([
+            {
+                "item": {"id": first_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 7},
+                    {"name": "on_hand", "quantity": 7}
+                ]
+            },
+            {
+                "item": {"id": second_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 8},
+                    {"name": "on_hand", "quantity": 8}
+                ]
+            }
+        ])
+    );
+    let item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FirstItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              location { id name }
+              quantities(names: ["available", "on_hand"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": source_location_id}),
+    ));
+    assert_eq!(
+        item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        location_levels[0]
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["firstPage"],
+        json!({
+            "nodes": [{"item": {"id": first_item_id}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": source_level_id
+            }
+        })
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["filtered"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDestinationLevel($inventoryItemId: ID!, $locationId: ID!, $idempotencyKey: String!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": first_item_id,
+            "locationId": destination_location_id,
+            "idempotencyKey": "location-level-activate"
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateSourceLevel($inventoryLevelId: ID!, $idempotencyKey: String!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": source_level_id,
+            "idempotencyKey": "location-level-deactivate"
+        }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let inactive_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsInactive(
+          $sourceLocationId: ID!
+          $destinationLocationId: ID!
+          $firstItemId: ID!
+          $after: String!
+          $before: String!
+          $firstItemQuery: String!
+        ) {
+          source: location(id: $sourceLocationId) {
+            activeLevels: inventoryLevels(first: 10) {
+              nodes { item { id } isActive }
+            }
+            allLevels: inventoryLevels(first: 10, includeInactive: true) {
+              nodes { item { id } isActive }
+            }
+            afterFirst: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeSecond: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, includeInactive: true, query: $firstItemQuery) {
+              nodes {
+                item { id }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+          destination: location(id: $destinationLocationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                isActive
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "sourceLocationId": source_location_id,
+            "destinationLocationId": destination_location_id,
+            "firstItemId": first_item_id,
+            "after": source_level_id,
+            "before": inventory_level_id_for_test(&second_item_id, &source_location_id),
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    assert_eq!(
+        inactive_read.body["data"]["source"]["activeLevels"]["nodes"],
+        json!([{ "item": { "id": second_item_id }, "isActive": true }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["allLevels"]["nodes"],
+        json!([
+            { "item": { "id": first_item_id }, "isActive": false },
+            { "item": { "id": second_item_id }, "isActive": true }
+        ])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["afterFirst"]["nodes"],
+        json!([{ "item": { "id": second_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["beforeSecond"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["filtered"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 7}]
+        }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["destination"]["inventoryLevels"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "isActive": true,
+            "quantities": [{"name": "available", "quantity": 0}]
+        }])
+    );
+    let destination_item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query DestinationItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              quantities(names: ["available"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": destination_location_id}),
+    ));
+    assert_eq!(
+        destination_item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        json!({
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 0}]
+        })
+    );
+}
+
+#[test]
+fn location_inventory_levels_preserves_hydrated_untouched_levels() {
+    let location_id = "gid://shopify/Location/9001";
+    let first_item_id = "gid://shopify/InventoryItem/9002";
+    let second_item_id = "gid://shopify/InventoryItem/9003";
+    let first_level_id =
+        "gid://shopify/InventoryLevel/9002-9001?inventory_item_id=gid://shopify/InventoryItem/9002";
+    let second_level_id =
+        "gid://shopify/InventoryLevel/9003-9001?inventory_item_id=gid://shopify/InventoryItem/9003";
+    let location_node = json!({
+        "__typename": "Location",
+        "id": location_id,
+        "name": "Hydrated Stockroom",
+        "isActive": true,
+        "isFulfillmentService": false,
+        "inventoryLevels": {
+            "nodes": [
+                {
+                    "id": first_level_id,
+                    "isActive": true,
+                    "item": { "id": first_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 5 },
+                        { "name": "on_hand", "quantity": 5 }
+                    ]
+                },
+                {
+                    "id": second_level_id,
+                    "isActive": true,
+                    "item": { "id": second_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 12 },
+                        { "name": "on_hand", "quantity": 12 }
+                    ]
+                }
+            ]
+        }
+    });
+    let first_item_node = json!({
+        "__typename": "InventoryItem",
+        "id": first_item_id,
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/9002",
+            "title": "Hydrated Alpha",
+            "sku": "HYDRATED-ALPHA",
+            "inventoryQuantity": 5,
+            "product": {
+                "id": "gid://shopify/Product/9002",
+                "title": "Hydrated Product",
+                "handle": "hydrated-product",
+                "status": "ACTIVE",
+                "totalInventory": 5,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": {
+            "nodes": [{
+                "id": first_level_id,
+                "isActive": true,
+                "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                "quantities": [
+                    { "name": "available", "quantity": 5 },
+                    { "name": "on_hand", "quantity": 5 }
+                ]
+            }]
+        }
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        let location_node = location_node.clone();
+        let first_item_node = first_item_node.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("upstream inventory hydration body parses");
+            upstream_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("node(id:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "node": location_node.clone() } }),
+                };
+            }
+            if query.contains("nodes(ids:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": [first_item_node.clone(), location_node.clone()] } }),
+                };
+            }
+            panic!("unexpected upstream inventory request: {body}");
+        }
+    });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateLocationInventoryLevels($id: ID!) {
+          node(id: $id) {
+            ... on Location {
+              id
+              name
+              inventoryLevels(first: 10) {
+                nodes {
+                  id
+                  isActive
+                  item { id }
+                  location { id name }
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(hydrate.body["data"]["node"]["id"], json!(location_id));
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustHydratedLocationLevel(
+          $input: InventoryAdjustQuantitiesInput!
+          $idempotencyKey: String!
+        ) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "idempotencyKey": "hydrated-location-level-adjust",
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "changes": [{
+                    "inventoryItemId": first_item_id,
+                    "locationId": location_id,
+                    "delta": 3,
+                    "changeFromQuantity": 5
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedLocationInventoryLevels($id: ID!) {
+          location(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"]["inventoryLevels"]["nodes"],
+        json!([
+            {
+                "item": { "id": first_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 8 },
+                    { "name": "on_hand", "quantity": 8 }
+                ]
+            },
+            {
+                "item": { "id": second_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 12 },
+                    { "name": "on_hand", "quantity": 12 }
+                ]
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        2,
+        "location read after staging should use local hydrated state"
+    );
+}
+
+#[test]
 fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ADJUST-ROOT");

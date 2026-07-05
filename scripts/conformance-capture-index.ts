@@ -2398,6 +2398,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-location-levels-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-location-levels-overlay-windowing-conformance.ts',
+    purpose:
+      'Location.inventoryLevels read-after-write overlay, inventory item query filtering, and cursor windowing over disposable product-backed inventory levels.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-location-levels-overlay-windowing.json`,
+      'config/parity-specs/products/inventory-location-levels-overlay-windowing.json',
+      'config/parity-requests/products/inventory-location-levels-set.graphql',
+      'config/parity-requests/products/inventory-location-levels-adjust.graphql',
+      'config/parity-requests/products/inventory-location-levels-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-item-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-window.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable location and one disposable two-variant product, sets and adjusts location inventory, records location-level reads and cursor windows, then deletes the product and deactivates/deletes the location best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-connection-query-windowing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-connection-query-windowing-conformance.ts',
