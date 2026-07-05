@@ -4871,6 +4871,185 @@ fn functions_hydrated_raw_api_types_remain_public_while_filters_use_canonical_ke
 }
 
 #[test]
+fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_windows() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let upstream_functions = vec![
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/unfiltered-validation",
+            "Unfiltered Validation",
+            "unfiltered-validation",
+            "cart_checkout_validation",
+            "validation-app-key",
+            "validation-app",
+        ),
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/unfiltered-cart",
+            "Unfiltered Cart",
+            "unfiltered-cart",
+            "cart_transform",
+            "cart-app-key",
+            "cart-app",
+        ),
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/unfiltered-payment",
+            "Unfiltered Payment",
+            "unfiltered-payment",
+            "payment_customization",
+            "payment-app-key",
+            "payment-app",
+        ),
+    ];
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("cold function read body should parse");
+        *hit_counter.lock().unwrap() += 1;
+        assert!(
+            body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("shopifyFunctions"),
+            "cold function read should forward the original shopifyFunctions query, got {body}"
+        );
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "cartFunction": upstream_functions[1].clone(),
+                    "shopifyFunctions": {
+                        "nodes": upstream_functions.clone(),
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "upstream-start",
+                            "endCursor": "upstream-end"
+                        }
+                    },
+                    "validationFunction": upstream_functions[0].clone()
+                }
+            }),
+        }
+    });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateUnfilteredFunctions {
+          shopifyFunctions(first: 10) {
+            nodes { id title handle apiType app { apiKey } }
+          }
+          validationFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/unfiltered-validation") {
+            id
+            handle
+            apiType
+          }
+          cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/unfiltered-cart") {
+            id
+            handle
+            apiType
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shopifyFunctions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query LocalUnfilteredFunctionsFirstPage {
+          shopifyFunctions(first: 2) {
+            nodes { handle apiType }
+            edges { cursor node { handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          cartFunctions: shopifyFunctions(first: 10, apiType: CART_TRANSFORM) {
+            nodes { handle apiType }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["shopifyFunctions"]["nodes"],
+        json!([
+            { "handle": "unfiltered-validation", "apiType": "cart_checkout_validation" },
+            { "handle": "unfiltered-cart", "apiType": "cart_transform" }
+        ])
+    );
+    assert_eq!(
+        first_page.body["data"]["shopifyFunctions"]["edges"],
+        json!([
+            {
+                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
+                "node": { "handle": "unfiltered-validation" }
+            },
+            {
+                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart",
+                "node": { "handle": "unfiltered-cart" }
+            }
+        ])
+    );
+    assert_eq!(
+        first_page.body["data"]["shopifyFunctions"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
+            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart"
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["cartFunctions"]["nodes"],
+        json!([{ "handle": "unfiltered-cart", "apiType": "cart_transform" }])
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query LocalUnfilteredFunctionsSecondPage($after: String!) {
+          shopifyFunctions(first: 2, after: $after) {
+            nodes { handle apiType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "after": first_page.body["data"]["shopifyFunctions"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["nodes"],
+        json!([{ "handle": "unfiltered-payment", "apiType": "payment_customization" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment",
+            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment"
+        })
+    );
+    assert_eq!(
+        *upstream_hits.lock().unwrap(),
+        1,
+        "local function reads after hydration should not make another upstream request"
+    );
+}
+
+#[test]
 fn functions_create_uses_authenticated_app_identity_for_ownership() {
     let mut proxy = function_metadata_proxy();
 

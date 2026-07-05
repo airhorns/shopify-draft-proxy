@@ -106,15 +106,13 @@ impl DraftProxy {
                 ),
                 "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(field),
                 "shopifyFunctions" => {
-                    let api_type =
-                        resolved_string_field(&field.arguments, "apiType").unwrap_or_default();
-                    let api_type = canonical_function_api_type(&api_type);
-                    let api_type = if api_type.is_empty() {
-                        "VALIDATION"
-                    } else {
-                        api_type.as_str()
-                    };
-                    json!({ "nodes": self.function_metadata_read_nodes(request, api_type) })
+                    let api_type = resolved_string_field(&field.arguments, "apiType")
+                        .map(|api_type| canonical_function_api_type(&api_type))
+                        .filter(|api_type| !api_type.is_empty());
+                    local_function_connection_from_nodes_with_args(
+                        self.function_metadata_read_nodes(request, api_type.as_deref()),
+                        &field.arguments,
+                    )
                 }
                 "shopifyFunction" => match resolved_string_field(&field.arguments, "id") {
                     Some(id) => self
@@ -184,14 +182,19 @@ impl DraftProxy {
         }
     }
 
-    fn function_metadata_read_nodes(&self, request: &Request, api_type: &str) -> Vec<Value> {
+    fn function_metadata_read_nodes(
+        &self,
+        request: &Request,
+        api_type: Option<&str>,
+    ) -> Vec<Value> {
         let mut seen = BTreeSet::new();
         let mut nodes = Vec::new();
         for id in &self.store.staged.function_metadata_order {
             let Some(function) = self.store.staged.function_metadata.get(id) else {
                 continue;
             };
-            if function_matches_canonical_api_type(function, api_type)
+            if api_type
+                .is_none_or(|api_type| function_matches_canonical_api_type(function, api_type))
                 && function_belongs_to_request(function, request)
                 && seen.insert(id.clone())
             {
@@ -225,7 +228,8 @@ impl DraftProxy {
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
-            if function_matches_canonical_api_type(function, api_type)
+            if api_type
+                .is_none_or(|api_type| function_matches_canonical_api_type(function, api_type))
                 && function_belongs_to_request(function, request)
             {
                 if let Some(id) = function["id"].as_str() {
@@ -426,6 +430,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn hydrate_function_metadata_from_response_data(&mut self, data: &Value) {
         let mut functions = Vec::new();
+        collect_function_connection_nodes(data, &mut functions);
         collect_function_metadata_values(data, &mut functions);
         for function in functions {
             self.stage_function_metadata(function);
@@ -587,6 +592,27 @@ fn collect_function_metadata_values(value: &Value, functions: &mut Vec<Value>) {
         Value::Object(object) => {
             for value in object.values() {
                 collect_function_metadata_values(value, functions);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_function_connection_nodes(value: &Value, functions: &mut Vec<Value>) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_function_connection_nodes(value, functions);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
+                for node in nodes {
+                    collect_function_metadata_values(node, functions);
+                }
+            }
+            for value in object.values() {
+                collect_function_connection_nodes(value, functions);
             }
         }
         _ => {}
@@ -982,25 +1008,25 @@ fn active_validation_count(records: &BTreeMap<String, Value>, exclude_id: Option
 }
 
 pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) -> Value {
-    let start_cursor = nodes
-        .first()
-        .and_then(|node| node["id"].as_str())
-        .map(|id| format!("cursor:{id}"));
-    let end_cursor = nodes
-        .last()
-        .and_then(|node| node["id"].as_str())
-        .map(|id| format!("cursor:{id}"));
-    let page_info = connection_page_info(false, false, start_cursor, end_cursor);
-    connection_json_with_cursor(
-        nodes,
-        |_, node| {
-            node["id"]
-                .as_str()
-                .map(|id| format!("cursor:{id}"))
-                .unwrap_or_default()
-        },
-        page_info,
-    )
+    local_function_connection_from_nodes_with_args(nodes, &BTreeMap::new())
+}
+
+fn local_function_cursor(node: &Value) -> String {
+    node["id"]
+        .as_str()
+        .map(|id| format!("cursor:{id}"))
+        .unwrap_or_default()
+}
+
+pub(in crate::proxy) fn local_function_connection_from_nodes_with_args(
+    mut nodes: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        nodes.reverse();
+    }
+    let (nodes, page_info) = connection_window(&nodes, arguments, local_function_cursor);
+    connection_json_with_cursor(nodes, |_, node| local_function_cursor(node), page_info)
 }
 
 fn cart_transform_metafield_error(
