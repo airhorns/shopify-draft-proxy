@@ -1,0 +1,472 @@
+{
+  "summary": "Live Shopify capture for product-owned Metafield.reference and Metafield.references resolving product, variant, collection, file, and page reference targets.",
+  "setup": {
+    "targetProduct": {
+      "name": "target-product-create",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      variants(first: 1) {\n        nodes {\n          id\n          title\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Metafield reference target 1783236183472",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10232108745010",
+              "title": "Metafield reference target 1783236183472",
+              "handle": "metafield-reference-target-1783236183472",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51425128644914",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "ownerProduct": {
+      "name": "owner-product-create",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      variants(first: 1) {\n        nodes {\n          id\n          title\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Metafield reference owner 1783236183472",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10232108777778",
+              "title": "Metafield reference owner 1783236183472",
+              "handle": "metafield-reference-owner-1783236183472",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51425128677682",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collection": {
+      "name": "target-collection-create",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsCollectionCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "Metafield reference collection 1783236183472"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514109997362",
+              "title": "Metafield reference collection 1783236183472",
+              "handle": "metafield-reference-collection-1783236183472"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "file": {
+      "name": "target-file-create",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsFileCreate($files: [FileCreateInput!]!) {\n  fileCreate(files: $files) {\n    files {\n      id\n      alt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "files": [
+            {
+              "alt": "Metafield reference image 1783236183472",
+              "contentType": "IMAGE",
+              "filename": "metafield-reference-1783236183472.png",
+              "originalSource": "https://placehold.co/600x400.png?text=metafield-reference-1783236183472"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43997296689458",
+                "alt": "Metafield reference image 1783236183472"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "page": {
+      "name": "target-page-create",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsPageCreate($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "page": {
+            "title": "Metafield reference page 1783236183472",
+            "body": "<p>Metafield reference page body.</p>"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/161170030898",
+              "title": "Metafield reference page 1783236183472",
+              "handle": "metafield-reference-page-1783236183472"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "setReferences": {
+      "name": "reference-metafields-set",
+      "request": {
+        "query": "mutation MetafieldReferenceFieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "product_ref",
+              "type": "product_reference",
+              "value": "gid://shopify/Product/10232108745010"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "product_refs",
+              "type": "list.product_reference",
+              "value": "[\"gid://shopify/Product/10232108745010\"]"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "variant_ref",
+              "type": "variant_reference",
+              "value": "gid://shopify/ProductVariant/51425128644914"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "collection_ref",
+              "type": "collection_reference",
+              "value": "gid://shopify/Collection/514109997362"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "file_ref",
+              "type": "file_reference",
+              "value": "gid://shopify/MediaImage/43997296689458"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "page_ref",
+              "type": "page_reference",
+              "value": "gid://shopify/Page/161170030898"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10232108777778",
+              "namespace": "reference_fields",
+              "key": "plain",
+              "type": "single_line_text_field",
+              "value": "not a reference"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/44704475644210",
+                "namespace": "reference_fields",
+                "key": "product_ref",
+                "type": "product_reference",
+                "value": "gid://shopify/Product/10232108745010",
+                "jsonValue": "gid://shopify/Product/10232108745010"
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475676978",
+                "namespace": "reference_fields",
+                "key": "product_refs",
+                "type": "list.product_reference",
+                "value": "[\"gid://shopify/Product/10232108745010\"]",
+                "jsonValue": ["gid://shopify/Product/10232108745010"]
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475709746",
+                "namespace": "reference_fields",
+                "key": "variant_ref",
+                "type": "variant_reference",
+                "value": "gid://shopify/ProductVariant/51425128644914",
+                "jsonValue": "gid://shopify/ProductVariant/51425128644914"
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475742514",
+                "namespace": "reference_fields",
+                "key": "collection_ref",
+                "type": "collection_reference",
+                "value": "gid://shopify/Collection/514109997362",
+                "jsonValue": "gid://shopify/Collection/514109997362"
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475775282",
+                "namespace": "reference_fields",
+                "key": "file_ref",
+                "type": "file_reference",
+                "value": "gid://shopify/MediaImage/43997296689458",
+                "jsonValue": "gid://shopify/MediaImage/43997296689458"
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475808050",
+                "namespace": "reference_fields",
+                "key": "page_ref",
+                "type": "page_reference",
+                "value": "gid://shopify/Page/161170030898",
+                "jsonValue": "gid://shopify/Page/161170030898"
+              },
+              {
+                "id": "gid://shopify/Metafield/44704475840818",
+                "namespace": "reference_fields",
+                "key": "plain",
+                "type": "single_line_text_field",
+                "value": "not a reference",
+                "jsonValue": "not a reference"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "name": "reference-fields-read",
+    "request": {
+      "query": "query MetafieldReferenceFieldsRead($ownerId: ID!) {\n  product(id: $ownerId) {\n    id\n    productRef: metafield(namespace: \"reference_fields\", key: \"product_ref\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on Product {\n          id\n          title\n          handle\n        }\n      }\n      references(first: 5) {\n        nodes {\n          __typename\n        }\n      }\n    }\n    productRefs: metafield(namespace: \"reference_fields\", key: \"product_refs\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n      }\n      references(first: 5) {\n        nodes {\n          __typename\n          ... on Product {\n            id\n            title\n            handle\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    variantRef: metafield(namespace: \"reference_fields\", key: \"variant_ref\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on ProductVariant {\n          id\n          title\n          product {\n            id\n          }\n        }\n      }\n    }\n    collectionRef: metafield(namespace: \"reference_fields\", key: \"collection_ref\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on Collection {\n          id\n          title\n          handle\n        }\n      }\n    }\n    fileRef: metafield(namespace: \"reference_fields\", key: \"file_ref\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on MediaImage {\n          id\n          alt\n        }\n      }\n    }\n    pageRef: metafield(namespace: \"reference_fields\", key: \"page_ref\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on Page {\n          id\n          title\n          handle\n        }\n      }\n    }\n    plain: metafield(namespace: \"reference_fields\", key: \"plain\") {\n      id\n      namespace\n      key\n      type\n      value\n      reference {\n        __typename\n      }\n      references(first: 5) {\n        nodes {\n          __typename\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "ownerId": "gid://shopify/Product/10232108777778"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10232108777778",
+          "productRef": {
+            "id": "gid://shopify/Metafield/44704475644210",
+            "namespace": "reference_fields",
+            "key": "product_ref",
+            "type": "product_reference",
+            "value": "gid://shopify/Product/10232108745010",
+            "reference": {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10232108745010",
+              "title": "Metafield reference target 1783236183472",
+              "handle": "metafield-reference-target-1783236183472"
+            },
+            "references": null
+          },
+          "productRefs": {
+            "id": "gid://shopify/Metafield/44704475676978",
+            "namespace": "reference_fields",
+            "key": "product_refs",
+            "type": "list.product_reference",
+            "value": "[\"gid://shopify/Product/10232108745010\"]",
+            "reference": null,
+            "references": {
+              "nodes": [
+                {
+                  "__typename": "Product",
+                  "id": "gid://shopify/Product/10232108745010",
+                  "title": "Metafield reference target 1783236183472",
+                  "handle": "metafield-reference-target-1783236183472"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ=="
+              }
+            }
+          },
+          "variantRef": {
+            "id": "gid://shopify/Metafield/44704475709746",
+            "namespace": "reference_fields",
+            "key": "variant_ref",
+            "type": "variant_reference",
+            "value": "gid://shopify/ProductVariant/51425128644914",
+            "reference": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/51425128644914",
+              "title": "Default Title",
+              "product": {
+                "id": "gid://shopify/Product/10232108745010"
+              }
+            }
+          },
+          "collectionRef": {
+            "id": "gid://shopify/Metafield/44704475742514",
+            "namespace": "reference_fields",
+            "key": "collection_ref",
+            "type": "collection_reference",
+            "value": "gid://shopify/Collection/514109997362",
+            "reference": {
+              "__typename": "Collection",
+              "id": "gid://shopify/Collection/514109997362",
+              "title": "Metafield reference collection 1783236183472",
+              "handle": "metafield-reference-collection-1783236183472"
+            }
+          },
+          "fileRef": {
+            "id": "gid://shopify/Metafield/44704475775282",
+            "namespace": "reference_fields",
+            "key": "file_ref",
+            "type": "file_reference",
+            "value": "gid://shopify/MediaImage/43997296689458",
+            "reference": {
+              "__typename": "MediaImage",
+              "id": "gid://shopify/MediaImage/43997296689458",
+              "alt": "Metafield reference image 1783236183472"
+            }
+          },
+          "pageRef": {
+            "id": "gid://shopify/Metafield/44704475808050",
+            "namespace": "reference_fields",
+            "key": "page_ref",
+            "type": "page_reference",
+            "value": "gid://shopify/Page/161170030898",
+            "reference": {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161170030898",
+              "title": "Metafield reference page 1783236183472",
+              "handle": "metafield-reference-page-1783236183472"
+            }
+          },
+          "plain": {
+            "id": "gid://shopify/Metafield/44704475840818",
+            "namespace": "reference_fields",
+            "key": "plain",
+            "type": "single_line_text_field",
+            "value": "not a reference",
+            "reference": null,
+            "references": null
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 29,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": []
+}

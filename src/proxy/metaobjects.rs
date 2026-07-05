@@ -2551,6 +2551,15 @@ fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Valu
     }
 }
 
+#[derive(Clone)]
+struct MetaobjectReferenceBacklink {
+    key: String,
+    name: String,
+    namespace: String,
+    referencer_id: String,
+    cursor: String,
+}
+
 fn metaobject_nodes_from_upstream_data(data: &serde_json::Map<String, Value>) -> Vec<Value> {
     let mut nodes = Vec::new();
     for value in data.values() {
@@ -4038,6 +4047,7 @@ impl DraftProxy {
 
     fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "__typename" => Some(json!("Metaobject")),
             "field" => {
                 let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
                 let value = record["fields"]
@@ -4049,7 +4059,27 @@ impl DraftProxy {
                     })
                     .cloned()
                     .unwrap_or(Value::Null);
-                Some(nullable_selected_json(&value, &field.selection))
+                Some(if value.is_null() {
+                    Value::Null
+                } else {
+                    self.selected_reference_field_record(&value, &field.selection)
+                })
+            }
+            "fields" => Some(Value::Array(
+                record["fields"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|value| self.selected_reference_field_record(value, &field.selection))
+                    .collect(),
+            )),
+            "titleField" => {
+                let value = record.get("titleField").cloned().unwrap_or(Value::Null);
+                Some(if value.is_null() {
+                    Value::Null
+                } else {
+                    self.selected_reference_field_record(&value, &field.selection)
+                })
             }
             "definition" => {
                 let meta_type = record
@@ -4062,9 +4092,141 @@ impl DraftProxy {
                         .unwrap_or(Value::Null),
                 )
             }
+            "referencedBy" => Some(self.selected_metaobject_referenced_by(record, field)),
             _ => record
                 .get(&field.name)
                 .map(|value| selected_metaobject_value(value, &field.selection)),
+        })
+    }
+
+    pub(in crate::proxy) fn metaobject_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("Metaobject") {
+            return None;
+        }
+        if self.store.staged.metaobjects.is_tombstoned(id) {
+            return Some(Value::Null);
+        }
+        self.metaobject_by_id(id)
+            .map(|record| self.project_metaobject_against_definition(&record))
+            .map(|record| self.selected_metaobject(&record, selection))
+    }
+
+    fn selected_metaobject_referenced_by(&self, record: &Value, field: &SelectedField) -> Value {
+        let target_id = record.get("id").and_then(Value::as_str).unwrap_or_default();
+        let backlinks = self.metaobject_referenced_by_records(target_id);
+        selected_typed_connection_with_args(
+            &backlinks,
+            &field.arguments,
+            &field.selection,
+            |backlink, selection| self.selected_metaobject_referenced_by_node(backlink, selection),
+            |backlink| backlink.cursor.clone(),
+        )
+    }
+
+    fn metaobject_referenced_by_records(
+        &self,
+        target_id: &str,
+    ) -> Vec<MetaobjectReferenceBacklink> {
+        if target_id.is_empty() {
+            return Vec::new();
+        }
+        let mut records = Vec::new();
+        for metaobject in self.store.staged.metaobjects.values() {
+            let referencer_id = metaobject
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if referencer_id.is_empty()
+                || self.store.staged.metaobjects.is_tombstoned(referencer_id)
+            {
+                continue;
+            }
+            let projected = self.project_metaobject_against_definition(metaobject);
+            let namespace = projected
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            for field in projected["fields"].as_array().into_iter().flatten() {
+                if !reference_record_targets_id(field, target_id) {
+                    continue;
+                }
+                let key = field
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let name = field
+                    .pointer("/definition/name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| metaobject_field_name(&key));
+                records.push(MetaobjectReferenceBacklink {
+                    cursor: format!("{referencer_id}:{key}"),
+                    key,
+                    name,
+                    namespace: namespace.clone(),
+                    referencer_id: referencer_id.to_string(),
+                });
+            }
+        }
+
+        for (owner_id, metafields) in &self.store.staged.owner_metafields {
+            for metafield in metafields {
+                let namespace = metafield
+                    .get("namespace")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let key = metafield
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if namespace.is_empty()
+                    || key.is_empty()
+                    || self.store.staged.deleted_owner_metafields.contains(&(
+                        owner_id.clone(),
+                        namespace.to_string(),
+                        key.to_string(),
+                    ))
+                    || !reference_record_targets_id(metafield, target_id)
+                {
+                    continue;
+                }
+                let name = metafield
+                    .pointer("/definition/name")
+                    .and_then(Value::as_str)
+                    .unwrap_or(key)
+                    .to_string();
+                records.push(MetaobjectReferenceBacklink {
+                    cursor: format!("{owner_id}:{namespace}:{key}"),
+                    key: key.to_string(),
+                    name,
+                    namespace: namespace.to_string(),
+                    referencer_id: owner_id.clone(),
+                });
+            }
+        }
+        records
+    }
+
+    fn selected_metaobject_referenced_by_node(
+        &self,
+        backlink: &MetaobjectReferenceBacklink,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "key" => Some(json!(backlink.key)),
+            "name" => Some(json!(backlink.name)),
+            "namespace" => Some(json!(backlink.namespace)),
+            "referencer" => Some(
+                self.local_node_value_by_id(&backlink.referencer_id, &field.selection)
+                    .unwrap_or(Value::Null),
+            ),
+            _ => None,
         })
     }
 
