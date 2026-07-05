@@ -80,6 +80,8 @@ The matrix covers scalar text, number, boolean, date/date-time, URL/color/langua
 
 `metafieldsSet` value validation rejects invalid scalar and structured values before staging any input in the batch. Fixture-backed branches cover `number_decimal` bounds, `money` JSON object shape, URL/link scheme validation, date format validation, single-line/multi-line blank text and single-line newline rejection, rating bounds, measurement non-negative value and supported-unit checks, `list.*` array shape/128-element cap, and per-element coercion for list values such as `list.number_integer`. Product reference values, including `list.product_reference`, are checked against staged/base/hydrated resource state rather than a fixed sentinel GID. Missing references return Shopify's `INVALID_VALUE` field path and `Value references non-existent resource ...` message without staging the mutation.
 
+Scalar value fidelity for product-owned `metafieldsSet` follows captured ShopifyMetafields coercion for the common hand-entered value forms. Boolean aliases `t`, `true`, `1`, `f`, `false`, and `0` are trimmed and case-folded before staging; integer values accept decimal-zero forms such as `5.0` and reject explicit `+` signs; decimal values truncate to 9 fractional digits in stored `value` and downstream `jsonValue`. Captured validation messages distinguish money blank-currency, non-numeric amount, out-of-range amount, invalid object shape, and invalid currency branches; URL validation distinguishes missing schemes from unsupported schemes, including Shopify's current bracketed allowed-scheme list for missing schemes and comma-separated list for unsupported schemes. Invalid `date_time` and blank `json` values return the captured `INVALID_VALUE` messages and field path without mutating the local batch.
+
 The fixture documents excluded product-owned metafield types instead of adding placeholders. Exclusions are types that require separate definition-backed or resource-specific setup outside this disposable product matrix: `id`, `list.id`, metaobject/mixed references, company/customer/file/page/article/order/product-taxonomy references, and their list variants. Metaobject-owned `id`, metaobject reference, and mixed reference field values are covered by the metaobject matrix.
 
 ### Standard metafield definition enablement
@@ -156,6 +158,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafields-set-validation-gaps.json`
 - `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json`
 - `config/parity-specs/metafields/metafields-set-input-validation.json`
+- `config/parity-specs/metafields/metafieldsSet-value-type-fidelity.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
 - `config/parity-specs/metafield-definitions/validation-affects-values.json`
 - `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
@@ -174,6 +177,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `corepack pnpm conformance:capture -- --run metafields-parity-provenance-replacements`
 - `corepack pnpm conformance:capture -- --run metafields-custom-namespace-typed-keys`
 - `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
+- `corepack pnpm conformance:capture -- --run metafields-set-value-type-fidelity`
 - `corepack pnpm conformance:capture -- --run metafield-definition-resource-type-limit`
 
 ### Validation

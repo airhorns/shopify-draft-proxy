@@ -18,16 +18,24 @@ pub(in crate::proxy) fn payment_customization_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     api_client_id: Option<&str>,
+    resolved_function: Option<&Value>,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
+    let effective_function_id = resolved_function
+        .and_then(|function| function["id"].as_str().map(str::to_string))
+        .or_else(|| function_id.clone());
     let mut record = json!({
         "__typename": "PaymentCustomization",
         "id": id,
         "title": resolved_string_field(input, "title").unwrap_or_default(),
         "enabled": resolved_bool_field(input, "enabled").unwrap_or(false),
-        "functionId": function_id,
-        "functionHandle": if function_id.is_some() { Value::Null } else { json!(function_handle) }
+        "functionId": effective_function_id,
+        "functionHandle": if function_id.is_some() || resolved_function.is_some() {
+            Value::Null
+        } else {
+            json!(function_handle)
+        }
     });
     payment_customization_set_metafields(
         &mut record,
@@ -90,6 +98,20 @@ pub(in crate::proxy) fn payment_customization_payload(
         "userErrors": user_errors
     });
     selected_json(&payload, selections)
+}
+
+pub(in crate::proxy) fn payment_customization_error_payload(
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    payment_customization_payload(None, selections, user_errors, None, None)
+}
+
+pub(in crate::proxy) fn payment_customization_record_payload(
+    customization: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    payment_customization_payload(Some(customization), selections, Vec::new(), None, None)
 }
 
 pub(in crate::proxy) fn payment_customization_user_error(
@@ -205,33 +227,21 @@ pub(in crate::proxy) fn payment_customization_immutable_function_error(field: &s
     )
 }
 
-pub(in crate::proxy) fn payment_customization_function_handle_exists(handle: &str) -> bool {
-    !handle.starts_with("missing") && handle != "unknown"
-}
-
-pub(in crate::proxy) fn payment_customization_function_matches(
-    record: &Value,
-    candidate: &str,
-) -> bool {
-    let candidate_key = payment_customization_function_key(candidate);
-    record["functionId"]
-        .as_str()
-        .map(payment_customization_function_key)
-        .or_else(|| {
-            record["functionHandle"]
-                .as_str()
-                .map(payment_customization_function_key)
-        })
-        .as_deref()
-        == Some(candidate_key.as_str())
+pub(in crate::proxy) fn payment_customization_function_not_found_error(
+    handle: &str,
+    current_app_id: &str,
+) -> Value {
+    payment_customization_user_error(
+        vec!["paymentCustomization", "functionHandle"],
+        "FUNCTION_NOT_FOUND",
+        &format!(
+            "Function {handle} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
+        ),
+    )
 }
 
 pub(in crate::proxy) fn payment_customization_function_key(value: &str) -> String {
     shopify_gid_tail_for_type(value, "ShopifyFunction")
         .unwrap_or(value)
-        .replace(
-            "conformance-payment-customization",
-            "019dc65a-306d-784c-a67e-269f27b6613f",
-        )
         .to_string()
 }

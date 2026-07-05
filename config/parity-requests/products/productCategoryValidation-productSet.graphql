@@ -1,0 +1,24 @@
+mutation ProductCategoryValidationSet($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      category {
+        id
+        fullName
+      }
+    }
+    productSetOperation {
+      id
+      status
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

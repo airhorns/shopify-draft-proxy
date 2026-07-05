@@ -38,6 +38,38 @@ pub(in crate::proxy) fn money_bag(amount: f64, currency_code: &str) -> Value {
     money_bag_from_amount(amount, currency_code, currency_code)
 }
 
+pub(in crate::proxy) fn money_amount(money_set: &Value, money_key: &str) -> Option<String> {
+    money_set
+        .get(money_key)
+        .and_then(|money| money.get("amount"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+pub(in crate::proxy) fn money_currency(money_set: &Value, money_key: &str) -> Option<String> {
+    money_set
+        .get(money_key)
+        .and_then(|money| money.get("currencyCode"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+pub(in crate::proxy) fn money_set_presentment_or_shop_amount(money_set: &Value) -> Option<String> {
+    money_amount(money_set, "presentmentMoney").or_else(|| money_amount(money_set, "shopMoney"))
+}
+
+pub(in crate::proxy) fn money_set_presentment_or_shop_currency(
+    money_set: &Value,
+) -> Option<String> {
+    money_currency(money_set, "presentmentMoney").or_else(|| money_currency(money_set, "shopMoney"))
+}
+
+pub(in crate::proxy) fn money_set_presentment_or_shop_amount_value(money_set: &Value) -> f64 {
+    money_set_presentment_or_shop_amount(money_set)
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0)
+}
+
 pub(in crate::proxy) fn money_set_amount(value: &Value) -> Option<f64> {
     value["shopMoney"]["amount"]
         .as_str()
@@ -94,13 +126,7 @@ pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
 
 pub(in crate::proxy) fn format_money_amount(amount: f64) -> String {
     let rounded = (amount * 100.0).round() / 100.0;
-    let formatted = format!("{rounded:.2}");
-    let trimmed = formatted.trim_end_matches('0');
-    if trimmed.ends_with('.') {
-        format!("{trimmed}0")
-    } else {
-        trimmed.to_string()
-    }
+    normalize_money_amount(&format!("{rounded:.2}"))
 }
 
 pub(in crate::proxy) fn shopify_decimal_text(value: &str) -> String {
@@ -114,11 +140,26 @@ pub(in crate::proxy) fn shopify_decimal_text(value: &str) -> String {
     formatted
 }
 
-pub(in crate::proxy) fn resolved_decimal_text(value: Option<&ResolvedValue>) -> Option<String> {
-    match value {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
+pub(in crate::proxy) fn maybe_money_amount_string_from_resolved(
+    value: Option<&ResolvedValue>,
+) -> Option<String> {
+    let raw = match value? {
+        ResolvedValue::Int(value) => value.to_string(),
+        ResolvedValue::Float(value) => value.to_string(),
+        ResolvedValue::String(value) => value.clone(),
+        _ => return None,
+    };
+    Some(normalize_money_amount(&raw))
+}
+
+pub(in crate::proxy) fn money_amount_string_from_resolved_or(
+    value: Option<&ResolvedValue>,
+    default_amount: &str,
+) -> String {
+    maybe_money_amount_string_from_resolved(value)
+        .unwrap_or_else(|| normalize_money_amount(default_amount))
+}
+
+pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
+    money_amount_string_from_resolved_or(value, "100")
 }

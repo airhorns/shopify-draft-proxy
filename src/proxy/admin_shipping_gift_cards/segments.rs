@@ -2,6 +2,49 @@ use super::*;
 use crate::graphql::ParsedDocument;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        self.store.staged.segment_catalog.is_empty()
+            && fields
+                .iter()
+                .any(|field| segment_catalog_root(field.name.as_str()))
+    }
+
+    pub(in crate::proxy) fn merge_upstream_segment_catalog_data(
+        &self,
+        data: &mut Value,
+        errors: &mut Vec<Value>,
+        fields: &[RootFieldSelection],
+        upstream_body: &Value,
+    ) {
+        let Some(data_object) = data.as_object_mut() else {
+            return;
+        };
+        let catalog_response_keys = fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>();
+        for field in fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+        {
+            if let Some(value) = upstream_body["data"].get(&field.response_key) {
+                data_object.insert(field.response_key.clone(), value.clone());
+            }
+        }
+        if let Some(upstream_errors) = upstream_body["errors"].as_array() {
+            errors.extend(upstream_errors.iter().filter_map(|error| {
+                let response_key = error["path"].as_array()?.first()?.as_str()?;
+                catalog_response_keys
+                    .contains(&response_key)
+                    .then(|| error.clone())
+            }));
+        }
+    }
+
     pub(in crate::proxy) fn segment_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -50,15 +93,16 @@ impl DraftProxy {
                     Some(count) => selected_json(count, &field.selection),
                     None => selected_count_json(self.store.staged.segments.len(), &field.selection),
                 },
-                "segmentFilters"
-                | "segmentFilterSuggestions"
-                | "segmentValueSuggestions"
-                | "segmentMigrations" => match self.store.staged.segment_catalog.get(&field.name) {
-                    Some(connection) => {
-                        project_seeded_connection(connection, &field.arguments, &field.selection)
+                name if segment_catalog_root(name) => {
+                    match self.store.staged.segment_catalog.get(&field.name) {
+                        Some(connection) => project_seeded_connection(
+                            connection,
+                            &field.arguments,
+                            &field.selection,
+                        ),
+                        None => return None,
                     }
-                    None => return None,
-                },
+                }
                 _ => return None,
             })
         });
@@ -409,6 +453,61 @@ impl DraftProxy {
             }
         }))
     }
+}
+
+fn segment_catalog_root(name: &str) -> bool {
+    matches!(
+        name,
+        "segmentFilters"
+            | "segmentFilterSuggestions"
+            | "segmentValueSuggestions"
+            | "segmentMigrations"
+    )
+}
+
+pub(in crate::proxy) fn segment_payload_json(
+    segment: Value,
+    deleted_segment_id: Value,
+    payload_selection: &[SelectedField],
+    segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "segment" => Some(if segment.is_null() {
+                Value::Null
+            } else {
+                selected_json(&segment, segment_selection)
+            }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn customer_segment_members_query_payload_json(
+    query_record: Value,
+    payload_selection: &[SelectedField],
+    query_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&query_record, query_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
 }
 
 fn segment_user_error(field: Value, message: &str) -> Value {
@@ -945,17 +1044,12 @@ fn segment_required_argument_error(
         .collect();
     if !missing.is_empty() {
         let arguments = missing.join(", ");
-        return Some(json!({
-            "message": format!("Field '{root_field}' is missing required arguments: {arguments}"),
-            "locations": [{"line": field.location.line, "column": field.location.column}],
-            "path": [operation_path, root_field],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": root_field,
-                "arguments": arguments
-            }
-        }));
+        return Some(missing_required_arguments_error(
+            root_field,
+            &arguments,
+            field.location,
+            vec![json!(operation_path), json!(root_field)],
+        ));
     }
     for (name, argument_type) in required {
         if field
@@ -963,16 +1057,13 @@ fn segment_required_argument_error(
             .get(*name)
             .is_some_and(RawArgumentValue::is_literal_null)
         {
-            return Some(json!({
-                "message": format!("Argument '{name}' on Field '{root_field}' has an invalid value (null). Expected type '{argument_type}'."),
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "path": [operation_path, root_field, *name],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": *name
-                }
-            }));
+            return Some(required_argument_null_error(
+                root_field,
+                name,
+                argument_type,
+                field.location,
+                vec![json!(operation_path), json!(root_field), json!(name)],
+            ));
         }
     }
     None

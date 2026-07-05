@@ -1,0 +1,64 @@
+query InventoryLocationLevelsRead($locationId: ID!, $inventoryItemQuery: String!) {
+  location(id: $locationId) {
+    inventoryLevels(first: 50) {
+      edges {
+        cursor
+        node {
+          item {
+            id
+          }
+          quantities(names: ["available", "on_hand"]) {
+            name
+            quantity
+          }
+        }
+      }
+      nodes {
+        item {
+          id
+        }
+        quantities(names: ["available", "on_hand"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    firstPage: inventoryLevels(first: 1) {
+      nodes {
+        quantities(names: ["available"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    filtered: inventoryLevels(first: 5, query: $inventoryItemQuery) {
+      nodes {
+        item {
+          id
+        }
+        quantities(names: ["available"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

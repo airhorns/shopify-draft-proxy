@@ -21,6 +21,20 @@ query ProductDerivedFieldsDownstream($id: ID!) {
         currencyCode
       }
     }
+    variantsCount {
+      count
+      precision
+    }
+    compareAtPriceRange {
+      minVariantCompareAtPrice {
+        amount
+        currencyCode
+      }
+      maxVariantCompareAtPrice {
+        amount
+        currencyCode
+      }
+    }
     totalVariants
     hasOnlyDefaultVariant
     hasOutOfStockVariants

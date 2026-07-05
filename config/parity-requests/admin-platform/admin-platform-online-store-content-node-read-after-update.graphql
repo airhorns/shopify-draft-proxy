@@ -40,6 +40,10 @@ query AdminPlatformOnlineStoreContentNodeReadAfterUpdate($blogId: ID!, $pageId: 
       blog {
         id
         title
+        handle
+        commentPolicy
+        createdAt
+        updatedAt
       }
     }
   }

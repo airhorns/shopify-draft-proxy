@@ -1,6 +1,6 @@
 {
   "scenarioId": "publishable-current-channel-non-sentinel-membership",
-  "operationNames": ["publishablePublishToCurrentChannel", "publishableUnpublishToCurrentChannel"],
+  "operationNames": ["publishablePublishToCurrentChannel", "product", "node", "publishableUnpublishToCurrentChannel"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "store-property-parity"],
   "liveCaptureFiles": [
@@ -19,6 +19,16 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/store-properties/publishable-current-channel-membership.graphql",
           "variablesCapturePath": "$.cases.publishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product read after current-channel publish uses hydrated current app publication",
+        "capturePath": "$.cases.readAfterPublishCurrentMembership.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-product-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterPublishCurrentMembership.variables",
           "apiVersion": "2026-04"
         }
       },

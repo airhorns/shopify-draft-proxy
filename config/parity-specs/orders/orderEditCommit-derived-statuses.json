@@ -1,0 +1,133 @@
+{
+  "scenarioId": "order-edit-commit-derived-statuses",
+  "operationNames": [
+    "draftOrderCreate",
+    "draftOrderComplete",
+    "orderEditBegin",
+    "orderEditAddCustomItem",
+    "orderEditCommit",
+    "order"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "derived-status-parity", "money-totals-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-commit-derived-statuses.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-draftCreate.graphql",
+    "variablesCapturePath": "$.draftCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live captured draft-order setup followed by orderEditBegin -> orderEditAddCustomItem -> orderEditCommit. The strict targets assert that the commit payload and downstream order read rederive displayFinancialStatus, displayFulfillmentStatus, totalOutstandingSet, totalPriceSet, and currentTotalPriceSet after the added unpaid item. Volatile draft, order, calculated-order, and calculated-line IDs are excluded.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "draft-create-payload",
+        "capturePath": "$.draftCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "excludedPaths": ["$.draftOrder.id"]
+      },
+      {
+        "name": "draft-complete-paid-order-state",
+        "capturePath": "$.draftComplete.response.data.draftOrderComplete.draftOrder.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-draftComplete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-create-payload",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": false
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.draftOrderComplete.draftOrder.order",
+        "excludedPaths": ["$.id"]
+      },
+      {
+        "name": "begin-edit-payload",
+        "capturePath": "$.begin.response.data.orderEditBegin",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-begin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-complete-paid-order-state",
+              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.originalOrder.id"]
+      },
+      {
+        "name": "add-custom-item-payload",
+        "capturePath": "$.addCustomItem.response.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-addCustomItem.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "begin-edit-payload",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": {
+              "fromCapturePath": "$.addCustomItem.variables.title"
+            },
+            "quantity": {
+              "fromCapturePath": "$.addCustomItem.variables.quantity"
+            },
+            "price": {
+              "fromCapturePath": "$.addCustomItem.variables.price"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem",
+        "excludedPaths": [
+          "$.calculatedOrder.id",
+          "$.calculatedOrder.addedLineItems.nodes[*].id",
+          "$.calculatedLineItem.id"
+        ]
+      },
+      {
+        "name": "commit-derived-statuses-and-totals",
+        "capturePath": "$.commit.response.data.orderEditCommit.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-commit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "begin-edit-payload",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": {
+              "fromCapturePath": "$.commit.variables.staffNote"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit.order",
+        "excludedPaths": ["$.id"]
+      },
+      {
+        "name": "downstream-derived-statuses-and-totals",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-derived-statuses-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-complete-paid-order-state",
+              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.order",
+        "excludedPaths": ["$.id"]
+      }
+    ]
+  }
+}
