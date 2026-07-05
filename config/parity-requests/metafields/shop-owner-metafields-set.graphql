@@ -1,0 +1,22 @@
+mutation ShopOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      namespace
+      key
+      type
+      value
+      ownerType
+      owner {
+        __typename
+        ... on Shop {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

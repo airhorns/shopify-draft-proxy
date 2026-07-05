@@ -170,6 +170,7 @@ impl DraftProxy {
                                 | "customer"
                                 | "order"
                                 | "company"
+                                | "shop"
                         )
                     })
                 })
@@ -2152,6 +2153,9 @@ impl DraftProxy {
                         }))
                     }
                 } else if root_field == "shop" {
+                    if self.should_route_owner_metafields_read(&query, &variables) {
+                        return self.owner_metafields_read(request, &query, &variables);
+                    }
                     // `shop` reads are served locally only when the proxy is
                     // holding shop-policy overlay state (snapshot mode, or staged
                     // / tombstoned policies); otherwise the live shop response is

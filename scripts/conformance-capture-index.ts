@@ -2519,6 +2519,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'shop-owner-metafields-read-after-write',
+    scriptPath: 'scripts/capture-shop-owner-metafields-conformance.mts',
+    purpose:
+      'Shop-owner metafieldsSet/metafieldsDelete live payloads and immediate shop.metafield/shop.metafields read-after-write behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-owner-metafields-read-after-write.json`,
+      'config/parity-specs/metafields/shop-owner-metafields-read-after-write.json',
+      'config/parity-requests/metafields/shop-owner-metafields-set.graphql',
+      'config/parity-requests/metafields/shop-owner-metafields-read.graphql',
+      'config/parity-requests/metafields/shop-owner-metafields-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Records one shop-owned metafieldsSet/read/metafieldsDelete/read sequence using a unique namespace/key on the live shop; the scenario delete removes the staged shop metafield.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafields-custom-namespace-typed-keys',
     scriptPath: 'scripts/capture-metafields-custom-namespace-typed-keys-conformance.mts',
     purpose:
