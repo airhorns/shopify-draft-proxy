@@ -15,10 +15,7 @@ pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
 }
 
 pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> bool {
-    record
-        .get("id")
-        .and_then(Value::as_str)
-        .is_some_and(|id| is_shopify_gid_of_type(id, "ScriptTag"))
+    record_matches_type(record, "ScriptTag")
 }
 
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {
@@ -60,7 +57,7 @@ pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
 pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) -> Vec<Value> {
     let scopes = request
         .headers
-        .get("x-shopify-draft-proxy-access-scopes")
+        .get(ACCESS_SCOPES_HEADER)
         .map(|header| {
             header
                 .split(',')
@@ -328,6 +325,27 @@ pub(in crate::proxy) const THEME_UNDELETABLE_FILES: &[&str] = &[
     "config/settings_schema.json",
     "layout/theme.liquid",
 ];
+
+pub(in crate::proxy) fn mobile_app_id_length_error(
+    platform: &str,
+    field_name: &str,
+    value: &str,
+) -> Option<Value> {
+    (value.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH).then(|| {
+        length_user_error(
+            vec![
+                "input".to_string(),
+                platform.to_string(),
+                field_name.to_string(),
+            ],
+            "Application ID",
+            LengthUserErrorBound::TooLong {
+                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
+            },
+        )
+    })
+}
+
 pub(in crate::proxy) fn theme_file_user_error(
     field: Vec<String>,
     message: &str,

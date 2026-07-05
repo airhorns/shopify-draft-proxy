@@ -393,16 +393,7 @@ impl DraftProxy {
                 "The location cannot be deleted while it is active.",
             ));
         }
-        let has_inventory = if self.store.staged.locations.contains_key(location_id) {
-            self.location_has_inventory(location_id)
-        } else {
-            location
-                .get("hasActiveInventory")
-                .and_then(Value::as_bool)
-                .unwrap_or_else(|| self.location_has_inventory(location_id))
-                || self.location_has_inventory(location_id)
-        };
-        if has_inventory {
+        if self.location_effective_has_inventory(location_id, location) {
             errors.push(location_delete_user_error(
                 "LOCATION_HAS_INVENTORY",
                 "The location cannot be deleted while it has inventory.",
@@ -573,7 +564,8 @@ impl DraftProxy {
         if let Some(address) = resolved_object_field(input, "address") {
             if let Some(country_code) = resolved_string_field(&address, "countryCode") {
                 if !location_country_code_is_valid(&country_code) {
-                    return Some(location_edit_invalid_variable_error(
+                    return Some(location_invalid_variable_error(
+                        "LocationEditInput",
                         "address.countryCode",
                         &format!(
                             "Expected \"{}\" to be one of: {}",
@@ -713,7 +705,8 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         if input.contains_key("capabilities") {
-            return Some(location_add_invalid_variable_error(
+            return Some(location_invalid_variable_error(
+                "LocationAddInput",
                 "capabilities",
                 "Field is not defined on LocationAddInput",
                 input,
@@ -735,7 +728,8 @@ impl DraftProxy {
         let country_code = resolved_string_field(address, "countryCode");
         let Some(country_code) = country_code else {
             if input_was_variable(field) {
-                return Some(location_add_invalid_variable_error(
+                return Some(location_invalid_variable_error(
+                    "LocationAddInput",
                     "address.countryCode",
                     "Expected value to not be null",
                     input,
@@ -747,7 +741,8 @@ impl DraftProxy {
             ));
         };
         if !location_country_code_is_valid(&country_code) {
-            return Some(location_add_invalid_variable_error(
+            return Some(location_invalid_variable_error(
+                "LocationAddInput",
                 "address.countryCode",
                 &format!(
                     "Expected \"{}\" to be one of: {}",
@@ -1503,15 +1498,7 @@ impl DraftProxy {
 
     fn location_deactivate_source_location(&self, location_id: &str) -> Option<Value> {
         let mut location = self.location_for_read(location_id)?;
-        let has_active_inventory = if self.store.staged.locations.contains_key(location_id) {
-            self.location_has_inventory(location_id)
-        } else {
-            location
-                .get("hasActiveInventory")
-                .and_then(Value::as_bool)
-                .unwrap_or_else(|| self.location_has_inventory(location_id))
-                || self.location_has_inventory(location_id)
-        };
+        let has_active_inventory = self.location_effective_has_inventory(location_id, &location);
         location["hasActiveInventory"] = json!(has_active_inventory);
         Some(location)
     }
@@ -1576,6 +1563,18 @@ impl DraftProxy {
                 staged_location_id == location_id
                     && quantities.values().any(|quantity| *quantity > 0)
             })
+    }
+
+    fn location_effective_has_inventory(&self, location_id: &str, location: &Value) -> bool {
+        let staged_inventory = self.location_has_inventory(location_id);
+        if self.store.staged.locations.contains_key(location_id) {
+            return staged_inventory;
+        }
+        location
+            .get("hasActiveInventory")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || staged_inventory
     }
 
     fn relocate_inventory_levels_for_location(
@@ -2312,7 +2311,8 @@ fn location_add_metafield_blank_key_error(
     })
 }
 
-fn location_add_invalid_variable_error(
+fn location_invalid_variable_error(
+    input_type_name: &str,
     path: &str,
     explanation: &str,
     input: &BTreeMap<String, ResolvedValue>,
@@ -2321,32 +2321,8 @@ fn location_add_invalid_variable_error(
     json!({
         "errors": [{
             "message": format!(
-                "Variable $input of type LocationAddInput! was provided invalid value for {} ({})",
-                path,
-                explanation
-            ),
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_values::resolved_value_json(&ResolvedValue::Object(input.clone())),
-                "problems": [{
-                    "path": path_parts,
-                    "explanation": explanation
-                }]
-            }
-        }]
-    })
-}
-
-fn location_edit_invalid_variable_error(
-    path: &str,
-    explanation: &str,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let path_parts = path.split('.').collect::<Vec<_>>();
-    json!({
-        "errors": [{
-            "message": format!(
-                "Variable $input of type LocationEditInput! was provided invalid value for {} ({})",
+                "Variable $input of type {}! was provided invalid value for {} ({})",
+                input_type_name,
                 path,
                 explanation
             ),

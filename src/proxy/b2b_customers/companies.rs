@@ -75,19 +75,17 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         // Shopify strips HTML tags before validating, so a name that is only
         // markup/whitespace (e.g. "<b>  </b>") collapses to blank and is rejected.
         if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
+            let mut error = presence_user_error(vec!["input", "company", "name"], "Name");
+            error["detail"] = Value::Null;
+            errors.push(error);
         } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 vec!["input", "company", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+                "Name",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     if let Some(external_id) = resolved_string_field(input, "externalId") {
@@ -100,12 +98,13 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
     }
     if let Some(note) = resolved_string_field(input, "note") {
         if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 vec!["input", "company", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+                "Notes",
+                LengthUserErrorBound::TooLong { maximum: 5000 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     errors
@@ -127,19 +126,17 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
     }
     if let Some(name) = resolved_string_field(input, "name") {
         if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
+            let mut error = presence_user_error(vec!["input", "name"], "Name");
+            error["detail"] = Value::Null;
+            errors.push(error);
         } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 vec!["input", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+                "Name",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     if let Some(external_id) = resolved_string_field(input, "externalId") {
@@ -152,12 +149,13 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
     }
     if let Some(note) = resolved_string_field(input, "note") {
         if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 vec!["input", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
+                "Notes",
+                LengthUserErrorBound::TooLong { maximum: 5000 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     errors
@@ -1381,15 +1379,9 @@ impl DraftProxy {
         if resolved_string_field(&input, "name")
             .is_some_and(|name| b2b_strip_html_tags(&name).trim().is_empty())
         {
-            return failed_payload_outcome(b2b_company_location_payload(
-                None,
-                vec![b2b_company_user_error(
-                    vec!["input", "name"],
-                    "Name can't be blank",
-                    BLANK_USER_ERROR_CODE,
-                    None,
-                )],
-            ));
+            let mut error = presence_user_error(vec!["input", "name"], "Name");
+            error["detail"] = Value::Null;
+            return failed_payload_outcome(b2b_company_location_payload(None, vec![error]));
         }
 
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
@@ -4021,12 +4013,13 @@ fn b2b_location_input_errors(
         if name.chars().count() > 255 {
             let mut field = prefix.to_vec();
             field.push("name");
-            errors.push(b2b_company_user_error(
+            let mut error = length_user_error(
                 field,
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
-                None,
-            ));
+                "Name",
+                LengthUserErrorBound::TooLong { maximum: 255 },
+            );
+            error["detail"] = Value::Null;
+            errors.push(error);
         }
     }
     if let Some(phone) = resolved_string_field(input, "phone") {
@@ -4412,7 +4405,7 @@ fn b2b_contact_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             let mut field = prefix.to_vec();
             field.push("email");
             errors.push(b2b_company_user_error(
@@ -4695,7 +4688,7 @@ fn b2b_contact_create_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             errors.push(user_error(
                 json!(field_path("email")),
                 "Email is invalid",

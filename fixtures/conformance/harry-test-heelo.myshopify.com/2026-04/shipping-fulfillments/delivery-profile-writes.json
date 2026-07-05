@@ -247,6 +247,74 @@
         }
       }
     },
+    "postCreateCatalog": {
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 4,
+                    "activeMethodDefinitionsCount": 0,
+                    "locationsWithoutRatesCount": 28,
+                    "originLocationCount": 0,
+                    "zoneCountryCount": 0,
+                    "productVariantsCount": {
+                      "count": 500,
+                      "precision": "AT_LEAST"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzI2ODUyMzQ0ODIsImxhc3RfdmFsdWUiOiIxMzI2ODUyMzQ0ODIifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/132685234482",
+                    "name": "Delivery profile lifecycle 1783210049430",
+                    "default": false,
+                    "version": 1,
+                    "activeMethodDefinitionsCount": 1,
+                    "locationsWithoutRatesCount": 27,
+                    "originLocationCount": 1,
+                    "zoneCountryCount": 1,
+                    "productVariantsCount": {
+                      "count": 0,
+                      "precision": "EXACT"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzI2ODUyMzQ0ODIsImxhc3RfdmFsdWUiOiIxMzI2ODUyMzQ0ODIifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "readAfterCreateCatalog": {
       "query": "query DeliveryProfilesMergedRead($first: Int, $after: String) {\n  deliveryProfiles(first: $first, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
       "variables": {
@@ -703,7 +771,8 @@
   "notes": [
     "Captured with home-folder conformance auth against a disposable Shopify test store.",
     "The capture creates one disposable delivery profile, records the pre/post-create deliveryProfiles catalog with the merchant default still present, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.",
-    "Integration conflict resolution preserved real delivery-profile lifecycle and catalog readback payloads from two adjacent disposable-profile live captures because fresh recapture was blocked by conformance auth refresh failure."
+    "Integration conflict resolution preserved real delivery-profile lifecycle and catalog readback payloads from two adjacent disposable-profile live captures because fresh recapture was blocked by conformance auth refresh failure.",
+    "The capture preserves both pre/post-create catalog readbacks and the read-after-update description/country readback so the parity runner can verify merged default-plus-staged delivery profiles without fabricated fixture data."
   ],
   "upstreamCalls": [
     {
@@ -825,5 +894,58 @@
         }
       }
     }
-  ]
+  ],
+  "queries": {
+    "preCreateCatalog": {
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfiles": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                  "node": {
+                    "id": "gid://shopify/DeliveryProfile/125254992178",
+                    "name": "General profile",
+                    "default": true,
+                    "version": 4,
+                    "activeMethodDefinitionsCount": 0,
+                    "locationsWithoutRatesCount": 28,
+                    "originLocationCount": 0,
+                    "zoneCountryCount": 0,
+                    "productVariantsCount": {
+                      "count": 500,
+                      "precision": "AT_LEAST"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMjUyNTQ5OTIxNzgsImxhc3RfdmFsdWUiOiIxMjUyNTQ5OTIxNzgifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 123,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
