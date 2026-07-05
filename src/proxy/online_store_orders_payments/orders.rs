@@ -311,37 +311,17 @@ fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) ->
     if query_value.is_empty() {
         return false;
     }
-    let (operator, expected) = order_search_comparator(query_value);
+    let (operator, expected) = search_comparator(query_value);
     if expected.is_empty() {
         return false;
     }
-    let actual = order_search_datetime_value(actual, expected);
+    let actual = search_datetime_value(actual, expected);
     match operator {
         "<" => actual < expected,
         "<=" => actual <= expected,
         ">" => actual > expected,
         ">=" => actual >= expected,
         _ => actual.starts_with(expected),
-    }
-}
-
-fn order_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value)
-}
-
-fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
-    if expected.contains('T') {
-        actual
-    } else {
-        actual
-            .split_once('T')
-            .map(|(date, _)| date)
-            .unwrap_or(actual)
     }
 }
 
