@@ -255,11 +255,12 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
         staged_connection_query(
             self.gift_card_effective_records(),
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| gift_card_staged_sort_key(card, sort_key, reverse),
             value_id_cursor,
         )
     }
@@ -451,7 +452,13 @@ impl DraftProxy {
             staged_cards,
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| {
+                gift_card_staged_sort_key(
+                    card,
+                    sort_key,
+                    resolved_bool_field(arguments, "reverse").unwrap_or(false),
+                )
+            },
             value_id_cursor,
         );
         let local = selected_json(
@@ -767,9 +774,12 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(processed_at) = resolved_string_field(&input, "processedAt") {
-                if let Some(error) =
-                    gift_card_processed_at_error(&field.name, input_name, &processed_at)
-                {
+                if let Some(error) = gift_card_processed_at_error(
+                    &field.name,
+                    input_name,
+                    &processed_at,
+                    self.current_epoch_seconds(),
+                ) {
                     user_errors.push(error);
                 }
             }
@@ -1234,7 +1244,7 @@ impl DraftProxy {
             )];
         }
         if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
-            let now = gift_card_synthetic_now_epoch_seconds();
+            let now = self.current_epoch_seconds();
             let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
             match parse_rfc3339_epoch_seconds(&send_at) {
                 Some(send_at) if send_at >= now && send_at <= max_send_at => {}
@@ -1311,7 +1321,7 @@ impl DraftProxy {
     }
 
     fn gift_card_today_epoch_day(&self) -> i64 {
-        let now = gift_card_synthetic_now_epoch_seconds();
+        let now = self.current_epoch_seconds();
         let Some(offset_minutes) = self.store.base.shop["timezoneOffsetMinutes"].as_i64() else {
             eprintln!(
                 "shopify-draft-proxy: gift-card expiry validation using UTC date because shop timezone baseline is missing"
@@ -1442,6 +1452,7 @@ fn gift_card_processed_at_error(
     root_field: &str,
     input_name: &str,
     processed_at: &str,
+    now_epoch_seconds: i64,
 ) -> Option<Value> {
     let Some(processed_at) = parse_rfc3339_epoch_seconds(processed_at) else {
         return Some(gift_card_user_error(
@@ -1459,7 +1470,7 @@ fn gift_card_processed_at_error(
             "A valid processed date must be used.",
         ));
     }
-    if processed_at > gift_card_synthetic_now_epoch_seconds() {
+    if processed_at > now_epoch_seconds {
         return Some(gift_card_user_error(
             root_field,
             json!([input_name, "processedAt"]),
@@ -1470,14 +1481,6 @@ fn gift_card_processed_at_error(
     None
 }
 
-fn gift_card_synthetic_now_epoch_seconds() -> i64 {
-    parse_rfc3339_epoch_seconds(&gift_card_validation_now_timestamp())
-        .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
-}
-
-fn gift_card_validation_now_timestamp() -> String {
-    format!("{:04}-{:02}-{:02}T09:31:02Z", 2026, 4, 29)
-}
 fn normalize_gift_card_code(code: &str) -> String {
     code.chars()
         .filter(|character| !character.is_whitespace() && *character != '-')
@@ -1509,14 +1512,10 @@ fn gift_card_user_error(
     code: Option<&str>,
     message: &str,
 ) -> Value {
-    let mut error = serde_json::Map::new();
     if let Some(typename) = gift_card_user_error_typename(root_field) {
-        error.insert("__typename".to_string(), json!(typename));
+        return user_error_typed(typename, field, message, code);
     }
-    error.insert("field".to_string(), field);
-    error.insert("code".to_string(), code.map_or(Value::Null, Value::from));
-    error.insert("message".to_string(), json!(message));
-    Value::Object(error)
+    user_error(field, message, code)
 }
 
 fn gift_card_not_found_error(root_field: &str) -> Value {
@@ -1588,14 +1587,7 @@ fn gift_card_search_decision(card: &Value, query: Option<&str>) -> StagedSearchD
 }
 
 fn gift_card_gid_tail_sort_value(card: &Value) -> StagedSortValue {
-    let tail = card
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(card.get("id").and_then(Value::as_str))
 }
 
 fn gift_card_string_sort_value(card: &Value, field: &str) -> StagedSortValue {
@@ -1645,14 +1637,27 @@ fn gift_card_customer_name_sort_value(card: &Value) -> StagedSortValue {
         .unwrap_or(StagedSortValue::Null)
 }
 
-fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>) -> StagedSortKey {
+fn gift_card_disabled_at_sort_value(card: &Value, reverse: bool) -> StagedSortValue {
+    card.get("deactivatedAt")
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or_else(|| {
+            if reverse {
+                StagedSortValue::Null
+            } else {
+                StagedSortValue::String("~".to_string())
+            }
+        })
+}
+
+fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>, reverse: bool) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
         "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
         "BALANCE" => gift_card_money_sort_value(card, "balance"),
         "CODE" => gift_card_code_sort_value(card),
         "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
         "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
-        "DISABLED_AT" => gift_card_string_sort_value(card, "disabledAt"),
+        "DISABLED_AT" => gift_card_disabled_at_sort_value(card, reverse),
         "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
         "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
         "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
@@ -1738,9 +1743,9 @@ fn gift_card_matches_search_term(card: &Value, term: &str) -> bool {
 }
 
 fn gift_card_matches_id(card: &Value, value: &str) -> bool {
-    card.get("id").and_then(Value::as_str).is_some_and(|id| {
-        id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
-    })
+    card.get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, value))
 }
 
 fn gift_card_matches_status(card: &Value, value: &str) -> bool {
@@ -1764,11 +1769,9 @@ fn gift_card_matches_balance_status(card: &Value, value: &str) -> bool {
 }
 
 fn gift_card_matches_related_id(value: &Value, query_value: &str) -> bool {
-    value.as_str().is_some_and(|id| {
-        id == query_value
-            || resource_id_tail(id) == query_value
-            || resource_id_path_tail(id) == query_value
-    })
+    value
+        .as_str()
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, query_value))
 }
 
 fn gift_card_matches_code_fragment(card: &Value, term: &str) -> bool {

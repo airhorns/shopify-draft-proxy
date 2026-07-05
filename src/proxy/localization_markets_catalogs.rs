@@ -268,10 +268,7 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
 }
 
 fn value_gid_tail_sort_value(value: &Value) -> StagedSortValue {
-    let tail = resource_id_tail(value_string(value, "id"));
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(value.get("id").and_then(Value::as_str))
 }
 
 fn catalog_gid_tail_sort_value(catalog: &Value) -> StagedSortValue {
@@ -633,8 +630,8 @@ impl DraftProxy {
             .localization_mutation_target_ids(fields)
             .into_iter()
             .filter(|id| {
-                (id.starts_with("gid://shopify/Market/") && !self.market_exists(id))
-                    || (id.starts_with("gid://shopify/MarketWebPresence/")
+                (is_shopify_gid_of_type(id, "Market") && !self.market_exists(id))
+                    || (is_shopify_gid_of_type(id, "MarketWebPresence")
                         && !self.market_web_presence_exists(id))
             })
             .collect::<Vec<_>>();
@@ -998,10 +995,10 @@ impl DraftProxy {
                     )
                 }
                 "marketsResolvedValues" => self.markets_resolved_values_value(field),
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &connection_json_with_empty_edges(Vec::new()),
-                    &field.selection,
-                ),
+                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
+                "marketLocalizableResourcesByIds" => {
+                    self.market_localizable_resources_by_ids_connection(field)
+                }
                 // The `markets` plural connection projects the staged markets store.
                 // Hydration from upstream happens in the LiveHybrid fetch path before
                 // this handler is reached, so here we only serve what is already
@@ -3456,13 +3453,10 @@ impl DraftProxy {
                         )
                     }
                 }
-                // Local read-after-write serve only reaches the connections after the
-                // resource was observed; a backend with no staged localizable owners
-                // returns an empty connection (not a fabricated node) for both variants.
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &connection_json_with_empty_edges(Vec::new()),
-                    &field.selection,
-                ),
+                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
+                "marketLocalizableResourcesByIds" => {
+                    self.market_localizable_resources_by_ids_connection(field)
+                }
                 "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
             })
@@ -3502,6 +3496,83 @@ impl DraftProxy {
             "marketLocalizableContent": content,
             "marketLocalizations": localizations
         })
+    }
+
+    fn market_localizable_resource_selected(
+        &self,
+        resource_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        let market_filter = market_localizations_market_filter(selections);
+        selected_json(
+            &self.market_localizable_resource(resource_id, market_filter.as_deref()),
+            selections,
+        )
+    }
+
+    fn market_localizable_resources_connection(&self, field: &RootFieldSelection) -> Value {
+        let resource_type = resolved_string_field(&field.arguments, "resourceType");
+        let records = self
+            .market_localizable_resource_ids()
+            .into_iter()
+            .filter(|resource_id| {
+                resource_type.as_deref().is_none_or(|resource_type| {
+                    localization_resource_type_matches(resource_id, resource_type)
+                })
+            })
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |resource_id, selection| {
+                self.market_localizable_resource_selected(resource_id, selection)
+            },
+            |resource_id| resource_id.clone(),
+        )
+    }
+
+    fn market_localizable_resources_by_ids_connection(&self, field: &RootFieldSelection) -> Value {
+        let records = resolved_string_list_arg(&field.arguments, "resourceIds")
+            .into_iter()
+            .filter(|resource_id| self.market_localizable_resource_exists(resource_id))
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |resource_id, selection| {
+                self.market_localizable_resource_selected(resource_id, selection)
+            },
+            |resource_id| resource_id.clone(),
+        )
+    }
+
+    fn market_localizable_resource_ids(&self) -> Vec<String> {
+        let mut ids = self
+            .store
+            .staged
+            .localization_resources
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        ids.extend(
+            self.store
+                .staged
+                .localization_translations
+                .iter()
+                .filter_map(|translation| {
+                    translation["resourceId"]
+                        .as_str()
+                        .filter(|resource_id| !resource_id.is_empty())
+                        .map(ToString::to_string)
+                }),
+        );
+        ids.into_iter().collect()
+    }
+
+    fn has_market_localizable_resource_state(&self) -> bool {
+        !self.market_localizable_resource_ids().is_empty()
     }
 
     fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
@@ -3546,7 +3617,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE", "Too many keys for resource - maximum 100 per mutation")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "Too many keys for resource - maximum 100 per mutation", "TOO_MANY_KEYS_FOR_RESOURCE")]
                 }),
                 &field.selection,
             );
@@ -3562,7 +3633,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -3576,7 +3647,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST", "The market does not exist")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "The market does not exist", "MARKET_DOES_NOT_EXIST")]
                     }),
                     &field.selection,
                 );
@@ -3591,7 +3662,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL", &format!("Key {key} is not a valid market localizable field"))]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], &format!("Key {key} is not a valid market localizable field"), "INVALID_KEY_FOR_MODEL")]
                     }),
                     &field.selection,
                 );
@@ -3604,7 +3675,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT", "The provided content digest does not match the latest resource content")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "The provided content digest does not match the latest resource content", "INVALID_MARKET_LOCALIZABLE_CONTENT")]
                     }),
                     &field.selection,
                 );
@@ -3614,7 +3685,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Value can't be blank")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Value can't be blank", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3626,7 +3697,7 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Market Localizable content is invalid")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Market Localizable content is invalid", "FAILS_RESOURCE_VALIDATION")]
                     }),
                     &field.selection,
                 );
@@ -3701,7 +3772,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
+                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -4164,7 +4235,7 @@ impl DraftProxy {
             let Some(id) = market.get("id").and_then(Value::as_str) else {
                 continue;
             };
-            if !id.starts_with("gid://shopify/Market/")
+            if !is_shopify_gid_of_type(id, "Market")
                 || !market.get("name").is_some_and(Value::is_string)
                 || !market.get("handle").is_some_and(Value::is_string)
                 || !market.get("status").is_some_and(Value::is_string)
@@ -4221,9 +4292,10 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues"
-            | "marketLocalizableResources"
-            | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
+            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
+            "marketLocalizableResources" | "marketLocalizableResourcesByIds" => {
+                !self.has_market_localizable_resource_state()
+            }
             _ => false,
         }
     }
@@ -4258,7 +4330,7 @@ impl DraftProxy {
                 .iter()
                 .filter(|node| {
                     node.get("__typename").and_then(Value::as_str) == Some("Market")
-                        || record_gid(node, "gid://shopify/Market/").is_some()
+                        || record_gid(node, "Market").is_some()
                 })
                 .cloned(),
         );
@@ -4299,7 +4371,7 @@ impl DraftProxy {
                 .iter()
                 .filter(|node| {
                     node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
-                        || record_gid(node, "gid://shopify/MarketWebPresence/").is_some()
+                        || record_gid(node, "MarketWebPresence").is_some()
                 })
                 .cloned(),
         );
@@ -4481,13 +4553,13 @@ impl DraftProxy {
         }
         for resource in &resources {
             if let Some(resource_id) = resource.get("resourceId").and_then(Value::as_str) {
-                if resource_id.starts_with("gid://shopify/Product/") {
+                if is_shopify_gid_of_type(resource_id, "Product") {
                     self.store
                         .base
                         .localization_product_ids
                         .insert(resource_id.to_string());
                     self.stage_observed_localization_product_source(resource_id, resource);
-                } else if resource_id.starts_with("gid://shopify/Collection/") {
+                } else if is_shopify_gid_of_type(resource_id, "Collection") {
                     self.stage_observed_localization_collection_source(resource_id, resource);
                 }
             }
@@ -4672,14 +4744,14 @@ impl DraftProxy {
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
         let locale = self.localization_primary_locale();
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             return self
                 .store
                 .product_staged_or_base(resource_id)
                 .map(|product| localization_product_translatable_content(&product, &locale))
                 .unwrap_or_default();
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             return self
                 .store
                 .collection_by_id(resource_id)
@@ -4710,7 +4782,7 @@ impl DraftProxy {
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
     /// is skipped — matching Shopify's captured "content not found -> no digest error" behavior.
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             let product = self.store.product_staged_or_base(resource_id)?;
             let value = match key {
                 "title" => product.title.clone(),
@@ -4723,7 +4795,7 @@ impl DraftProxy {
             };
             return Some(value);
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             let collection = self.store.collection_by_id(resource_id)?;
             let value = match key {
                 "title" => collection
@@ -4775,13 +4847,13 @@ impl DraftProxy {
     }
 
     fn localization_resource_has_modeled_translation_keys(&self, resource_id: &str) -> bool {
-        resource_id.starts_with("gid://shopify/Product/")
-            || (resource_id.starts_with("gid://shopify/Collection/")
+        is_shopify_gid_of_type(resource_id, "Product")
+            || (is_shopify_gid_of_type(resource_id, "Collection")
                 && self.store.collection_by_id(resource_id).is_some())
     }
 
     fn localization_translation_key_is_valid(&self, resource_id: &str, key: &str) -> bool {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             return matches!(
                 key,
                 "title"
@@ -4792,7 +4864,7 @@ impl DraftProxy {
                     | "meta_description"
             );
         }
-        if resource_id.starts_with("gid://shopify/Collection/") {
+        if is_shopify_gid_of_type(resource_id, "Collection") {
             return matches!(
                 key,
                 "title" | "body_html" | "handle" | "meta_title" | "meta_description"

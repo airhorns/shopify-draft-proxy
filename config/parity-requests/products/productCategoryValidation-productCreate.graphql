@@ -1,0 +1,16 @@
+mutation ProductCategoryValidationCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      category {
+        id
+        fullName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

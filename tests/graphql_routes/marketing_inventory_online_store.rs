@@ -588,7 +588,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -613,7 +613,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -639,6 +639,14 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         json!([])
     );
     assert_eq!(create_zulu.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(
+        create_alpha.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
+    assert_eq!(
+        create_zulu.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
 
     let alpha_id = create_alpha.body["data"]["created"]["marketingActivity"]["id"]
         .as_str()
@@ -726,7 +734,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
             "idRangeQuery": "id:>1",
             "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
             "appIdQuery": "app_id:42",
-            "appNameQuery": "app_name:42",
+            "appNameQuery": "app_name:shopify-draft-proxy",
             "unknownFieldQuery": "unknown_field:\"Alpha launch\""
         }),
     ));
@@ -805,6 +813,93 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         read.body["data"]["eventSearch"]["nodes"],
         json!([{ "id": alpha_event_id, "type": "NEWSLETTER" }])
     );
+}
+
+#[test]
+fn marketing_activity_queries_treat_boolean_operators_as_logic() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title status }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let active = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Active newsletter",
+            "remoteId": "active-newsletter",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/active",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "active", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    let paused = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Paused newsletter",
+            "remoteId": "paused-newsletter",
+            "status": "PAUSED",
+            "remoteUrl": "https://example.com/paused",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "paused", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    assert_eq!(active.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(paused.body["data"]["created"]["userErrors"], json!([]));
+    let active_id = active.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let paused_id = paused.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityBooleanSearch(
+          $orQuery: String!
+          $andQuery: String!
+          $exclusiveAndQuery: String!
+        ) {
+          statusOr: marketingActivities(first: 5, sortKey: ID, query: $orQuery) {
+            nodes { id title status }
+          }
+          statusAnd: marketingActivities(first: 5, sortKey: ID, query: $andQuery) {
+            nodes { id title status }
+          }
+          exclusiveAnd: marketingActivities(first: 5, sortKey: ID, query: $exclusiveAndQuery) {
+            nodes { id title status }
+          }
+        }
+        "#,
+        json!({
+            "orQuery": "status:ACTIVE OR status:PAUSED",
+            "andQuery": "status:ACTIVE AND title:\"Active newsletter\"",
+            "exclusiveAndQuery": "status:ACTIVE AND status:PAUSED"
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["statusOr"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" },
+            { "id": paused_id, "title": "Paused newsletter", "status": "PAUSED" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["statusAnd"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" }
+        ])
+    );
+    assert_eq!(read.body["data"]["exclusiveAnd"]["nodes"], json!([]));
 }
 
 #[test]
@@ -1274,7 +1369,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         &json!({
             "id": activity_id,
             "remoteId": "social-remote-1",
-            "app": { "id": "gid://shopify/App/347082227713", "title": "347082227713" },
+            "app": { "id": "gid://shopify/App/347082227713", "title": "shopify-draft-proxy" },
             "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
             "marketingEvent": {
                 "id": created["marketingEvent"]["id"],
@@ -1290,6 +1385,97 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         created["marketingEvent"]["id"],
         json!(assumed_event_id),
         "marketing event ids must be allocated independently from activity ids"
+    );
+}
+
+#[test]
+fn marketing_external_activity_app_title_uses_installed_app_model() {
+    let mut proxy = snapshot_proxy();
+    let app_id = "gid://shopify/App/347082227713";
+
+    let mut observe_app = json_graphql_request(
+        r#"
+        query ObserveMarketingApp {
+          currentAppInstallation {
+            app { id title handle }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-title".to_string(),
+        "Hermes Marketing".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        "hermes-marketing".to_string(),
+    );
+    let observed_app = proxy.process_request(observe_app);
+    assert_eq!(
+        observed_app.body["data"]["currentAppInstallation"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing", "handle": "hermes-marketing" })
+    );
+
+    let mut create = json_graphql_request(
+        r#"
+        mutation CreateMarketingActivityForInstalledApp {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Installed app campaign",
+            remoteId: "installed-app-campaign",
+            status: ACTIVE,
+            tactic: NEWSLETTER,
+            marketingChannelType: EMAIL,
+            remoteUrl: "https://example.com/installed-app-campaign",
+            utm: { campaign: "installed-app-campaign", source: "email", medium: "newsletter" }
+          }) {
+            marketingActivity { id app { id title } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create);
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
+    );
+
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .expect("created activity id")
+        .to_string();
+    let mut read = json_graphql_request(
+        r#"
+        query ReadMarketingActivityApp($id: ID!) {
+          marketingActivity(id: $id) {
+            app { id title }
+          }
+        }
+        "#,
+        json!({ "id": activity_id }),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
     );
 }
 
@@ -13457,6 +13643,163 @@ fn online_store_content_back_references_project_full_parent_records() {
 }
 
 #[test]
+fn online_store_nested_blog_articles_connection_honors_args_and_staged_writes() {
+    let mut proxy = snapshot_proxy();
+
+    let blog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NestedArticleBlog {
+          blogCreate(blog: { title: "Nested article blog" }) {
+            blog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(blog.body["data"]["blogCreate"]["userErrors"], json!([]));
+    let blog_id = blog.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut article_ids = Vec::<(String, String)>::new();
+    for title in [
+        "Alpha nested article",
+        "Bravo nested article",
+        "Charlie nested article",
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NestedArticleCreate($article: ArticleCreateInput!) {
+              articleCreate(article: $article) {
+                article { id title }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "article": {
+                    "title": title,
+                    "blogId": blog_id,
+                    "author": { "name": "Nested Author" }
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["articleCreate"]["userErrors"],
+            json!([])
+        );
+        article_ids.push((
+            title.to_string(),
+            create.body["data"]["articleCreate"]["article"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        ));
+    }
+
+    let alpha_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Alpha"))
+        .unwrap()
+        .1
+        .clone();
+    let bravo_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Bravo"))
+        .unwrap()
+        .1
+        .clone();
+    let charlie_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Charlie"))
+        .unwrap()
+        .1
+        .clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedBlogArticles($blogId: ID!, $after: String!, $before: String!) {
+          firstPage: blog(id: $blogId) {
+            articlesFirst: articles(first: 2) {
+              nodes { id title }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          afterPage: blog(id: $blogId) {
+            articlesAfter: articles(first: 2, after: $after) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          beforePage: blog(id: $blogId) {
+            articlesBefore: articles(last: 1, before: $before) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          reversePage: blog(id: $blogId) {
+            articlesReverse: articles(first: 2, reverse: true) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"blogId": blog_id, "after": bravo_id, "before": charlie_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["nodes"],
+        json!([
+            {"id": alpha_id, "title": "Alpha nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["edges"],
+        json!([
+            {"cursor": alpha_id, "node": {"id": alpha_id}},
+            {"cursor": bravo_id, "node": {"id": bravo_id}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha_id,
+            "endCursor": bravo_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["nodes"],
+        json!([{"id": charlie_id, "title": "Charlie nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["nodes"],
+        json!([{"id": bravo_id, "title": "Bravo nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["articlesReverse"]["nodes"],
+        json!([
+            {"id": charlie_id, "title": "Charlie nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
+}
+
+#[test]
 fn online_store_articles_published_status_query_controls_visibility() {
     let mut proxy = snapshot_proxy();
 
@@ -13512,9 +13855,12 @@ fn online_store_articles_published_status_query_controls_visibility() {
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
           byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
           byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          bareTagText: articles(first: 10, query: "status-tag") { nodes { id title } }
+          bareHandleText: articles(first: 10, query: "published-article") { nodes { id title } }
           byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
           draftTagDefault: articles(first: 10, query: "draft-tag") { nodes { id title isPublished } }
           draftTagAny: articles(first: 10, query: "published_status:any draft-tag") { nodes { id title isPublished } }
+          allTags: articleTags(limit: 20)
           titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
           titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
           unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
@@ -13549,11 +13895,17 @@ fn online_store_articles_published_status_query_controls_visibility() {
         json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
     assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["bareTagText"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["bareHandleText"]["nodes"], json!([]));
     assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
     assert_eq!(read.body["data"]["draftTagDefault"]["nodes"], json!([]));
     assert_eq!(
         read.body["data"]["draftTagAny"]["nodes"],
         json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["allTags"],
+        json!(["draft-tag", "status-tag"])
     );
     assert_eq!(
         read.body["data"]["titleSorted"]["nodes"],
@@ -13570,6 +13922,193 @@ fn online_store_articles_published_status_query_controls_visibility() {
         ])
     );
     assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_article_metafields_reflect_staged_create_and_update() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {
+          articleCreate(article: $article, blog: $blog) {
+            article {
+              id
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 1, namespace: "online_store_conformance") {
+                nodes { id namespace key type value jsonValue ownerType }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blog": { "title": "Article metafield blog" },
+            "article": {
+                "title": "Article metafields",
+                "author": { "name": "Metafield Author" },
+                "metafields": [
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "hero",
+                        "type": "single_line_text_field",
+                        "value": "created hero"
+                    },
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "secondary",
+                        "type": "single_line_text_field",
+                        "value": "created secondary"
+                    },
+                    {
+                        "namespace": "other_namespace",
+                        "key": "hidden",
+                        "type": "single_line_text_field",
+                        "value": "hidden"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    let article = &create.body["data"]["articleCreate"]["article"];
+    let article_id = article["id"].as_str().unwrap().to_string();
+    let article_handle = article["handle"].as_str().unwrap().to_string();
+    assert_eq!(
+        article["metafield"],
+        json!({
+            "id": article["metafield"]["id"].clone(),
+            "namespace": "online_store_conformance",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "created hero",
+            "jsonValue": "created hero",
+            "ownerType": "ARTICLE"
+        })
+    );
+    assert_eq!(article["metafields"]["nodes"][0]["key"], json!("hero"));
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    let after_cursor = article["metafields"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleMetafieldsAfter($id: ID!, $after: String!) {
+          article(id: $id) {
+            metafields(first: 2, namespace: "online_store_conformance", after: $after) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": article_id, "after": after_cursor}),
+    ));
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["nodes"],
+        json!([{ "key": "secondary", "value": "created secondary" }])
+    );
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              title
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 5, namespace: "online_store_conformance") {
+                nodes { key value jsonValue }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": article_id,
+            "article": {
+                "title": "Article metafields renamed",
+                "metafields": [{
+                    "namespace": "online_store_conformance",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updated hero"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["title"],
+        json!("Article metafields renamed")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["handle"],
+        json!(article_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["value"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["jsonValue"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafields"]["nodes"],
+        json!([
+            {
+                "key": "hero",
+                "value": "updated hero",
+                "jsonValue": "updated hero"
+            },
+            {
+                "key": "secondary",
+                "value": "created secondary",
+                "jsonValue": "created secondary"
+            }
+        ])
+    );
 }
 
 #[test]
@@ -13780,6 +14319,236 @@ fn online_store_comments_connection_filters_sort_and_reverse_hydrated_state() {
         ])
     );
     assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+}
+
+#[test]
+fn online_store_nested_article_comments_connection_honors_args_and_staged_moderation() {
+    let blog_id = "gid://shopify/Blog/9201";
+    let article_id = "gid://shopify/Article/9202";
+    let alpha_comment_id = "gid://shopify/Comment/9203";
+    let bravo_comment_id = "gid://shopify/Comment/9204";
+    let charlie_comment_id = "gid://shopify/Comment/9205";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let upstream_calls = upstream_calls.clone();
+            move |_request| {
+                *upstream_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "article": {
+                                "__typename": "Article",
+                                "id": article_id,
+                                "title": "Nested comments article",
+                                "handle": "nested-comments-article",
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-01T00:00:00Z",
+                                "blog": {
+                                    "id": blog_id,
+                                    "title": "Nested comments blog",
+                                    "handle": "nested-comments-blog"
+                                },
+                                "comments": {
+                                    "nodes": [
+                                        {
+                                            "__typename": "Comment",
+                                            "id": alpha_comment_id,
+                                            "status": "PUBLISHED",
+                                            "body": "Alpha comment body",
+                                            "bodyHtml": "<p>Alpha comment body</p>",
+                                            "isPublished": true,
+                                            "publishedAt": "2026-01-01T00:00:00Z",
+                                            "createdAt": "2026-01-01T00:00:00Z",
+                                            "updatedAt": "2026-01-01T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        },
+                                        {
+                                            "__typename": "Comment",
+                                            "id": bravo_comment_id,
+                                            "status": "UNAPPROVED",
+                                            "body": "Bravo comment body",
+                                            "bodyHtml": "<p>Bravo comment body</p>",
+                                            "isPublished": false,
+                                            "publishedAt": null,
+                                            "createdAt": "2026-01-02T00:00:00Z",
+                                            "updatedAt": "2026-01-02T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        },
+                                        {
+                                            "__typename": "Comment",
+                                            "id": charlie_comment_id,
+                                            "status": "PUBLISHED",
+                                            "body": "Charlie comment body",
+                                            "bodyHtml": "<p>Charlie comment body</p>",
+                                            "isPublished": true,
+                                            "publishedAt": "2026-01-03T00:00:00Z",
+                                            "createdAt": "2026-01-03T00:00:00Z",
+                                            "updatedAt": "2026-01-03T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        }
+                                    ],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "upstream-alpha",
+                                        "endCursor": "upstream-charlie"
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateNestedComments($articleId: ID!) {
+          article(id: $articleId) {
+            id
+            title
+            handle
+            createdAt
+            updatedAt
+            blog { id title handle }
+            comments(first: 10) {
+              nodes {
+                id
+                status
+                body
+                bodyHtml
+                isPublished
+                publishedAt
+                createdAt
+                updatedAt
+                article { id title }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"articleId": article_id}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let spam = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCommentModeration($id: ID!) {
+          commentSpam(id: $id) {
+            comment { id status isPublished publishedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": alpha_comment_id}),
+    ));
+    assert_eq!(spam.body["data"]["commentSpam"]["userErrors"], json!([]));
+    assert_eq!(
+        spam.body["data"]["commentSpam"]["comment"],
+        json!({
+            "id": alpha_comment_id,
+            "status": "SPAM",
+            "isPublished": false,
+            "publishedAt": null
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedArticleComments($articleId: ID!, $after: String!, $before: String!) {
+          firstPage: article(id: $articleId) {
+            commentsFirst: comments(first: 2) {
+              nodes { id status body }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          afterPage: article(id: $articleId) {
+            commentsAfter: comments(first: 2, after: $after) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          beforePage: article(id: $articleId) {
+            commentsBefore: comments(last: 1, before: $before) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          reversePage: article(id: $articleId) {
+            commentsReverse: comments(first: 1, reverse: true) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          spamOnly: article(id: $articleId) {
+            commentsSpam: comments(first: 5, query: "status:SPAM") {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "articleId": article_id,
+            "after": bravo_comment_id,
+            "before": charlie_comment_id
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["nodes"],
+        json!([
+            {"id": alpha_comment_id, "status": "SPAM", "body": "Alpha comment body"},
+            {"id": bravo_comment_id, "status": "UNAPPROVED", "body": "Bravo comment body"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["edges"],
+        json!([
+            {"cursor": alpha_comment_id, "node": {"id": alpha_comment_id}},
+            {"cursor": bravo_comment_id, "node": {"id": bravo_comment_id}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha_comment_id,
+            "endCursor": bravo_comment_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["commentsAfter"]["nodes"],
+        json!([{"id": charlie_comment_id, "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["commentsAfter"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["commentsBefore"]["nodes"],
+        json!([{"id": bravo_comment_id, "status": "UNAPPROVED"}])
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["commentsBefore"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["commentsReverse"]["nodes"],
+        json!([{"id": charlie_comment_id, "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["spamOnly"]["commentsSpam"]["nodes"],
+        json!([{"id": alpha_comment_id, "status": "SPAM"}])
+    );
     assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 

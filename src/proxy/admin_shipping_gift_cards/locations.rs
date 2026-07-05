@@ -272,27 +272,39 @@ impl DraftProxy {
             let location_id =
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             self.ensure_location_hydrated(&location_id, request);
-            self.hydrate_location_limit_status(request);
-            let source_location = self.location_source_record(&location_id);
-            let errors = self.location_activate_errors(&source_location);
-            let location = if errors.is_empty() {
-                let mut location = source_location;
-                location["isActive"] = json!(true);
-                location["activatable"] = json!(true);
-                location["deactivatable"] = json!(true);
-                location["deletable"] = json!(false);
-                self.stage_location(location.clone());
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationActivate",
-                    vec![location_id.clone()],
-                );
-                location
-            } else {
-                source_location
-            };
+            let (location, errors) =
+                if let Some(source_location) = self.location_for_read(&location_id) {
+                    self.hydrate_location_limit_status(request);
+                    let errors = self.location_activate_errors(&source_location);
+                    let location = if errors.is_empty() {
+                        let mut location = source_location;
+                        location["isActive"] = json!(true);
+                        location["activatable"] = json!(true);
+                        location["deactivatable"] = json!(true);
+                        location["deletable"] = json!(false);
+                        self.stage_location(location.clone());
+                        self.record_mutation_log_entry(
+                            request,
+                            query,
+                            variables,
+                            "locationActivate",
+                            vec![location_id.clone()],
+                        );
+                        location
+                    } else {
+                        source_location
+                    };
+                    (location, errors)
+                } else {
+                    (
+                        Value::Null,
+                        vec![user_error(
+                            ["locationId"],
+                            "Location not found.",
+                            Some("LOCATION_NOT_FOUND"),
+                        )],
+                    )
+                };
             data.insert(
                 field.response_key,
                 location_activate_payload_selected_json(location, &field.selection, errors),
@@ -905,6 +917,9 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
+        if self.store.staged.locations.is_tombstoned(location_id) {
+            return;
+        }
         if self.store.staged.locations.contains_key(location_id)
             || self
                 .store
@@ -1130,11 +1145,6 @@ impl DraftProxy {
                     .and_then(Value::as_bool)
                     .unwrap_or(false)
         })
-    }
-
-    fn location_source_record(&self, location_id: &str) -> Value {
-        self.location_for_read(location_id)
-            .unwrap_or_else(|| self.staged_location_record(location_id))
     }
 
     fn locations_connection_json(
@@ -1588,10 +1598,7 @@ fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedS
 
 fn location_gid_tail_sort_value(location: &Value) -> StagedSortValue {
     let id = location_value_string(location, "id");
-    let tail = resource_id_tail(&id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(&id))
 }
 
 fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {
@@ -2416,7 +2423,11 @@ fn location_activate_payload_selected_json(
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "location" => Some(location_selected_json(&location, &selection.selection)),
+            "location" => Some(if location.is_null() {
+                Value::Null
+            } else {
+                location_selected_json(&location, &selection.selection)
+            }),
             "locationActivateUserErrors" => {
                 selected_user_errors_field(user_errors.as_slice(), selection)
             }

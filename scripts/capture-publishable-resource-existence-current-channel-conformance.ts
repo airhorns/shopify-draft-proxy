@@ -40,6 +40,10 @@ const publishableCurrentMembershipDocument = await readFile(
   path.join('config', 'parity-requests', 'store-properties', 'publishable-current-channel-membership.graphql'),
   'utf8',
 );
+const publishableCurrentProductReadDocument = await readFile(
+  path.join('config', 'parity-requests', 'store-properties', 'publishable-current-channel-product-read.graphql'),
+  'utf8',
+);
 const publishableCurrentUnpublishMembershipDocument = await readFile(
   path.join(
     'config',
@@ -237,6 +241,10 @@ try {
   upstreamCalls.push(await captureHydrate(productId));
   upstreamCalls.push(await captureCurrentAppPublicationHydrate());
   cases['publishCurrentMembership'] = await captureCase(publishableCurrentMembershipDocument, productVariables);
+  cases['readAfterPublishCurrentMembership'] = await captureCase(
+    publishableCurrentProductReadDocument,
+    productVariables,
+  );
   cases['unpublishCurrentMembership'] = await captureCase(
     publishableCurrentUnpublishMembershipDocument,
     productVariables,
@@ -285,6 +293,7 @@ await writeFile(
       notes: [
         'Live Admin API capture for generic publishable top-level id resource-existence validation.',
         'Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product.',
+        'Live Admin API capture for product/node publishedOnCurrentPublication downstream reads after publishing to the current app publication.',
       ],
       upstreamCalls,
     },

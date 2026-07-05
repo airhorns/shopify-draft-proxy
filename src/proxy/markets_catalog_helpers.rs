@@ -433,21 +433,16 @@ pub(in crate::proxy) fn fixed_price_by_product_error(
     message: &str,
     code: &str,
 ) -> Value {
-    json!({
-        "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed(
+        "PriceListFixedPricesByProductBulkUpdateUserError",
+        field,
+        message,
+        Some(code),
+    )
 }
 
 pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "__typename": "PriceListPriceUserError",
-        "field": field,
-        "message": message,
-        "code": code
-    })
+    user_error_typed("PriceListPriceUserError", field, message, Some(code))
 }
 
 // ----------------------------------------------------------------------------
@@ -1791,8 +1786,8 @@ pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
 
 pub(in crate::proxy) fn market_localization_error(
     field: Vec<&str>,
-    code: &str,
     message: &str,
+    code: &str,
 ) -> Value {
     user_error_typed("TranslationUserError", field, message, Some(code))
 }
