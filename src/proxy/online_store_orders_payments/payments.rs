@@ -979,7 +979,7 @@ impl DraftProxy {
     /// snapshot-only.
     pub(in crate::proxy) fn hydrate_order_for_return(&mut self, request: &Request, order_id: &str) {
         if order_id.is_empty()
-            || self.store.staged.orders.contains_key(order_id)
+            || self.staged_order_record_for_id(order_id).is_some()
             || self.config.read_mode == ReadMode::Snapshot
         {
             return;
@@ -1877,12 +1877,16 @@ impl DraftProxy {
         let api_client_id = request_app_namespace_api_client_id(request);
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
-                "paymentCustomizationCreate" => {
-                    self.payment_customization_create_payload(field, api_client_id.as_deref())
-                }
-                "paymentCustomizationUpdate" => {
-                    self.payment_customization_update_payload(field, api_client_id.as_deref())
-                }
+                "paymentCustomizationCreate" => self.payment_customization_create_payload(
+                    request,
+                    field,
+                    api_client_id.as_deref(),
+                ),
+                "paymentCustomizationUpdate" => self.payment_customization_update_payload(
+                    request,
+                    field,
+                    api_client_id.as_deref(),
+                ),
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
@@ -1894,6 +1898,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         api_client_id: Option<&str>,
     ) -> Value {
@@ -1946,21 +1951,25 @@ impl DraftProxy {
                 None,
             );
         }
-        if let Some(handle) = function_handle.as_deref() {
-            if !payment_customization_function_handle_exists(handle) {
+        let resolved_function = if let Some(handle) = function_handle.as_deref() {
+            let Some(function) =
+                self.resolve_payment_customization_function(request, None, Some(handle))
+            else {
                 return payment_customization_payload(
                     None,
                     &field.selection,
-                    vec![payment_customization_user_error(
-                        vec!["paymentCustomization", "functionHandle"],
-                        "FUNCTION_NOT_FOUND",
-                        &format!("Could not find function with handle: {handle}."),
+                    vec![payment_customization_function_not_found_error(
+                        handle,
+                        &request_api_client_id(request),
                     )],
                     None,
                     None,
                 );
-            }
-        }
+            };
+            Some(function)
+        } else {
+            None
+        };
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
             return payment_customization_payload(
@@ -1974,7 +1983,8 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record = payment_customization_record(&id, &input, api_client_id);
+        let record =
+            payment_customization_record(&id, &input, api_client_id, resolved_function.as_ref());
         self.store
             .staged
             .payment_customizations
@@ -1984,6 +1994,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         api_client_id: Option<&str>,
     ) -> Value {
@@ -2010,20 +2021,40 @@ impl DraftProxy {
             );
         }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
-            if !payment_customization_function_handle_exists(&handle) {
+            let Some(function) =
+                self.resolve_payment_customization_function(request, None, Some(&handle))
+            else {
                 return payment_customization_payload(
                     None,
                     &field.selection,
-                    vec![payment_customization_user_error(
-                        vec!["paymentCustomization", "functionHandle"],
-                        "FUNCTION_NOT_FOUND",
-                        &format!("Could not find function with handle: {handle}."),
+                    vec![payment_customization_function_not_found_error(
+                        &handle,
+                        &request_api_client_id(request),
                     )],
                     None,
                     None,
                 );
-            }
-            if !payment_customization_function_matches(&existing, &handle) {
+            };
+            let Some(function_key) = function["id"]
+                .as_str()
+                .map(payment_customization_function_key)
+            else {
+                return payment_customization_payload(
+                    None,
+                    &field.selection,
+                    vec![payment_customization_function_not_found_error(
+                        &handle,
+                        &request_api_client_id(request),
+                    )],
+                    None,
+                    None,
+                );
+            };
+            if !self.payment_customization_record_matches_function_key(
+                request,
+                &existing,
+                &function_key,
+            ) {
                 return payment_customization_payload(
                     None,
                     &field.selection,
@@ -2036,7 +2067,12 @@ impl DraftProxy {
             }
         }
         if let Some(function_id) = resolved_string_field(&input, "functionId") {
-            if !payment_customization_function_matches(&existing, &function_id) {
+            let function_key = payment_customization_function_key(&function_id);
+            if !self.payment_customization_record_matches_function_key(
+                request,
+                &existing,
+                &function_key,
+            ) {
                 return payment_customization_payload(
                     None,
                     &field.selection,

@@ -16,6 +16,8 @@ Return roots are documented as their own endpoint group, but the current registr
 Overlay reads:
 
 - `return`
+- `returnableFulfillments`
+- `returnCalculate`
 
 Local staged mutations:
 
@@ -34,6 +36,17 @@ Local staged mutations:
 - `return(id:)` resolves staged return records and returns `null` for missing IDs in snapshot mode. Nested
   `Order.returns` reads are derived from the same staged return records through the order-to-return index, so top-level
   and nested reads observe the same staged status, quantity, shipping-fee, and line-item state.
+- `returnableFulfillments(orderId:)` derives returnable fulfillment lines from the order's staged fulfillment graph and
+  subtracts quantities already claimed by staged returns. For locally staged orders it stays fully local even in
+  live-hybrid mode; for cold live-hybrid orders the return hydrator may fetch the order fulfillment graph before
+  projecting the returnable lines. The current supported slice covers fulfilled line items and quantity reduction after
+  staged returns; broader Shopify eligibility rules remain a fidelity boundary.
+- `returnCalculate(input:)` derives calculated return line items from the order's fulfilled line item prices and requested
+  quantities. Captured 2026-04 evidence shows refund subtotals as negative money amounts and `returnShippingFee: null`
+  when no return shipping fee is submitted. The proxy mirrors that shape for staged fulfilled orders, includes zero tax
+  sets, and uses a narrow live-hybrid order hydrate only when the local order graph lacks the price fields needed for
+  calculation. Restocking fees, exchange lines, shipping-fee calculations, discounts, tax recomputation, and error
+  branches remain explicit partial-fidelity boundaries.
 - `returnCreate` stages a local `OPEN` return for the submitted order and fulfillment line items. The local return stores
   a stable synthetic Return ID, ReturnLineItem IDs, status, name, quantity, reason, reason note, order linkage, return
   shipping fee, and reverse-fulfillment-order references for returned quantities. The original raw mutation is retained
@@ -105,9 +118,10 @@ Local staged mutations:
   downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and missing fulfillment-line-item validation. The
   live reverse-logistics introspection fixture remains schema evidence for root availability and blocked roots; it is not
   behavior payload evidence for the local lifecycle replay.
-- Executable parity covers `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`, `returnProcess`, reverse
-  delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads. Public 2026-04 evidence
-  covers empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
+- Executable parity covers `returnableFulfillments`, `returnCalculate`, `returnApproveRequest`, `returnDeclineRequest`,
+  `removeFromReturn`, `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream
+  reverse logistics reads. Public 2026-04 evidence covers fulfilled-line returnability, calculated return-line subtotal
+  shape, empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
   order rejection, valid `NOT_RESTOCKED` disposal, and downstream disposition readback. Unknown-line and over-disposal
   guardrails remain covered by focused runtime tests because the public custom-line capture did not reject those probes.
 - `return-decline-request-validation` covers public-schema `returnDeclineRequest` validation for invalid
@@ -140,10 +154,9 @@ Local staged mutations:
 
 ### Unsupported, registry-only, and validation-only coverage
 
-- `returnCalculate` is blocked on calculation parity for restocking fees, exchange lines, return shipping fees, taxes,
-  discounts, and error behavior.
-- `returnableFulfillment` and `returnableFulfillments` are blocked on returnability eligibility and line-item quantity
-  parity over fulfilled orders.
+- The singular `returnableFulfillment` root remains registry-only/unsupported.
+- Broader `returnCalculate` fidelity for restocking fees, exchange lines, return shipping fees, taxes, discounts, and
+  error behavior remains unsupported beyond the captured fulfilled-line subtotal slice.
 - Exchange-line removal/processing is blocked on captured exchange item semantics and downstream order/return effects.
 - Refund duties, refund shipping, financial transfers, notification sends, carrier labels, and inventory/location movement
   remain local-only boundaries until live success-path captures prove the side effects and cleanup path.

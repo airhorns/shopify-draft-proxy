@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, nonexistent recipient id, structurally invalid no-contact sentinel recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls. The no-contact sentinel target proves Shopify rejects the fabricated Customer/no-contact-recipient id as a top-level RESOURCE_NOT_FOUND error. The public giftCardUpdate userErrors type is generic UserError in the captured API, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
+  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, nonexistent recipient id, structurally invalid no-contact sentinel recipient id, blank text fields, text length caps, HTML-tag rejection, stable past sendNotificationAt, and stable too-far-future sendNotificationAt range bounds. The no-contact sentinel target proves Shopify rejects the fabricated Customer/no-contact-recipient id as a top-level RESOURCE_NOT_FOUND error. The public giftCardUpdate userErrors type is generic UserError in the captured API, so update replay targets compare public field/message evidence. Valid in-range sendNotificationAt controls are captured for manual review, but long-lived parity targets compare only stable invalid bounds because absolute valid timestamps age; Rust tests cover the accepted clock-shift branch.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -160,8 +160,6 @@
           "$.createHtmlMessage",
           "$.createFutureSendAt",
           "$.createPastSendAt",
-          "$.createValidSendAt.giftCard.recipientAttributes.sendNotificationAt",
-          "$.createValidSendAt.userErrors",
           "$.updateLongPreferredName",
           "$.updateUnknownRecipient",
           "$.updateBlankPreferredName",
@@ -170,9 +168,7 @@
           "$.updateHtmlPreferredName",
           "$.updateHtmlMessage",
           "$.updatePastSendAt",
-          "$.updateFutureSendAt",
-          "$.updateValidSendAt.giftCard.recipientAttributes.sendNotificationAt",
-          "$.updateValidSendAt.userErrors"
+          "$.updateFutureSendAt"
         ]
       }
     ]

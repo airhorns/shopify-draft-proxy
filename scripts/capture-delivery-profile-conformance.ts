@@ -375,6 +375,19 @@ function readDefaultProfileId(result: ConformanceGraphqlResult): string {
   throw new Error(`deliveryProfiles catalog did not include a default profile: ${JSON.stringify(result.payload)}`);
 }
 
+function deliveryProfilesCatalogIncludesId(result: ConformanceGraphqlResult, profileId: string): boolean {
+  const data = readObject(result.payload.data);
+  const deliveryProfiles = readObject(data?.['deliveryProfiles']);
+  const edges = deliveryProfiles?.['edges'];
+  if (!Array.isArray(edges)) {
+    throw new Error(`deliveryProfiles catalog did not return edges: ${JSON.stringify(result.payload)}`);
+  }
+  return edges.some((edge) => {
+    const node = readObject(readObject(edge)?.['node']);
+    return node?.['id'] === profileId;
+  });
+}
+
 function readUsableLocationIds(hydrate: GraphqlCapture): string[] {
   assertHttpOk('locations hydrate', hydrate.result);
   const nodes = readPath(hydrate.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'nodes']);
@@ -434,6 +447,9 @@ const deliveryProfileLifecycleBlankCreateMutation = await readRequest(
 );
 const deliveryProfileLifecycleCreateMutation = await readRequest('delivery-profile-lifecycle-create.graphql');
 const deliveryProfileLifecycleUpdateMutation = await readRequest('delivery-profile-lifecycle-update.graphql');
+const deliveryProfileLifecycleReadAfterUpdateQuery = await readRequest(
+  'delivery-profile-lifecycle-read-after-update.graphql',
+);
 const deliveryProfileLifecycleRemoveMutation = await readRequest('delivery-profile-lifecycle-remove.graphql');
 const deliveryProfileLifecycleReadAfterRemoveQuery = await readRequest(
   'delivery-profile-lifecycle-read-after-remove.graphql',
@@ -447,6 +463,7 @@ const deliveryProfileLifecycleMissingRemoveMutation = await readRequest(
 const deliveryProfileLifecycleDefaultRemoveMutation = await readRequest(
   'delivery-profile-lifecycle-default-remove.graphql',
 );
+const deliveryProfilesMergedReadQuery = await readRequest('delivery-profiles-merged-read.graphql');
 
 const locationsHydrate = await captureGraphql(locationsHydrateQuery);
 const usableLocationIds = readUsableLocationIds(locationsHydrate);
@@ -526,6 +543,7 @@ const lifecycleStamp = Date.now();
 const lifecycleBlankCreate = await captureGraphql(deliveryProfileLifecycleBlankCreateMutation, {
   profile: { name: '' },
 });
+const lifecyclePreCreateCatalog = await captureGraphql(deliveryProfilesMergedReadQuery, { first: 10 });
 const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreateMutation, {
   profile: {
     name: `Delivery profile lifecycle ${lifecycleStamp}`,
@@ -535,10 +553,14 @@ const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreat
         zonesToCreate: [
           {
             name: 'Domestic',
-            countries: [{ code: 'US', includeAllProvinces: true }],
+            countries: [
+              { code: 'US', includeAllProvinces: true },
+              { code: 'CA', includeAllProvinces: true },
+            ],
             methodDefinitionsToCreate: [
               {
                 name: 'Standard',
+                description: 'Standard ground service',
                 active: true,
                 rateDefinition: { price: { amount: '7.25', currencyCode: 'USD' } },
                 weightConditionsToCreate: [
@@ -637,6 +659,15 @@ const lifecycleConditionId = requireString(
   ]),
   'created condition id',
 );
+const lifecycleReadAfterCreateCatalog = await captureGraphql(deliveryProfilesMergedReadQuery, { first: 10 });
+readDefaultProfileId(lifecycleReadAfterCreateCatalog.result);
+if (!deliveryProfilesCatalogIncludesId(lifecycleReadAfterCreateCatalog.result, lifecycleProfileId)) {
+  throw new Error(
+    `deliveryProfiles read after create did not include created profile ${lifecycleProfileId}: ${JSON.stringify(
+      lifecycleReadAfterCreateCatalog.result.payload,
+    )}`,
+  );
+}
 
 const locationsToAdd = secondaryLocationId === undefined ? {} : { locationsToAdd: [secondaryLocationId] };
 const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdateMutation, {
@@ -656,6 +687,7 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
               {
                 id: lifecycleMethodId,
                 name: 'Standard updated',
+                description: 'Updated standard ground service',
                 active: false,
                 rateDefinition: {
                   id: lifecycleRateId,
@@ -666,6 +698,7 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
             methodDefinitionsToCreate: [
               {
                 name: 'Express',
+                description: 'Express air service',
                 active: true,
                 rateDefinition: { price: { amount: '12.00', currencyCode: 'USD' } },
                 priceConditionsToCreate: [
@@ -681,6 +714,9 @@ const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdat
       },
     ],
   },
+});
+const lifecycleReadAfterUpdate = await captureGraphql(deliveryProfileLifecycleReadAfterUpdateQuery, {
+  id: lifecycleProfileId,
 });
 const lifecycleRemove = await captureGraphql(deliveryProfileLifecycleRemoveMutation, { id: lifecycleProfileId });
 const lifecycleReadAfterRemovePoll = await waitForRemovedProfileRead(
@@ -716,8 +752,11 @@ await writeFile(
       },
       mutations: {
         blankCreate: lifecycleBlankCreate,
+        preCreateCatalog: lifecyclePreCreateCatalog,
         nestedCreate: lifecycleNestedCreate,
+        readAfterCreateCatalog: lifecycleReadAfterCreateCatalog,
         nestedUpdate: lifecycleNestedUpdate,
+        readAfterUpdate: lifecycleReadAfterUpdate,
         remove: lifecycleRemove,
         readAfterRemovePoll: lifecycleReadAfterRemovePoll,
         missingUpdate: lifecycleMissingUpdate,
@@ -726,6 +765,7 @@ await writeFile(
       },
       notes: [
         'Captured with home-folder conformance auth against a disposable Shopify test store.',
+        'The capture records deliveryProfiles before and after creating one disposable delivery profile so parity can replay the upstream default/base catalog and compare the downstream merged catalog read.',
         'The capture creates one disposable delivery profile, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.',
       ],
       upstreamCalls: [
@@ -736,6 +776,15 @@ await writeFile(
           response: {
             status: locationsHydrate.result.status,
             body: locationsHydrate.result.payload,
+          },
+        },
+        {
+          operationName: 'DeliveryProfilesCatalog',
+          variables: lifecyclePreCreateCatalog.variables,
+          query: lifecyclePreCreateCatalog.query,
+          response: {
+            status: lifecyclePreCreateCatalog.result.status,
+            body: lifecyclePreCreateCatalog.result.payload,
           },
         },
         {

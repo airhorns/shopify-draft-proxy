@@ -716,16 +716,10 @@ impl DraftProxy {
                 }
                 let ready_url = product_media_ready_url(node);
                 node["status"] = json!("READY");
-                node["preview"] = json!({ "image": { "url": ready_url.clone() } });
+                node["preview"] =
+                    json!({ "image": product_media_preview_image_json(node, &ready_url) });
                 if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
-                    // Preserve an observed ProductImage id so downstream deletes can
-                    // still derive `deletedProductImageIds` from the asset.
-                    match node.get("image").and_then(|image| image.get("id")).cloned() {
-                        Some(image_id) => {
-                            node["image"] = json!({ "id": image_id, "url": ready_url })
-                        }
-                        None => node["image"] = json!({ "url": ready_url }),
-                    }
+                    node["image"] = product_media_image_json(node, &ready_url);
                 }
                 updated.push(node.clone());
                 self.store.staged.media_ready_on_read.remove(&id);
@@ -785,9 +779,7 @@ impl DraftProxy {
                 known
                     .iter()
                     .find(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
-                    .and_then(|node| node.get("image"))
-                    .and_then(|image| image.get("id"))
-                    .and_then(Value::as_str)
+                    .and_then(product_image_id_from_media)
                     .map(|product_image_id| json!(product_image_id))
             })
             .collect();
@@ -1047,13 +1039,93 @@ fn product_media_ready_url(node: &Value) -> String {
 fn promote_product_media_node_to_ready(node: &mut Value) {
     let ready_url = product_media_ready_url(node);
     node["status"] = json!("READY");
-    node["preview"] = json!({ "image": { "url": ready_url.clone() } });
+    node["preview"] = json!({ "image": product_media_preview_image_json(node, &ready_url) });
     if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
-        match node.get("image").and_then(|image| image.get("id")).cloned() {
-            Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
-            None => node["image"] = json!({ "url": ready_url }),
-        }
+        node["image"] = product_media_image_json(node, &ready_url);
     }
+}
+
+fn product_media_preview_image_json(node: &Value, ready_url: &str) -> Value {
+    let mut image = serde_json::Map::new();
+    image.insert("url".to_string(), json!(ready_url));
+    if let Some(width) = product_media_image_dimension(node, "width", 0) {
+        image.insert("width".to_string(), json!(width));
+    }
+    if let Some(height) = product_media_image_dimension(node, "height", 1) {
+        image.insert("height".to_string(), json!(height));
+    }
+    Value::Object(image)
+}
+
+fn product_media_image_json(node: &Value, ready_url: &str) -> Value {
+    let mut image = serde_json::Map::new();
+    if let Some(id) = product_media_image_source_id_from_media(node) {
+        image.insert("id".to_string(), json!(id));
+    }
+    image.insert("url".to_string(), json!(ready_url));
+    if let Some(alt_text) = node.get("alt").cloned().or_else(|| {
+        node.get("image")
+            .and_then(|image| image.get("altText"))
+            .cloned()
+    }) {
+        image.insert("altText".to_string(), alt_text);
+    }
+    if let Some(width) = product_media_image_dimension(node, "width", 0) {
+        image.insert("width".to_string(), json!(width));
+    }
+    if let Some(height) = product_media_image_dimension(node, "height", 1) {
+        image.insert("height".to_string(), json!(height));
+    }
+    Value::Object(image)
+}
+
+fn product_media_image_source_id_from_media(media: &Value) -> Option<String> {
+    media
+        .get("image")
+        .and_then(|image| image.get("id"))
+        .and_then(Value::as_str)
+        .filter(|id| shopify_gid_resource_type(id) != Some("ProductImage"))
+        .map(str::to_string)
+        .or_else(|| {
+            media
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| shopify_gid("ImageSource", resource_id_tail(id)))
+        })
+}
+
+fn product_media_image_dimension(media: &Value, field: &str, index: usize) -> Option<i64> {
+    media
+        .get("image")
+        .and_then(|image| image.get(field))
+        .and_then(Value::as_i64)
+        .or_else(|| {
+            media
+                .get("preview")
+                .and_then(|preview| preview.get("image"))
+                .and_then(|image| image.get(field))
+                .and_then(Value::as_i64)
+        })
+        .or_else(|| {
+            product_media_original_source_url(media)
+                .and_then(product_media_dimensions_from_source)
+                .map(|dimensions| {
+                    if index == 0 {
+                        dimensions.0
+                    } else {
+                        dimensions.1
+                    }
+                })
+        })
+}
+
+fn product_media_dimensions_from_source(source: &str) -> Option<(i64, i64)> {
+    source.split(['/', '?', '&']).find_map(|part| {
+        let (width, height) = part.split_once('x')?;
+        let width = width.parse::<i64>().ok()?;
+        let height = height.parse::<i64>().ok()?;
+        (width > 0 && height > 0).then_some((width, height))
+    })
 }
 
 fn product_media_image_url(node: &Value) -> Option<&str> {
@@ -1667,7 +1739,13 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
             &selection.arguments,
             &selection.selection,
         )),
-        "images" => Some(selected_empty_connection_json(&selection.selection)),
+        "images" => Some(product_image_connection_json(
+            product.media.clone(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "featuredImage" => Some(product_featured_image_json(product, &selection.selection)),
+        "featuredMedia" => Some(product_featured_media_json(product, &selection.selection)),
         "metafield" => Some(
             product
                 .extra_fields
@@ -1888,10 +1966,100 @@ fn sorted_product_media_nodes_for_connection(
             ))
             .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
     });
-    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-        indexed.reverse();
-    }
     indexed.into_iter().map(|(_, media)| media).collect()
+}
+
+fn product_image_connection_json(
+    media: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let images = sorted_product_media_nodes_for_connection(media, arguments)
+        .iter()
+        .filter_map(product_image_json_from_media)
+        .collect::<Vec<_>>();
+    selected_connection_json_with_args(images, arguments, selections, value_id_cursor)
+}
+
+fn product_featured_image_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    product
+        .media
+        .iter()
+        .find_map(product_image_json_from_media)
+        .map(|image| selected_json(&image, selections))
+        .unwrap_or(Value::Null)
+}
+
+fn product_featured_media_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    product
+        .media
+        .first()
+        .map(|media| selected_json(media, selections))
+        .unwrap_or(Value::Null)
+}
+
+fn product_image_json_from_media(media: &Value) -> Option<Value> {
+    if !product_media_is_image(media) {
+        return None;
+    }
+    let url = product_media_image_url(media)?;
+    let id = product_image_id_from_media(media)?;
+    let image = media.get("image");
+    let preview_image = media
+        .get("preview")
+        .and_then(|preview| preview.get("image"));
+    let alt_text = media
+        .get("alt")
+        .cloned()
+        .or_else(|| image.and_then(|image| image.get("altText")).cloned())
+        .unwrap_or(Value::Null);
+    let width = image
+        .and_then(|image| image.get("width"))
+        .or_else(|| preview_image.and_then(|image| image.get("width")))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let height = image
+        .and_then(|image| image.get("height"))
+        .or_else(|| preview_image.and_then(|image| image.get("height")))
+        .cloned()
+        .unwrap_or(Value::Null);
+    Some(json!({
+        "__typename": "Image",
+        "id": id,
+        "url": url,
+        "src": url,
+        "originalSrc": url,
+        "transformedSrc": url,
+        "altText": alt_text,
+        "width": width,
+        "height": height
+    }))
+}
+
+fn product_media_is_image(media: &Value) -> bool {
+    media.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE")
+        || media.get("__typename").and_then(Value::as_str) == Some("MediaImage")
+        || media
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(shopify_gid_resource_type)
+            == Some("MediaImage")
+        || media.get("image").is_some()
+}
+
+fn product_image_id_from_media(media: &Value) -> Option<String> {
+    media
+        .get("image")
+        .and_then(|image| image.get("id"))
+        .and_then(Value::as_str)
+        .filter(|id| shopify_gid_resource_type(id) == Some("ProductImage"))
+        .map(str::to_string)
+        .or_else(|| {
+            media
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| shopify_gid("ProductImage", resource_id_tail(id)))
+        })
 }
 
 fn product_media_sort_key(media: &Value, sort_key: Option<&str>, index: usize) -> StagedSortKey {
@@ -3397,16 +3565,31 @@ pub(in crate::proxy) fn product_category_input_id(
 
 /// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
 /// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// the taxonomy exposes and leave unknown nodes unresolved.
-pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
+/// covered by captured evidence and reject unresolved input IDs before staging.
+pub(in crate::proxy) fn product_category_value(id: &str) -> Option<Value> {
     let full_name = match id {
         "gid://shopify/TaxonomyCategory/aa-1-1" => {
             json!("Apparel & Accessories > Clothing > Activewear")
         }
         "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
-        _ => Value::Null,
+        _ => return None,
     };
-    json!({ "id": id, "fullName": full_name })
+    Some(json!({ "id": id, "fullName": full_name }))
+}
+
+pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(
+    response_key: &str,
+    location: SourceLocation,
+) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Invalid product_taxonomy_node_id",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "extensions": { "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID" },
+            "path": [response_key]
+        }],
+        "data": { response_key: Value::Null }
+    }))
 }
 
 pub(in crate::proxy) fn product_input(

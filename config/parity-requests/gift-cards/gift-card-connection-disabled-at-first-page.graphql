@@ -1,0 +1,44 @@
+query GiftCardConnectionDisabledAtFirstPage($query: String!) {
+  forward: giftCards(first: 3, query: $query, sortKey: DISABLED_AT) {
+    nodes {
+      lastCharacters
+      enabled
+      deactivatedAt
+    }
+    edges {
+      cursor
+      node {
+        lastCharacters
+        enabled
+        deactivatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reverse: giftCards(first: 2, query: $query, sortKey: DISABLED_AT, reverse: true) {
+    nodes {
+      lastCharacters
+      enabled
+      deactivatedAt
+    }
+    edges {
+      cursor
+      node {
+        lastCharacters
+        enabled
+        deactivatedAt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

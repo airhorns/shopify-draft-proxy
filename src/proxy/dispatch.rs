@@ -170,6 +170,7 @@ impl DraftProxy {
                                 | "customer"
                                 | "order"
                                 | "company"
+                                | "shop"
                         )
                     })
                 })
@@ -952,6 +953,24 @@ impl DraftProxy {
             && product_operation_selects_shop_currency_money(&query, &variables)
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
+        if capability.domain == CapabilityDomain::GiftCards
+            && capability.execution == CapabilityExecution::StageLocally
+            && operation.operation_type == OperationType::Mutation
+            && root_fields(&query, &variables)
+                .map(|fields| fields.iter().any(|field| field.name == "giftCardCreate"))
+                .unwrap_or(false)
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "returnableFulfillments" | "returnCalculate")
+        {
+            if let Some(data) =
+                self.order_return_local_runtime_data(request, root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
         }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
@@ -2152,6 +2171,9 @@ impl DraftProxy {
                         }))
                     }
                 } else if root_field == "shop" {
+                    if self.should_route_owner_metafields_read(&query, &variables) {
+                        return self.owner_metafields_read(request, &query, &variables);
+                    }
                     // `shop` reads are served locally only when the proxy is
                     // holding shop-policy overlay state (snapshot mode, or staged
                     // / tombstoned policies); otherwise the live shop response is
@@ -2260,7 +2282,21 @@ impl DraftProxy {
                     // locally below.
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let (data, errors) = self.segment_read_data(&fields);
+                    let upstream_catalog_response = self
+                        .segment_read_needs_upstream_catalog(&fields)
+                        .then(|| (self.upstream_transport)(request.clone()));
+                    let (mut data, mut errors) = self.segment_read_data(&fields);
+                    if let Some(response) = upstream_catalog_response {
+                        if response.status != 200 {
+                            return response;
+                        }
+                        self.merge_upstream_segment_catalog_data(
+                            &mut data,
+                            &mut errors,
+                            &fields,
+                            &response.body,
+                        );
+                    }
                     if errors.is_empty() {
                         ok_json(json!({ "data": data }))
                     } else {

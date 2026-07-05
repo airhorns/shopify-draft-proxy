@@ -182,6 +182,7 @@ pub(in crate::proxy) fn draft_order_line_item(
     let line_total = unit_amount * quantity as f64;
     let discount_amount = draft_order_applied_discount_amount(input, line_total);
     let discounted_total = (line_total - discount_amount).max(0.0);
+    let tax_lines = order_create_tax_lines(input, "taxLines", currency);
     let title = if variant_id.is_some() {
         hydrated_variant
             .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
@@ -240,6 +241,7 @@ pub(in crate::proxy) fn draft_order_line_item(
         "originalTotalSet": money_bag(line_total, currency),
         "discountedTotalSet": money_bag(discounted_total, currency),
         "totalDiscountSet": money_bag(discount_amount, currency),
+        "taxLines": tax_lines,
         "variant": variant
     })
 }
@@ -273,6 +275,7 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
         "originalTotalSet": money_bag(line_total, currency),
         "discountedTotalSet": money_bag(line_total, currency),
         "totalDiscountSet": money_bag(0.0, currency),
+        "taxLines": line["taxLines"].clone(),
         "variant": line["variant"].clone()
     })
 }
@@ -399,6 +402,28 @@ pub(in crate::proxy) fn draft_order_discount_amount(discount: &Value) -> f64 {
 
 pub(in crate::proxy) fn draft_order_line_discount_total(line_items: &[Value]) -> f64 {
     sum_money_set(line_items, "totalDiscountSet")
+}
+
+pub(in crate::proxy) fn draft_order_tax_total(draft_order: &Value, line_items: &[Value]) -> f64 {
+    if draft_order["taxExempt"].as_bool().unwrap_or(false) {
+        return 0.0;
+    }
+    let has_line_tax_lines = line_items.iter().any(|line| line.get("taxLines").is_some());
+    let line_tax_total = line_items
+        .iter()
+        .flat_map(|line| {
+            line["taxLines"]
+                .as_array()
+                .into_iter()
+                .flat_map(|tax_lines| tax_lines.iter())
+        })
+        .filter_map(|tax_line| money_set_amount(&tax_line["priceSet"]))
+        .sum::<f64>();
+    if has_line_tax_lines {
+        line_tax_total
+    } else {
+        money_set_amount(&draft_order["totalTaxSet"]).unwrap_or(0.0)
+    }
 }
 
 pub(in crate::proxy) fn draft_order_discount_amount_from_discount(
@@ -2050,11 +2075,15 @@ impl DraftProxy {
         let line_discount_total = draft_order_line_discount_total(&line_items);
         let shipping_total =
             money_set_amount(&draft_order["shippingLine"]["originalPriceSet"]).unwrap_or(0.0);
+        let tax_total = draft_order_tax_total(draft_order, &line_items);
         let discount_total =
             line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
         let subtotal = (original_subtotal - discount_total).max(0.0);
-        let total = subtotal + shipping_total;
+        let total = subtotal + shipping_total + tax_total;
+        draft_order["lineItemsSubtotalPrice"] = money_bag(original_subtotal, &currency);
         draft_order["subtotalPriceSet"] = money_bag(subtotal, &currency);
+        draft_order["totalTax"] = json!(format!("{:.2}", (tax_total * 100.0).round() / 100.0));
+        draft_order["totalTaxSet"] = money_bag(tax_total, &currency);
         draft_order["totalDiscountsSet"] = money_bag(discount_total, &currency);
         draft_order["totalShippingPriceSet"] = money_bag(shipping_total, &currency);
         draft_order["totalPriceSet"] = money_bag(total, &currency);
@@ -2171,6 +2200,7 @@ impl DraftProxy {
         if draft_order.get("__draftProxyLineItems").is_none() {
             draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
         }
+        self.recalculate_draft_order_totals(&mut draft_order);
         if draft_order["status"].as_str() == Some("COMPLETED") {
             return selected_json(
                 &json!({
@@ -2192,12 +2222,14 @@ impl DraftProxy {
         }
         let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let amount = money_set_amount(&draft_order["totalPriceSet"])
-            .map(format_money_amount)
-            .unwrap_or_else(|| "0.0".to_string());
         let shop_currency_code = self.store.shop_currency_code();
         let currency_code =
             money_set_shop_currency(&draft_order["totalPriceSet"]).unwrap_or(shop_currency_code);
+        let total_amount = money_set_amount(&draft_order["totalPriceSet"]).unwrap_or(0.0);
+        let subtotal_amount = money_set_amount(&draft_order["subtotalPriceSet"])
+            .or_else(|| money_set_amount(&draft_order["lineItemsSubtotalPrice"]))
+            .unwrap_or(0.0);
+        let tax_amount = money_set_amount(&draft_order["totalTaxSet"]).unwrap_or(0.0);
         let payment_pending = if field.raw_arguments.contains_key("paymentPending") {
             matches!(
                 field.arguments.get("paymentPending"),
@@ -2247,7 +2279,7 @@ impl DraftProxy {
                 "kind": "SALE",
                 "status": transaction_status,
                 "gateway": "manual",
-                "amountSet": money_set(&amount, &currency_code)
+                "amountSet": money_bag(total_amount, &currency_code)
         })];
         let order_name = self.next_order_name();
         let mut order = json!({
@@ -2258,13 +2290,31 @@ impl DraftProxy {
             "tags": order_tags,
             "paymentGatewayNames": payment_gateway_names,
             "transactions": order_transactions,
+            "currencyCode": currency_code,
+            "presentmentCurrencyCode": currency_code,
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
-            "currentTotalPriceSet": money_set(&amount, &currency_code),
+            "subtotalPriceSet": money_bag(subtotal_amount, &currency_code),
+            "currentSubtotalPriceSet": money_bag(subtotal_amount, &currency_code),
+            "totalTaxSet": money_bag(tax_amount, &currency_code),
+            "currentTotalTaxSet": money_bag(tax_amount, &currency_code),
+            "totalPriceSet": money_bag(total_amount, &currency_code),
+            "currentTotalPriceSet": money_bag(total_amount, &currency_code),
             "lineItems": {
                 "nodes": order_line_items
             }
         });
+        let order_transactions = order["transactions"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        order_create_payment_fields(
+            &mut order,
+            &order_transactions,
+            total_amount,
+            &currency_code,
+            &currency_code,
+        );
         if let Some(purchasing_entity) = draft_order.get("__draftProxyPurchasingEntity") {
             if !purchasing_entity.is_null() {
                 order["purchasingEntity"] = purchasing_entity.clone();

@@ -1,0 +1,343 @@
+{
+  "scenarioId": "segment-staged-catalog-roots",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-07-05T06:59:08.842Z",
+  "operations": {
+    "create": {
+      "request": {
+        "query": "mutation SegmentStagedCatalogCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "Staged catalog capture 1783234748411ggdck9",
+          "query": "customer_tags CONTAINS 'staged-catalog-capture'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/652819857714",
+                "name": "Staged catalog capture 1783234748411ggdck9",
+                "query": "customer_tags CONTAINS 'staged-catalog-capture'"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "read": {
+      "request": {
+        "query": "query SegmentStagedCatalogRead(\n  $first: Int!\n  $filterSearch: String!\n  $valueSearch: String!\n  $valueFilterQueryName: String!\n) {\n  segments(first: $first) {\n    nodes {\n      id\n      name\n      query\n    }\n  }\n  filters: segmentFilters(first: 2) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  filterSuggestions: segmentFilterSuggestions(first: 2, search: $filterSearch) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  valueSuggestions: segmentValueSuggestions(\n    first: 3\n    search: $valueSearch\n    filterQueryName: $valueFilterQueryName\n  ) {\n    edges {\n      cursor\n      node {\n        queryName\n        localizedValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  migrations: segmentMigrations(first: 2) {\n    edges {\n      cursor\n      node {\n        id\n        savedSearchId\n        segmentId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "first": 10,
+          "filterSearch": "email",
+          "valueSearch": "",
+          "valueFilterQueryName": "customer_tags"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segments": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Segment/652819857714",
+                  "name": "Staged catalog capture 1783234748411ggdck9",
+                  "query": "customer_tags CONTAINS 'staged-catalog-capture'"
+                }
+              ]
+            },
+            "filters": {
+              "edges": [
+                {
+                  "cursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                  "node": {
+                    "__typename": "SegmentAssociationFilter",
+                    "queryName": "customer_tags",
+                    "localizedName": "Customer tags",
+                    "multiValue": true
+                  }
+                },
+                {
+                  "cursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "orders_placed",
+                    "localizedName": "Orders placed",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                "endCursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB"
+              }
+            },
+            "filterSuggestions": {
+              "edges": [
+                {
+                  "cursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.opened",
+                    "localizedName": "Email opened",
+                    "multiValue": false
+                  }
+                },
+                {
+                  "cursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.clicked",
+                    "localizedName": "Email clicked",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                "endCursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE"
+              }
+            },
+            "valueSuggestions": {
+              "edges": [
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTI3OTc1ODMzNjMwNiwibGFzdF92YWx1ZSI6IjEyNzk3NTgzMzYzMDYiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "VIP",
+                    "localizedValue": "VIP"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxMzk5ODEzMCwibGFzdF92YWx1ZSI6IjEzMTkzMTM5OTgxMzAiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "address-1777135701087",
+                    "localizedValue": "address-1777135701087"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxNDAzMDg5OCwibGFzdF92YWx1ZSI6IjEzMTkzMTQwMzA4OTgiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "parity",
+                    "localizedValue": "parity"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTI3OTc1ODMzNjMwNiwibGFzdF92YWx1ZSI6IjEyNzk3NTgzMzYzMDYiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxNDAzMDg5OCwibGFzdF92YWx1ZSI6IjEzMTkzMTQwMzA4OTgiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              }
+            },
+            "migrations": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "request": {
+        "query": "#graphql\n  mutation SegmentStagedCatalogCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652819857714"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/652819857714",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "SegmentStagedCatalogRead",
+      "variables": {
+        "first": 10,
+        "filterSearch": "email",
+        "valueSearch": "",
+        "valueFilterQueryName": "customer_tags"
+      },
+      "query": "query SegmentStagedCatalogRead(\n  $first: Int!\n  $filterSearch: String!\n  $valueSearch: String!\n  $valueFilterQueryName: String!\n) {\n  segments(first: $first) {\n    nodes {\n      id\n      name\n      query\n    }\n  }\n  filters: segmentFilters(first: 2) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  filterSuggestions: segmentFilterSuggestions(first: 2, search: $filterSearch) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  valueSuggestions: segmentValueSuggestions(\n    first: 3\n    search: $valueSearch\n    filterQueryName: $valueFilterQueryName\n  ) {\n    edges {\n      cursor\n      node {\n        queryName\n        localizedValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  migrations: segmentMigrations(first: 2) {\n    edges {\n      cursor\n      node {\n        id\n        savedSearchId\n        segmentId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segments": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Segment/652819857714",
+                  "name": "Staged catalog capture 1783234748411ggdck9",
+                  "query": "customer_tags CONTAINS 'staged-catalog-capture'"
+                }
+              ]
+            },
+            "filters": {
+              "edges": [
+                {
+                  "cursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                  "node": {
+                    "__typename": "SegmentAssociationFilter",
+                    "queryName": "customer_tags",
+                    "localizedName": "Customer tags",
+                    "multiValue": true
+                  }
+                },
+                {
+                  "cursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "orders_placed",
+                    "localizedName": "Orders placed",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "DGN1c3RvbWVyX3RhZwthc3NvY2lhdGlvbgAAAAA",
+                "endCursor": "DW9yZGVyc19wbGFjZWQFZXZlbnQAAAAB"
+              }
+            },
+            "filterSuggestions": {
+              "edges": [
+                {
+                  "cursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.opened",
+                    "localizedName": "Email opened",
+                    "multiValue": false
+                  }
+                },
+                {
+                  "cursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE",
+                  "node": {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.clicked",
+                    "localizedName": "Email clicked",
+                    "multiValue": false
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "FHNob3BpZnlfZW1haWwub3BlbmVkBWV2ZW50AAAAAA",
+                "endCursor": "FXNob3BpZnlfZW1haWwuY2xpY2tlZAVldmVudAAAAAE"
+              }
+            },
+            "valueSuggestions": {
+              "edges": [
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTI3OTc1ODMzNjMwNiwibGFzdF92YWx1ZSI6IjEyNzk3NTgzMzYzMDYiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "VIP",
+                    "localizedValue": "VIP"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxMzk5ODEzMCwibGFzdF92YWx1ZSI6IjEzMTkzMTM5OTgxMzAiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "address-1777135701087",
+                    "localizedValue": "address-1777135701087"
+                  }
+                },
+                {
+                  "cursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxNDAzMDg5OCwibGFzdF92YWx1ZSI6IjEzMTkzMTQwMzA4OTgiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                  "node": {
+                    "queryName": "parity",
+                    "localizedValue": "parity"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTI3OTc1ODMzNjMwNiwibGFzdF92YWx1ZSI6IjEyNzk3NTgzMzYzMDYiLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6Mywic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwic29ydF9taXNzaW5nX3ZhbHVlcyI6bnVsbCwibGFzdF9pZCI6MTMxOTMxNDAzMDg5OCwibGFzdF92YWx1ZSI6IjEzMTkzMTQwMzA4OTgiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              }
+            },
+            "migrations": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Live Shopify evidence that segment catalog roots remain available after a segment has been created. The proxy replay creates its own staged segment through segmentCreate, then uses this upstream read cassette only for the catalog roots in the mixed read."
+}

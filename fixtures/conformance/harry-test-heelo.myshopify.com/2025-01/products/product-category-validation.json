@@ -1,0 +1,175 @@
+{
+  "scenarioId": "product-category-validation",
+  "capturedAt": "2026-07-05T05:09:51.751Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "query": "mutation ProductCategoryValidationCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      category {\n        id\n        fullName\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Product Category Validation Setup 1783228190947",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231869276466",
+              "title": "Hermes Product Category Validation Setup 1783228190947",
+              "category": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "captures": {
+    "productCreateUnknownCategory": {
+      "query": "mutation ProductCategoryValidationCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      category {\n        id\n        fullName\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Product Unknown Category Create 1783228190947",
+          "status": "DRAFT",
+          "category": "gid://shopify/TaxonomyCategory/not-a-real-node"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid product_taxonomy_node_id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID"
+              },
+              "path": ["productCreate"]
+            }
+          ],
+          "data": {
+            "productCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productUpdateUnknownCategory": {
+      "query": "mutation ProductCategoryValidationUpdate($product: ProductUpdateInput!) {\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n      category {\n        id\n        fullName\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10231869276466",
+          "category": "gid://shopify/TaxonomyCategory/not-a-real-node"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid product_taxonomy_node_id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID"
+              },
+              "path": ["productUpdate"]
+            }
+          ],
+          "data": {
+            "productUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productSetUnknownCategory": {
+      "query": "mutation ProductCategoryValidationSet($input: ProductSetInput!, $synchronous: Boolean!) {\n  productSet(input: $input, synchronous: $synchronous) {\n    product {\n      id\n      title\n      category {\n        id\n        fullName\n      }\n    }\n    productSetOperation {\n      id\n      status\n      userErrors {\n        field\n        message\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Hermes Product Unknown Category Set 1783228190947",
+          "category": "gid://shopify/TaxonomyCategory/not-a-real-node"
+        },
+        "synchronous": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid product_taxonomy_node_id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID"
+              },
+              "path": ["productSet"]
+            }
+          ],
+          "data": {
+            "productSet": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
