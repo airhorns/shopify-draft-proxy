@@ -1057,6 +1057,7 @@ impl DraftProxy {
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
         let mut company = json!({
+            "__typename": "Company",
             "id": id,
             "name": name,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
@@ -3350,6 +3351,7 @@ impl DraftProxy {
         let currency =
             b2b_company_location_input_currency_code(input, &self.store.shop_currency_code());
         let location = json!({
+            "__typename": "CompanyLocation",
             "id": id,
             "name": name,
             "companyId": company_id,

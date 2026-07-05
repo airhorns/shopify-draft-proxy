@@ -173,48 +173,46 @@ pub(in crate::proxy) fn quantity_rules_add_validation_errors(
     let mut errors = Vec::new();
     for (index, rule) in quantity_rules.iter().enumerate() {
         let index = index.to_string();
-        let minimum = resolved_int_field(rule, "minimum").unwrap_or(1);
-        let maximum = resolved_int_field(rule, "maximum");
-        let increment = resolved_int_field(rule, "increment").unwrap_or(1);
-        if minimum < 1 {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "minimum"],
-                "GREATER_THAN_OR_EQUAL_TO",
-                "Minimum must be greater than or equal to one.",
-            ));
-        }
-        if increment < 1 {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "increment"],
-                "GREATER_THAN_OR_EQUAL_TO",
-                "Increment must be greater than or equal to one.",
-            ));
-        } else if increment > minimum {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "increment"],
-                "INCREMENT_IS_GREATER_THAN_MINIMUM",
-                "Increment must be lower than or equal to the minimum.",
-            ));
-        }
-        if maximum.map(|max| minimum > max).unwrap_or(false) {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "minimum"],
-                "MINIMUM_IS_GREATER_THAN_MAXIMUM",
-                "Minimum must be lower than or equal to the maximum.",
-            ));
-        } else if increment > 0 && minimum % increment != 0 {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "minimum"],
-                "MINIMUM_NOT_MULTIPLE_OF_INCREMENT",
-                "Minimum must be a multiple of the increment.",
-            ));
-        } else if increment > 0 && maximum.map(|max| max % increment != 0).unwrap_or(false) {
-            errors.push(quantity_rule_error(
-                vec!["quantityRules", &index, "maximum"],
-                "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT",
-                "Maximum must be a multiple of the increment.",
-            ));
-        }
+        errors.extend(
+            quantity_rule_bounds_violations(quantity_bounds_from_rule(rule))
+                .into_iter()
+                .map(|violation| quantity_rule_bounds_error(&index, violation)),
+        );
     }
     (!errors.is_empty()).then_some(errors)
+}
+
+fn quantity_rule_bounds_error(index: &str, violation: QuantityBoundsViolation) -> Value {
+    match violation {
+        QuantityBoundsViolation::MinimumLessThanOne => quantity_rule_error(
+            vec!["quantityRules", index, "minimum"],
+            "GREATER_THAN_OR_EQUAL_TO",
+            "Minimum must be greater than or equal to one.",
+        ),
+        QuantityBoundsViolation::IncrementLessThanOne => quantity_rule_error(
+            vec!["quantityRules", index, "increment"],
+            "GREATER_THAN_OR_EQUAL_TO",
+            "Increment must be greater than or equal to one.",
+        ),
+        QuantityBoundsViolation::IncrementGreaterThanMinimum => quantity_rule_error(
+            vec!["quantityRules", index, "increment"],
+            "INCREMENT_IS_GREATER_THAN_MINIMUM",
+            "Increment must be lower than or equal to the minimum.",
+        ),
+        QuantityBoundsViolation::MinimumGreaterThanMaximum => quantity_rule_error(
+            vec!["quantityRules", index, "minimum"],
+            "MINIMUM_IS_GREATER_THAN_MAXIMUM",
+            "Minimum must be lower than or equal to the maximum.",
+        ),
+        QuantityBoundsViolation::MinimumNotMultipleOfIncrement => quantity_rule_error(
+            vec!["quantityRules", index, "minimum"],
+            "MINIMUM_NOT_MULTIPLE_OF_INCREMENT",
+            "Minimum must be a multiple of the increment.",
+        ),
+        QuantityBoundsViolation::MaximumNotMultipleOfIncrement => quantity_rule_error(
+            vec!["quantityRules", index, "maximum"],
+            "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT",
+            "Maximum must be a multiple of the increment.",
+        ),
+    }
 }

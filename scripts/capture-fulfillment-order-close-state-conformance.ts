@@ -203,7 +203,7 @@ const moveMutation = `#graphql
 `;
 
 // Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
-// (src/proxy/online_store_orders_payments.rs). The submit / accept / close
+// (src/proxy/orders_payments_fulfillment.rs). The submit / accept / close
 // lifecycle mutations forward this exact (expanded, not compact) document on a
 // cold fulfillment-order miss; recording its live response is what lets
 // de-seeded replay forward+observe the order. Kept flush-left so trimGraphql
