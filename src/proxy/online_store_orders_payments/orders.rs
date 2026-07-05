@@ -1682,7 +1682,7 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let mut order = response.body["data"]["order"].clone();
@@ -1739,7 +1739,7 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return;
         }
         let customer = response.body["data"]["customer"].clone();
@@ -1822,7 +1822,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment_order = response.body["data"]["fulfillmentOrder"].clone();
@@ -1852,7 +1852,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let order = response.body["data"]["order"].clone();
@@ -1887,7 +1887,7 @@ impl DraftProxy {
                 "variables": { "id": variant_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let variant = response.body["data"]["productVariant"].clone();
@@ -1926,7 +1926,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let order = response.body["data"]["order"].clone();
@@ -1951,7 +1951,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment = response.body["data"]["fulfillment"].clone();
@@ -1995,7 +1995,7 @@ impl DraftProxy {
                 "variables": { "id": fulfillment_id }
             }),
         );
-        if !(200..300).contains(&response.status) {
+        if !response_is_success(&response) {
             return None;
         }
         let fulfillment = response.body["data"]["fulfillment"].clone();
@@ -2013,7 +2013,7 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        if (200..300).contains(&enriched.status) {
+        if response_is_success(&enriched) {
             let enriched_order = enriched.body["data"]["order"].clone();
             if enriched_order.is_object() {
                 order = enriched_order;
