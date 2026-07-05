@@ -6466,6 +6466,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-nested-content-connections',
+    scriptPath: 'scripts/capture-online-store-nested-content-connections-conformance.ts',
+    purpose:
+      'Nested Blog.articles and Article.comments connection windows, reverse ordering, supported query filters, and captured schema boundaries.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-nested-content-connections.json`,
+      'config/parity-specs/online-store/online-store-nested-content-connections.json',
+      'config/parity-requests/online-store/online-store-nested-content-connections-article-create.graphql',
+      'config/parity-requests/online-store/online-store-nested-content-connections-blog-create.graphql',
+      'config/parity-requests/online-store/online-store-nested-content-connections-comment-spam.graphql',
+      'config/parity-requests/online-store/online-store-nested-content-connections-hydrate.graphql',
+      'config/parity-requests/online-store/online-store-nested-content-connections-read-cursors.graphql',
+      'config/parity-requests/online-store/online-store-nested-content-connections-read-windows.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable blog, three articles, and REST comment setup records, records nested reads, then deletes articles and blog during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-article-create-validation',
     scriptPath: 'scripts/capture-online-store-article-create-validation-conformance.ts',
     purpose:

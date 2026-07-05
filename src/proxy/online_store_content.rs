@@ -1054,9 +1054,8 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Option<Value> {
-        self.online_store_record(kind, id).map(|record| {
-            selected_json(&self.enriched_online_store_record(kind, &record), selection)
-        })
+        self.online_store_record(kind, id)
+            .map(|record| self.online_store_selected_record(kind, &record, selection))
     }
 
     fn online_store_record(&self, kind: OnlineStoreKind, id: &str) -> Option<Value> {
@@ -1078,32 +1077,38 @@ impl DraftProxy {
         kind: OnlineStoreKind,
         field: &RootFieldSelection,
     ) -> Value {
-        let query = resolved_string_field(&field.arguments, "query");
-        let sort_key = resolved_string_field(&field.arguments, "sortKey");
-        let mut records = self
-            .online_store_records(kind)
-            .into_iter()
-            .filter(|record| {
-                online_store_search_decision(kind, record, query.as_deref())
-                    == StagedSearchDecision::Match
-            })
-            .collect::<Vec<_>>();
-
-        if let Some(sort_key) = sort_key.as_deref() {
-            records.sort_by(|left, right| {
-                online_store_sort_key(kind, left, sort_key)
-                    .cmp(&online_store_sort_key(kind, right, sort_key))
-            });
-        }
-
-        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-
-        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
-        selected_json(
-            &connection_json_with_cursor(records, |_, node| value_id_cursor(node), page_info),
+        self.online_store_connection_from_records(
+            kind,
+            self.online_store_records(kind),
+            &field.arguments,
             &field.selection,
+        )
+    }
+
+    fn online_store_connection_from_records(
+        &self,
+        kind: OnlineStoreKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
+        let result = staged_connection_query(
+            indexed_records,
+            arguments,
+            |(_, record), query| online_store_search_decision(kind, record, query),
+            |(index, record), sort_key| {
+                online_store_connection_sort_key(kind, *index, record, sort_key)
+            },
+            |(_, record)| value_id_cursor(record),
+        );
+
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            |(_, record), selection| self.online_store_selected_record(kind, record, selection),
+            |(_, record)| value_id_cursor(record),
+            result.page_info,
         )
     }
 
@@ -1128,6 +1133,66 @@ impl DraftProxy {
             OnlineStoreKind::Article => self.enriched_article_record(record),
             OnlineStoreKind::Comment => self.enriched_comment_record(record),
         }
+    }
+
+    fn online_store_selected_record(
+        &self,
+        kind: OnlineStoreKind,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        match kind {
+            OnlineStoreKind::Blog => self.selected_blog_record(record, selection),
+            OnlineStoreKind::Article => self.selected_article_record(record, selection),
+            OnlineStoreKind::Page => selected_json(record, selection),
+            OnlineStoreKind::Comment => {
+                selected_json(&self.enriched_comment_record(record), selection)
+            }
+        }
+    }
+
+    fn selected_blog_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
+        let enriched = self.enriched_blog_record(record);
+        let id = enriched["id"].as_str().unwrap_or_default();
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "articles" => {
+                selected_online_store_field(&enriched, field)?;
+                let articles = self
+                    .online_store_records(OnlineStoreKind::Article)
+                    .into_iter()
+                    .filter(|article| article["blogId"].as_str() == Some(id))
+                    .collect::<Vec<_>>();
+                Some(self.online_store_connection_from_records(
+                    OnlineStoreKind::Article,
+                    articles,
+                    &field.arguments,
+                    &field.selection,
+                ))
+            }
+            _ => selected_online_store_field(&enriched, field),
+        })
+    }
+
+    fn selected_article_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
+        let enriched = self.enriched_article_record(record);
+        let article_id = enriched["id"].as_str().unwrap_or_default().to_string();
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "comments" => {
+                selected_online_store_field(&enriched, field)?;
+                let comments = self
+                    .online_store_records(OnlineStoreKind::Comment)
+                    .into_iter()
+                    .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
+                    .collect::<Vec<_>>();
+                Some(self.online_store_connection_from_records(
+                    OnlineStoreKind::Comment,
+                    comments,
+                    &field.arguments,
+                    &field.selection,
+                ))
+            }
+            _ => selected_online_store_field(&enriched, field),
+        })
     }
 
     fn enriched_blog_record(&self, record: &Value) -> Value {
@@ -2170,6 +2235,23 @@ fn online_store_sort_key(kind: OnlineStoreKind, record: &Value, sort_key: &str) 
         },
     };
     vec![primary, online_store_gid_tail_sort_value(record)]
+}
+
+fn online_store_connection_sort_key(
+    kind: OnlineStoreKind,
+    index: usize,
+    record: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    sort_key
+        .map(|sort_key| online_store_sort_key(kind, record, sort_key))
+        .unwrap_or_else(|| vec![StagedSortValue::I64(index as i64)])
+}
+
+fn selected_online_store_field(record: &Value, field: &SelectedField) -> Option<Value> {
+    selected_json(record, std::slice::from_ref(field))
+        .get(&field.response_key)
+        .cloned()
 }
 
 fn online_store_sort_string(record: &Value, field: &str) -> StagedSortValue {

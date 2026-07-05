@@ -3408,6 +3408,23 @@ Practical rule:
 - model public `commentDelete` as true local deletion, not a `REMOVED` moderation transition; the `REMOVED` state is still useful for legacy snapshots and dependent-destroy guardrails
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
+### 69b. Nested online-store content connections are real windows, with narrower args than the top-level roots
+
+A 2025-01 live capture for nested online-store content connections showed
+`Blog.articles` and `Article.comments` behaving like ordinary connections for
+`first`, `after`, `before`, `reverse`, and `last` when `before` is supplied.
+The same capture showed `Article.comments(query: "status:SPAM")` filtering the
+nested comment connection.
+
+Captured schema boundaries were narrower than the top-level content roots:
+
+- `Blog.articles(sortKey:)`, `Blog.articles(query:)`, and `Article.comments(sortKey:)` were rejected by Admin GraphQL 2025-01
+- bare `last` without `before` was rejected on both nested connections with `using last without before is not supported`
+
+Practical rule:
+
+- route nested online-store content reads through the shared connection engine so child windows, cursors, and `pageInfo` are computed from the sliced child graph, but do not claim nested `sortKey` or `Blog.articles(query:)` fidelity unless a later schema capture proves those arguments are accepted.
+
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`.
