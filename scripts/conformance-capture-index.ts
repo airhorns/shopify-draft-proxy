@@ -2316,6 +2316,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventoryAdjust-then-hasOutOfStockVariants-parity.json',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-create.graphql',
+      'config/parity-requests/products/productCreate-then-bulkCreate-derived-delete.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql',
       'config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-adjust.graphql',
