@@ -2005,9 +2005,10 @@ impl DraftProxy {
         order_id: &str,
         order_input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        let default_currency_code = self.b2b_order_input_currency_default(order_input);
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
-            .unwrap_or_else(|| self.store.shop_currency_code());
+            .unwrap_or(default_currency_code);
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
             .unwrap_or_else(|| currency_code.clone());
@@ -2079,6 +2080,7 @@ impl DraftProxy {
             // reads back and so a company delete can detect the order still
             // references it.
             "purchasingEntity": draft_order_purchasing_entity(order_input),
+            "companyLocationId": resolved_string_field(order_input, "companyLocationId"),
             "closed": false,
             "closedAt": Value::Null,
             "cancelledAt": Value::Null,
@@ -2243,7 +2245,7 @@ impl DraftProxy {
         if root_field == "orderCreate" {
             let field = field?;
             let order_input = resolved_object_field(&field.arguments, "order")?;
-            let purchasing_entity = draft_order_purchasing_entity(&order_input);
+            let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
             if !order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
                 return None;
             }
@@ -3441,18 +3443,24 @@ impl DraftProxy {
         let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = draft_order_purchasing_entity(&order_input);
+        let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
         if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let order = json!({
-            "id": id,
-            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
-            "purchasingEntity": purchasing_entity
-        });
+        let mut order = self.build_order_create_record(&id, &order_input);
+        order["purchasingEntity"] = purchasing_entity;
+        if let Some(customer_id) = customer_id {
+            order["customer"] = self
+                .store
+                .staged
+                .customers
+                .get(&customer_id)
+                .cloned()
+                .unwrap_or_else(|| json!({ "id": customer_id }));
+        }
         self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),
             order.clone(),
@@ -3461,6 +3469,49 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         ))
+    }
+
+    fn order_create_b2b_purchasing_entity(
+        &self,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let purchasing_entity = draft_order_purchasing_entity(order_input);
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
+            return purchasing_entity;
+        }
+        let Some(location_id) = resolved_string_field(order_input, "companyLocationId") else {
+            return purchasing_entity;
+        };
+        let company_id = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .and_then(|location| location["companyId"].as_str())
+            .map(str::to_string);
+        let contact_id = company_id.as_ref().and_then(|id| {
+            self.store
+                .staged
+                .b2b_companies
+                .get(id)
+                .and_then(|company| company["mainContactId"].as_str())
+                .map(str::to_string)
+        });
+        let company = company_id
+            .as_ref()
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null);
+        let contact = contact_id
+            .as_ref()
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null);
+        json!({
+            "companyId": company_id,
+            "companyLocationId": location_id,
+            "company": company,
+            "contact": contact,
+            "location": { "id": location_id }
+        })
     }
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(
@@ -3972,6 +4023,7 @@ fn order_customer_purchasing_entity_is_b2b(entity: &Value) -> bool {
                     .and_then(|company| company.get("id"))
                     .is_some_and(Value::is_string)
                 || map.get("companyId").is_some_and(Value::is_string)
+                || map.get("companyLocationId").is_some_and(Value::is_string)
                 || map.values().any(order_customer_purchasing_entity_is_b2b)
         }
         Value::Array(items) => items.iter().any(order_customer_purchasing_entity_is_b2b),

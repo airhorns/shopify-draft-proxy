@@ -1521,7 +1521,7 @@ impl DraftProxy {
         let calculated = draft_order_calculated_record(
             &input,
             &variant_hydrations,
-            &self.store.shop_currency_code(),
+            &self.b2b_order_input_currency_default(&input),
         );
         selected_json(
             &json!({ "calculatedDraftOrder": calculated, "userErrors": [] }),
@@ -1822,7 +1822,7 @@ impl DraftProxy {
             input,
             customer,
             variant_hydrations,
-            &self.store.shop_currency_code(),
+            &self.b2b_order_input_currency_default(input),
         );
         self.recalculate_draft_order_totals(&mut draft_order);
         draft_order
