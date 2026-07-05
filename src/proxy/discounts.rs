@@ -2702,15 +2702,12 @@ fn discount_field_top_level_error(field: &RootFieldSelection) -> Option<Value> {
             // Shopify enforces the 250-entry list ceiling at the GraphQL layer
             // before the resolver runs, so it surfaces as a top-level error
             // (not a userError).
-            return Some(json!({
-                "message": format!(
-                    "The input array size of {} is greater than the maximum allowed of 250.",
-                    codes.len()
-                ),
-                "locations": [{ "line": field.location.line, "column": field.location.column }],
-                "path": [field.response_key.clone(), "codes".to_string()],
-                "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" },
-            }));
+            return Some(max_input_size_exceeded_error(
+                vec![field.response_key.clone(), "codes".to_string()],
+                codes.len(),
+                250,
+                Some(json!([{ "line": field.location.line, "column": field.location.column }])),
+            ));
         }
     }
     let input = discount_field_input(field)?;

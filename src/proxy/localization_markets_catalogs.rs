@@ -76,6 +76,8 @@ const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 /// for the target market from an exact Admin GraphQL preflight.
 const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) { marketLocalizableResource(resourceId: $resourceId) { resourceId marketLocalizableContent { key value digest } marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } } } markets(first: $marketsFirst) { nodes { id name handle status type } } }";
 const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
+const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
+    "The primary locale of your store can't be changed through this endpoint.";
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
@@ -555,6 +557,46 @@ fn selected_market_error(
     selected_market_user_errors(field, vec![market_user_error(path, message, code)])
 }
 
+fn selected_payload_user_error(
+    selection: &[SelectedField],
+    root_key: &str,
+    user_error: Value,
+) -> Value {
+    selected_json(&payload_user_error(root_key, user_error), selection)
+}
+
+fn shop_locale_payload_error(root_key: &str, message: &str) -> Value {
+    payload_user_error(root_key, shop_locale_user_error(vec!["locale"], message))
+}
+
+fn selected_market_localization_error(
+    selection: &[SelectedField],
+    path: Vec<&str>,
+    code: &str,
+    message: &str,
+) -> Value {
+    selected_payload_user_error(
+        selection,
+        "marketLocalizations",
+        market_localization_error(path, code, message),
+    )
+}
+
+fn market_id_payload_error(root_key: &str, message: &str, code: &str) -> Value {
+    payload_user_error(
+        root_key,
+        market_user_error(vec!["id"], message, json!(code)),
+    )
+}
+
+fn selected_translation_error(selection: &[SelectedField], message: &str, code: &str) -> Value {
+    selected_payload_user_error(
+        selection,
+        "translations",
+        user_error(["resourceId"], message, Some(code)),
+    )
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
@@ -743,20 +785,11 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
         let payload = if locale == primary_locale {
-            json!({
-                "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
-            })
+            shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE)
         } else if self.localization_available_locale_name(&locale).is_none() {
-            json!({
-                "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid")]
-            })
+            shop_locale_payload_error("shopLocale", "Locale is invalid")
         } else if self.localization_shop_locale_added(&locale) {
-            json!({
-                "shopLocale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken")]
-            })
+            shop_locale_payload_error("shopLocale", "Locale has already been taken")
         } else if self
             .localization_shop_locales(None)
             .iter()
@@ -764,13 +797,13 @@ impl DraftProxy {
             .count()
             >= 20
         {
-            json!({
-                "shopLocale": null,
-                "userErrors": [user_error_omit_code(Value::Null, &format!(
+            payload_user_error(
+                "shopLocale",
+                user_error_omit_code(Value::Null, &format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
                         self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
-                    ), None)]
-            })
+                    ), None),
+            )
         } else {
             let name = self
                 .localization_available_locale_name(&locale)
@@ -811,10 +844,7 @@ impl DraftProxy {
 
         if locale == primary_locale && published.is_some() {
             return selected_json(
-                &json!({
-                    "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
-                }),
+                &shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE),
                 &field.selection,
             );
         }
@@ -822,10 +852,7 @@ impl DraftProxy {
         let locale_exists = self.localization_shop_locale_added(&locale);
         if !locale_exists && published.is_some() {
             return selected_json(
-                &json!({
-                    "shopLocale": null,
-                    "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
-                }),
+                &shop_locale_payload_error("shopLocale", "The locale doesn't exist."),
                 &field.selection,
             );
         }
@@ -909,15 +936,9 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
         let payload = if locale == primary_locale {
-            json!({
-                "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.")]
-            })
+            shop_locale_payload_error("locale", PRIMARY_LOCALE_CHANGE_MESSAGE)
         } else if !self.store.staged.shop_locales.contains_key(&locale) {
-            json!({
-                "locale": null,
-                "userErrors": [shop_locale_user_error(vec!["locale"], "The locale doesn't exist.")]
-            })
+            shop_locale_payload_error("locale", "The locale doesn't exist.")
         } else {
             self.store.staged.shop_locales.remove(&locale);
             self.store
@@ -1513,10 +1534,7 @@ impl DraftProxy {
             self.cascade_market_delete(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
-            json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "Market does not exist", json!("MARKET_NOT_FOUND"))]
-            })
+            market_id_payload_error("deletedId", "Market does not exist", "MARKET_NOT_FOUND")
         };
         selected_json(&payload, &field.selection)
     }
@@ -2136,7 +2154,10 @@ impl DraftProxy {
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
         } else {
-            json!({"deletedId": null, "userErrors": [catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND")]})
+            payload_user_error(
+                "deletedId",
+                catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND"),
+            )
         };
         selected_json(&payload, &field.selection)
     }
@@ -3131,16 +3152,18 @@ impl DraftProxy {
     /// only subfolder presences (which carry a null `domain`) can be removed.
     pub(in crate::proxy) fn web_presence_delete_payload(&mut self, id: &str) -> Value {
         let Some(record) = self.store.staged.web_presences.get(id) else {
-            return json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]
-            });
+            return market_id_payload_error(
+                "deletedId",
+                "The market web presence wasn't found.",
+                "WEB_PRESENCE_NOT_FOUND",
+            );
         };
         if record.get("domain").is_some_and(|domain| !domain.is_null()) {
-            return json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "The shop must have a web presence that uses the primary domain.", json!("SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"))]
-            });
+            return market_id_payload_error(
+                "deletedId",
+                "The shop must have a web presence that uses the primary domain.",
+                "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE",
+            );
         }
         self.store.staged.web_presences.remove(id);
         json!({"deletedId": id, "userErrors": []})
@@ -3182,7 +3205,7 @@ impl DraftProxy {
             &mut errors,
         );
         if !errors.is_empty() {
-            return json!({"webPresence": null, "userErrors": errors});
+            return payload_error("webPresence", errors);
         }
         let id = shopify_gid(
             "MarketWebPresence",
@@ -3229,7 +3252,11 @@ impl DraftProxy {
         record_log: bool,
     ) -> Value {
         let Some(existing) = self.store.staged.web_presences.get(id).cloned() else {
-            return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
+            return market_id_payload_error(
+                "webPresence",
+                "The market web presence wasn't found.",
+                "WEB_PRESENCE_NOT_FOUND",
+            );
         };
         let mut errors = Vec::new();
         let primary_locale = self.localization_primary_locale();
@@ -3254,7 +3281,7 @@ impl DraftProxy {
             &mut errors,
         );
         if !errors.is_empty() {
-            return json!({"webPresence": null, "userErrors": errors});
+            return payload_error("webPresence", errors);
         }
         let shop_domain = web_presence_shop_domain(&self.store);
         let record =
@@ -3614,12 +3641,11 @@ impl DraftProxy {
         let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
         // 1. Per-mutation key cap fires before resource existence (matches live Shopify).
         if localizations.len() > 100 {
-            return selected_json(
-                &json!({
-                    "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "Too many keys for resource - maximum 100 per mutation", "TOO_MANY_KEYS_FOR_RESOURCE")]
-                }),
+            return selected_market_localization_error(
                 &field.selection,
+                vec!["resourceId"],
+                "TOO_MANY_KEYS_FOR_RESOURCE",
+                "Too many keys for resource - maximum 100 per mutation",
             );
         }
         // 2. The resource must have been observed (cold read / mutation preflight).
@@ -3630,12 +3656,11 @@ impl DraftProxy {
             .get(&resource_id)
             .cloned()
         else {
-            return selected_json(
-                &json!({
-                    "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
-                }),
+            return selected_market_localization_error(
                 &field.selection,
+                vec!["resourceId"],
+                "RESOURCE_NOT_FOUND",
+                &format!("Resource {resource_id} does not exist"),
             );
         };
 
@@ -3644,12 +3669,11 @@ impl DraftProxy {
             let field_index = index.to_string();
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
             if market_id.is_empty() || !self.market_exists(&market_id) {
-                return selected_json(
-                    &json!({
-                        "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "The market does not exist", "MARKET_DOES_NOT_EXIST")]
-                    }),
+                return selected_market_localization_error(
                     &field.selection,
+                    vec!["marketLocalizations", &field_index, "marketId"],
+                    "MARKET_DOES_NOT_EXIST",
+                    "The market does not exist",
                 );
             }
             let key = resolved_object_string(input, "key").unwrap_or_default();
@@ -3659,12 +3683,11 @@ impl DraftProxy {
                     .iter()
                     .find(|entry| entry["key"].as_str() == Some(key.as_str()))
             }) else {
-                return selected_json(
-                    &json!({
-                        "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], &format!("Key {key} is not a valid market localizable field"), "INVALID_KEY_FOR_MODEL")]
-                    }),
+                return selected_market_localization_error(
                     &field.selection,
+                    vec!["marketLocalizations", &field_index, "key"],
+                    "INVALID_KEY_FOR_MODEL",
+                    &format!("Key {key} is not a valid market localizable field"),
                 );
             };
             // 4. The supplied digest must match the resource's current content digest.
@@ -3672,34 +3695,35 @@ impl DraftProxy {
             if resolved_object_string(input, "marketLocalizableContentDigest").as_deref()
                 != expected_digest
             {
-                return selected_json(
-                    &json!({
-                        "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "The provided content digest does not match the latest resource content", "INVALID_MARKET_LOCALIZABLE_CONTENT")]
-                    }),
+                return selected_market_localization_error(
                     &field.selection,
+                    vec![
+                        "marketLocalizations",
+                        &field_index,
+                        "marketLocalizableContentDigest",
+                    ],
+                    "INVALID_MARKET_LOCALIZABLE_CONTENT",
+                    "The provided content digest does not match the latest resource content",
                 );
             }
             // 5. The localized value must not be blank.
             if resolved_object_string(input, "value").as_deref() == Some("") {
-                return selected_json(
-                    &json!({
-                        "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Value can't be blank", "FAILS_RESOURCE_VALIDATION")]
-                    }),
+                return selected_market_localization_error(
                     &field.selection,
+                    vec!["marketLocalizations", &field_index, "value"],
+                    "FAILS_RESOURCE_VALIDATION",
+                    "Value can't be blank",
                 );
             }
             // 6. Shopify exposes definition-backed money metafields as a
             // `value` market-localizable field, but rejects JSON money payloads
             // during register with a resource-validation error.
             if market_localizable_content_is_money_metafield(content_entry) {
-                return selected_json(
-                    &json!({
-                        "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "Market Localizable content is invalid", "FAILS_RESOURCE_VALIDATION")]
-                    }),
+                return selected_market_localization_error(
                     &field.selection,
+                    vec!["marketLocalizations", &field_index, "value"],
+                    "FAILS_RESOURCE_VALIDATION",
+                    "Market Localizable content is invalid",
                 );
             }
             staged.push(self.market_localization_staged_record(&resource_id, &market_id, input));
@@ -3769,19 +3793,18 @@ impl DraftProxy {
             .localization_resources
             .contains_key(&resource_id)
         {
-            return selected_json(
-                &json!({
-                    "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], &format!("Resource {resource_id} does not exist"), "RESOURCE_NOT_FOUND")]
-                }),
+            return selected_market_localization_error(
                 &field.selection,
+                vec!["resourceId"],
+                "RESOURCE_NOT_FOUND",
+                &format!("Resource {resource_id} does not exist"),
             );
         }
         let keys = resolved_string_list_arg(&field.arguments, "marketLocalizationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         if keys.is_empty() {
             return selected_json(
-                &json!({ "marketLocalizations": null, "userErrors": [] }),
+                &payload_error("marketLocalizations", vec![]),
                 &field.selection,
             );
         }
@@ -3823,12 +3846,10 @@ impl DraftProxy {
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return selected_json(
-                &json!({
-                    "translations": null,
-                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
-                }),
+            return selected_translation_error(
                 &field.selection,
+                &format!("Resource {resource_id} does not exist"),
+                "RESOURCE_NOT_FOUND",
             );
         }
 
@@ -3840,12 +3861,10 @@ impl DraftProxy {
             );
         }
         if translations.len() > 100 {
-            return selected_json(
-                &json!({
-                    "translations": null,
-                    "userErrors": [user_error(["resourceId"], "Too many keys for resource - maximum 100 per mutation", Some("TOO_MANY_KEYS_FOR_RESOURCE"))]
-                }),
+            return selected_translation_error(
                 &field.selection,
+                "Too many keys for resource - maximum 100 per mutation",
+                "TOO_MANY_KEYS_FOR_RESOURCE",
             );
         }
         let mut staged = Vec::new();
@@ -3982,22 +4001,17 @@ impl DraftProxy {
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return selected_json(
-                &json!({
-                    "translations": null,
-                    "userErrors": [user_error(["resourceId"], &format!("Resource {resource_id} does not exist"), Some("RESOURCE_NOT_FOUND"))]
-                }),
+            return selected_translation_error(
                 &field.selection,
+                &format!("Resource {resource_id} does not exist"),
+                "RESOURCE_NOT_FOUND",
             );
         }
         let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
         if keys.is_empty() || locales.is_empty() {
-            return selected_json(
-                &json!({ "translations": null, "userErrors": [] }),
-                &field.selection,
-            );
+            return selected_json(&payload_error("translations", vec![]), &field.selection);
         }
         self.store.staged.localization_dirty = true;
         let mut removed = Vec::new();

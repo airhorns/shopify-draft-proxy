@@ -1095,20 +1095,12 @@ impl DraftProxy {
                         .map(|document| document.operation_path)
                         .unwrap_or_else(|| "mutation".to_string());
                     return Some(json!({
-                        "errors": [{
-                            "message": "Field 'orderCreateMandatePayment' is missing required arguments: mandateId",
-                            "locations": [{
-                                "line": field.location.line,
-                                "column": field.location.column
-                            }],
-                            "path": [operation_path, "orderCreateMandatePayment"],
-                            "extensions": {
-                                "code": "missingRequiredArguments",
-                                "className": "Field",
-                                "name": "orderCreateMandatePayment",
-                                "arguments": "mandateId"
-                            }
-                        }]
+                        "errors": [missing_required_arguments_error(
+                            "orderCreateMandatePayment",
+                            "mandateId",
+                            field.location,
+                            vec![json!(operation_path), json!("orderCreateMandatePayment")],
+                        )]
                     }));
                 }
                 let order = resolved_string_field(&field.arguments, "id")

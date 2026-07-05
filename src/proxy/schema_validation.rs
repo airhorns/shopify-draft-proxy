@@ -347,6 +347,50 @@ pub(in crate::proxy) fn payload_error(root_key: &str, user_errors: Vec<Value>) -
     })
 }
 
+pub(in crate::proxy) fn payload_user_error(root_key: &str, user_error: Value) -> Value {
+    payload_error(root_key, vec![user_error])
+}
+
+pub(in crate::proxy) fn missing_required_arguments_error(
+    field_name: &str,
+    arguments: &str,
+    location: SourceLocation,
+    path: Vec<Value>,
+) -> Value {
+    json!({
+        "message": format!("Field '{field_name}' is missing required arguments: {arguments}"),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": path,
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": field_name,
+            "arguments": arguments
+        }
+    })
+}
+
+pub(in crate::proxy) fn required_argument_null_error(
+    field_name: &str,
+    argument_name: &str,
+    expected_type: &str,
+    location: SourceLocation,
+    path: Vec<Value>,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on Field '{field_name}' has an invalid value (null). Expected type '{expected_type}'."
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": path,
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": argument_name
+        }
+    })
+}
+
 pub(in crate::proxy) fn user_error_with_code_value(
     field: impl Into<UserErrorField>,
     message: &str,
@@ -2183,17 +2227,12 @@ fn required_root_argument_error(
     _type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
-    json!({
-        "message": format!("Field '{}' is missing required arguments: {}", field.name, argument_name),
-        "locations": graphql_locations(context.field_location),
-        "path": [context.operation_path, context.response_key],
-        "extensions": {
-            "code": "missingRequiredArguments",
-            "className": "Field",
-            "name": field.name,
-            "arguments": argument_name
-        }
-    })
+    missing_required_arguments_error(
+        &field.name,
+        argument_name,
+        context.field_location,
+        vec![json!(context.operation_path), json!(context.response_key)],
+    )
 }
 
 fn non_null_argument_literal_error(
@@ -2202,19 +2241,17 @@ fn non_null_argument_literal_error(
     type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
-    json!({
-        "message": format!(
-            "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
-            argument_name, field.name, type_ref.display
-        ),
-        "locations": graphql_locations(context.field_location),
-        "path": [context.operation_path, context.response_key, argument_name],
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "typeName": "Field",
-            "argumentName": argument_name
-        }
-    })
+    required_argument_null_error(
+        &field.name,
+        argument_name,
+        &type_ref.display,
+        context.field_location,
+        vec![
+            json!(context.operation_path),
+            json!(context.response_key),
+            json!(argument_name),
+        ],
+    )
 }
 
 fn root_argument_literal_incompatible_error(
