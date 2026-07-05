@@ -1,0 +1,10 @@
+query OrderCreateFulfillmentAssignedLocationLocations($first: Int!) {
+    locationsAvailableForDeliveryProfilesConnection(first: $first) {
+      nodes {
+        id
+        name
+        isActive
+        isFulfillmentService
+      }
+    }
+  }

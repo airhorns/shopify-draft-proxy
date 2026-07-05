@@ -1,5 +1,11 @@
 use super::*;
 
+fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
 impl DraftProxy {
     pub fn new(config: Config) -> Self {
         Self {
@@ -9,6 +15,8 @@ impl DraftProxy {
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             shop_sells_subscriptions: None,
+            clock: Arc::new(default_runtime_clock),
+            last_mutation_timestamp: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
         }
@@ -38,6 +46,34 @@ impl DraftProxy {
     ) -> Self {
         self.upstream_transport = Arc::new(transport);
         self
+    }
+
+    pub fn with_clock(
+        mut self,
+        clock: impl Fn() -> time::OffsetDateTime + Send + Sync + 'static,
+    ) -> Self {
+        self.clock = Arc::new(clock);
+        self.last_mutation_timestamp = None;
+        self
+    }
+
+    pub(in crate::proxy) fn current_time(&self) -> time::OffsetDateTime {
+        (self.clock)()
+    }
+
+    pub(in crate::proxy) fn current_epoch_seconds(&self) -> i64 {
+        self.current_time().unix_timestamp()
+    }
+
+    pub(in crate::proxy) fn next_mutation_timestamp(&mut self) -> String {
+        let mut timestamp = self.current_time();
+        if let Some(previous) = self.last_mutation_timestamp {
+            if timestamp <= previous {
+                timestamp = previous + time::Duration::nanoseconds(1);
+            }
+        }
+        self.last_mutation_timestamp = Some(timestamp);
+        format_runtime_timestamp(timestamp)
     }
 
     pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
@@ -93,6 +129,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
+                self.last_mutation_timestamp = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),
@@ -262,6 +299,15 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        if !self.store.staged.media_ready_on_read.is_empty() {
+            snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
+                .store
+                .staged
+                .media_ready_on_read
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.product_operations.is_empty() {
             snapshot["stagedState"]["productOperations"] =
                 json!(self.store.staged.product_operations);
@@ -353,6 +399,18 @@ impl DraftProxy {
         if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
             snapshot["stagedState"]["bulkOperationStagedUploads"] =
                 json!(self.store.staged.bulk_operation_staged_uploads.clone());
+        }
+        if !self
+            .store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .is_empty()
+        {
+            snapshot["stagedState"]["bulkOperationStagedUploadBodies"] = json!(self
+                .store
+                .staged
+                .bulk_operation_staged_upload_bodies
+                .clone());
         }
         if !self.store.staged.bulk_operation_results.is_empty() {
             snapshot["stagedState"]["bulkOperationResults"] =
@@ -521,6 +579,12 @@ impl DraftProxy {
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
+        }
+        if !self.store.staged.url_redirects.is_empty() {
+            snapshot["stagedState"]["urlRedirects"] =
+                json!(self.store.staged.url_redirects.clone());
+            snapshot["stagedState"]["urlRedirectOrder"] =
+                json!(self.store.staged.url_redirect_order.clone());
         }
         // Linked product-option metaobject entry sets feed DISPLAY_NAME_CONFLICT
         // detection on metaobjectUpdate/Upsert. The runner restores mainState
@@ -913,6 +977,18 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.bulk_operation_staged_upload_bodies = state["stagedState"]
+            .get("bulkOperationStagedUploadBodies")
+            .and_then(Value::as_object)
+            .map(|uploads| {
+                uploads
+                    .iter()
+                    .filter_map(|(path, body)| {
+                        body.as_str().map(|body| (path.clone(), body.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.bulk_operation_results = state["stagedState"]
             .get("bulkOperationResults")
             .and_then(Value::as_object)
@@ -1037,6 +1113,12 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
+        self.store.staged.media_ready_on_read = state["stagedState"]
+            .get("mediaReadyOnReadIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.shop_policies.replace_with_order(
             shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
             string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
@@ -1438,6 +1520,12 @@ impl DraftProxy {
             None,
             Some("deletedMetaobjectIds"),
         );
+        self.store.staged.url_redirects =
+            value_map_from_json(state["stagedState"].get("urlRedirects"));
+        self.store.staged.url_redirect_order = state["stagedState"]
+            .get("urlRedirectOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.url_redirects.keys().cloned().collect());
         self.store.staged.linked_product_option_metaobject_sets = state["stagedState"]
             .get("linkedProductOptionMetaobjectSets")
             .and_then(Value::as_array)

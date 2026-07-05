@@ -42,6 +42,25 @@ fn customer_payment_methods_only_read(fields: &[RootFieldSelection]) -> bool {
         })
 }
 
+fn observed_node_values(response: &Response) -> Vec<Value> {
+    let mut nodes = response
+        .body
+        .pointer("/data/nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Some(node) = response
+        .body
+        .pointer("/data/node")
+        .filter(|node| node.is_object())
+    {
+        nodes.push(node.clone());
+    }
+    nodes
+}
+
 fn changed_draft_order_tag_ids(
     before: &BTreeMap<String, Vec<String>>,
     after: &BTreeMap<String, Vec<String>>,
@@ -182,6 +201,10 @@ impl DraftProxy {
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
+                    let fields = root_fields(query, variables).unwrap_or_default();
+                    if product_root_fields_select_shop_currency_money(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                    }
                     // An overlay read reproduces staged inventory levels but not the
                     // opaque pagination cursors Shopify assigns each level edge: the
                     // node-hydrate warm path selects `inventoryLevels { nodes }`, never
@@ -210,6 +233,9 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                if product_root_fields_select_shop_currency_money(&fields) {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
             "collections" | "collectionsCount" => {
@@ -527,14 +553,48 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
+        if let Some(data) = self.shop_property_node_value_by_id(id, selection) {
+            return Some(data);
+        }
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
+        }
+        if shopify_gid_resource_type(id) == Some("Product") {
+            if self.store.product_is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(product) = self.store.product_by_id(id) {
+                let variants = self.store.product_variants_for_product(id);
+                let shop_currency_code = self.store.shop_currency_code();
+                return Some(product_json_with_variants_and_currency(
+                    product,
+                    &variants,
+                    selection,
+                    &shop_currency_code,
+                ));
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("Collection") {
+            if self.store.collection_is_deleted(id) {
+                return Some(Value::Null);
+            }
+            if let Some(collection) = self.store.collection_by_id(id) {
+                return Some(self.collection_json_with_publication_fields(collection, selection));
+            }
         }
         if shopify_gid_resource_type(id) == Some("ProductVariant") {
             let value = self.product_variant_by_id_value(id, selection);
             if !value.is_null() {
                 return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("Location") {
+            if self.store.staged.locations.is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(location) = self.location_for_read(id) {
+                return Some(selected_json(&location, selection));
             }
         }
         if shopify_gid_resource_type(id) == Some("ProductFeed") {
@@ -650,6 +710,66 @@ impl DraftProxy {
             return Some(value);
         }
         None
+    }
+
+    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
+        let nodes = observed_node_values(response);
+        for node in &nodes {
+            self.observe_node_response_value(node);
+        }
+        for node in nodes {
+            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+            if id.starts_with("gid://shopify/Collection/") {
+                self.stage_collection_from_observed_json(&node);
+            }
+        }
+    }
+
+    fn observe_node_response_value(&mut self, node: &Value) {
+        let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        if id.starts_with("gid://shopify/Product/") {
+            self.store.stage_observed_product_json(node);
+            if let Some(product_id) = node.get("id").and_then(Value::as_str) {
+                for variant in node
+                    .get("variants")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let mut variant_value = variant.clone();
+                    if let Some(object) = variant_value.as_object_mut() {
+                        object.insert("productId".to_string(), json!(product_id));
+                    }
+                    if let Some(mut variant) =
+                        product_variant_state_from_observed_json(&variant_value)
+                    {
+                        variant.product_id = product_id.to_string();
+                        self.store.stage_product_variant(variant);
+                    }
+                }
+            }
+        } else if id.starts_with("gid://shopify/Collection/") {
+            self.stage_collection_from_observed_json(node);
+        } else if id.starts_with("gid://shopify/ProductVariant/") {
+            if let Some(variant) = product_variant_state_from_observed_json(node) {
+                self.store.stage_product_variant(variant);
+            }
+            if let Some(product) = node.get("product").and_then(product_state_from_json) {
+                self.store.stage_observed_product(product);
+            }
+        } else if id.starts_with("gid://shopify/InventoryItem/") {
+            self.observe_inventory_item_node(node);
+        } else if id.starts_with("gid://shopify/InventoryLevel/") {
+            self.observe_inventory_level_node(node);
+        } else if shopify_gid_resource_type(id) == Some("Location") {
+            self.merge_staged_location(node, &[]);
+        } else if matches!(
+            shopify_gid_resource_type(id),
+            Some("ShopAddress" | "ShopPolicy")
+        ) {
+            self.observe_shop_property_node(node);
+        }
     }
 
     fn app_node_value_by_id(
@@ -827,6 +947,12 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        if capability.domain == CapabilityDomain::Products
+            && operation.operation_type == OperationType::Mutation
+            && product_operation_selects_shop_currency_money(&query, &variables)
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the
@@ -1130,9 +1256,9 @@ impl DraftProxy {
                 let outcome = self.inventory_mutation_data(request, &fields);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => ok_json(json!({
-                "data": self.saved_search_overlay_read_fields(request, &query, &variables)
-            })),
+            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
+                self.saved_search_overlay_read_response(request, &query, &variables)
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
@@ -1822,6 +1948,7 @@ impl DraftProxy {
                 {
                     return self.web_presence_helper_query(&query);
                 }
+                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
                 // A market-localizable resource read carries request-scoped
                 // staging (content/digest hydration), so it keeps its
                 // dedicated handler. Every other markets-domain read — even
@@ -1846,6 +1973,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.hydrate_market_currency_defaults_if_needed(request, &fields);
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
@@ -2029,12 +2157,13 @@ impl DraftProxy {
                     // / tombstoned policies); otherwise the live shop response is
                     // replayed verbatim so unrelated shop fields stay authentic.
                     if self.should_handle_shop_policy_query_locally() {
-                        if let Some(data) = self.shop_query_data(&query, &variables) {
+                        if let Some(data) = self.shop_query_data(&fields, Some(request)) {
                             ok_json(json!({ "data": data }))
                         } else {
                             let response = (self.upstream_transport)(request.clone());
                             if (200..300).contains(&response.status) {
                                 self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                                self.observe_nodes_response(&response);
                             }
                             response
                         }
@@ -2042,6 +2171,7 @@ impl DraftProxy {
                         let response = (self.upstream_transport)(request.clone());
                         if (200..300).contains(&response.status) {
                             self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                            self.observe_nodes_response(&response);
                         }
                         response
                     }

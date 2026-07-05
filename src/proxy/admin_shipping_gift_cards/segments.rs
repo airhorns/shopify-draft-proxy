@@ -750,8 +750,7 @@ fn segment_query_predicate_accepts(query: &str) -> bool {
     if !segment_query_filter_name_is_valid(filter) {
         return false;
     }
-    let is_known_filter = segment_query_filter_name_is_known(filter);
-    if !is_known_filter {
+    if !segment_query_filter_name_is_known(filter) {
         return segment_query_unknown_filter_accepts(rest);
     }
 

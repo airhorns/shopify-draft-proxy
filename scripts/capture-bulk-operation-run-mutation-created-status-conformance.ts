@@ -5,7 +5,7 @@ import 'dotenv/config';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
+import { type AdminGraphqlOptions, runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -88,6 +88,18 @@ const currentMutationOperationName = 'BulkOperationRunMutationCreatedStatusCurre
 const currentMutationQuery = `query ${currentMutationOperationName} {
   currentBulkOperation(type: MUTATION) {
     ${bulkOperationFields}
+  }
+}
+`;
+
+const downstreamReadOperationName = 'BulkOperationRunMutationCreatedStatusDownstreamRead';
+const downstreamReadQuery = `query ${downstreamReadOperationName}($query: String!) {
+  products(first: 1, query: $query) {
+    nodes {
+      id
+      title
+      status
+    }
   }
 }
 `;
@@ -209,6 +221,48 @@ function productIdFromResultJsonl(jsonl: string | null | undefined): string | nu
   return null;
 }
 
+function resultRowsFromJsonl(jsonl: string | null | undefined): unknown[] {
+  if (!jsonl) {
+    return [];
+  }
+  return jsonl
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as unknown);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function productTitleSearchQuery(title: string): string {
+  return `title:'${title.replaceAll("'", ' ')}'`;
+}
+
+function downstreamReadFound(response: unknown, title: string): boolean {
+  const payload = response as {
+    data?: { products?: { nodes?: Array<{ title?: string | null }> | null } | null };
+  };
+  return (payload.data?.products?.nodes ?? []).some((product) => product.title === title);
+}
+
+async function captureDownstreamRead(context: AdminGraphqlOptions, productTitle: string): Promise<GraphqlCapture> {
+  const variables = { query: productTitleSearchQuery(productTitle) };
+  let lastCapture: GraphqlCapture | null = null;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(1000);
+    }
+    const result = await runAdminGraphqlRequest(context, downstreamReadQuery, variables);
+    lastCapture = capture(downstreamReadOperationName, downstreamReadQuery, variables, result);
+    if (result.status === 200 && downstreamReadFound(result.payload, productTitle)) {
+      return lastCapture;
+    }
+  }
+  throw new Error(`downstream products read did not expose created product: ${JSON.stringify(lastCapture)}`);
+}
+
 async function main(): Promise<void> {
   const config = readConformanceScriptConfig({
     defaultApiVersion: '2026-04',
@@ -221,8 +275,8 @@ async function main(): Promise<void> {
   const headers = buildAdminAuthHeaders(accessToken);
   const context = { adminOrigin: config.adminOrigin, apiVersion: config.apiVersion, headers };
 
-  const filename = `har-750-product-create-${Date.now()}.jsonl`;
-  const productTitle = `HAR-750 Bulk Created ${new Date().toISOString()}`;
+  const filename = `bulk-product-create-${Date.now()}.jsonl`;
+  const productTitle = `Bulk Operation Mutation Created ${new Date().toISOString()}`;
   const stagedUploadVariables = {
     input: [
       {
@@ -239,11 +293,8 @@ async function main(): Promise<void> {
   }
   const target = readStagedTarget(stagedUploadResult.payload);
   const pathKey = stagedUploadPath(target);
-  const upload = await uploadJsonl(
-    target,
-    filename,
-    `${JSON.stringify({ product: { title: productTitle, status: 'DRAFT' } })}\n`,
-  );
+  const uploadContent = `${JSON.stringify({ product: { title: productTitle, status: 'DRAFT' } })}\n`;
+  const upload = await uploadJsonl(target, filename, uploadContent);
   if (upload.status < 200 || upload.status > 299) {
     throw new Error(`staged upload returned HTTP ${upload.status}: ${upload.body}`);
   }
@@ -277,6 +328,8 @@ async function main(): Promise<void> {
 
   const result = await fetchResultJsonl(terminalOperation?.url);
   const productId = productIdFromResultJsonl(result?.body);
+  const resultRows = resultRowsFromJsonl(result?.body);
+  const downstreamRead = await captureDownstreamRead(context, productTitle);
   const cleanup: Record<string, unknown> = {};
   if (productId) {
     const cleanupVariables = { input: { id: productId } };
@@ -321,6 +374,7 @@ async function main(): Promise<void> {
             stagedUploadResult,
           ),
           upload,
+          uploadContent,
           productTitle,
         },
         success: {
@@ -329,6 +383,8 @@ async function main(): Promise<void> {
           statusPolls,
           terminalOperation,
           result,
+          resultRows,
+          downstreamRead,
         },
         missingUpload: {
           stagedUpload: capture(

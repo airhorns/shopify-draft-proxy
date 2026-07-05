@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-lists-window-first-page",
+  "operationNames": ["priceLists"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "connection-window"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-lists-window-first-page.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-lists-window-first-page.graphql",
+    "variablesPath": "config/parity-requests/markets/price-lists-window-first-page.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 `priceLists(first: 2)` capture. The selected slice proves a bounded first page with computed `hasNextPage`, `startCursor`, and `endCursor`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-lists-first-window-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

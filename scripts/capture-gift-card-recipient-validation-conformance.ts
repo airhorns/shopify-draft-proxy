@@ -276,6 +276,24 @@ const updateMissingRecipientIdMutation = `#graphql
   }
 `;
 
+const createNoContactSentinelRecipientMutation = `#graphql
+  mutation GiftCardRecipientValidationCreateNoContactSentinel($recipientId: ID!) {
+    createNoContactSentinelRecipient: giftCardCreate(
+      input: { initialValue: "10", recipientAttributes: { id: $recipientId } }
+    ) {
+      giftCard {
+        id
+      }
+      giftCardCode
+      userErrors {
+        field
+        code
+        message
+      }
+    }
+  }
+`;
+
 const recipientValidationMutation = `#graphql
   mutation GiftCardRecipientValidation(
     $activeId: ID!
@@ -670,6 +688,7 @@ try {
       pastSendAt: '2026-04-28T09:31:02Z',
       validSendAt: '2026-07-01T00:00:00Z',
       missingRecipientId: 'gid://shopify/Customer/999999999999',
+      noContactSentinelRecipientId: 'gid://shopify/Customer/no-contact-recipient',
     },
   };
   const liveVariables = {
@@ -681,6 +700,11 @@ try {
   const updateMissingRecipientId = await capture('updateMissingRecipientId', updateMissingRecipientIdMutation, {
     activeId: cardId,
   });
+  const createNoContactSentinelRecipient = await capture(
+    'createNoContactSentinelRecipient',
+    createNoContactSentinelRecipientMutation,
+    { recipientId: proxyVariables.recipientValidation.noContactSentinelRecipientId },
+  );
   const recipientValidation = await capture('recipientValidation', recipientValidationMutation, liveVariables);
   const createValidCardId = readStringPath(recipientValidation.response.payload, [
     'data',
@@ -881,6 +905,7 @@ try {
         apiVersion,
         notes: [
           'Captures giftCardCreate and giftCardUpdate recipientAttributes validation for missing recipient id, nonexistent recipient id, blank text fields, text length caps, HTML-tag rejection, ordinary off-boundary sendNotificationAt range bounds, and valid in-range sendNotificationAt controls.',
+          'The no-contact sentinel branch records Shopify rejecting a structurally invalid Customer GID as a top-level RESOURCE_NOT_FOUND error instead of treating it as a no-contact recipient.',
           'Setup creates one disposable customer and one active gift card; cleanup deactivates the setup gift card and deletes the setup customer.',
           'The public giftCardUpdate userErrors type in the captured API exposes field/message only; replay expectations add local typed code values.',
         ],
@@ -889,6 +914,7 @@ try {
         operations: {
           createMissingRecipientId,
           updateMissingRecipientId,
+          createNoContactSentinelRecipient,
           recipientValidation,
         },
         expected,

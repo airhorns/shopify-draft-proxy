@@ -93,6 +93,25 @@ pub struct Response {
     pub body: Value,
 }
 
+impl DraftProxy {
+    pub fn record_bulk_operation_staged_upload_body(
+        &mut self,
+        staged_upload_path: &str,
+        body: String,
+    ) -> bool {
+        let registered = self
+            .store
+            .staged
+            .bulk_operation_staged_uploads
+            .contains_key(staged_upload_path);
+        self.store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .insert(staged_upload_path.to_string(), body);
+        registered
+    }
+}
+
 fn primary_root_response_parts(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -323,6 +342,7 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
     bulk_operation_results: BTreeMap<String, String>,
     discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
@@ -399,6 +419,7 @@ struct StagedState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
+    media_ready_on_read: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     online_store_blogs: BTreeMap<String, Value>,
     online_store_blog_order: Vec<String>,
@@ -490,9 +511,13 @@ struct StagedState {
 struct InventoryTransferRecord {
     id: String,
     name: String,
+    #[serde(default)]
+    created_at: String,
     status: String,
     origin_location_id: String,
     destination_location_id: String,
+    #[serde(default)]
+    tags: Vec<String>,
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 
@@ -770,6 +795,7 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            bulk_operation_staged_upload_bodies: BTreeMap::new(),
             bulk_operation_results: BTreeMap::new(),
             discounts: StagedRecords::default(),
             discount_code_index: BTreeMap::new(),
@@ -819,6 +845,7 @@ impl Default for StagedState {
             metafield_definitions: BTreeMap::new(),
             metafield_reference_ids: BTreeSet::new(),
             media_files: StagedRecords::default(),
+            media_ready_on_read: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             online_store_blogs: BTreeMap::new(),
             online_store_blog_order: Vec::new(),
@@ -1180,13 +1207,28 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
+        self.observed_shop_currency_code()
+            .unwrap_or_else(|| "USD".to_string())
+    }
+
+    pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {
         self.base
             .shop
             .get("currencyCode")
             .and_then(Value::as_str)
             .filter(|currency| !currency.is_empty())
-            .unwrap_or("USD")
-            .to_string()
+            .map(str::to_string)
+    }
+
+    pub(in crate::proxy) fn shop_taxes_included(&self) -> Option<bool> {
+        self.base.shop.get("taxesIncluded").and_then(Value::as_bool)
+    }
+
+    pub(in crate::proxy) fn shop_duties_included(&self) -> Option<bool> {
+        self.base
+            .shop
+            .get("dutiesIncluded")
+            .and_then(Value::as_bool)
     }
 
     fn shop_money_format(&self) -> Option<String> {
@@ -1919,6 +1961,12 @@ fn default_upstream_transport(_request: Request) -> Response {
     json_error(502, "No Rust upstream transport configured")
 }
 
+type RuntimeClock = Arc<dyn Fn() -> time::OffsetDateTime + Send + Sync>;
+
+fn default_runtime_clock() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_utc()
+}
+
 #[derive(Clone)]
 pub struct DraftProxy {
     config: Config,
@@ -1933,6 +1981,8 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    clock: RuntimeClock,
+    last_mutation_timestamp: Option<time::OffsetDateTime>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
 }
@@ -1959,6 +2009,7 @@ mod metaobjects;
 mod money;
 mod online_store_content;
 mod online_store_orders_payments;
+mod phone;
 mod privacy;
 mod product_helpers;
 mod product_operations;
@@ -1988,6 +2039,7 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
+pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
 pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;
