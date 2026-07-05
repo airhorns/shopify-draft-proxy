@@ -8690,6 +8690,146 @@ fn gift_card_connection_returns_edges_cursors_windows_sort_and_reverse() {
 }
 
 #[test]
+fn gift_card_connection_sorts_disabled_at_from_deactivated_at() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardDisabledAtSetup {
+          first: giftCardCreate(input: { initialValue: "41.01", code: "disabledsortnuqa" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+          second: giftCardCreate(input: { initialValue: "41.02", code: "disabledsortnuqb" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+          third: giftCardCreate(input: { initialValue: "41.03", code: "disabledsortnuqc" }) {
+            giftCard { id lastCharacters }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    for alias in ["first", "second", "third"] {
+        assert_eq!(
+            setup.body["data"][alias]["userErrors"],
+            json!([]),
+            "{alias} setup should succeed"
+        );
+    }
+    let first_id = setup.body["data"]["first"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = setup.body["data"]["second"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let third_id = setup.body["data"]["third"]["giftCard"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardDisabledAtDeactivate($first: ID!, $second: ID!) {
+          first: giftCardDeactivate(id: $first) {
+            giftCard { id enabled deactivatedAt }
+            userErrors { field message }
+          }
+          second: giftCardDeactivate(id: $second) {
+            giftCard { id enabled deactivatedAt }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "first": first_id, "second": second_id }),
+    ));
+    assert_eq!(deactivate.status, 200);
+    assert_eq!(deactivate.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(deactivate.body["data"]["second"]["userErrors"], json!([]));
+    let first_deactivated_at = deactivate.body["data"]["first"]["giftCard"]["deactivatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_deactivated_at = deactivate.body["data"]["second"]["giftCard"]["deactivatedAt"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardDisabledAtConnection($query: String!, $after: String!) {
+          disabledOrder: giftCards(first: 3, query: $query, sortKey: DISABLED_AT) {
+            nodes { id lastCharacters enabled deactivatedAt }
+          }
+          reverseWindow: giftCards(first: 2, query: $query, sortKey: DISABLED_AT, reverse: true) {
+            edges { cursor node { id lastCharacters enabled deactivatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterWindow: giftCards(first: 1, query: $query, sortKey: DISABLED_AT, reverse: true, after: $after) {
+            edges { cursor node { id lastCharacters enabled deactivatedAt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "query": "nuq", "after": first_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["disabledOrder"]["nodes"],
+        json!([
+            { "id": first_id, "lastCharacters": "nuqa", "enabled": false, "deactivatedAt": first_deactivated_at },
+            { "id": second_id, "lastCharacters": "nuqb", "enabled": false, "deactivatedAt": second_deactivated_at },
+            { "id": third_id, "lastCharacters": "nuqc", "enabled": true, "deactivatedAt": null }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["reverseWindow"],
+        json!({
+            "edges": [
+                {
+                    "cursor": second_id,
+                    "node": {
+                        "id": second_id,
+                        "lastCharacters": "nuqb",
+                        "enabled": false,
+                        "deactivatedAt": second_deactivated_at
+                    }
+                },
+                {
+                    "cursor": first_id,
+                    "node": {
+                        "id": first_id,
+                        "lastCharacters": "nuqa",
+                        "enabled": false,
+                        "deactivatedAt": first_deactivated_at
+                    }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": second_id,
+                "endCursor": first_id
+            }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["afterWindow"],
+        json!({
+            "edges": [{
+                "cursor": third_id,
+                "node": { "id": third_id, "lastCharacters": "nuqc", "enabled": true, "deactivatedAt": null }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": third_id,
+                "endCursor": third_id
+            }
+        })
+    );
+}
+
+#[test]
 fn gift_cards_count_honors_limit_precision_after_query_filtering() {
     let mut proxy = snapshot_proxy();
     restore_proxy_state(&mut proxy, |restored| {

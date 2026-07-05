@@ -255,11 +255,12 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
         staged_connection_query(
             self.gift_card_effective_records(),
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| gift_card_staged_sort_key(card, sort_key, reverse),
             value_id_cursor,
         )
     }
@@ -451,7 +452,13 @@ impl DraftProxy {
             staged_cards,
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| {
+                gift_card_staged_sort_key(
+                    card,
+                    sort_key,
+                    resolved_bool_field(arguments, "reverse").unwrap_or(false),
+                )
+            },
             value_id_cursor,
         );
         let local = selected_json(
@@ -1641,14 +1648,27 @@ fn gift_card_customer_name_sort_value(card: &Value) -> StagedSortValue {
         .unwrap_or(StagedSortValue::Null)
 }
 
-fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>) -> StagedSortKey {
+fn gift_card_disabled_at_sort_value(card: &Value, reverse: bool) -> StagedSortValue {
+    card.get("deactivatedAt")
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or_else(|| {
+            if reverse {
+                StagedSortValue::Null
+            } else {
+                StagedSortValue::String("~".to_string())
+            }
+        })
+}
+
+fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>, reverse: bool) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
         "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
         "BALANCE" => gift_card_money_sort_value(card, "balance"),
         "CODE" => gift_card_code_sort_value(card),
         "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
         "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
-        "DISABLED_AT" => gift_card_string_sort_value(card, "disabledAt"),
+        "DISABLED_AT" => gift_card_disabled_at_sort_value(card, reverse),
         "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
         "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
         "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
