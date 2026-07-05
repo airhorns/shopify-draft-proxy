@@ -6748,9 +6748,83 @@ fn payment_reminder_hydrated_proxy(fixtures: &[&Value]) -> (DraftProxy, Arc<Mute
     (proxy, upstream_calls)
 }
 
+fn payment_customization_function_metadata(id: &str, handle: &str) -> Value {
+    json!({
+        "id": id,
+        "title": handle,
+        "handle": handle,
+        "apiType": "payment_customization",
+        "description": format!("{handle} fixture function"),
+        "appKey": "347082227713",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/347082227713",
+            "title": "Payment customization fixture app",
+            "handle": "payment-customization-fixture-app",
+            "apiKey": "347082227713"
+        }
+    })
+}
+
+fn payment_customization_function_proxy(
+    functions: Vec<Value>,
+    hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("payment customization function hydrate body should parse");
+        hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str().unwrap_or_default() {
+            "FunctionHydrateByHandle" => {
+                let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+                let nodes = functions
+                    .iter()
+                    .filter(|function| {
+                        function["handle"].as_str() == Some(handle)
+                            || function["title"].as_str() == Some(handle)
+                            || function["description"].as_str() == Some(handle)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
+            "FunctionHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = functions
+                    .iter()
+                    .find(|function| function["id"].as_str() == Some(id))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected payment customization upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
 #[test]
 fn payment_customization_local_runtime_covers_create_activation_update_readback_helpers() {
-    let mut proxy = snapshot_proxy();
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = payment_customization_function_proxy(
+        vec![payment_customization_function_metadata(
+            "gid://shopify/ShopifyFunction/payment-a",
+            "payment-a",
+        )],
+        Arc::clone(&upstream_hits),
+    );
     let create_query = r#"
       mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
         paymentCustomizationCreate(paymentCustomization: $input) {
@@ -7190,6 +7264,166 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
             }]
         })
     );
+    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn payment_customization_create_rejects_unknown_non_sentinel_function_handle() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = payment_customization_function_proxy(
+        vec![payment_customization_function_metadata(
+            "gid://shopify/ShopifyFunction/catalog-payment-function",
+            "catalog-payment-function",
+        )],
+        Arc::clone(&upstream_hits),
+    );
+    let create_query = r#"
+      mutation PaymentCustomizationUnknownHandle($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization { id title functionId functionHandle }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    let response = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Unknown function",
+                "enabled": true,
+                "functionHandle": "definitely-absent-non-sentinel-payment-function",
+                "metafields": []
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["paymentCustomizationCreate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "functionHandle"],
+            "code": "FUNCTION_NOT_FOUND",
+            "message": "Function definitely-absent-non-sentinel-payment-function not found. Ensure that it is released in the current app (gid://shopify/App/local), and that the app is installed."
+        }])
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(
+        hits[0]["variables"]["handle"],
+        json!("definitely-absent-non-sentinel-payment-function")
+    );
+}
+
+#[test]
+fn payment_customization_function_handle_id_equivalence_uses_function_catalog() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let function = payment_customization_function_metadata(
+        "gid://shopify/ShopifyFunction/non-conformance-payment-function-id",
+        "non-conformance-payment-function",
+    );
+    let mut proxy =
+        payment_customization_function_proxy(vec![function], Arc::clone(&upstream_hits));
+    let create_query = r#"
+      mutation PaymentCustomizationCreateByHandle($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization { id title functionId functionHandle }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Known non-conformance function",
+                "enabled": true,
+                "functionHandle": "non-conformance-payment-function",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/non-conformance-payment-function-id")
+    );
+    assert_eq!(
+        create.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]["functionHandle"],
+        Value::Null
+    );
+    let customization_id = create.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_query = r#"
+      mutation PaymentCustomizationFunctionUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+        paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+          paymentCustomization { id title functionId functionHandle }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let equivalent_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "title": "Equivalent id update",
+                "functionId": "gid://shopify/ShopifyFunction/non-conformance-payment-function-id"
+            }
+        }),
+    ));
+    assert_eq!(equivalent_update.status, 200);
+    assert_eq!(
+        equivalent_update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        equivalent_update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]
+            ["title"],
+        json!("Equivalent id update")
+    );
+
+    let rejected_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": customization_id,
+            "input": {
+                "functionId": "gid://shopify/ShopifyFunction/different-payment-function-id"
+            }
+        }),
+    ));
+    assert_eq!(rejected_update.status, 200);
+    assert_eq!(
+        rejected_update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([{
+            "field": ["paymentCustomization", "functionId"],
+            "code": "FUNCTION_ID_CANNOT_BE_CHANGED",
+            "message": "Function ID cannot be changed."
+        }])
+    );
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(
+        hits[0]["variables"]["handle"],
+        json!("non-conformance-payment-function")
+    );
 }
 
 #[test]
@@ -7242,12 +7476,17 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
     );
 
     let mut create_validation_proxy = snapshot_proxy();
-    let create_validation = create_validation_proxy.process_request(json_graphql_request(
+    let mut create_validation_request = json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-create-validation-gaps.graphql"
         ),
         create_validation_fixture["variables"].clone(),
-    ));
+    );
+    create_validation_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create_validation = create_validation_proxy.process_request(create_validation_request);
     assert_eq!(create_validation.status, 200);
     assert_eq!(
         create_validation.body["data"]["missingTitle"],
@@ -7287,6 +7526,10 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
         create_validation.body["data"]["missingIdentifier"],
         create_validation_fixture["response"]["payload"]["data"]["missingIdentifier"]
     );
+    assert_eq!(
+        create_validation.body["data"]["unknownHandle"],
+        create_validation_fixture["response"]["payload"]["data"]["unknownHandle"]
+    );
 
     let mut empty_read_proxy = snapshot_proxy();
     let empty_read = empty_read_proxy.process_request(json_graphql_request(
@@ -7305,7 +7548,10 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
         json!([])
     );
 
-    let mut metafields_proxy = snapshot_proxy();
+    let mut metafields_proxy = payment_customization_function_proxy(
+        vec![metafields_fixture["selectedFunction"].clone()],
+        Arc::new(Mutex::new(Vec::<Value>::new())),
+    );
     let metafields_create = metafields_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-metafields-create.graphql"
