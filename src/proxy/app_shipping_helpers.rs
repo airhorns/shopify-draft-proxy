@@ -155,10 +155,10 @@ pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/App/") {
+    } else if is_shopify_gid_of_type(trimmed, "App") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/App/{trimmed}")
+        shopify_gid("App", trimmed)
     }
 }
 
@@ -166,10 +166,10 @@ pub(in crate::proxy) fn normalize_app_installation_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/AppInstallation/") {
+    } else if is_shopify_gid_of_type(trimmed, "AppInstallation") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/AppInstallation/{trimmed}")
+        shopify_gid("AppInstallation", trimmed)
     }
 }
 
@@ -206,10 +206,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
         .map(|value| normalize_app_installation_gid(&value))
         .unwrap_or_else(|| {
             if explicit_app_id.is_some() {
-                format!(
-                    "gid://shopify/AppInstallation/{}?shopify-draft-proxy=synthetic",
-                    resource_id_tail(&app_id)
-                )
+                synthetic_shopify_gid("AppInstallation", resource_id_tail(&app_id))
             } else {
                 DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
             }
@@ -596,23 +593,12 @@ pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
         .collect()
 }
 
-fn maybe_money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> Option<String> {
-    let raw = match value? {
-        ResolvedValue::Int(value) => value.to_string(),
-        ResolvedValue::Float(value) => value.to_string(),
-        ResolvedValue::String(value) => value.clone(),
-        _ => return None,
-    };
-    Some(normalize_money_amount(&raw))
-}
-
 fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> Value {
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
                 let price = resolved_object_field(details, "price").unwrap_or_default();
-                let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
-                    .unwrap_or_else(|| "0.0".to_string());
+                let price_amount = money_amount_string_from_resolved_or(price.get("amount"), "0.0");
                 let price_currency =
                     resolved_string_field(&price, "currencyCode").unwrap_or_default();
                 return json!({
@@ -625,8 +611,8 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
             }
             if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
                 let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
-                let capped_amount = maybe_money_amount_string_from_resolved(capped.get("amount"))
-                    .unwrap_or_else(|| "0.0".to_string());
+                let capped_amount =
+                    money_amount_string_from_resolved_or(capped.get("amount"), "0.0");
                 let currency_code =
                     resolved_string_field(&capped, "currencyCode").unwrap_or_default();
                 let terms = resolved_string_field(details, "terms").unwrap_or_default();
@@ -653,16 +639,6 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
             "terms": ""
         }}
     })
-}
-
-pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
-    let raw = match value {
-        Some(ResolvedValue::Int(value)) => value.to_string(),
-        Some(ResolvedValue::Float(value)) => value.to_string(),
-        Some(ResolvedValue::String(value)) => value.clone(),
-        _ => "100".to_string(),
-    };
-    normalize_money_amount(&raw)
 }
 
 pub(in crate::proxy) fn current_app_installation_json(
@@ -693,41 +669,20 @@ pub(in crate::proxy) fn current_app_installation_json(
                     .map(|subscription| selected_json(subscription, &selection.selection))
                     .collect(),
             )),
-            "allSubscriptions"
-                if subscriptions.is_empty() && installation.get("allSubscriptions").is_some() =>
-            {
-                installation
-                    .get("allSubscriptions")
-                    .map(|value| selected_json(value, &selection.selection))
-            }
-            "allSubscriptions" => {
-                let node_selection =
-                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
-                Some(json!({
-                    "nodes": subscriptions
-                        .values()
-                        .map(|subscription| selected_json(subscription, &node_selection))
-                        .collect::<Vec<_>>()
-                }))
-            }
-            "oneTimePurchases"
-                if one_time_purchases.is_empty()
-                    && installation.get("oneTimePurchases").is_some() =>
-            {
-                installation
-                    .get("oneTimePurchases")
-                    .map(|value| selected_json(value, &selection.selection))
-            }
-            "oneTimePurchases" => {
-                let node_selection =
-                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
-                Some(json!({
-                    "nodes": one_time_purchases
-                        .values()
-                        .map(|purchase| selected_json(purchase, &node_selection))
-                        .collect::<Vec<_>>()
-                }))
-            }
+            "allSubscriptions" => Some(app_installation_connection_field(
+                installation,
+                "allSubscriptions",
+                subscriptions.is_empty(),
+                subscriptions.values(),
+                selection,
+            )),
+            "oneTimePurchases" => Some(app_installation_connection_field(
+                installation,
+                "oneTimePurchases",
+                one_time_purchases.is_empty(),
+                one_time_purchases.values(),
+                selection,
+            )),
             "accessScopes" => Some(Value::Array(
                 installation
                     .get("accessScopes")
@@ -753,6 +708,27 @@ pub(in crate::proxy) fn current_app_installation_json(
         }
     }
     Value::Object(fields)
+}
+
+fn app_installation_connection_field<'a>(
+    installation: &Value,
+    field_name: &str,
+    records_empty: bool,
+    records: impl Iterator<Item = &'a Value>,
+    selection: &SelectedField,
+) -> Value {
+    if records_empty {
+        if let Some(value) = installation.get(field_name) {
+            return selected_json(value, &selection.selection);
+        }
+    }
+    let node_selection =
+        selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
+    json!({
+        "nodes": records
+            .map(|record| selected_json(record, &node_selection))
+            .collect::<Vec<_>>()
+    })
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(

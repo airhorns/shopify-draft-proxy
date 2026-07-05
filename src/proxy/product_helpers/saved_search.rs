@@ -546,10 +546,8 @@ pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) ->
 }
 
 fn saved_search_namespace_api_client_id(value: &str) -> String {
-    let tail = value
-        .trim()
-        .strip_prefix("gid://shopify/App/")
-        .unwrap_or_else(|| value.trim());
+    let trimmed = value.trim();
+    let tail = shopify_gid_tail_for_type(trimmed, "App").unwrap_or(trimmed);
     tail.chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
         .collect()
@@ -778,25 +776,6 @@ pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> Strin
     format!("cursor:{}", record.id)
 }
 
-fn saved_search_connection_nodes(connection: &Value) -> Vec<Value> {
-    let mut nodes = connection
-        .get("nodes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
-    nodes.extend(
-        connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned()),
-    );
-    nodes
-}
-
 pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {
     resource_id_tail(id).to_string()
 }
@@ -926,7 +905,7 @@ impl DraftProxy {
             let Some(connection) = data.get(&field.response_key) else {
                 continue;
             };
-            for node in saved_search_connection_nodes(connection) {
+            for node in connection_nodes(connection) {
                 let Some(record) = saved_search_record_from_node(&node, "FILE", &api_client_id)
                 else {
                     continue;
@@ -1008,6 +987,48 @@ impl DraftProxy {
             .any(|record| Some(record.id.as_str()) != except_id && record.name == name)
     }
 
+    fn saved_search_field_user_errors(
+        &self,
+        operation: SavedSearchQueryValidationOperation,
+        resource_type: &str,
+        name: &str,
+        except_id: Option<&str>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        let name_is_blank = name.trim().is_empty();
+        match operation {
+            SavedSearchQueryValidationOperation::Create => {
+                if !name_is_blank && is_reserved_saved_search_name(resource_type, name) {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+                if name_is_blank {
+                    errors.push(saved_search_name_blank_user_error());
+                }
+                if !name_is_blank && self.saved_search_name_exists(resource_type, name, except_id) {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+                if resource_type == "CUSTOMER" {
+                    errors.push(saved_search_customer_deprecated_user_error());
+                }
+            }
+            SavedSearchQueryValidationOperation::Update => {
+                if name_is_blank {
+                    errors.push(saved_search_name_blank_user_error());
+                }
+                if !name_is_blank
+                    && (is_reserved_saved_search_name(resource_type, name)
+                        || self.saved_search_name_exists(resource_type, name, except_id))
+                {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+            }
+        }
+        if name.chars().count() > 40 {
+            errors.push(saved_search_name_too_long_user_error());
+        }
+        errors
+    }
+
     pub(in crate::proxy) fn saved_search_mutation_fields(
         &mut self,
         request: &Request,
@@ -1049,26 +1070,15 @@ impl DraftProxy {
             ));
         };
         let name = resolved_string_field(&input, "name").unwrap_or_default();
-        let name_is_blank = name.trim().is_empty();
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
             resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
-        let mut user_errors = Vec::new();
-        if !name_is_blank && is_reserved_saved_search_name(&resource_type, &name) {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if name_is_blank {
-            user_errors.push(saved_search_name_blank_user_error());
-        }
-        if !name_is_blank && self.saved_search_name_exists(&resource_type, &name, None) {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if resource_type == "CUSTOMER" {
-            user_errors.push(saved_search_customer_deprecated_user_error());
-        }
-        if name.chars().count() > 40 {
-            user_errors.push(saved_search_name_too_long_user_error());
-        }
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Create,
+            &resource_type,
+            &name,
+            None,
+        );
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Create,
             &resource_type,
@@ -1137,24 +1147,12 @@ impl DraftProxy {
         let mut updated = existing.clone();
         updated.query =
             normalize_saved_search_query_for_api_client(&requested_query, api_client_id);
-        let mut user_errors = Vec::new();
-        let name_is_blank = requested_name.trim().is_empty();
-        if name_is_blank {
-            user_errors.push(saved_search_name_blank_user_error());
-        }
-        if !name_is_blank
-            && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
-                || self.saved_search_name_exists(
-                    &existing.resource_type,
-                    &requested_name,
-                    Some(&id),
-                ))
-        {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if requested_name.chars().count() > 40 {
-            user_errors.push(saved_search_name_too_long_user_error());
-        }
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Update,
+            &existing.resource_type,
+            &requested_name,
+            Some(&id),
+        );
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Update,
             &existing.resource_type,

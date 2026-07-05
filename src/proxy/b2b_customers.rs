@@ -1211,7 +1211,7 @@ impl DraftProxy {
             .get("storeCreditAccounts")
             .is_none_or(Value::is_null)
         {
-            customer["storeCreditAccounts"] = empty_orders_connection();
+            customer["storeCreditAccounts"] = connection_json_with_empty_edges(Vec::new());
         }
         self.store
             .staged
@@ -2892,15 +2892,10 @@ pub(in crate::proxy) fn customer_tax_exemptions_invalid_enum_response(
             continue;
         };
         if let Some(literal) = raw_tax_exemption_literal(raw_value) {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": format!("Argument 'taxExemptions' has an invalid value [{literal}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "argumentName": "taxExemptions"
-                    }
-                }]
-            })));
+            return Some(tax_exemption_invalid_literal_response(
+                "taxExemptions",
+                literal,
+            ));
         }
         if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
             return Some(tax_exemption_invalid_variable_response(query, &invalid));
@@ -4574,16 +4569,11 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
             let Some(raw_value) = field.raw_arguments.get(argument_name) else {
                 continue;
             };
-            if raw_tax_exemption_literal(raw_value).is_some() {
-                return Some(ok_json(json!({
-                    "errors": [{
-                        "message": format!("Argument '{argument_name}' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
-                        "extensions": {
-                            "code": "argumentLiteralsIncompatible",
-                            "argumentName": argument_name
-                        }
-                    }]
-                })));
+            if let Some(literal) = raw_tax_exemption_literal(raw_value) {
+                return Some(tax_exemption_invalid_literal_response(
+                    argument_name,
+                    literal,
+                ));
             }
             if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
                 return Some(tax_exemption_invalid_variable_response(query, &invalid));
@@ -4599,6 +4589,18 @@ fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
         RawArgumentValue::List(values) => values.iter().find_map(raw_tax_exemption_literal),
         _ => None,
     }
+}
+
+fn tax_exemption_invalid_literal_response(argument_name: &str, literal: &str) -> Response {
+    ok_json(json!({
+        "errors": [argument_literals_incompatible_error_envelope(
+            format!("Argument '{argument_name}' has an invalid value [{literal}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+            None,
+            None,
+            None,
+            Some(argument_name),
+        )]
+    }))
 }
 
 fn tax_exemption_invalid_variable(value: &RawArgumentValue) -> Option<InvalidTaxExemptionVariable> {
@@ -4651,25 +4653,17 @@ fn tax_exemption_invalid_variable_response(
         "Variable ${} of type {declared_type} was provided invalid value for {first_index} (Expected \"{first_value}\" to be one of: {one_of})",
         invalid.variable_name
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) =
-        graphql_variable_definition_location(query, &invalid.variable_name)
-    {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": invalid.provided,
-            "problems": problems,
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+    let location = graphql_variable_definition_location(query, &invalid.variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            invalid.provided.clone(),
+            Value::Array(problems),
+        )]
+    }))
 }
 
 /// Members of the `CustomerSmsMarketingState` GraphQL enum. Values outside this set
@@ -4735,26 +4729,20 @@ fn sms_consent_invalid_variable_response(
     let message = format!(
         "Variable ${variable_name} of type {declared_type} was provided invalid value for smsMarketingConsent.marketingState ({explanation})"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(input),
-            "problems": [{
+    let location = graphql_variable_definition_location(query, variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            resolved_value_json(input),
+            json!([{
                 "path": ["smsMarketingConsent", "marketingState"],
                 "explanation": explanation,
-            }],
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+            }]),
+        )]
+    }))
 }
 
 fn is_known_tax_exemption(value: &str) -> bool {
@@ -5412,19 +5400,7 @@ fn nodes_connection(nodes: Vec<Value>) -> Value {
     // matchers treat connection cursors as opaque (`any-string`), so a deterministic
     // per-node string (the node id) is a faithful stand-in. An empty connection
     // reports null boundary cursors, matching Shopify.
-    let start_cursor = nodes.first().map(node_connection_cursor);
-    let end_cursor = nodes.last().map(node_connection_cursor);
-    json!({
-        "nodes": nodes,
-        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
-    })
-}
-
-fn node_connection_cursor(node: &Value) -> String {
-    node.get("id")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
+    connection_json_with_boundary_cursors(nodes, |node| Some(value_id_cursor(node)))
 }
 
 /// Lift a customer's hydrated `orders` connection (an `edges { cursor node { … } }` page)
@@ -5482,10 +5458,7 @@ fn customer_normalized_string(customer: &Value, field: &str) -> StagedSortValue 
 
 fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
     let id = customer_value_string(customer, "id");
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(id))
 }
 
 fn customer_name_sort_key(customer: &Value) -> StagedSortKey {
@@ -6034,19 +6007,8 @@ fn apply_customer_order_summary_defaults(customer: &mut Value) {
         customer["lastOrder"] = Value::Null;
     }
     if customer.get("orders").is_none_or(Value::is_null) {
-        customer["orders"] = empty_orders_connection();
+        customer["orders"] = connection_json_with_empty_edges(Vec::new());
     }
-}
-
-/// An empty `Customer.orders` connection page: no nodes/edges and null boundary
-/// cursors, matching how Shopify renders the summary connection for a customer
-/// with zero orders.
-fn empty_orders_connection() -> Value {
-    json!({
-        "nodes": [],
-        "edges": [],
-        "pageInfo": empty_page_info()
-    })
 }
 
 fn store_credit_account_currency(account: &Value) -> &str {
@@ -6115,17 +6077,8 @@ fn store_credit_account_search_decision(
 }
 
 fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
-    let tail = account
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    let id_value = tail
-        .parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
     vec![
-        id_value,
+        resource_id_tail_sort_value(account.get("id").and_then(Value::as_str)),
         StagedSortValue::String(store_credit_account_currency(account).to_ascii_lowercase()),
     ]
 }

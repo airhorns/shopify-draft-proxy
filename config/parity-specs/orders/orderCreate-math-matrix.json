@@ -6,13 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-math-matrix.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
     "variablesCapturePath": "$.cases.pendingNoTax.variables",
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 orderCreate math matrix covering pending custom-line subtotal, paid tax+shipping totals, fixed-discount totals, authorization capturable/outstanding amounts, and presentment MoneyBag propagation. Volatile order, line item, and transaction IDs are not selected; all selected money/status slices compare strictly.",
+  "notes": "Live 2025-01 orderCreate math matrix covering pending custom-line subtotal, paid tax+shipping totals, fixed-discount totals, authorization capturable/outstanding amounts, and presentment MoneyBag propagation. Volatile order, line item, and transaction IDs are not selected; all selected money/status slices compare strictly. Evidence trail: registered capture script scripts/capture-order-create-math-matrix-conformance.ts writes the listed fixture and request files through capture-index entry order-create-math-matrix; tests/graphql_routes/orders.rs keeps the local money-set construction path executable.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

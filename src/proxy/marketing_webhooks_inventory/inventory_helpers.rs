@@ -9,6 +9,14 @@ pub(in crate::proxy) struct InventoryLevelViewState<'a> {
     pub fulfillment_service_locations: &'a BTreeMap<String, Value>,
 }
 
+#[derive(Clone)]
+struct InventoryLocationLevelRecord {
+    inventory_item_id: String,
+    location_id: String,
+    level_id: Option<String>,
+    quantities: BTreeMap<String, i64>,
+}
+
 fn inventory_level_location_for_view(
     location_id: &str,
     view_state: &InventoryLevelViewState<'_>,
@@ -173,7 +181,7 @@ pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&
 pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
     let (level_tail, query) = inventory_level_id_tail_and_query(id)?;
     let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
-    let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+    let item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
         query.to_string()
     } else {
         shopify_gid("InventoryItem", item_tail)
@@ -351,7 +359,7 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
-    fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
+    pub(in crate::proxy) fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
         InventoryLevelViewState {
             inventory_level_ids: &self.store.staged.inventory_level_ids,
             inactive_levels: &self.store.staged.inactive_inventory_levels,
@@ -669,12 +677,7 @@ impl DraftProxy {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_id = resolved_string_field(variables, "variantId")
             .or_else(|| variant.map(|variant| variant.id.clone()))
-            .unwrap_or_else(|| {
-                format!(
-                    "gid://shopify/ProductVariant/{}",
-                    resource_id_tail(inventory_item_id)
-                )
-            });
+            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(inventory_item_id)));
         let mut fields = serde_json::Map::new();
         for selection in selections {
             let value = match selection.name.as_str() {
@@ -1119,6 +1122,223 @@ impl DraftProxy {
         levels
     }
 
+    pub(in crate::proxy) fn location_inventory_levels_connection_selected_json(
+        &self,
+        location_id: &str,
+        location: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(false);
+        let levels = self.inventory_levels_for_location(location_id, location, include_inactive);
+        selected_staged_connection_with_args(
+            levels,
+            arguments,
+            selections,
+            |level, query| self.inventory_location_level_search_decision(level, query),
+            inventory_location_level_sort_key,
+            |level, node_selection| {
+                self.inventory_level_json_with_item(
+                    &level.inventory_item_id,
+                    &level.location_id,
+                    &level.quantities,
+                    node_selection,
+                )
+            },
+            |level| self.inventory_location_level_cursor(level),
+        )
+    }
+
+    fn inventory_levels_for_location(
+        &self,
+        location_id: &str,
+        location: Option<&Value>,
+        include_inactive: bool,
+    ) -> Vec<InventoryLocationLevelRecord> {
+        let mut levels = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (inventory_item_id, staged_location_id) in &self.store.staged.inventory_level_order {
+            if staged_location_id != location_id
+                || seen.contains(&(inventory_item_id.clone(), staged_location_id.clone()))
+            {
+                continue;
+            }
+            let key = (inventory_item_id.clone(), staged_location_id.clone());
+            seen.insert(key.clone());
+            if !include_inactive && self.store.staged.inactive_inventory_levels.contains(&key) {
+                continue;
+            }
+            if let Some(quantities) = self.store.staged.inventory_levels.get(&key) {
+                levels.push(InventoryLocationLevelRecord {
+                    inventory_item_id: inventory_item_id.clone(),
+                    location_id: staged_location_id.clone(),
+                    level_id: self.store.staged.inventory_level_ids.get(&key).cloned(),
+                    quantities: quantities.clone(),
+                });
+            }
+        }
+        for ((inventory_item_id, staged_location_id), quantities) in
+            &self.store.staged.inventory_levels
+        {
+            if staged_location_id != location_id {
+                continue;
+            }
+            let key = (inventory_item_id.clone(), staged_location_id.clone());
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.insert(key.clone());
+            if !include_inactive && self.store.staged.inactive_inventory_levels.contains(&key) {
+                continue;
+            }
+            levels.push(InventoryLocationLevelRecord {
+                inventory_item_id: inventory_item_id.clone(),
+                location_id: staged_location_id.clone(),
+                level_id: self.store.staged.inventory_level_ids.get(&key).cloned(),
+                quantities: quantities.clone(),
+            });
+        }
+        if let Some(location) = location {
+            if let Some(nodes) = location
+                .get("inventoryLevels")
+                .and_then(|connection| connection.get("nodes"))
+                .and_then(Value::as_array)
+            {
+                for node in nodes {
+                    let level_id = node.get("id").and_then(Value::as_str).map(str::to_string);
+                    let Some(inventory_item_id) = node
+                        .get("item")
+                        .and_then(|item| item.get("id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .or_else(|| {
+                            level_id
+                                .as_deref()
+                                .and_then(|id| self.inventory_level_parts_from_id_or_fallback(id))
+                                .map(|(inventory_item_id, _)| inventory_item_id)
+                        })
+                    else {
+                        continue;
+                    };
+                    let node_location_id = node
+                        .get("location")
+                        .and_then(|location| location.get("id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .or_else(|| {
+                            level_id
+                                .as_deref()
+                                .and_then(|id| self.inventory_level_parts_from_id_or_fallback(id))
+                                .map(|(_, location_id)| location_id)
+                        })
+                        .unwrap_or_else(|| location_id.to_string());
+                    if node_location_id != location_id {
+                        continue;
+                    }
+                    let key = (inventory_item_id.clone(), node_location_id.clone());
+                    if seen.contains(&key) {
+                        continue;
+                    }
+                    seen.insert(key);
+                    if !include_inactive
+                        && node.get("isActive").and_then(Value::as_bool) == Some(false)
+                    {
+                        continue;
+                    }
+                    let quantities = node
+                        .get("quantities")
+                        .and_then(Value::as_array)
+                        .map(|rows| inventory_quantities_from_observed_rows(rows))
+                        .unwrap_or_else(empty_inventory_quantities);
+                    levels.push(InventoryLocationLevelRecord {
+                        inventory_item_id,
+                        location_id: node_location_id,
+                        level_id,
+                        quantities,
+                    });
+                }
+            }
+        }
+        levels
+    }
+
+    fn inventory_location_level_cursor(&self, level: &InventoryLocationLevelRecord) -> String {
+        level.level_id.clone().unwrap_or_else(|| {
+            self.store
+                .staged
+                .inventory_level_ids
+                .get(&(level.inventory_item_id.clone(), level.location_id.clone()))
+                .cloned()
+                .unwrap_or_else(|| inventory_level_id(&level.inventory_item_id, &level.location_id))
+        })
+    }
+
+    fn inventory_location_level_search_decision(
+        &self,
+        level: &InventoryLocationLevelRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        let mut saw_supported_term = false;
+        for term in inventory_search_terms(query) {
+            match self.inventory_location_level_matches_search_term(level, &term) {
+                Some(true) => saw_supported_term = true,
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
+            }
+        }
+        StagedSearchDecision::from_bool(saw_supported_term)
+    }
+
+    fn inventory_location_level_matches_search_term(
+        &self,
+        level: &InventoryLocationLevelRecord,
+        term: &str,
+    ) -> Option<bool> {
+        let term = term.trim();
+        if term.is_empty() {
+            return Some(true);
+        }
+        let Some((field, raw_value)) = term.split_once(':') else {
+            let level_id = self.inventory_location_level_cursor(level);
+            let value = inventory_unquoted_query_value(term);
+            return Some(
+                inventory_id_matches_query(&level_id, &value)
+                    || inventory_id_matches_query(&level.inventory_item_id, &value)
+                    || inventory_id_matches_query(&level.location_id, &value)
+                    || self
+                        .store
+                        .product_variant_by_inventory_item_id(&level.inventory_item_id)
+                        .map(|variant| inventory_search_string_matches(&variant.sku, &value))
+                        .unwrap_or(false),
+            );
+        };
+        let field = field.trim().to_ascii_lowercase();
+        match field.as_str() {
+            "id" => Some(inventory_id_matches_query(
+                &self.inventory_location_level_cursor(level),
+                raw_value,
+            )),
+            "inventory_item_id" => Some(inventory_id_matches_query(
+                &level.inventory_item_id,
+                raw_value,
+            )),
+            "location_id" => Some(inventory_id_matches_query(&level.location_id, raw_value)),
+            "sku" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(
+                    self.store
+                        .product_variant_by_inventory_item_id(&level.inventory_item_id)
+                        .map(|variant| variant.sku.eq_ignore_ascii_case(&value))
+                        .unwrap_or(false),
+                )
+            }
+            _ => None,
+        }
+    }
+
     /// Build a fully-materialized `inventoryLevels` connection value for an inventory
     /// item from staged level state (ids, locations, quantities, updatedAt timestamps,
     /// and the opaque seeded edge cursors). The result carries `edges`, `nodes`, and
@@ -1435,9 +1655,9 @@ impl DraftProxy {
         let ids = ids
             .into_iter()
             .filter(|id| {
-                if id.starts_with("gid://shopify/InventoryItem/") {
+                if is_shopify_gid_of_type(id, "InventoryItem") {
                     !self.inventory_item_exists(id)
-                } else if id.starts_with("gid://shopify/Location/") {
+                } else if is_shopify_gid_of_type(id, "Location") {
                     !self.inventory_location_exists(id)
                 } else {
                     false
@@ -2474,7 +2694,7 @@ impl DraftProxy {
 
     fn inventory_item_exists(&self, inventory_item_id: &str) -> bool {
         if inventory_item_id.is_empty()
-            || !inventory_item_id.starts_with("gid://shopify/InventoryItem/")
+            || !is_shopify_gid_of_type(inventory_item_id, "InventoryItem")
         {
             return false;
         }
@@ -2502,7 +2722,7 @@ impl DraftProxy {
     }
 
     fn inventory_location_exists(&self, location_id: &str) -> bool {
-        if location_id.is_empty() || !location_id.starts_with("gid://shopify/Location/") {
+        if location_id.is_empty() || !is_shopify_gid_of_type(location_id, "Location") {
             return false;
         }
         self.inventory_location_has_local_state(location_id)
@@ -2547,7 +2767,7 @@ impl DraftProxy {
 
     fn inventory_level_parts_from_id_or_fallback(&self, id: &str) -> Option<(String, String)> {
         let (_, query) = inventory_level_id_tail_and_query(id)?;
-        let inventory_item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+        let inventory_item_id = if is_shopify_gid_of_type(query, "InventoryItem") {
             query.to_string()
         } else {
             shopify_gid("InventoryItem", query)
@@ -2655,7 +2875,7 @@ impl DraftProxy {
             return;
         }
         let location_id = if self.inventory_location_exists(requested_location_id)
-            && requested_location_id.starts_with("gid://shopify/Location/")
+            && is_shopify_gid_of_type(requested_location_id, "Location")
         {
             requested_location_id.to_string()
         } else {
@@ -5274,7 +5494,7 @@ fn inventory_invalid_adjust_ledger_document_payload(
                     )],
                 ));
             }
-            (_, Some(ledger)) if ledger.starts_with("gid://shopify/") => {
+            (_, Some(ledger)) if has_shopify_gid_prefix(ledger) => {
                 return Some(inventory_invalid_adjustment_payload(
                     field,
                     vec![user_error(
@@ -5474,7 +5694,7 @@ fn inventory_id_matches_query(id: &str, raw_value: &str) -> bool {
         return false;
     }
     let actual_tail = resource_id_tail(id);
-    let expected_tail = if expected.starts_with("gid://shopify/") {
+    let expected_tail = if has_shopify_gid_prefix(&expected) {
         resource_id_tail(&expected).to_string()
     } else {
         expected.clone()
@@ -5526,15 +5746,29 @@ fn inventory_datetime_matches_query(actual: Option<&str>, raw_value: &str) -> bo
 }
 
 fn inventory_gid_sort_key(id: &str) -> StagedSortKey {
-    let tail = resource_id_tail(id);
-    match tail.parse::<i64>() {
-        Ok(value) => vec![StagedSortValue::I64(value)],
-        Err(_) => vec![StagedSortValue::String(tail.to_ascii_lowercase())],
-    }
+    vec![resource_id_tail_sort_value(Some(id))]
 }
 
 fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> StagedSortKey {
     inventory_gid_sort_key(inventory_item_id)
+}
+
+fn inventory_location_level_sort_key(
+    level: &InventoryLocationLevelRecord,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    match sort_key.unwrap_or("ID") {
+        "INVENTORY_ITEM_ID" => inventory_gid_sort_key(&level.inventory_item_id),
+        "LOCATION_ID" => inventory_gid_sort_key(&level.location_id),
+        "ID" | "RELEVANCE" => inventory_gid_sort_key(&inventory_level_id(
+            &level.inventory_item_id,
+            &level.location_id,
+        )),
+        _ => inventory_gid_sort_key(&inventory_level_id(
+            &level.inventory_item_id,
+            &level.location_id,
+        )),
+    }
 }
 
 fn inventory_transfer_default_created_at(existing_count: usize) -> String {

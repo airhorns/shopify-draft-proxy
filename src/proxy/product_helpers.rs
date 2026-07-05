@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::ParsedDocument;
 use crate::graphql::RawArgumentValue;
 
 mod collections;
@@ -444,6 +445,7 @@ pub(in crate::proxy) fn staged_resource_publication_connection_json(
 pub(in crate::proxy) fn product_publication_field_json(
     product: &ProductRecord,
     selection: &SelectedField,
+    published_on_current_publication: Option<bool>,
 ) -> Option<Value> {
     match selection.name.as_str() {
         "publishedAt" => Some(
@@ -454,8 +456,10 @@ pub(in crate::proxy) fn product_publication_field_json(
                 .unwrap_or(Value::Null),
         ),
         "publishedOnCurrentPublication" => Some(Value::Bool(
-            product.status == "ACTIVE"
-                && product_is_published_on_publication(product, "gid://shopify/Publication/1"),
+            published_on_current_publication.unwrap_or_else(|| {
+                product.status == "ACTIVE"
+                    && product_is_published_on_publication(product, "gid://shopify/Publication/1")
+            }),
         )),
         "publishedOnPublication" => {
             let publication_id = selection
@@ -1286,14 +1290,25 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.log_entries.len() as u64)
     }
-}
 
-pub(in crate::proxy) fn product_json_with_currency(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-    currency_code: &str,
-) -> Value {
-    product_json_with_variants_and_currency(product, &[], selections, currency_code)
+    pub(in crate::proxy) fn product_json_with_variants_and_currency_context(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+        currency_code: &str,
+    ) -> Value {
+        product_json_with_variants_and_currency_and_publication_context(
+            product,
+            variants,
+            selections,
+            currency_code,
+            Some(
+                self.store
+                    .product_is_published_on_current_publication(product),
+            ),
+        )
+    }
 }
 
 pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
@@ -1411,6 +1426,78 @@ fn product_raw_variant_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
     }))
 }
 
+fn product_variants_count_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selection: &SelectedField,
+) -> Value {
+    if !variants.is_empty() {
+        return selected_count_json(variants.len(), &selection.selection);
+    }
+
+    product
+        .extra_fields
+        .get("variantsCount")
+        .cloned()
+        .map(|value| selected_json(&value, &selection.selection))
+        .unwrap_or_else(|| selected_count_json(product.variants.len(), &selection.selection))
+}
+
+fn product_compare_at_price_range_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selection: &SelectedField,
+    currency_code: &str,
+) -> Value {
+    if !variants.is_empty() {
+        return product_variant_compare_at_price_bounds(variants)
+            .map(|(min_price, max_price)| {
+                computed_product_compare_at_price_range_json(
+                    min_price,
+                    max_price,
+                    currency_code,
+                    &selection.selection,
+                )
+            })
+            .unwrap_or(Value::Null);
+    }
+
+    if let Some(observed) = product.extra_fields.get("compareAtPriceRange") {
+        return nullable_selected_json(observed, &selection.selection);
+    }
+
+    product_raw_variant_compare_at_price_bounds(&product.variants)
+        .map(|(min_price, max_price)| {
+            computed_product_compare_at_price_range_json(
+                min_price,
+                max_price,
+                currency_code,
+                &selection.selection,
+            )
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn product_variant_compare_at_price_bounds(
+    variants: &[ProductVariantRecord],
+) -> Option<(f64, f64)> {
+    price_bounds(variants.iter().filter_map(|variant| {
+        variant
+            .compare_at_price
+            .as_deref()
+            .and_then(parse_product_price)
+    }))
+}
+
+fn product_raw_variant_compare_at_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
+    price_bounds(variants.iter().filter_map(|variant| {
+        variant
+            .get("compareAtPrice")
+            .and_then(Value::as_str)
+            .and_then(parse_product_price)
+    }))
+}
+
 fn price_bounds<I>(prices: I) -> Option<(f64, f64)>
 where
     I: IntoIterator<Item = f64>,
@@ -1452,6 +1539,26 @@ fn computed_product_price_range_json(
         )),
         "maxVariantPrice" => Some(selected_json(
             &product_price_range_money(max_price, currency_code, kind),
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn computed_product_compare_at_price_range_json(
+    min_price: f64,
+    max_price: f64,
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductCompareAtPriceRange")),
+        "minVariantCompareAtPrice" => Some(selected_json(
+            &product_price_range_money(min_price, currency_code, ProductPriceRangeKind::Current),
+            &selection.selection,
+        )),
+        "maxVariantCompareAtPrice" => Some(selected_json(
+            &product_price_range_money(max_price, currency_code, ProductPriceRangeKind::Current),
             &selection.selection,
         )),
         _ => None,
@@ -1558,6 +1665,22 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
     selections: &[SelectedField],
     currency_code: &str,
 ) -> Value {
+    product_json_with_variants_and_currency_and_publication_context(
+        product,
+        variants,
+        selections,
+        currency_code,
+        None,
+    )
+}
+
+pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selections: &[SelectedField],
+    currency_code: &str,
+    published_on_current_publication: Option<bool>,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Product")),
         "id" => Some(json!(product.id)),
@@ -1614,12 +1737,19 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
         } else {
             json!(variants.len())
         }),
+        "variantsCount" => Some(product_variants_count_json(product, variants, selection)),
         "priceRangeV2" => Some(product_price_range_json(
             product,
             variants,
             selection,
             currency_code,
             ProductPriceRangeKind::Current,
+        )),
+        "compareAtPriceRange" => Some(product_compare_at_price_range_json(
+            product,
+            variants,
+            selection,
+            currency_code,
         )),
         "priceRange" => Some(product_price_range_json(
             product,
@@ -1730,13 +1860,14 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product_publication_field_json(product, selection).or_else(|| {
-            product
-                .extra_fields
-                .get(&selection.name)
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-        }),
+        _ => product_publication_field_json(product, selection, published_on_current_publication)
+            .or_else(|| {
+                product
+                    .extra_fields
+                    .get(&selection.name)
+                    .cloned()
+                    .map(|value| nullable_selected_json(&value, &selection.selection))
+            }),
     })
 }
 
@@ -3541,24 +3672,39 @@ pub(in crate::proxy) fn product_delete_required_id_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Response> {
-    let field = root_fields(query, variables)
-        .unwrap_or_default()
-        .into_iter()
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
         .find(|field| field.name == "productDelete")?;
-    let input = field
-        .raw_arguments
-        .get("input")
-        .or_else(|| field.raw_arguments.get("product"))?;
+    let input_argument_name = if field.raw_arguments.contains_key("input") {
+        "input"
+    } else {
+        "product"
+    };
+    let input = field.raw_arguments.get(input_argument_name)?;
+    let inline_location =
+        inline_argument_value_location(query, field, input_argument_name).unwrap_or(field.location);
 
     match input {
         RawArgumentValue::Object(input) => match input.get("id") {
-            None => Some(product_delete_inline_missing_id_error()),
-            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error()),
+            None => Some(product_delete_inline_missing_id_error(
+                &document.operation_path,
+                field,
+                input_argument_name,
+                inline_location,
+            )),
+            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error(
+                &document.operation_path,
+                field,
+                input_argument_name,
+                inline_location,
+            )),
             _ => None,
         },
-        RawArgumentValue::Variable { name, value: None } => {
-            Some(product_delete_variable_required_id_error(Value::Null, name))
-        }
+        RawArgumentValue::Variable { name, value: None } => Some(
+            product_delete_variable_required_id_error(Value::Null, name, &document, field),
+        ),
         RawArgumentValue::Variable {
             name,
             value: Some(ResolvedValue::Object(input)),
@@ -3566,10 +3712,14 @@ pub(in crate::proxy) fn product_delete_required_id_error(
             None => Some(product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
+                &document,
+                field,
             )),
             Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
+                &document,
+                field,
             )),
             _ => None,
         },
@@ -3611,46 +3761,56 @@ fn product_missing_product_response(
     }))
 }
 
-pub(in crate::proxy) fn product_delete_inline_missing_id_error() -> Response {
+pub(in crate::proxy) fn product_delete_inline_missing_id_error(
+    operation_path: &str,
+    field: &RootFieldSelection,
+    input_argument_name: &str,
+    location: SourceLocation,
+) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
-            "locations": [{"line": 3, "column": 26}],
-            "path": ["mutation", "productDelete", "input", "id"],
-            "extensions": {
-                "code": "missingRequiredInputObjectAttribute",
-                "argumentName": "id",
-                "argumentType": "ID!",
-                "inputObjectType": "ProductDeleteInput"
-            }
-        }]
+        "errors": [missing_required_input_object_attribute_error_envelope(
+            "ProductDeleteInput",
+            "id",
+            "ID!",
+            location,
+            json!([operation_path, field.response_key.clone(), input_argument_name, "id"]),
+        )]
     }))
 }
 
-pub(in crate::proxy) fn product_delete_inline_null_id_error() -> Response {
+pub(in crate::proxy) fn product_delete_inline_null_id_error(
+    operation_path: &str,
+    field: &RootFieldSelection,
+    input_argument_name: &str,
+    location: SourceLocation,
+) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
-            "locations": [{"line": 3, "column": 26}],
-            "path": ["mutation", "productDelete", "input", "id"],
-            "extensions": {
-                "code": "argumentLiteralsIncompatible",
-                "typeName": "InputObject",
-                "argumentName": "id"
-            }
-        }]
+        "errors": [argument_literals_incompatible_error_envelope(
+            "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.".to_string(),
+            Some(location),
+            Some(json!([operation_path, field.response_key.clone(), input_argument_name, "id"])),
+            Some("InputObject"),
+            Some("id"),
+        )]
     }))
 }
 
 pub(in crate::proxy) fn product_delete_variable_required_id_error(
     value: Value,
     variable_name: &str,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
 ) -> Response {
-    let message = format!("Variable ${variable_name} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)");
+    let (variable_type, location) = document
+        .variable_definitions
+        .get(variable_name)
+        .map(|definition| (definition.type_display.as_str(), definition.location))
+        .unwrap_or(("ProductDeleteInput!", field.location));
+    let message = format!("Variable ${variable_name} of type {variable_type} was provided invalid value for id (Expected value to not be null)");
     ok_json(json!({
         "errors": [invalid_variable_error_envelope(
             message,
-            SourceLocation { line: 2, column: 37 },
+            location,
             value,
             json!([{ "path": ["id"], "explanation": "Expected value to not be null" }]),
         )]

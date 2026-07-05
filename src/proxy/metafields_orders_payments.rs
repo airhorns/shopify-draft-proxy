@@ -17,7 +17,6 @@ pub(in crate::proxy) use self::delivery_settings::*;
 pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
-pub(in crate::proxy) use self::quantity_pricing::*;
 pub(in crate::proxy) use self::quantity_rules::*;
 
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
@@ -714,23 +713,17 @@ pub(in crate::proxy) fn metafields_set_coercion_error(
     let message = format!(
         "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, &variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": value,
-            "problems": problems_json,
-        }),
-    );
-    Some(ok_json(json!({ "errors": [Value::Object(error)] })))
+    let location = graphql_variable_definition_location(query, &variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    Some(ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            Value::Array(value),
+            Value::Array(problems_json),
+        )]
+    })))
 }
 
 /// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
@@ -831,6 +824,39 @@ where
         .map(|message| metafields_set_value_user_error(index, &message, "INVALID_VALUE"))
         .into_iter()
         .collect()
+}
+
+pub(in crate::proxy) fn metafield_value_error_message<F>(
+    metafield_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    if let Some(inner_type) = metafield_type.strip_prefix("list.") {
+        return list_metafield_value_error_message(inner_type, value, reference_exists);
+    }
+    metafield_scalar_value_error(metafield_type, value, reference_exists)
+}
+
+fn list_metafield_value_error_message<F>(
+    inner_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) else {
+        return Some("Value must be a JSON array.".to_string());
+    };
+    if items.len() > 128 {
+        return Some("Value has more than 128 elements.".to_string());
+    }
+    items
+        .iter()
+        .find_map(|item| list_metafield_item_error(inner_type, item, reference_exists))
 }
 
 fn list_metafield_value_user_errors<F>(
@@ -2052,10 +2078,7 @@ pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static 
 }
 
 fn money_bag_currency(money_set: &Value) -> String {
-    money_set["shopMoney"]["currencyCode"]
-        .as_str()
-        .unwrap_or("USD")
-        .to_string()
+    money_set_shop_currency(money_set).unwrap_or_else(|| "USD".to_string())
 }
 
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {

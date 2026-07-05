@@ -542,8 +542,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn resolve_media_file_delete_id(&self, id: &str) -> String {
-        if self.store.staged.media_files.contains_key(id) || !id.starts_with("gid://shopify/Video/")
-        {
+        if self.store.staged.media_files.contains_key(id) || !is_shopify_gid_of_type(id, "Video") {
             return id.to_string();
         }
         let numeric_id = shopify_gid_tail_for_type(id, "Video").unwrap_or(id);
@@ -713,7 +712,7 @@ impl DraftProxy {
         let Some(product_id) = product_node
             .get("id")
             .and_then(Value::as_str)
-            .filter(|id| id.starts_with("gid://shopify/Product/"))
+            .filter(|id| is_shopify_gid_of_type(id, "Product"))
             .map(str::to_string)
         else {
             return;
@@ -1749,7 +1748,7 @@ fn media_file_string_sort_value(file: &Value, field: &str) -> StagedSortValue {
 fn media_file_gid_tail_sort_value(file: &Value) -> StagedSortValue {
     file.get("id")
         .and_then(Value::as_str)
-        .map(gid_tail_sort_string)
+        .map(|id| resource_id_tail_sort_value(Some(id)))
         .unwrap_or(StagedSortValue::Null)
 }
 
@@ -2005,25 +2004,6 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
         record["mediaWarnings"] = json!([]);
     }
     Some(record)
-}
-
-fn connection_nodes(connection: &Value) -> Vec<Value> {
-    let mut nodes = connection
-        .get("nodes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
-    nodes.extend(
-        connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned()),
-    );
-    nodes
 }
 
 fn promote_media_file_record_to_ready(file: &mut Value) {

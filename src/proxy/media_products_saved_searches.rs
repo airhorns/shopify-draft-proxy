@@ -37,13 +37,6 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
     StagedSortValue::String(value.to_ascii_lowercase())
 }
 
-fn gid_tail_sort_string(id: &str) -> StagedSortValue {
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
-}
-
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("CREATED_AT") {
         "TITLE" => normalized_sort_string(&product.title),
@@ -56,10 +49,10 @@ fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> S
             .map(|value| StagedSortValue::String(value.to_string()))
             .unwrap_or(StagedSortValue::Null),
         "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
-        "ID" => gid_tail_sort_string(&product.id),
+        "ID" => resource_id_tail_sort_value(Some(&product.id)),
         _ => StagedSortValue::String(product.created_at.clone()),
     };
-    vec![primary, gid_tail_sort_string(&product.id)]
+    vec![primary, resource_id_tail_sort_value(Some(&product.id))]
 }
 
 impl DraftProxy {
@@ -925,8 +918,9 @@ impl DraftProxy {
                     "data": {
                         response_key: selected_json(
                             &json!({
-                                "product": product_json_with_currency(
+                                "product": self.product_json_with_variants_and_currency_context(
                                     &existing,
+                                    &[],
                                     &product_selection,
                                     &self.store.shop_currency_code()
                                 ),
@@ -1051,8 +1045,9 @@ impl DraftProxy {
             "data": {
                 response_key: selected_json(
                     &json!({
-                        "product": product_json_with_currency(
+                        "product": self.product_json_with_variants_and_currency_context(
                             existing,
+                            &[],
                             &product_selection,
                             &self.store.shop_currency_code()
                         ),
@@ -2806,8 +2801,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        let Some(field) = fields
+        let Some(document) = parsed_document(query, variables) else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productChangeStatus root field found",
+            ));
+        };
+        let Some(field) = document
+            .root_fields
             .iter()
             .find(|field| field.name == "productChangeStatus")
         else {
@@ -2818,16 +2819,17 @@ impl DraftProxy {
         };
         if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-                    "locations": [{"line": 3, "column": 3}],
-                    "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "Field",
-                        "argumentName": "productId"
-                    }
-                }]
+                "errors": [argument_literals_incompatible_error_envelope(
+                    "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.".to_string(),
+                    Some(field.location),
+                    Some(json!([
+                        document.operation_path.as_str(),
+                        field.response_key.clone(),
+                        "productId"
+                    ])),
+                    Some("Field"),
+                    Some("productId"),
+                )]
             })));
         }
         let Some(ResolvedValue::String(id)) = field.arguments.get("productId") else {
@@ -2975,8 +2977,9 @@ impl DraftProxy {
         let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
         let payload_selection = &field.selection;
         let payload = json!({
-            "node": product_json_with_currency(
+            "node": self.product_json_with_variants_and_currency_context(
                 &product,
+                &[],
                 &node_selection,
                 &self.store.shop_currency_code(),
             ),
@@ -3270,8 +3273,9 @@ impl DraftProxy {
 
         let payload = selected_payload_json(&payload_selection, |selection| {
             match selection.name.as_str() {
-                "product" => Some(product_json_with_currency(
+                "product" => Some(self.product_json_with_variants_and_currency_context(
                     &product,
+                    &[],
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
@@ -3561,7 +3565,7 @@ fn product_variant_media_is_image(media: &Value) -> bool {
         None => media
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/MediaImage/")),
+            .is_some_and(|id| is_shopify_gid_of_type(id, "MediaImage")),
     }
 }
 

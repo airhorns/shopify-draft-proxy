@@ -95,14 +95,13 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_amount =
-        payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_amount = money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
-        payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+        money_set_presentment_or_shop_amount(money_set).unwrap_or_else(|| shop_amount.clone());
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -118,10 +117,7 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
 }
 
 pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
-    payment_money_amount(money_set, "presentmentMoney")
-        .or_else(|| payment_money_amount(money_set, "shopMoney"))
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0)
+    money_set_presentment_or_shop_amount_value(money_set)
 }
 
 pub(in crate::proxy) fn add_order_money_sets(
@@ -132,23 +128,23 @@ pub(in crate::proxy) fn add_order_money_sets(
 ) -> Value {
     let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
     let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
-    let left_shop = payment_money_amount(&left, "shopMoney")
+    let left_shop = money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let right_shop = payment_money_amount(&right, "shopMoney")
+    let right_shop = money_amount(&right, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let left_presentment = payment_money_amount(&left, "presentmentMoney")
+    let left_presentment = money_amount(&left, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(left_shop);
-    let right_presentment = payment_money_amount(&right, "presentmentMoney")
+    let right_presentment = money_amount(&right, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(right_shop);
-    let shop_currency = payment_money_currency(&right, "shopMoney")
-        .or_else(|| payment_money_currency(&left, "shopMoney"))
+    let shop_currency = money_currency(&right, "shopMoney")
+        .or_else(|| money_currency(&left, "shopMoney"))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(&right, "presentmentMoney")
-        .or_else(|| payment_money_currency(&left, "presentmentMoney"))
+    let presentment_currency = money_currency(&right, "presentmentMoney")
+        .or_else(|| money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
     money_set_pair(
         &format_money_amount(left_shop + right_shop),
@@ -163,10 +159,10 @@ pub(in crate::proxy) fn zero_order_money_set_like(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -311,37 +307,17 @@ fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) ->
     if query_value.is_empty() {
         return false;
     }
-    let (operator, expected) = order_search_comparator(query_value);
+    let (operator, expected) = search_comparator(query_value);
     if expected.is_empty() {
         return false;
     }
-    let actual = order_search_datetime_value(actual, expected);
+    let actual = search_datetime_value(actual, expected);
     match operator {
         "<" => actual < expected,
         "<=" => actual <= expected,
         ">" => actual > expected,
         ">=" => actual >= expected,
         _ => actual.starts_with(expected),
-    }
-}
-
-fn order_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value)
-}
-
-fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
-    if expected.contains('T') {
-        actual
-    } else {
-        actual
-            .split_once('T')
-            .map(|(date, _)| date)
-            .unwrap_or(actual)
     }
 }
 
@@ -412,14 +388,7 @@ pub(in crate::proxy) fn order_search_decision(
 }
 
 fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
-    let tail = order
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(order.get("id").and_then(Value::as_str))
 }
 
 /// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
@@ -804,10 +773,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
                 resolved_money_currency(&fixed).unwrap_or_else(|| currency_code.to_string());
             json!({
                 "title": resolved_string_field(&discount, "title").unwrap_or_default(),
-                "value": {
-                    "amount": format_money_amount(amount),
-                    "currencyCode": currency
-                }
+                "value": money_value(&format_money_amount(amount), &currency)
             })
         })
         .collect::<Vec<_>>();
@@ -834,6 +800,8 @@ pub(in crate::proxy) fn order_create_line_item_record(
             })
         })
         .unwrap_or(Value::Null);
+    let unit_amount_text = format_money_amount(unit_amount);
+    let presentment_amount_text = format_money_amount(presentment_amount);
     let line = json!({
         "id": shopify_gid("LineItem", index + 1),
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
@@ -856,26 +824,18 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
         "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
-        "originalUnitPriceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": line_currency
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency
-            }
-        }),
-        "priceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": currency_code
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency_code
-            }
-        }),
+        "originalUnitPriceSet": money_set_pair(
+            &unit_amount_text,
+            &line_currency,
+            &presentment_amount_text,
+            &presentment_currency
+        ),
+        "priceSet": money_set_pair(
+            &unit_amount_text,
+            currency_code,
+            &presentment_amount_text,
+            presentment_currency_code
+        ),
         "taxLines": tax_lines
     });
     (line, unit_amount * quantity as f64, tax_total)
@@ -1145,21 +1105,11 @@ pub(in crate::proxy) fn order_edit_commit_success_messages(
 }
 
 pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
-    let start_cursor = nodes
-        .first()
-        .and_then(|node| node.get("id"))
-        .and_then(Value::as_str)
-        .filter(|cursor| !cursor.is_empty())
-        .map(str::to_string);
-    let end_cursor = nodes
-        .last()
-        .and_then(|node| node.get("id"))
-        .and_then(Value::as_str)
-        .filter(|cursor| !cursor.is_empty())
-        .map(str::to_string);
-    json!({
-        "nodes": nodes,
-        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
+    connection_json_with_boundary_cursors(nodes, |node| {
+        node.get("id")
+            .and_then(Value::as_str)
+            .filter(|cursor| !cursor.is_empty())
+            .map(str::to_string)
     })
 }
 
@@ -2045,9 +1995,10 @@ impl DraftProxy {
         order_id: &str,
         order_input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        let default_currency_code = self.b2b_order_input_currency_default(order_input);
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
-            .unwrap_or_else(|| self.store.shop_currency_code());
+            .unwrap_or(default_currency_code);
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
             .unwrap_or_else(|| currency_code.clone());
@@ -2119,6 +2070,7 @@ impl DraftProxy {
             // reads back and so a company delete can detect the order still
             // references it.
             "purchasingEntity": draft_order_purchasing_entity(order_input),
+            "companyLocationId": resolved_string_field(order_input, "companyLocationId"),
             "closed": false,
             "closedAt": Value::Null,
             "cancelledAt": Value::Null,
@@ -2283,7 +2235,7 @@ impl DraftProxy {
         if root_field == "orderCreate" {
             let field = field?;
             let order_input = resolved_object_field(&field.arguments, "order")?;
-            let purchasing_entity = draft_order_purchasing_entity(&order_input);
+            let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
             if !order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
                 return None;
             }
@@ -3481,18 +3433,24 @@ impl DraftProxy {
         let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = draft_order_purchasing_entity(&order_input);
+        let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
         if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let order = json!({
-            "id": id,
-            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
-            "purchasingEntity": purchasing_entity
-        });
+        let mut order = self.build_order_create_record(&id, &order_input);
+        order["purchasingEntity"] = purchasing_entity;
+        if let Some(customer_id) = customer_id {
+            order["customer"] = self
+                .store
+                .staged
+                .customers
+                .get(&customer_id)
+                .cloned()
+                .unwrap_or_else(|| json!({ "id": customer_id }));
+        }
         self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),
             order.clone(),
@@ -3501,6 +3459,49 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         ))
+    }
+
+    fn order_create_b2b_purchasing_entity(
+        &self,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let purchasing_entity = draft_order_purchasing_entity(order_input);
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
+            return purchasing_entity;
+        }
+        let Some(location_id) = resolved_string_field(order_input, "companyLocationId") else {
+            return purchasing_entity;
+        };
+        let company_id = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .and_then(|location| location["companyId"].as_str())
+            .map(str::to_string);
+        let contact_id = company_id.as_ref().and_then(|id| {
+            self.store
+                .staged
+                .b2b_companies
+                .get(id)
+                .and_then(|company| company["mainContactId"].as_str())
+                .map(str::to_string)
+        });
+        let company = company_id
+            .as_ref()
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null);
+        let contact = contact_id
+            .as_ref()
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null);
+        json!({
+            "companyId": company_id,
+            "companyLocationId": location_id,
+            "company": company,
+            "contact": contact,
+            "location": { "id": location_id }
+        })
     }
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(
@@ -4012,6 +4013,7 @@ fn order_customer_purchasing_entity_is_b2b(entity: &Value) -> bool {
                     .and_then(|company| company.get("id"))
                     .is_some_and(Value::is_string)
                 || map.get("companyId").is_some_and(Value::is_string)
+                || map.get("companyLocationId").is_some_and(Value::is_string)
                 || map.values().any(order_customer_purchasing_entity_is_b2b)
         }
         Value::Array(items) => items.iter().any(order_customer_purchasing_entity_is_b2b),

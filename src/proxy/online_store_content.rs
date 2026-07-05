@@ -2434,11 +2434,7 @@ fn online_store_nullable_sort_string(record: &Value, field: &str) -> StagedSortV
 }
 
 fn online_store_gid_tail_sort_value(record: &Value) -> StagedSortValue {
-    let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
-    let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(record.get("id").and_then(Value::as_str))
 }
 
 fn should_stage_observed_blog(record: &Value) -> bool {
