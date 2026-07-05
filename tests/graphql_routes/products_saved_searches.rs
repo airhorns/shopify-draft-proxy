@@ -10030,6 +10030,123 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
 }
 
 #[test]
+fn staged_segment_reads_preserve_upstream_catalog_roots() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "segments": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/Segment/1000",
+                                    "name": "Upstream segment",
+                                    "query": "number_of_orders >= 2"
+                                }
+                            ]
+                        },
+                        "suggestions": {
+                            "nodes": [
+                                {
+                                    "__typename": "SegmentEventFilter",
+                                    "queryName": "shopify_email.opened",
+                                    "localizedName": "Email opened",
+                                    "multiValue": false
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "catalog-start",
+                                "endCursor": "catalog-end"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSegmentForCatalogOverlay($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "name": "Local catalog overlay segment",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    let created_segment = create.body["data"]["segmentCreate"]["segment"].clone();
+    assert_eq!(
+        create.body["data"]["segmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        upstream_requests.lock().unwrap().is_empty(),
+        "segmentCreate should stage locally without upstream passthrough"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentCatalogOverlayAfterCreate {
+          segments(first: 10) {
+            nodes { id name query }
+          }
+          suggestions: segmentFilterSuggestions(first: 2, search: "email") {
+            nodes { __typename queryName localizedName multiValue }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["segments"]["nodes"],
+        json!([created_segment])
+    );
+    assert_eq!(
+        read.body["data"]["suggestions"],
+        json!({
+            "nodes": [
+                {
+                    "__typename": "SegmentEventFilter",
+                    "queryName": "shopify_email.opened",
+                    "localizedName": "Email opened",
+                    "multiValue": false
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "catalog-start",
+                "endCursor": "catalog-end"
+            }
+        })
+    );
+    let calls = upstream_requests.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert!(
+        calls[0]["query"]
+            .as_str()
+            .unwrap()
+            .contains("segmentFilterSuggestions"),
+        "catalog query should be forwarded upstream when local segment overlay has no catalog seed"
+    );
+}
+
+#[test]
 fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

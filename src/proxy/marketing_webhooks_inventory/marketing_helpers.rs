@@ -1610,15 +1610,30 @@ fn marketing_search_decision(
     if query.is_empty() {
         return StagedSearchDecision::Match;
     }
+    let mut group_matches = true;
+    let mut group_has_terms = false;
     for term in marketing_query_terms(query) {
+        if term.eq_ignore_ascii_case("OR") {
+            if group_has_terms && group_matches {
+                return StagedSearchDecision::Match;
+            }
+            group_matches = true;
+            group_has_terms = false;
+            continue;
+        }
         if term.eq_ignore_ascii_case("AND") {
             continue;
         }
+        group_has_terms = true;
         if !term_matches(record, &term) {
-            return StagedSearchDecision::NoMatch;
+            group_matches = false;
         }
     }
-    StagedSearchDecision::Match
+    if !group_has_terms || group_matches {
+        StagedSearchDecision::Match
+    } else {
+        StagedSearchDecision::NoMatch
+    }
 }
 
 fn marketing_query_terms(query: &str) -> Vec<String> {
