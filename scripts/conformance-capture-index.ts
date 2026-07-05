@@ -11494,6 +11494,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/shipping-fulfillments/delivery-profile-create-validation.json',
       'config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json',
       'config/parity-specs/shipping-fulfillments/delivery-profile-read.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profiles-merged-read.graphql',
     ],
     cleanupBehavior: 'Removes or restores created delivery profile artifacts; review default-profile protections.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],

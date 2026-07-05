@@ -71,6 +71,33 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "delivery-profile-read-after-create-catalog-data",
+        "capturePath": "$.mutations.readAfterCreateCatalog.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profiles-merged-read.graphql",
+          "variablesCapturePath": "$.mutations.readAfterCreateCatalog.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfiles.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy uses a stable synthetic ID cursor for the locally staged delivery profile while Shopify returns the live cursor."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy uses a stable synthetic delivery profile ID for the locally staged profile while Shopify returns the live ID."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy may use the staged synthetic profile ID as the final cursor while Shopify returns the live cursor."
+          }
+        ]
+      },
+      {
         "name": "delivery-profile-update-data",
         "capturePath": "$.mutations.nestedUpdate.result.payload.data",
         "proxyPath": "$.data",

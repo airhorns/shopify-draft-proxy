@@ -8363,6 +8363,172 @@ fn delivery_profiles_connection_windows_and_computes_page_info() {
 }
 
 #[test]
+fn delivery_profiles_live_hybrid_merges_upstream_default_with_staged_custom_profiles() {
+    let default_profile_id = "gid://shopify/DeliveryProfile/default";
+    let graphql_2026_request = |query: &str, variables: Value| {
+        request_with_body(
+            "POST",
+            "/admin/api/2026-04/graphql.json",
+            &json!({ "query": query, "variables": variables }).to_string(),
+        )
+    };
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let default_profile_id = default_profile_id.to_string();
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("deliveryProfiles"),
+                "unexpected upstream query: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryProfiles": {
+                            "nodes": [{
+                                "id": default_profile_id,
+                                "name": "General profile",
+                                "default": true,
+                                "version": 4,
+                                "activeMethodDefinitionsCount": 0,
+                                "locationsWithoutRatesCount": 28,
+                                "originLocationCount": 0,
+                                "zoneCountryCount": 0,
+                                "productVariantsCount": { "count": 500, "precision": "AT_LEAST" }
+                            }],
+                            "edges": [{
+                                "cursor": default_profile_id,
+                                "node": {
+                                    "id": default_profile_id,
+                                    "name": "General profile",
+                                    "default": true,
+                                    "version": 4,
+                                    "activeMethodDefinitionsCount": 0,
+                                    "locationsWithoutRatesCount": 28,
+                                    "originLocationCount": 0,
+                                    "zoneCountryCount": 0,
+                                    "productVariantsCount": { "count": 500, "precision": "AT_LEAST" }
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": default_profile_id,
+                                "endCursor": default_profile_id
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(graphql_2026_request(
+        r#"
+        mutation DeliveryProfileMergeCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id name default }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "profile": { "name": "Custom local profile" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let custom_profile_id = create.body["data"]["deliveryProfileCreate"]["profile"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let catalog_query = include_str!(
+        "../../config/parity-requests/shipping-fulfillments/delivery-profiles-merged-read.graphql"
+    );
+
+    let merged = proxy.process_request(graphql_2026_request(catalog_query, json!({ "first": 10 })));
+    assert_eq!(
+        merged.body["data"]["deliveryProfiles"]["edges"],
+        json!([
+            {
+                "cursor": default_profile_id,
+                "node": { "id": default_profile_id, "name": "General profile", "default": true }
+            },
+            {
+                "cursor": custom_profile_id,
+                "node": { "id": custom_profile_id, "name": "Custom local profile", "default": false }
+            }
+        ])
+    );
+    assert_eq!(
+        merged.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": default_profile_id,
+            "endCursor": custom_profile_id
+        })
+    );
+
+    let first_page = proxy.process_request(graphql_2026_request(
+        r#"
+        query DeliveryProfilesMergedFirst($first: Int) {
+          deliveryProfiles(first: $first) {
+            nodes { id default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 1 }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"]["nodes"],
+        json!([{ "id": default_profile_id, "default": true }])
+    );
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": default_profile_id,
+            "endCursor": default_profile_id
+        })
+    );
+
+    let second_page = proxy.process_request(graphql_2026_request(
+        r#"
+        query DeliveryProfilesMergedSecond($first: Int, $after: String) {
+          deliveryProfiles(first: $first, after: $after) {
+            nodes { id default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 1,
+            "after": default_profile_id
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"]["nodes"],
+        json!([{ "id": custom_profile_id, "default": false }])
+    );
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": custom_profile_id,
+            "endCursor": custom_profile_id
+        })
+    );
+}
+
+#[test]
 fn delivery_profile_create_uses_observed_location_name() {
     let location_id = "gid://shopify/Location/observed-delivery";
     let mut proxy =
