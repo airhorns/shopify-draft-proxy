@@ -13362,7 +13362,10 @@ fn online_store_articles_published_status_query_controls_visibility() {
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
           byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
           byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          bareTagText: articles(first: 10, query: "status-tag") { nodes { id title } }
+          bareHandleText: articles(first: 10, query: "published-article") { nodes { id title } }
           byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          allTags: articleTags(limit: 20)
           titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
           titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
           unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
@@ -13397,7 +13400,13 @@ fn online_store_articles_published_status_query_controls_visibility() {
         json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
     assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["bareTagText"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["bareHandleText"]["nodes"], json!([]));
     assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(
+        read.body["data"]["allTags"],
+        json!(["draft-tag", "status-tag"])
+    );
     assert_eq!(
         read.body["data"]["titleSorted"]["nodes"],
         json!([
@@ -13413,6 +13422,193 @@ fn online_store_articles_published_status_query_controls_visibility() {
         ])
     );
     assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_article_metafields_reflect_staged_create_and_update() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {
+          articleCreate(article: $article, blog: $blog) {
+            article {
+              id
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 1, namespace: "online_store_conformance") {
+                nodes { id namespace key type value jsonValue ownerType }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blog": { "title": "Article metafield blog" },
+            "article": {
+                "title": "Article metafields",
+                "author": { "name": "Metafield Author" },
+                "metafields": [
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "hero",
+                        "type": "single_line_text_field",
+                        "value": "created hero"
+                    },
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "secondary",
+                        "type": "single_line_text_field",
+                        "value": "created secondary"
+                    },
+                    {
+                        "namespace": "other_namespace",
+                        "key": "hidden",
+                        "type": "single_line_text_field",
+                        "value": "hidden"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    let article = &create.body["data"]["articleCreate"]["article"];
+    let article_id = article["id"].as_str().unwrap().to_string();
+    let article_handle = article["handle"].as_str().unwrap().to_string();
+    assert_eq!(
+        article["metafield"],
+        json!({
+            "id": article["metafield"]["id"].clone(),
+            "namespace": "online_store_conformance",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "created hero",
+            "jsonValue": "created hero",
+            "ownerType": "ARTICLE"
+        })
+    );
+    assert_eq!(article["metafields"]["nodes"][0]["key"], json!("hero"));
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    let after_cursor = article["metafields"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleMetafieldsAfter($id: ID!, $after: String!) {
+          article(id: $id) {
+            metafields(first: 2, namespace: "online_store_conformance", after: $after) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": article_id, "after": after_cursor}),
+    ));
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["nodes"],
+        json!([{ "key": "secondary", "value": "created secondary" }])
+    );
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              title
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 5, namespace: "online_store_conformance") {
+                nodes { key value jsonValue }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": article_id,
+            "article": {
+                "title": "Article metafields renamed",
+                "metafields": [{
+                    "namespace": "online_store_conformance",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updated hero"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["title"],
+        json!("Article metafields renamed")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["handle"],
+        json!(article_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["value"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["jsonValue"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafields"]["nodes"],
+        json!([
+            {
+                "key": "hero",
+                "value": "updated hero",
+                "jsonValue": "updated hero"
+            },
+            {
+                "key": "secondary",
+                "value": "created secondary",
+                "jsonValue": "created secondary"
+            }
+        ])
+    );
 }
 
 #[test]
