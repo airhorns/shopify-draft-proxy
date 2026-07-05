@@ -1798,10 +1798,7 @@ pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static 
 }
 
 fn money_bag_currency(money_set: &Value) -> String {
-    money_set["shopMoney"]["currencyCode"]
-        .as_str()
-        .unwrap_or("USD")
-        .to_string()
+    money_set_shop_currency(money_set).unwrap_or_else(|| "USD".to_string())
 }
 
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {

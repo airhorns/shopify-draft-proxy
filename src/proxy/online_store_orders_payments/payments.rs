@@ -501,25 +501,6 @@ pub(in crate::proxy) fn update_order_after_refund(
     order
 }
 
-pub(in crate::proxy) fn payment_money_amount(money_set: &Value, money_key: &str) -> Option<String> {
-    money_set
-        .get(money_key)
-        .and_then(|money| money.get("amount"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-}
-
-pub(in crate::proxy) fn payment_money_currency(
-    money_set: &Value,
-    money_key: &str,
-) -> Option<String> {
-    money_set
-        .get(money_key)
-        .and_then(|money| money.get("currencyCode"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-}
-
 pub(in crate::proxy) fn payment_money_set_from_input(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
@@ -551,14 +532,13 @@ pub(in crate::proxy) fn payment_money_set_value(
     amount_set: Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_amount =
-        payment_money_amount(&amount_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
-    let shop_currency = payment_money_currency(&amount_set, "shopMoney")
-        .unwrap_or_else(|| shop_currency_code.to_string());
+    let shop_amount = money_amount(&amount_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+    let shop_currency =
+        money_currency(&amount_set, "shopMoney").unwrap_or_else(|| shop_currency_code.to_string());
     if amount_set.get("presentmentMoney").is_some() {
-        let presentment_amount = payment_money_amount(&amount_set, "presentmentMoney")
-            .unwrap_or_else(|| shop_amount.clone());
-        let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
+        let presentment_amount =
+            money_amount(&amount_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
+        let presentment_currency = money_currency(&amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
         money_set_pair(
             &shop_amount,
@@ -576,12 +556,12 @@ pub(in crate::proxy) fn payment_money_set_for_capture(
     requested_amount: &str,
     requested_currency: &str,
 ) -> Value {
-    let shop_currency = payment_money_currency(parent_amount_set, "shopMoney")
+    let shop_currency = money_currency(parent_amount_set, "shopMoney")
         .unwrap_or_else(|| requested_currency.to_string());
-    let parent_shop_amount = payment_money_amount(parent_amount_set, "shopMoney")
+    let parent_shop_amount = money_amount(parent_amount_set, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let parent_presentment_amount = payment_money_amount(parent_amount_set, "presentmentMoney")
+    let parent_presentment_amount = money_set_presentment_or_shop_amount(parent_amount_set)
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(parent_shop_amount);
     let requested = requested_amount.parse::<f64>().unwrap_or(0.0);
@@ -614,10 +594,10 @@ pub(in crate::proxy) fn payment_money_set_for_order_totals(
     received_amount: f64,
     shop_currency_code: &str,
 ) -> (Value, Value, Value) {
-    let shop_currency = payment_money_currency(parent_amount_set, "shopMoney")
+    let shop_currency = money_currency(parent_amount_set, "shopMoney")
         .unwrap_or_else(|| shop_currency_code.to_string());
     if parent_amount_set.get("presentmentMoney").is_some() {
-        let presentment_currency = payment_money_currency(parent_amount_set, "presentmentMoney")
+        let presentment_currency = money_currency(parent_amount_set, "presentmentMoney")
             .unwrap_or_else(|| shop_currency.clone());
         (
             money_set_pair(
@@ -1189,18 +1169,16 @@ impl DraftProxy {
                 let amount = resolved_string_field(&amount_input, "amount")
                     .map(|amount| normalized_order_payment_amount(Some(amount)))
                     .or_else(|| {
-                        outstanding_set.as_ref().and_then(|amount_set| {
-                            payment_money_amount(amount_set, "presentmentMoney")
-                                .or_else(|| payment_money_amount(amount_set, "shopMoney"))
-                        })
+                        outstanding_set
+                            .as_ref()
+                            .and_then(money_set_presentment_or_shop_amount)
                     })
                     .unwrap_or_else(|| "0.0".to_string());
                 let currency = resolved_string_field(&amount_input, "currencyCode")
                     .or_else(|| {
-                        outstanding_set.as_ref().and_then(|amount_set| {
-                            payment_money_currency(amount_set, "presentmentMoney")
-                                .or_else(|| payment_money_currency(amount_set, "shopMoney"))
-                        })
+                        outstanding_set
+                            .as_ref()
+                            .and_then(money_set_presentment_or_shop_currency)
                     })
                     .unwrap_or(shop_currency_code);
                 let auto_capture =
@@ -1293,8 +1271,8 @@ impl DraftProxy {
         let inferred_input_currency = transaction_amount_set
             .as_ref()
             .and_then(|amount_set| {
-                payment_money_currency(amount_set, "shopMoney")
-                    .or_else(|| payment_money_currency(amount_set, "presentmentMoney"))
+                money_currency(amount_set, "shopMoney")
+                    .or_else(|| money_currency(amount_set, "presentmentMoney"))
             })
             .or_else(|| {
                 resolved_object_list_field(&order_input, "lineItems")
@@ -1319,7 +1297,7 @@ impl DraftProxy {
             .or_else(|| {
                 transaction_amount_set
                     .as_ref()
-                    .and_then(|amount_set| payment_money_currency(amount_set, "presentmentMoney"))
+                    .and_then(|amount_set| money_currency(amount_set, "presentmentMoney"))
             })
             .or_else(|| inferred_input_currency.clone())
             .unwrap_or_else(|| currency.clone());
@@ -1350,9 +1328,8 @@ impl DraftProxy {
                 &shop_currency_code,
             )
         });
-        let amount = payment_money_amount(&amount_set, "presentmentMoney")
-            .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
-            .unwrap_or_else(|| "0.0".to_string());
+        let amount =
+            money_set_presentment_or_shop_amount(&amount_set).unwrap_or_else(|| "0.0".to_string());
         let transaction_id = self.next_order_transaction_id();
         let kind = resolved_string_field(&first_transaction, "kind")
             .unwrap_or_else(|| "AUTHORIZATION".to_string());
@@ -1383,8 +1360,7 @@ impl DraftProxy {
             capturable_amount,
             outstanding_amount,
             received_amount,
-            payment_money_currency(&amount_set, "presentmentMoney")
-                .or_else(|| payment_money_currency(&amount_set, "shopMoney"))
+            money_set_presentment_or_shop_currency(&amount_set)
                 .as_deref()
                 .unwrap_or(&currency),
             vec![transaction],
@@ -1565,19 +1541,18 @@ impl DraftProxy {
             .unwrap_or_default()
             .to_string();
         let parent_amount_set = parent_transaction["amountSet"].clone();
-        let expected_currency = payment_money_currency(&parent_amount_set, "presentmentMoney")
-            .or_else(|| payment_money_currency(&parent_amount_set, "shopMoney"))
+        let expected_currency = money_set_presentment_or_shop_currency(&parent_amount_set)
             .unwrap_or_else(|| self.store.shop_currency_code());
         let shop_currency = order["currencyCode"]
             .as_str()
             .map(str::to_string)
-            .or_else(|| payment_money_currency(&parent_amount_set, "shopMoney"))
+            .or_else(|| money_currency(&parent_amount_set, "shopMoney"))
             .unwrap_or_else(|| expected_currency.clone());
         let expected_currency = order["presentmentCurrencyCode"]
             .as_str()
             .filter(|value| !value.is_empty())
             .map(str::to_string)
-            .or_else(|| payment_money_currency(&parent_amount_set, "presentmentMoney"))
+            .or_else(|| money_currency(&parent_amount_set, "presentmentMoney"))
             .unwrap_or(expected_currency);
         let requires_currency = expected_currency != shop_currency;
         let currency = resolved_string_field(input, "currency");
@@ -1643,15 +1618,11 @@ impl DraftProxy {
                     && payment_transaction_matches_parent(transaction, &parent_id)
             })
             .filter_map(|transaction| {
-                payment_money_amount(&transaction["amountSet"], "presentmentMoney")
-                    .or_else(|| payment_money_amount(&transaction["amountSet"], "shopMoney"))
+                money_set_presentment_or_shop_amount(&transaction["amountSet"])
                     .and_then(|amount| amount.parse::<f64>().ok())
             })
             .sum();
-        let parent_amount = payment_money_amount(&parent_amount_set, "presentmentMoney")
-            .or_else(|| payment_money_amount(&parent_amount_set, "shopMoney"))
-            .and_then(|amount| amount.parse::<f64>().ok())
-            .unwrap_or(0.0);
+        let parent_amount = money_set_presentment_or_shop_amount_value(&parent_amount_set);
         let capturable_amount = (parent_amount - already_captured).max(0.0);
         if requested_amount_value > capturable_amount + 0.000_001 {
             let message = if parent_amount_set.get("presentmentMoney").is_some() {
@@ -1810,13 +1781,13 @@ impl DraftProxy {
             &shop_currency_code,
         );
         if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-            let shop_currency = payment_money_currency(&amount_set, "shopMoney")
+            let shop_currency = money_currency(&amount_set, "shopMoney")
                 .unwrap_or_else(|| shop_currency_code.clone());
             order["displayFinancialStatus"] = json!("VOIDED");
             order["capturable"] = json!(false);
             order["totalCapturable"] = json!("0.0");
             if amount_set.get("presentmentMoney").is_some() {
-                let presentment_currency = payment_money_currency(&amount_set, "presentmentMoney")
+                let presentment_currency = money_currency(&amount_set, "presentmentMoney")
                     .unwrap_or_else(|| shop_currency.clone());
                 order["totalCapturableSet"] =
                     money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency);

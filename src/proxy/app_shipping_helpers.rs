@@ -581,23 +581,12 @@ pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
         .collect()
 }
 
-fn maybe_money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> Option<String> {
-    let raw = match value? {
-        ResolvedValue::Int(value) => value.to_string(),
-        ResolvedValue::Float(value) => value.to_string(),
-        ResolvedValue::String(value) => value.clone(),
-        _ => return None,
-    };
-    Some(normalize_money_amount(&raw))
-}
-
 fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> Value {
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
                 let price = resolved_object_field(details, "price").unwrap_or_default();
-                let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
-                    .unwrap_or_else(|| "0.0".to_string());
+                let price_amount = money_amount_string_from_resolved_or(price.get("amount"), "0.0");
                 let price_currency =
                     resolved_string_field(&price, "currencyCode").unwrap_or_default();
                 return json!({
@@ -610,8 +599,8 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
             }
             if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
                 let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
-                let capped_amount = maybe_money_amount_string_from_resolved(capped.get("amount"))
-                    .unwrap_or_else(|| "0.0".to_string());
+                let capped_amount =
+                    money_amount_string_from_resolved_or(capped.get("amount"), "0.0");
                 let currency_code =
                     resolved_string_field(&capped, "currencyCode").unwrap_or_default();
                 let terms = resolved_string_field(details, "terms").unwrap_or_default();
@@ -638,16 +627,6 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
             "terms": ""
         }}
     })
-}
-
-pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
-    let raw = match value {
-        Some(ResolvedValue::Int(value)) => value.to_string(),
-        Some(ResolvedValue::Float(value)) => value.to_string(),
-        Some(ResolvedValue::String(value)) => value.clone(),
-        _ => "100".to_string(),
-    };
-    normalize_money_amount(&raw)
 }
 
 pub(in crate::proxy) fn current_app_installation_json(

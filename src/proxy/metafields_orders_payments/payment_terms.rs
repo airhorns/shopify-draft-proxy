@@ -592,33 +592,6 @@ fn payment_terms_owner_not_found_payload(
     )
 }
 
-fn payment_terms_line_price_values(
-    line_item: &BTreeMap<String, ResolvedValue>,
-    default_shop_currency: &str,
-    default_presentment_currency: &str,
-) -> Option<(f64, String, f64, String)> {
-    let price_set = resolved_object_field(line_item, "priceSet")
-        .or_else(|| resolved_object_field(line_item, "originalUnitPriceSet"))?;
-    let shop_amount = input_money_amount(&price_set).unwrap_or(0.0);
-    let shop_currency =
-        input_money_currency(&price_set).unwrap_or_else(|| default_shop_currency.to_string());
-    let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
-    let presentment_amount = presentment_money
-        .as_ref()
-        .and_then(resolved_money_amount)
-        .unwrap_or(shop_amount);
-    let presentment_currency = presentment_money
-        .as_ref()
-        .and_then(resolved_money_currency)
-        .unwrap_or_else(|| default_presentment_currency.to_string());
-    Some((
-        shop_amount,
-        shop_currency,
-        presentment_amount,
-        presentment_currency,
-    ))
-}
-
 fn payment_terms_order_total_price_set(order_input: &BTreeMap<String, ResolvedValue>) -> Value {
     let default_shop_currency = resolved_string_field(order_input, "currency")
         .or_else(|| resolved_string_field(order_input, "currencyCode"))
@@ -626,36 +599,22 @@ fn payment_terms_order_total_price_set(order_input: &BTreeMap<String, ResolvedVa
     let default_presentment_currency = resolved_string_field(order_input, "presentmentCurrency")
         .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
         .unwrap_or_else(|| default_shop_currency.clone());
-    let mut shop_total = 0.0;
-    let mut presentment_total = 0.0;
-    let mut shop_currency = default_shop_currency.clone();
-    let mut presentment_currency = default_presentment_currency.clone();
-    let mut saw_price = false;
-    for line_item in resolved_object_list_field(order_input, "lineItems") {
-        let quantity = resolved_int_field(&line_item, "quantity")
-            .unwrap_or(1)
-            .max(0) as f64;
-        let Some((shop_amount, line_shop_currency, presentment_amount, line_presentment_currency)) =
-            payment_terms_line_price_values(
-                &line_item,
+    let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+        line_items_price_set_values(
+            order_input,
+            [
+                "0.0",
                 &default_shop_currency,
+                "0.0",
                 &default_presentment_currency,
-            )
-        else {
-            continue;
-        };
-        if !saw_price {
-            shop_currency = line_shop_currency;
-            presentment_currency = line_presentment_currency;
-            saw_price = true;
-        }
-        shop_total += shop_amount * quantity;
-        presentment_total += presentment_amount * quantity;
-    }
+            ],
+            ["0.0", &default_shop_currency],
+            Some(["0.0", &default_presentment_currency]),
+        );
     money_set_pair(
-        &format_money_amount(shop_total),
+        &shop_amount,
         &shop_currency,
-        &format_money_amount(presentment_total),
+        &presentment_amount,
         &presentment_currency,
     )
 }

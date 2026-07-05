@@ -592,10 +592,8 @@ impl DraftProxy {
                                     .as_array_mut()
                                     .and_then(|line_items| line_items.get_mut(line_item_index))
                                 {
-                                    line_item["plan"]["pricingDetails"]["cappedAmount"] = json!({
-                                        "amount": requested_amount,
-                                        "currencyCode": requested_currency
-                                    });
+                                    line_item["plan"]["pricingDetails"]["cappedAmount"] =
+                                        money_value(&requested_amount, &requested_currency);
                                 }
                                 subscription.clone()
                             };
