@@ -9,7 +9,10 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-customization-create-validation-gaps.graphql",
     "variablesCapturePath": "$.variables",
-    "apiVersion": "2026-04"
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -54,6 +57,11 @@
         "proxyPath": "$.data.missingIdentifier"
       },
       {
+        "name": "unknown-function-handle-not-found-validation",
+        "capturePath": "$.response.payload.data.unknownHandle",
+        "proxyPath": "$.data.unknownHandle"
+      },
+      {
         "name": "sixth-enabled-public-create",
         "capturePath": "$.response.payload.data.overflow",
         "proxyPath": "$.data.overflow",
@@ -67,5 +75,5 @@
       }
     ]
   },
-  "notes": "Executable parity coverage for paymentCustomizationCreate public Shopify Admin 2026-04 behavior captured against harry-test-heelo.myshopify.com. Public Shopify accepted missing metafields and a sixth enabled customization in this test shop, while still returning required-field validation for missing/blank title and missing enabled plus Function identifier arbitration errors for both identifiers and missing identifiers."
+  "notes": "Executable parity coverage for paymentCustomizationCreate public Shopify Admin 2026-04 behavior captured against harry-test-heelo.myshopify.com. Public Shopify accepted missing metafields and a sixth enabled customization in this test shop, while still returning required-field validation for missing/blank title and missing enabled, Function identifier arbitration errors for both identifiers and missing identifiers, and FUNCTION_NOT_FOUND for an arbitrary unknown non-sentinel functionHandle."
 }

@@ -1,0 +1,25 @@
+mutation B2BCompanyLocationOrderAggregatesCompanyCreate($input: CompanyCreateInput!) {
+    companyCreate(input: $input) {
+      company {
+        id
+        name
+        mainContact {
+          id
+          customer {
+            id
+          }
+        }
+        locations(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }

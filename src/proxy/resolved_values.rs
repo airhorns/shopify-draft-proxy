@@ -44,10 +44,7 @@ pub(in crate::proxy) fn resolved_list_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
 ) -> Option<Vec<ResolvedValue>> {
-    match input.get(field) {
-        Some(ResolvedValue::List(values)) => Some(values.clone()),
-        _ => None,
-    }
+    input.get(field).and_then(resolved_value_list)
 }
 
 pub(in crate::proxy) fn resolved_list_len(
@@ -87,26 +84,17 @@ pub(in crate::proxy) fn resolved_string_list_arg(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,
 ) -> Vec<String> {
-    resolved_list_arg(arguments, name)
-        .iter()
-        .filter_map(|value| match value {
-            ResolvedValue::String(value) => Some(value.clone()),
-            _ => None,
-        })
-        .collect()
+    arguments
+        .get(name)
+        .map(resolved_string_list)
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn resolved_object_string(
     value: &ResolvedValue,
     name: &str,
 ) -> Option<String> {
-    match value {
-        ResolvedValue::Object(fields) => match fields.get(name) {
-            Some(ResolvedValue::String(value)) => Some(value.clone()),
-            _ => None,
-        },
-        _ => None,
-    }
+    resolved_value_object(value).and_then(|fields| resolved_string_field(&fields, name))
 }
 
 pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
@@ -116,24 +104,47 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
     }
 }
 
+pub(in crate::proxy) fn resolved_value_int(value: &ResolvedValue) -> Option<i64> {
+    match value {
+        ResolvedValue::Int(value) => Some(*value),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_value_number(value: &ResolvedValue) -> Option<f64> {
+    match value {
+        ResolvedValue::Int(value) => Some(*value as f64),
+        ResolvedValue::Float(value) => Some(*value),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_value_bool(value: &ResolvedValue) -> Option<bool> {
+    match value {
+        ResolvedValue::Bool(value) => Some(*value),
+        _ => None,
+    }
+}
+
 pub(in crate::proxy) fn resolved_string_field(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,
 ) -> Option<String> {
-    match arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
+    arguments.get(name).and_then(resolved_value_string)
+}
+
+pub(in crate::proxy) fn resolved_non_blank_string_field(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Option<String> {
+    resolved_string_field(arguments, name).filter(|value| !value.trim().is_empty())
 }
 
 pub(in crate::proxy) fn resolved_nullable_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
 ) -> Value {
-    match input.get(field) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        _ => Value::Null,
-    }
+    resolved_string_field(input, field).map_or(Value::Null, |value| json!(value))
 }
 
 pub(in crate::proxy) fn resolved_as_usize(value: &ResolvedValue) -> Option<usize> {
@@ -147,52 +158,32 @@ pub(in crate::proxy) fn resolved_object_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    match input.get(field) {
-        Some(ResolvedValue::Object(value)) => Some(value.clone()),
-        _ => None,
-    }
+    input.get(field).and_then(resolved_value_object)
 }
 
 pub(in crate::proxy) fn resolved_bool_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
 ) -> Option<bool> {
-    match input.get(field) {
-        Some(ResolvedValue::Bool(value)) => Some(*value),
-        _ => None,
-    }
+    input.get(field).and_then(resolved_value_bool)
 }
 
 pub(in crate::proxy) fn resolved_object_list_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
-    match input.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::Object(object) => Some(object.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    resolved_list_field(input, key)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| resolved_value_object(&item))
+        .collect()
 }
 
 pub(in crate::proxy) fn list_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Vec<String> {
-    match input.get(key) {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    input.get(key).map(resolved_string_list).unwrap_or_default()
 }
 
 pub(in crate::proxy) fn resolved_string_list(value: &ResolvedValue) -> Vec<String> {
@@ -229,82 +220,52 @@ pub(in crate::proxy) fn resolved_object_string_field(
     object_field: &str,
     nested_field: &str,
 ) -> Option<String> {
-    match input.get(object_field) {
-        Some(ResolvedValue::Object(fields)) => match fields.get(nested_field) {
-            Some(ResolvedValue::String(value)) => Some(value.clone()),
-            _ => None,
-        },
-        _ => None,
-    }
+    resolved_object_field(input, object_field)
+        .and_then(|fields| resolved_string_field(&fields, nested_field))
 }
 
 pub(in crate::proxy) fn resolved_int_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Option<i64> {
-    match input.get(key) {
-        Some(ResolvedValue::Int(value)) => Some(*value),
-        _ => None,
-    }
+    input.get(key).and_then(resolved_value_int)
 }
 
 pub(in crate::proxy) fn resolved_number_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Option<f64> {
-    match input.get(key) {
-        Some(ResolvedValue::Int(value)) => Some(*value as f64),
-        Some(ResolvedValue::Float(value)) => Some(*value),
-        _ => None,
-    }
+    input.get(key).and_then(resolved_value_number)
 }
 
 pub(in crate::proxy) fn resolved_string_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Option<String> {
-    match resolved_input_path(input, path) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
+    resolved_input_path(input, path).and_then(resolved_value_string)
 }
 
 pub(in crate::proxy) fn resolved_f64_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Option<f64> {
-    match resolved_input_path(input, path) {
-        Some(ResolvedValue::Float(value)) => Some(*value),
-        Some(ResolvedValue::Int(value)) => Some(*value as f64),
-        Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
-        _ => None,
-    }
+    resolved_input_path(input, path).and_then(resolved_value_f64)
 }
 
 pub(in crate::proxy) fn resolved_string_list_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Vec<String> {
-    match resolved_input_path(input, path) {
-        Some(ResolvedValue::List(values)) => values
-            .iter()
-            .filter_map(|value| match value {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    resolved_input_path(input, path)
+        .map(resolved_string_list)
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn resolved_bool_path(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],
 ) -> Option<bool> {
-    match resolved_input_path(input, path) {
-        Some(ResolvedValue::Bool(value)) => Some(*value),
-        _ => None,
-    }
+    resolved_input_path(input, path).and_then(resolved_value_bool)
 }
 
 pub(in crate::proxy) fn resolved_i64_path(
@@ -320,6 +281,70 @@ pub(in crate::proxy) fn resolved_i64(value: &ResolvedValue) -> Option<i64> {
         ResolvedValue::String(raw) => raw.parse::<i64>().ok(),
         _ => None,
     }
+}
+
+pub(in crate::proxy) fn resolved_value_f64(value: &ResolvedValue) -> Option<f64> {
+    match value {
+        ResolvedValue::Float(value) => Some(*value),
+        ResolvedValue::Int(value) => Some(*value as f64),
+        ResolvedValue::String(value) => value.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_value_scalar_text(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(value.clone()),
+        ResolvedValue::Int(value) => Some(value.to_string()),
+        ResolvedValue::Float(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_scalar_text(value: Option<&ResolvedValue>) -> Option<String> {
+    value.and_then(resolved_value_scalar_text)
+}
+
+#[cfg(test)]
+pub(in crate::proxy) fn resolved_scalar_text_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Option<String> {
+    resolved_scalar_text(input.get(key))
+}
+
+pub(in crate::proxy) fn resolved_scalar_text_path(
+    input: &BTreeMap<String, ResolvedValue>,
+    path: &[&str],
+) -> Option<String> {
+    resolved_scalar_text(resolved_input_path(input, path))
+}
+
+pub(in crate::proxy) fn resolved_value_decimal_text(value: &ResolvedValue) -> Option<String> {
+    match value {
+        ResolvedValue::String(value) => Some(shopify_decimal_text(value)),
+        ResolvedValue::Float(value) => Some(shopify_decimal_text(&value.to_string())),
+        ResolvedValue::Int(value) => Some(shopify_decimal_text(&value.to_string())),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn resolved_decimal_text(value: Option<&ResolvedValue>) -> Option<String> {
+    value.and_then(resolved_value_decimal_text)
+}
+
+pub(in crate::proxy) fn resolved_decimal_text_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> Option<String> {
+    resolved_decimal_text(input.get(key))
+}
+
+pub(in crate::proxy) fn resolved_decimal_text_path(
+    input: &BTreeMap<String, ResolvedValue>,
+    path: &[&str],
+) -> Option<String> {
+    resolved_decimal_text(resolved_input_path(input, path))
 }
 
 fn resolved_input_path<'a>(
@@ -452,5 +477,40 @@ mod tests {
         );
         assert_eq!(resolved_string_path(&input, &[]), None);
         assert_eq!(resolved_string_path(&input, &["missing"]), None);
+    }
+
+    #[test]
+    fn reads_scalar_and_decimal_text_fields_and_paths() {
+        let input = BTreeMap::from([
+            (
+                "amount".to_string(),
+                ResolvedValue::String("57.00".to_string()),
+            ),
+            ("quantity".to_string(), ResolvedValue::Int(7)),
+            (
+                "nested".to_string(),
+                ResolvedValue::Object(BTreeMap::from([
+                    ("amount".to_string(), ResolvedValue::Float(18.50)),
+                    ("quantity".to_string(), ResolvedValue::Int(3)),
+                ])),
+            ),
+        ]);
+
+        assert_eq!(
+            resolved_scalar_text_field(&input, "amount"),
+            Some("57.00".to_string())
+        );
+        assert_eq!(
+            resolved_decimal_text_field(&input, "amount"),
+            Some("57.0".to_string())
+        );
+        assert_eq!(
+            resolved_scalar_text_path(&input, &["nested", "quantity"]),
+            Some("3".to_string())
+        );
+        assert_eq!(
+            resolved_decimal_text_path(&input, &["nested", "amount"]),
+            Some("18.5".to_string())
+        );
     }
 }

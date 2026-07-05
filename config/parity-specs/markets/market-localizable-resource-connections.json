@@ -1,0 +1,73 @@
+{
+  "scenarioId": "market-localizable-resource-connections",
+  "operationNames": [
+    "marketLocalizableResource",
+    "marketLocalizableResources",
+    "marketLocalizableResourcesByIds",
+    "markets"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "connection-window-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-localizable-resource-connections.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-localizable-resource-singular-observation",
+        "capturePath": "$.cases[0].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource"
+      },
+      {
+        "name": "market-localizable-resource-plural-and-byids-after-observation",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localizable-resource-connections-read.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizableResources.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          },
+          {
+            "path": "$.marketLocalizableResources.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          },
+          {
+            "path": "$.marketLocalizableResources.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          },
+          {
+            "path": "$.marketLocalizableResourcesByIds.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          },
+          {
+            "path": "$.marketLocalizableResourcesByIds.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          },
+          {
+            "path": "$.marketLocalizableResourcesByIds.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; local staging uses stable resource-id cursors."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product-owned money metafield definition and metafield, observes that metafield through marketLocalizableResource, then proves marketLocalizableResources and marketLocalizableResourcesByIds return the observed resource while ByIds omits a never-created resource ID. The proxy replay uses the singular read as the public upstream observation path before comparing the local plural/byIds read-after-observation projection."
+}

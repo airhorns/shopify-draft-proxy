@@ -1,0 +1,137 @@
+query OnlineStoreNestedContentConnectionsReadWindows(
+  $blogId: ID!
+  $articleId: ID!
+  $commentFilterQuery: String!
+) {
+  blog(id: $blogId) {
+    articlesFirst: articles(first: 2) {
+      nodes {
+        title
+        tags
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    articlesAll: articles(first: 3) {
+      nodes {
+        title
+        tags
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    articlesReverse: articles(first: 2, reverse: true) {
+      nodes {
+        title
+        tags
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  article(id: $articleId) {
+    commentsFirst: comments(first: 2) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          body
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    commentsAll: comments(first: 3) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          body
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    commentsReverse: comments(first: 2, reverse: true) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      edges {
+        cursor
+        node {
+          body
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    commentsFiltered: comments(first: 3, query: $commentFilterQuery) {
+      nodes {
+        body
+        status
+        isPublished
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "scenarioId": "shop-owner-metafields-read-after-write",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-05T07:13:58.111Z",
+  "shop": {
+    "query": "#graphql\n  query ShopOwnerMetafieldsShopId {\n    shop {\n      id\n      name\n      myshopifyDomain\n    }\n  }\n",
+    "variables": {},
+    "status": 200,
+    "response": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/92891250994",
+          "name": "harry-test-heelo",
+          "myshopifyDomain": "harry-test-heelo.myshopify.com"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "set": {
+    "query": "mutation ShopOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      namespace\n      key\n      type\n      value\n      ownerType\n      owner {\n        __typename\n        ... on Shop {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Shop/92891250994",
+          "namespace": "sdp_shop_owner",
+          "key": "rw_mr7ggfzq",
+          "type": "single_line_text_field",
+          "value": "value-mr7ggfzq"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "namespace": "sdp_shop_owner",
+              "key": "rw_mr7ggfzq",
+              "type": "single_line_text_field",
+              "value": "value-mr7ggfzq",
+              "ownerType": "SHOP",
+              "owner": {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSet": {
+    "query": "query ShopOwnerMetafieldsRead($namespace: String!, $key: String!) {\n  shop {\n    id\n    single: metafield(namespace: $namespace, key: $key) {\n      namespace\n      key\n      type\n      value\n      ownerType\n      owner {\n        __typename\n        ... on Shop {\n          id\n        }\n      }\n    }\n    list: metafields(first: 10, namespace: $namespace) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "namespace": "sdp_shop_owner",
+      "key": "rw_mr7ggfzq"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/92891250994",
+          "single": {
+            "namespace": "sdp_shop_owner",
+            "key": "rw_mr7ggfzq",
+            "type": "single_line_text_field",
+            "value": "value-mr7ggfzq",
+            "ownerType": "SHOP",
+            "owner": {
+              "__typename": "Shop",
+              "id": "gid://shopify/Shop/92891250994"
+            }
+          },
+          "list": {
+            "nodes": [
+              {
+                "namespace": "sdp_shop_owner",
+                "key": "rw_mr7ggfzq",
+                "type": "single_line_text_field",
+                "value": "value-mr7ggfzq",
+                "ownerType": "SHOP"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "query": "mutation ShopOwnerMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Shop/92891250994",
+          "namespace": "sdp_shop_owner",
+          "key": "rw_mr7ggfzq"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [
+            {
+              "ownerId": "gid://shopify/Shop/92891250994",
+              "namespace": "sdp_shop_owner",
+              "key": "rw_mr7ggfzq"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "query": "query ShopOwnerMetafieldsRead($namespace: String!, $key: String!) {\n  shop {\n    id\n    single: metafield(namespace: $namespace, key: $key) {\n      namespace\n      key\n      type\n      value\n      ownerType\n      owner {\n        __typename\n        ... on Shop {\n          id\n        }\n      }\n    }\n    list: metafields(first: 10, namespace: $namespace) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "namespace": "sdp_shop_owner",
+      "key": "rw_mr7ggfzq"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/92891250994",
+          "single": null,
+          "list": {
+            "nodes": []
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": [
+    {
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"]
+      },
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Shop/92891250994"]
+      },
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Shop",
+                "id": "gid://shopify/Shop/92891250994"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
