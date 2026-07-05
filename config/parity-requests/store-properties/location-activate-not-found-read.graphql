@@ -1,0 +1,6 @@
+query LocationActivateNotFoundRead($id: ID!) {
+  location(id: $id) {
+    id
+    isActive
+  }
+}

@@ -7146,6 +7146,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-activate-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-activate-not-found-conformance.mts',
+    purpose: 'locationActivate userError shape and downstream null read for an absent Location id.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-not-found.json`,
+      'config/parity-specs/store-properties/location-activate-not-found.json',
+      'config/parity-requests/store-properties/location-activate-not-found.graphql',
+      'config/parity-requests/store-properties/location-activate-not-found-read.graphql',
+    ],
+    cleanupBehavior: 'No setup or cleanup; records an absent Location GID lookup and activation rejection.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-add-metafields',
     scriptPath: 'scripts/capture-location-add-metafields-conformance.mts',
     purpose:
