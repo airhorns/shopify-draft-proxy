@@ -85,7 +85,9 @@ stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
 ongoing relocation, fulfillment-service managed scope, and duplicate active
 location names return field paths, codes, and messages without staging
-activation. The `LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
+activation. Unknown or locally deleted activation ids return `location: null`
+with a `LOCATION_NOT_FOUND` userError and do not stage a synthetic Location. The
+`LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
 internal/transient `HAS_ONGOING_RELOCATION` branch remains runtime-test-only
 because public Admin GraphQL relocation completed synchronously in the
 disposable shop.
