@@ -2,11 +2,11 @@
   "scenarioId": "publishable-input-validation",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-07T10:21:25.328Z",
+  "capturedAt": "2026-07-05T01:16:57.719Z",
   "setup": {
     "product": {
-      "id": "gid://shopify/Product/10179659858226",
-      "title": "Publishable input validation movc67ea",
+      "id": "gid://shopify/Product/10231749050674",
+      "title": "Publishable input validation mr73pa9y",
       "status": "DRAFT"
     }
   },
@@ -28,14 +28,14 @@
       "name": "Shopify GraphiQL App"
     },
     {
-      "id": "gid://shopify/Publication/292074258738",
+      "id": "gid://shopify/Publication/302536393010",
       "name": "example.com"
     }
   ],
   "cases": {
     "publishDuplicate": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": "gid://shopify/Publication/268039389490"
@@ -51,7 +51,7 @@
           "data": {
             "publishablePublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -82,7 +82,7 @@
     },
     "publishPastDate": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": "gid://shopify/Publication/268039389490",
@@ -96,7 +96,7 @@
           "data": {
             "publishablePublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -127,7 +127,7 @@
     },
     "publishBlankPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [{}]
       },
       "response": {
@@ -136,7 +136,7 @@
           "data": {
             "publishablePublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -157,7 +157,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -167,7 +167,7 @@
     },
     "publishEmptyStringPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": ""
@@ -208,10 +208,10 @@
     },
     "publishUnknownPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
-            "publicationId": "gid://shopify/Publication/999999999999"
+            "publicationId": "gid://shopify/Publication/424242424242"
           }
         ]
       },
@@ -221,7 +221,7 @@
           "data": {
             "publishablePublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -252,7 +252,7 @@
     },
     "unpublishDuplicate": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": "gid://shopify/Publication/268039389490"
@@ -268,7 +268,7 @@
           "data": {
             "publishableUnpublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -289,7 +289,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -299,7 +299,7 @@
     },
     "unpublishPastDate": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": "gid://shopify/Publication/268039389490",
@@ -313,7 +313,7 @@
           "data": {
             "publishableUnpublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -344,7 +344,7 @@
     },
     "unpublishBlankPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [{}]
       },
       "response": {
@@ -353,7 +353,7 @@
           "data": {
             "publishableUnpublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -374,7 +374,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -384,7 +384,7 @@
     },
     "unpublishEmptyStringPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
             "publicationId": ""
@@ -425,10 +425,10 @@
     },
     "unpublishUnknownPublication": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": [
           {
-            "publicationId": "gid://shopify/Publication/999999999999"
+            "publicationId": "gid://shopify/Publication/424242424242"
           }
         ]
       },
@@ -438,7 +438,7 @@
           "data": {
             "publishableUnpublish": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -469,7 +469,7 @@
     },
     "publishToCurrentChannel": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": []
       },
       "response": {
@@ -478,7 +478,7 @@
           "data": {
             "publishablePublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -504,7 +504,7 @@
     },
     "unpublishToCurrentChannel": {
       "variables": {
-        "id": "gid://shopify/Product/10179659858226",
+        "id": "gid://shopify/Product/10231749050674",
         "input": []
       },
       "response": {
@@ -513,7 +513,7 @@
           "data": {
             "publishableUnpublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10179659858226",
+                "id": "gid://shopify/Product/10231749050674",
                 "publishedOnCurrentPublication": false,
                 "resourcePublicationsCount": {
                   "count": 0,
@@ -543,7 +543,7 @@
     "payload": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10179659858226",
+          "deletedProductId": "gid://shopify/Product/10231749050674",
           "userErrors": []
         }
       },
@@ -562,13 +562,79 @@
   },
   "notes": [
     "Live Admin API validation for generic publishable PublicationInput branches.",
+    "Replay records the production PublicationResourceHydrate upstream call before cleanup so the proxy observes the disposable publishable through the same public GraphQL path.",
+    "Replay records the current-app publication hydrate used by current-channel publishable siblings.",
     "Current-channel publishable siblings are captured with their schema-supported id-only shape."
   ],
   "upstreamCalls": [
     {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/10231749050674"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231749050674",
+                "title": "Publishable input validation mr73pa9y",
+                "handle": "publishable-input-validation-mr73pa9y",
+                "status": "DRAFT",
+                "resourcePublications": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+      "variables": {},
+      "query": "#graphql\nquery StorePropertiesCurrentAppPublicationHydrate {\n  currentAppInstallation {\n    publication {\n      id\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "publication": {
+                "id": "gid://shopify/Publication/302536393010"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "StorePropertiesPublishablePublishHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10179659858226"
+        "id": "gid://shopify/Product/10231749050674"
       },
       "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
@@ -576,7 +642,7 @@
         "body": {
           "data": {
             "publishable": {
-              "id": "gid://shopify/Product/10179659858226",
+              "id": "gid://shopify/Product/10231749050674",
               "publishedOnCurrentPublication": false,
               "resourcePublicationsCount": {
                 "count": 0,
@@ -584,7 +650,7 @@
               }
             },
             "shop": {
-              "publicationCount": 5
+              "publicationCount": 6
             },
             "publications": {
               "nodes": [
@@ -605,7 +671,7 @@
                   "name": "Shopify GraphiQL App"
                 },
                 {
-                  "id": "gid://shopify/Publication/292074258738",
+                  "id": "gid://shopify/Publication/302536393010",
                   "name": "example.com"
                 }
               ]
@@ -628,7 +694,7 @@
     {
       "operationName": "StorePropertiesPublishableUnpublishHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10179659858226"
+        "id": "gid://shopify/Product/10231749050674"
       },
       "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
@@ -636,7 +702,7 @@
         "body": {
           "data": {
             "publishable": {
-              "id": "gid://shopify/Product/10179659858226",
+              "id": "gid://shopify/Product/10231749050674",
               "publishedOnCurrentPublication": false,
               "resourcePublicationsCount": {
                 "count": 0,
@@ -644,7 +710,7 @@
               }
             },
             "shop": {
-              "publicationCount": 5
+              "publicationCount": 6
             },
             "publications": {
               "nodes": [
@@ -665,7 +731,7 @@
                   "name": "Shopify GraphiQL App"
                 },
                 {
-                  "id": "gid://shopify/Publication/292074258738",
+                  "id": "gid://shopify/Publication/302536393010",
                   "name": "example.com"
                 }
               ]
@@ -688,7 +754,7 @@
     {
       "operationName": "StorePropertiesPublishablePublishToCurrentChannelHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10179659858226"
+        "id": "gid://shopify/Product/10231749050674"
       },
       "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
@@ -696,7 +762,7 @@
         "body": {
           "data": {
             "publishable": {
-              "id": "gid://shopify/Product/10179659858226",
+              "id": "gid://shopify/Product/10231749050674",
               "publishedOnCurrentPublication": false,
               "resourcePublicationsCount": {
                 "count": 0,
@@ -704,7 +770,7 @@
               }
             },
             "shop": {
-              "publicationCount": 5
+              "publicationCount": 6
             },
             "publications": {
               "nodes": [
@@ -725,7 +791,7 @@
                   "name": "Shopify GraphiQL App"
                 },
                 {
-                  "id": "gid://shopify/Publication/292074258738",
+                  "id": "gid://shopify/Publication/302536393010",
                   "name": "example.com"
                 }
               ]
@@ -748,7 +814,7 @@
     {
       "operationName": "StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10179659858226"
+        "id": "gid://shopify/Product/10231749050674"
       },
       "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
@@ -756,7 +822,7 @@
         "body": {
           "data": {
             "publishable": {
-              "id": "gid://shopify/Product/10179659858226",
+              "id": "gid://shopify/Product/10231749050674",
               "publishedOnCurrentPublication": false,
               "resourcePublicationsCount": {
                 "count": 0,
@@ -764,7 +830,7 @@
               }
             },
             "shop": {
-              "publicationCount": 5
+              "publicationCount": 6
             },
             "publications": {
               "nodes": [
@@ -785,7 +851,7 @@
                   "name": "Shopify GraphiQL App"
                 },
                 {
-                  "id": "gid://shopify/Publication/292074258738",
+                  "id": "gid://shopify/Publication/302536393010",
                   "name": "example.com"
                 }
               ]

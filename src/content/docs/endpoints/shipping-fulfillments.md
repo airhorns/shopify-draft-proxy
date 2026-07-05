@@ -206,7 +206,8 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
 IDs supplied in delivery-profile location groups must resolve from staged,
 observed, or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` uses
+synthetic location or checking only sentinel IDs.
+`deliveryProfiles(first/last/after/before/reverse:)` uses
 the staged effective profile order to compute page windows and `pageInfo`
 boundary cursors instead of returning a canned connection envelope.
 

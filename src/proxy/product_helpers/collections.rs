@@ -1057,9 +1057,12 @@ impl DraftProxy {
             let resource_id = resolved_string_field(&field.arguments, "id")?;
             let publishable_selection =
                 selected_child_selection(&field.selection, "publishable").unwrap_or_default();
-            if self
+            let needs_payload_hydration = self
                 .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
-            {
+                || (!to_current
+                    && field.arguments.contains_key("input")
+                    && !self.store.has_known_publication_ids());
+            if needs_payload_hydration {
                 self.hydrate_publishable_payload_shop(&resource_id, request);
             }
             let mut user_errors = Vec::new();

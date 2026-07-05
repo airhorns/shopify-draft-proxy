@@ -7224,6 +7224,17 @@ fn publishable_publish_hydrates_selected_collection_identity_for_payload_and_rea
                             "publishedOnPublication": false,
                             "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
                             "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        },
+                        "shop": {
+                            "publicationCount": 1
+                        },
+                        "publications": {
+                            "nodes": [
+                                {
+                                    "id": publication_id,
+                                    "name": "Online Store"
+                                }
+                            ]
                         }
                     }
                 }),
@@ -7376,7 +7387,7 @@ fn publishable_mutations_validate_publication_input_locally() {
 
         let unknown = proxy.process_request(json_graphql_request(
             query,
-            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/not-known" }] }),
+            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/424242424242" }] }),
         ));
         assert_eq!(
             unknown.body["data"][root]["userErrors"],
@@ -7439,7 +7450,18 @@ fn publishable_mutations_validate_publication_input_locally() {
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body["entries"], json!([]));
+    let publishable_entries = log.body["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry["interpreted"]["primaryRootField"].as_str(),
+                Some("publishablePublish" | "publishableUnpublish")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(publishable_entries, Vec::<&Value>::new());
 }
 
 #[test]

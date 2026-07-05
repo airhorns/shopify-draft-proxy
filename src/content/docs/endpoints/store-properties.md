@@ -116,7 +116,13 @@ Generic publishable mutation slices cover Product and Collection publish/unpubli
 behavior where backed by parity specs. Product-scoped `PublicationInput`
 validation locally rejects duplicate publication IDs, blank or empty
 `publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
-the captured Shopify field paths/messages. The top-level publishable `id` must
+the captured Shopify field paths/messages. Unknown publication validation is
+backed by the effective publication catalog: staged or base publication rows are
+accepted, LiveHybrid can hydrate the catalog before validation, and arbitrary
+well-formed `Publication` GIDs are rejected when they remain absent. Missing
+required `id` arguments are rejected by the shared Admin GraphQL argument
+validator before local staging can fabricate a target. The top-level publishable
+`id` must
 resolve to a known Product or Collection from staged/base state, or from a
 LiveHybrid hydrate read, before the mutation stages; missing resources return a
 local `Resource does not exist` userError on `field: ["id"]` and leave the

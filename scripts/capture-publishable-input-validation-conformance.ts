@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -10,12 +10,21 @@ import {
   type ConformanceGraphqlResult,
 } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import type { RecordedUpstreamCall } from './parity-cassette.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'store-properties');
 const fixturePath = path.join(fixtureDir, 'publishable-input-validation.json');
+const publicationResourceHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'products', 'publication-resource-hydrate-nodes.graphql'),
+  'utf8',
+);
+const currentAppPublicationHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'store-properties', 'current-app-publication-hydrate.graphql'),
+  'utf8',
+);
 
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -216,6 +225,34 @@ async function captureCase(query: string, variables: PublishableVariables): Prom
   };
 }
 
+async function capturePublicationResourceHydrate(resourceId: string): Promise<RecordedUpstreamCall> {
+  const variables = { ids: [resourceId] };
+  const response = await runGraphqlRaw(publicationResourceHydrateQuery, variables);
+  return {
+    operationName: 'PublicationResourceHydrate',
+    variables,
+    query: publicationResourceHydrateQuery,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
+async function captureCurrentAppPublicationHydrate(): Promise<RecordedUpstreamCall> {
+  const variables = {};
+  const response = await runGraphqlRaw(currentAppPublicationHydrateQuery, variables);
+  return {
+    operationName: 'StorePropertiesCurrentAppPublicationHydrate',
+    variables,
+    query: currentAppPublicationHydrateQuery,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 await mkdir(fixtureDir, { recursive: true });
 
 const runId = Date.now().toString(36);
@@ -223,6 +260,8 @@ let productId: string | null = null;
 let setup: ConformanceGraphqlPayload<ProductCreateData> | null = null;
 let cleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let hydrateResponse: ConformanceGraphqlResult | null = null;
+let publicationResourceHydrate: RecordedUpstreamCall | null = null;
+let currentAppPublicationHydrate: RecordedUpstreamCall | null = null;
 let publicationsResponse: ConformanceGraphqlPayload<PublicationsData> | null = null;
 const cases: Record<string, ValidationCase> = {};
 
@@ -248,7 +287,7 @@ try {
   const pastDateInput = [{ publicationId, publishDate: '1900-01-01T00:00:00Z' }];
   const blankInput = [{}];
   const emptyStringInput = [{ publicationId: '' }];
-  const unknownInput = [{ publicationId: 'gid://shopify/Publication/999999999999' }];
+  const unknownInput = [{ publicationId: 'gid://shopify/Publication/424242424242' }];
 
   cases['publishDuplicate'] = await captureCase(
     publishablePublishMutation,
@@ -302,6 +341,8 @@ try {
   };
 
   hydrateResponse = await runGraphqlRaw(publishableHydrateQuery, { id: productId });
+  publicationResourceHydrate = await capturePublicationResourceHydrate(productId);
+  currentAppPublicationHydrate = await captureCurrentAppPublicationHydrate();
 } finally {
   if (productId) {
     try {
@@ -325,7 +366,15 @@ try {
   }
 }
 
-if (!productId || !setup || !hydrateResponse || !publicationsResponse || Object.keys(cases).length === 0) {
+if (
+  !productId ||
+  !setup ||
+  !hydrateResponse ||
+  !publicationResourceHydrate ||
+  !currentAppPublicationHydrate ||
+  !publicationsResponse ||
+  Object.keys(cases).length === 0
+) {
   throw new Error('Publishable input validation capture did not produce required setup/cases.');
 }
 
@@ -345,9 +394,13 @@ await writeFile(
       cleanup,
       notes: [
         'Live Admin API validation for generic publishable PublicationInput branches.',
+        'Replay records the production PublicationResourceHydrate upstream call before cleanup so the proxy observes the disposable publishable through the same public GraphQL path.',
+        'Replay records the current-app publication hydrate used by current-channel publishable siblings.',
         'Current-channel publishable siblings are captured with their schema-supported id-only shape.',
       ],
       upstreamCalls: [
+        publicationResourceHydrate,
+        currentAppPublicationHydrate,
         {
           operationName: 'StorePropertiesPublishablePublishHydrate',
           variables: { id: productId },

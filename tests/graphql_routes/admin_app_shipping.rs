@@ -8200,20 +8200,32 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     );
 
     let log = log_snapshot(&proxy);
+    let delivery_entries = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry["interpreted"]["primaryRootField"].as_str(),
+                Some("deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(delivery_entries.len(), 3);
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        delivery_entries[0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
     );
-    assert_eq!(log["entries"][2]["rawBody"].is_string(), true);
+    assert_eq!(delivery_entries[0]["rawBody"].is_string(), true);
     assert_eq!(
-        log["entries"][3]["interpreted"]["primaryRootField"],
+        delivery_entries[1]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
     );
     assert_eq!(
-        log["entries"][4]["interpreted"]["primaryRootField"],
+        delivery_entries[2]["interpreted"]["primaryRootField"],
         json!("deliveryProfileRemove")
     );
-    assert_eq!(log["entries"][4]["status"], json!("staged"));
+    assert_eq!(delivery_entries[2]["status"], json!("staged"));
 }
 
 #[test]
