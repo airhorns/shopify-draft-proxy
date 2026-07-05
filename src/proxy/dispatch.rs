@@ -953,6 +953,15 @@ impl DraftProxy {
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "returnableFulfillments" | "returnCalculate")
+        {
+            if let Some(data) =
+                self.order_return_local_runtime_data(request, root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
+        }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the

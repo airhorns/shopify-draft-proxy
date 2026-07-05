@@ -605,6 +605,173 @@ fn stage_open_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSetup {
     return_removal_setup_from_payload(order_id, &response.body["data"]["returnCreate"])
 }
 
+#[test]
+fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            panic!(
+                "staged return query roots should not call upstream: {}",
+                request.body
+            )
+        }
+    });
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
+
+    let returnables = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnableFulfillmentsForStagedOrder($orderId: ID!) {
+          returnableFulfillments(orderId: $orderId, first: 5) {
+            nodes {
+              fulfillment { id }
+              returnableFulfillmentLineItems(first: 5) {
+                nodes {
+                  fulfillmentLineItem { id }
+                  quantity
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(returnables.status, 200);
+    let returnable_nodes = returnables.body["data"]["returnableFulfillments"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(returnable_nodes.len(), 1);
+    assert_eq!(
+        returnable_nodes[0]["returnableFulfillmentLineItems"]["nodes"],
+        json!([{
+            "fulfillmentLineItem": { "id": fulfillment_line_item_id.clone() },
+            "quantity": 2
+        }])
+    );
+
+    let calculated = proxy.process_request(json_graphql_request(
+        r#"
+        query CalculateReturnForStagedOrder($orderId: ID!, $fulfillmentLineItemId: ID!) {
+          returnCalculate(input: {
+            orderId: $orderId
+            returnLineItems: [{
+              fulfillmentLineItemId: $fulfillmentLineItemId
+              quantity: 1
+            }]
+          }) {
+            returnLineItems {
+              fulfillmentLineItem { id }
+              quantity
+              subtotalBeforeOrderDiscountsSet { shopMoney { amount currencyCode } }
+              subtotalSet { shopMoney { amount currencyCode } }
+              totalTaxSet { shopMoney { amount currencyCode } }
+            }
+            returnShippingFee { id }
+          }
+        }
+        "#,
+        json!({
+            "orderId": order_id.clone(),
+            "fulfillmentLineItemId": fulfillment_line_item_id.clone()
+        }),
+    ));
+    assert_eq!(calculated.status, 200);
+    assert_eq!(
+        calculated.body["data"]["returnCalculate"]["returnLineItems"],
+        json!([{
+            "fulfillmentLineItem": { "id": fulfillment_line_item_id.clone() },
+            "quantity": 1,
+            "subtotalBeforeOrderDiscountsSet": {
+                "shopMoney": { "amount": "-10.0", "currencyCode": "USD" }
+            },
+            "subtotalSet": {
+                "shopMoney": { "amount": "-10.0", "currencyCode": "USD" }
+            },
+            "totalTaxSet": {
+                "shopMoney": { "amount": "0.0", "currencyCode": "USD" }
+            }
+        }])
+    );
+    assert_eq!(
+        calculated.body["data"]["returnCalculate"]["returnShippingFee"],
+        Value::Null
+    );
+
+    let create_return = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumeOneReturnableLine($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id.clone(),
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id.clone(),
+                    "quantity": 1,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_return.status, 200);
+    assert_eq!(
+        create_return.body["data"]["returnCreate"]["userErrors"],
+        json!([])
+    );
+
+    let after_return = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnableFulfillmentsAfterPartialReturn($orderId: ID!) {
+          returnableFulfillments(orderId: $orderId, first: 5) {
+            nodes {
+              returnableFulfillmentLineItems(first: 5) {
+                nodes { fulfillmentLineItem { id } quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        after_return.body["data"]["returnableFulfillments"]["nodes"][0]
+            ["returnableFulfillmentLineItems"]["nodes"],
+        json!([{
+            "fulfillmentLineItem": { "id": fulfillment_line_item_id },
+            "quantity": 1
+        }])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn return_process_payload_and_reads_close_processed_return() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_open_return_for_removal(&mut proxy);
+
+    let processed = return_process_for_test(
+        &mut proxy,
+        setup.return_id.clone(),
+        setup.return_line_item_id,
+    );
+
+    assert_eq!(processed["userErrors"], json!([]));
+    assert_eq!(processed["return"]["status"], json!("OPEN"));
+
+    let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
+    assert_eq!(read_after["return"]["status"], json!("CLOSED"));
+    assert_eq!(
+        read_after["order"]["returns"]["nodes"][0]["status"],
+        json!("CLOSED")
+    );
+}
+
 fn stage_requested_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSetup {
     let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(proxy);
     let response = proxy.process_request(json_graphql_request(
