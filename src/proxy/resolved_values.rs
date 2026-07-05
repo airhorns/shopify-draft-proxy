@@ -298,6 +298,7 @@ pub(in crate::proxy) fn resolved_scalar_text(value: Option<&ResolvedValue>) -> O
     value.and_then(resolved_value_scalar_text)
 }
 
+#[cfg(test)]
 pub(in crate::proxy) fn resolved_scalar_text_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,

@@ -1689,16 +1689,6 @@ fn push_missing_variant_id(missing_ids: &mut Vec<String>, id: String) {
     }
 }
 
-fn shopify_error_id_list(ids: &[String]) -> String {
-    format!(
-        "[{}]",
-        ids.iter()
-            .map(|id| format!("\"{id}\""))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
 fn selected_options_match(
     variant_options: &[ProductVariantSelectedOption],
     selected_values: &[BTreeMap<String, ResolvedValue>],

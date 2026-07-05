@@ -444,21 +444,6 @@ fn webhook_subscription_matches_datetime_comparator(
     }
 }
 
-fn webhook_subscription_search_comparator(value: &str) -> (&str, &str) {
-    comparison_operator_prefix(value, &[">=", "<=", ">", "<", "="]).unwrap_or(("=", value))
-}
-
-fn webhook_subscription_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
-    if expected.contains('T') {
-        actual
-    } else {
-        actual
-            .split_once('T')
-            .map(|(date, _)| date)
-            .unwrap_or(actual)
-    }
-}
-
 const WEBHOOK_FILTER_MAX_BYTE_SIZE: usize = 65_535;
 
 impl DraftProxy {

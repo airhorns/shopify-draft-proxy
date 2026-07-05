@@ -211,7 +211,3 @@ pub(super) fn discount_bxgy_user_error(
 pub(super) fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     user_error_with_extra_info(field, message, Some(code), Value::Null)
 }
-
-pub(super) fn discount_null_field_user_error(message: &str, code: Option<&str>) -> Value {
-    user_error_with_extra_info(Value::Null, message, code, Value::Null)
-}
