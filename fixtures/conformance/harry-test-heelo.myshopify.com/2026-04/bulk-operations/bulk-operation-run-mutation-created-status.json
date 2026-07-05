@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T20:31:53.511Z",
+  "capturedAt": "2026-07-04T23:47:30.223Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "request": {
@@ -13,7 +13,7 @@
       "variables": {
         "input": [
           {
-            "filename": "har-750-product-create-1778013109918.jsonl",
+            "filename": "bulk-product-create-1783208844840.jsonl",
             "mimeType": "text/jsonl",
             "resource": "BULK_MUTATION_VARIABLES",
             "httpMethod": "POST"
@@ -43,15 +43,15 @@
                   },
                   {
                     "name": "key",
-                    "value": "tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl"
+                    "value": "tmp/92891250994/bulk/34872c4a-8081-4e5a-8d0d-c6b7a2bf9ff4/bulk-product-create-1783208844840.jsonl"
                   },
                   {
                     "name": "x-goog-date",
-                    "value": "20260505T203149Z"
+                    "value": "20260704T234724Z"
                   },
                   {
                     "name": "x-goog-credential",
-                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260704/auto/storage/goog4_request"
                   },
                   {
                     "name": "x-goog-algorithm",
@@ -59,11 +59,11 @@
                   },
                   {
                     "name": "x-goog-signature",
-                    "value": "6a9056cec50a3cd0c955c124d68fe4e6fe13a13fbfae0315842309b3bff75f60c4238c9406dbaa5969ef37d5a33d4b38eed3eb701e939d6e5617b9d9bfa103dbd9e523ef00bf40c10ac2737993cb3d80d90e9e800c1cdbc248b4c344d5a2a81e85aceec5383358a0c50fb0f1101088b32c9b277294f9a2697cead20ec09cd64ce9674e54f17b87a538adfe8d47f11bcf7cf1b3a86f3dfdc56b127158a28cb1fac05a436f45db8968407eef9bb8f0735f49284801ed41a56cf5f760183dce3c528b0bbfa2a082fab3a7f2a841ab7d248d1911f3d08ac891f66c0bac4501d7078e52bc0e900fcfea9afb808e712a0d461e55720e8d983b755627805cfab244c99c"
+                    "value": "10450ecc3506fc07c5b5a0468767344d06dda0a284a71e1b9a032986490a2093cdae668a9f4bbc6004d5906e2d13ffcadc1080125d7918d29cdaf96d6ad688c77ade47a39206acb0930a92fe4c011bd132ebd4664c20f6e769367600e18374b5fe9520034f8b9fc789d2572b622a5d9204cc4f110f2180188a6d6d62dc4c2ae67d5d4d135a7050e362ab7f2fecd8b1e3523dac124e44f0d0e3cd6ae712547c9f1e4b54238984fc01279970a3c9e1d389bfd8d70707f47e0baa24324ba6009b6d3fed9da06838429adaf9e667ea856efd3cdf97dc3fa0382c591f3bc4b0d0b5dd27c3e403915f35c2f36cea52d2fae1ac3687f022d976beec22e3e4ab7fde5cb8"
                   },
                   {
                     "name": "policy",
-                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvNTJjYjYzOTAtNWNjZS00ODQ3LWEzOTgtYmE0YWMwNDM1ZGFkXC9oYXItNzUwLXByb2R1Y3QtY3JlYXRlLTE3NzgwMTMxMDk5MTguanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA1MDVUMjAzMTQ5WiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA1MDVcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNlQyMDozMTo0OVoifQ=="
+                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvMzQ4NzJjNGEtODA4MS00ZTVhLThkMGQtYzZiN2EyYmY5ZmY0XC9idWxrLXByb2R1Y3QtY3JlYXRlLTE3ODMyMDg4NDQ4NDAuanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA3MDRUMjM0NzI0WiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA3MDRcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNy0wNVQyMzo0NzoyNFoifQ=="
                   }
                 ]
               }
@@ -86,9 +86,10 @@
     },
     "upload": {
       "status": 201,
-      "body": "<?xml version='1.0' encoding='UTF-8'?><PostResponse><Location>https://storage.googleapis.com/shopify-staged-uploads/tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl</Location><Bucket>shopify-staged-uploads</Bucket><Key>tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl</Key><ETag>\"5774399e7ca22765723ab02cf09ebb4f\"</ETag></PostResponse>"
+      "body": "<?xml version='1.0' encoding='UTF-8'?><PostResponse><Location>https://storage.googleapis.com/shopify-staged-uploads/tmp/92891250994/bulk/34872c4a-8081-4e5a-8d0d-c6b7a2bf9ff4/bulk-product-create-1783208844840.jsonl</Location><Bucket>shopify-staged-uploads</Bucket><Key>tmp/92891250994/bulk/34872c4a-8081-4e5a-8d0d-c6b7a2bf9ff4/bulk-product-create-1783208844840.jsonl</Key><ETag>\"a1777e68af64bb4132144c33e748de3e\"</ETag></PostResponse>"
     },
-    "productTitle": "HAR-750 Bulk Created 2026-05-05T20:31:49.918Z"
+    "uploadContent": "{\"product\":{\"title\":\"Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z\",\"status\":\"DRAFT\"}}\n",
+    "productTitle": "Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z"
   },
   "success": {
     "run": {
@@ -96,18 +97,18 @@
       "query": "mutation BulkOperationRunMutationCreatedStatus($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
-        "path": "tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl"
+        "path": "tmp/92891250994/bulk/34872c4a-8081-4e5a-8d0d-c6b7a2bf9ff4/bulk-product-create-1783208844840.jsonl"
       },
       "status": 200,
       "response": {
         "data": {
           "bulkOperationRunMutation": {
             "bulkOperation": {
-              "id": "gid://shopify/BulkOperation/7749086445874",
+              "id": "gid://shopify/BulkOperation/8008814690610",
               "status": "CREATED",
               "type": "MUTATION",
               "errorCode": null,
-              "createdAt": "2026-05-05T20:31:50Z",
+              "createdAt": "2026-07-04T23:47:25Z",
               "completedAt": null,
               "objectCount": "0",
               "rootObjectCount": "0",
@@ -140,11 +141,11 @@
       "response": {
         "data": {
           "currentBulkOperation": {
-            "id": "gid://shopify/BulkOperation/7749086445874",
+            "id": "gid://shopify/BulkOperation/8008814690610",
             "status": "CREATED",
             "type": "MUTATION",
             "errorCode": null,
-            "createdAt": "2026-05-05T20:31:50Z",
+            "createdAt": "2026-07-04T23:47:25Z",
             "completedAt": null,
             "objectCount": "0",
             "rootObjectCount": "0",
@@ -172,22 +173,59 @@
         "operationName": "BulkOperationRunMutationCreatedStatusById",
         "query": "query BulkOperationRunMutationCreatedStatusById($id: ID!) {\n  bulkOperation(id: $id) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/BulkOperation/7749086445874"
+          "id": "gid://shopify/BulkOperation/8008814690610"
         },
         "status": 200,
         "response": {
           "data": {
             "bulkOperation": {
-              "id": "gid://shopify/BulkOperation/7749086445874",
+              "id": "gid://shopify/BulkOperation/8008814690610",
+              "status": "RUNNING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-04T23:47:25Z",
+              "completedAt": null,
+              "objectCount": "1",
+              "rootObjectCount": "1",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRunMutationCreatedStatusById",
+        "query": "query BulkOperationRunMutationCreatedStatusById($id: ID!) {\n  bulkOperation(id: $id) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/8008814690610"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8008814690610",
               "status": "COMPLETED",
               "type": "MUTATION",
               "errorCode": null,
-              "createdAt": "2026-05-05T20:31:50Z",
-              "completedAt": "2026-05-05T20:31:52Z",
+              "createdAt": "2026-07-04T23:47:25Z",
+              "completedAt": "2026-07-04T23:47:28Z",
               "objectCount": "1",
               "rootObjectCount": "1",
-              "fileSize": "178",
-              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/sp7qun13pvjap08wxol43rqqed0z-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1778617912&Signature=l5ebnOa3E2mxy3zgFTMpR6g7aUjcwMZ9P9kiH78VetkDYJCRLDj%2BDi63a3S6ge80hmb74dEY59imqEN9yaeiVcwReV6drX6C1OCN0fZeMeumVVzXCYUe7eewZoGKuYI4cosNviph4AFwQOkOSDUPxH4kvryTDRMejP%2BZgDHl94Emdkcaw9h7x6zgVKs8sLdJvSIv3GrnOD5G7OLq%2FLF1K%2F0IvB3wJbLiX4VBXTLBCyyP%2BSEV55oBHwxAy6AgCitN8m%2BO87xDMjS8zo0PysuRsA8YMAr68d73rG6o%2BYQBIW%2BhriWTbduIrQHVhTrgdd5vdOpXUZ8Yyjodq0ekOW%2Fu1g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7749086445874.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7749086445874.jsonl&response-content-type=application%2Fjsonl",
+              "fileSize": "189",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/1d2f7c8b02ec3f2c074ebeabd839?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783813647&Signature=oTV6rjE4eVKWdF87nh4q43SLkuPKgZuNeQniyCS%2FEbI2N3rFEQT1HhbK59ocH1vhWvToyRoUXOVtUNjEjqqTHBIWzf3wAFLdYmBpJNsc8lWB37vgumBHyOyuRRXzr9CqIBb6l2pECd09Yq0qjIR%2FSjkke0CwiwcLuxBDboC4Gt2YNMdL22zmdi7uP0UZR7m5q7pU9EBA%2Bz7TYRvn8I75NVAIIlH8fyamS4JPdor%2FtDE%2FujwrougEHdjKRYTuYDNf89tsP7DySIs1BtNH4WUdEwW3Vfc4ueCUUdsJn3lEMx9jorsqxJ9lp%2F0ZqPTPjh33RzxsCH06FNU1W7m3vrf8rw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8008814690610.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8008814690610.jsonl&response-content-type=application%2Fjsonl",
               "partialDataUrl": null,
               "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
             }
@@ -207,22 +245,68 @@
       }
     ],
     "terminalOperation": {
-      "id": "gid://shopify/BulkOperation/7749086445874",
+      "id": "gid://shopify/BulkOperation/8008814690610",
       "status": "COMPLETED",
       "type": "MUTATION",
       "errorCode": null,
-      "createdAt": "2026-05-05T20:31:50Z",
-      "completedAt": "2026-05-05T20:31:52Z",
+      "createdAt": "2026-07-04T23:47:25Z",
+      "completedAt": "2026-07-04T23:47:28Z",
       "objectCount": "1",
       "rootObjectCount": "1",
-      "fileSize": "178",
-      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/sp7qun13pvjap08wxol43rqqed0z-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1778617912&Signature=l5ebnOa3E2mxy3zgFTMpR6g7aUjcwMZ9P9kiH78VetkDYJCRLDj%2BDi63a3S6ge80hmb74dEY59imqEN9yaeiVcwReV6drX6C1OCN0fZeMeumVVzXCYUe7eewZoGKuYI4cosNviph4AFwQOkOSDUPxH4kvryTDRMejP%2BZgDHl94Emdkcaw9h7x6zgVKs8sLdJvSIv3GrnOD5G7OLq%2FLF1K%2F0IvB3wJbLiX4VBXTLBCyyP%2BSEV55oBHwxAy6AgCitN8m%2BO87xDMjS8zo0PysuRsA8YMAr68d73rG6o%2BYQBIW%2BhriWTbduIrQHVhTrgdd5vdOpXUZ8Yyjodq0ekOW%2Fu1g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7749086445874.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7749086445874.jsonl&response-content-type=application%2Fjsonl",
+      "fileSize": "189",
+      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/1d2f7c8b02ec3f2c074ebeabd839?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783813647&Signature=oTV6rjE4eVKWdF87nh4q43SLkuPKgZuNeQniyCS%2FEbI2N3rFEQT1HhbK59ocH1vhWvToyRoUXOVtUNjEjqqTHBIWzf3wAFLdYmBpJNsc8lWB37vgumBHyOyuRRXzr9CqIBb6l2pECd09Yq0qjIR%2FSjkke0CwiwcLuxBDboC4Gt2YNMdL22zmdi7uP0UZR7m5q7pU9EBA%2Bz7TYRvn8I75NVAIIlH8fyamS4JPdor%2FtDE%2FujwrougEHdjKRYTuYDNf89tsP7DySIs1BtNH4WUdEwW3Vfc4ueCUUdsJn3lEMx9jorsqxJ9lp%2F0ZqPTPjh33RzxsCH06FNU1W7m3vrf8rw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8008814690610.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8008814690610.jsonl&response-content-type=application%2Fjsonl",
       "partialDataUrl": null,
       "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
     },
     "result": {
       "status": 200,
-      "body": "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid:\\/\\/shopify\\/Product\\/10177677820210\",\"title\":\"HAR-750 Bulk Created 2026-05-05T20:31:49.918Z\"},\"userErrors\":[]}},\"__lineNumber\":0}\n"
+      "body": "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid:\\/\\/shopify\\/Product\\/10231722869042\",\"title\":\"Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z\"},\"userErrors\":[]}},\"__lineNumber\":0}\n"
+    },
+    "resultRows": [
+      {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231722869042",
+              "title": "Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z"
+            },
+            "userErrors": []
+          }
+        },
+        "__lineNumber": 0
+      }
+    ],
+    "downstreamRead": {
+      "operationName": "BulkOperationRunMutationCreatedStatusDownstreamRead",
+      "query": "query BulkOperationRunMutationCreatedStatusDownstreamRead($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      status\n    }\n  }\n}\n",
+      "variables": {
+        "query": "title:'Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z'"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231722869042",
+                "title": "Bulk Operation Mutation Created 2026-07-04T23:47:24.840Z",
+                "status": "DRAFT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "missingUpload": {
@@ -232,7 +316,7 @@
       "variables": {
         "input": [
           {
-            "filename": "har-750-missing-1778013113284.jsonl",
+            "filename": "har-750-missing-1783208850028.jsonl",
             "mimeType": "text/jsonl",
             "resource": "BULK_MUTATION_VARIABLES",
             "httpMethod": "POST"
@@ -262,15 +346,15 @@
                   },
                   {
                     "name": "key",
-                    "value": "tmp/92891250994/bulk/4628f141-046e-4b34-b4da-f7fd90b80e35/har-750-missing-1778013113284.jsonl"
+                    "value": "tmp/92891250994/bulk/d557c844-051b-4279-a37f-ce7a07d6a00e/har-750-missing-1783208850028.jsonl"
                   },
                   {
                     "name": "x-goog-date",
-                    "value": "20260505T203153Z"
+                    "value": "20260704T234730Z"
                   },
                   {
                     "name": "x-goog-credential",
-                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260704/auto/storage/goog4_request"
                   },
                   {
                     "name": "x-goog-algorithm",
@@ -278,11 +362,11 @@
                   },
                   {
                     "name": "x-goog-signature",
-                    "value": "42ce98e13d1204e69fec015427cd4c08e972a9d3fcb5603c5ccc2ddf14f52ed3edd16561f3d243f67a67c792e2a735de8238fcff0564899e0f1e989965cc701aa489783b728965bb78628c2710b0f10b27b9e3795fa9bda2ec310b3fabfc5b893d8515fccaca807d129a64ac649cc200ffa6cdadd54b5fa568cd31964b8e4366a04f41d37d09cf3d1ce9a0958641ef59fb8ca3c95933cbc2fdc2dd372d0f04d0df2726d68d756cf5e5af1c8b4cb2df86717833df60498718a33c990b2f25e5f9ed4c72ab459e42ae4435a337611e05f3f77cdaf8743ba35dda7fbc0fcafec96a50dee257ab0b1865c32a1a368198fd268e563a7f3e6c9f722e6d085f2729709d"
+                    "value": "9cb4648a709e7824a189ff2e00a17cc37d17006c12d6d23361bd060bf7c6e32a872ca33485c4bdab7973585ed53d438467cc517ef352c4b3c8d5c37215b92d39a2e71aa8236998ba11cb0309cdcc04b0cd5f1c4f46cf9ed65de500675ef813cb38cf454328c60bf9b17c75fa0cc6dc63b364008f0d34ee963a71b391ebae8a517e574d65a6d4e222d1c0e2faf121b63626a2683450b6fa86c3b3a6e4bcda6f227e77aeb274ee5b0cf57c56da5b6d9cbed799bdab81ba81e5903a30c8010355989c8babc51e56c5787ed91f5c4cc1ee09e8af681c307596a2f1337d08cb348edd600f55cf116612c7c15ef70fa3e7d51b473bc5f511255653b5a320e237871a64"
                   },
                   {
                     "name": "policy",
-                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvNDYyOGYxNDEtMDQ2ZS00YjM0LWI0ZGEtZjdmZDkwYjgwZTM1XC9oYXItNzUwLW1pc3NpbmctMTc3ODAxMzExMzI4NC5qc29ubCJ9LHsieC1nb29nLWRhdGUiOiIyMDI2MDUwNVQyMDMxNTNaIn0seyJ4LWdvb2ctY3JlZGVudGlhbCI6Im1lcmNoYW50LWFzc2V0c0BzaG9waWZ5LXRpZXJzLmlhbS5nc2VydmljZWFjY291bnQuY29tXC8yMDI2MDUwNVwvYXV0b1wvc3RvcmFnZVwvZ29vZzRfcmVxdWVzdCJ9LHsieC1nb29nLWFsZ29yaXRobSI6IkdPT0c0LVJTQS1TSEEyNTYifV0sImV4cGlyYXRpb24iOiIyMDI2LTA1LTA2VDIwOjMxOjUzWiJ9"
+                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvZDU1N2M4NDQtMDUxYi00Mjc5LWEzN2YtY2U3YTA3ZDZhMDBlXC9oYXItNzUwLW1pc3NpbmctMTc4MzIwODg1MDAyOC5qc29ubCJ9LHsieC1nb29nLWRhdGUiOiIyMDI2MDcwNFQyMzQ3MzBaIn0seyJ4LWdvb2ctY3JlZGVudGlhbCI6Im1lcmNoYW50LWFzc2V0c0BzaG9waWZ5LXRpZXJzLmlhbS5nc2VydmljZWFjY291bnQuY29tXC8yMDI2MDcwNFwvYXV0b1wvc3RvcmFnZVwvZ29vZzRfcmVxdWVzdCJ9LHsieC1nb29nLWFsZ29yaXRobSI6IkdPT0c0LVJTQS1TSEEyNTYifV0sImV4cGlyYXRpb24iOiIyMDI2LTA3LTA1VDIzOjQ3OjMwWiJ9"
                   }
                 ]
               }
@@ -308,7 +392,7 @@
       "query": "mutation BulkOperationRunMutationCreatedStatus($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
-        "path": "tmp/92891250994/bulk/4628f141-046e-4b34-b4da-f7fd90b80e35/har-750-missing-1778013113284.jsonl"
+        "path": "tmp/92891250994/bulk/d557c844-051b-4279-a37f-ce7a07d6a00e/har-750-missing-1783208850028.jsonl"
       },
       "status": 200,
       "response": {
@@ -330,7 +414,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -344,14 +428,14 @@
       "query": "mutation BulkOperationRunMutationCreatedStatusCleanupProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10177677820210"
+          "id": "gid://shopify/Product/10231722869042"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177677820210",
+            "deletedProductId": "gid://shopify/Product/10231722869042",
             "userErrors": []
           }
         },

@@ -1,0 +1,86 @@
+query MarketLocalizableResourceConnectionsRead(
+  $resourceId: ID!
+  $resourceIds: [ID!]!
+  $marketId: ID!
+  $first: Int!
+) {
+  marketLocalizableResource(resourceId: $resourceId) {
+    resourceId
+    marketLocalizableContent {
+      key
+      value
+      digest
+    }
+    marketLocalizations(marketId: $marketId) {
+      key
+      value
+      outdated
+      market {
+        id
+        name
+      }
+    }
+  }
+  marketLocalizableResources(first: $first, resourceType: METAFIELD) {
+    nodes {
+      resourceId
+      marketLocalizableContent {
+        key
+        value
+        digest
+      }
+      marketLocalizations(marketId: $marketId) {
+        key
+        value
+        outdated
+        market {
+          id
+          name
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+    nodes {
+      resourceId
+      marketLocalizableContent {
+        key
+        value
+        digest
+      }
+      marketLocalizations(marketId: $marketId) {
+        key
+        value
+        outdated
+        market {
+          id
+          name
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

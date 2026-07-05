@@ -1,0 +1,32 @@
+query InventoryLocationLevelsWindow($locationId: ID!, $after: String!, $before: String!) {
+  location(id: $locationId) {
+    afterFirst: inventoryLevels(first: 1, after: $after) {
+      nodes {
+        quantities(names: ["available"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    beforeSecond: inventoryLevels(last: 1, before: $before) {
+      nodes {
+        quantities(names: ["available"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "productSet": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Smart RuleSet Product 1783233276235",
+        "status": "ACTIVE",
+        "vendor": "Hermes Smart Rule Vendor",
+        "productType": "Smart Rule Shirt",
+        "tags": ["smart-ruleset-1783233276235"],
+        "productOptions": [
+          {
+            "name": "Color",
+            "values": [
+              {
+                "name": "Blue"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Blue"
+              }
+            ],
+            "price": "7.50",
+            "inventoryItem": {
+              "tracked": false,
+              "requiresShipping": true
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10232099733810",
+            "title": "Smart RuleSet Product 1783233276235",
+            "handle": "smart-ruleset-product-1783233276235",
+            "status": "ACTIVE",
+            "vendor": "Hermes Smart Rule Vendor",
+            "productType": "Smart Rule Shirt",
+            "tags": ["smart-ruleset-1783233276235"],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51425105641778",
+                  "price": "7.50"
+                }
+              ]
+            }
+          },
+          "productSetOperation": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartCreate": {
+    "variables": {
+      "input": {
+        "title": "Smart RuleSet Collection 1783233276235",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "Product 1783233276235"
+            },
+            {
+              "column": "TYPE",
+              "relation": "EQUALS",
+              "condition": "Smart Rule Shirt"
+            },
+            {
+              "column": "VENDOR",
+              "relation": "EQUALS",
+              "condition": "Hermes Smart Rule Vendor"
+            },
+            {
+              "column": "TAG",
+              "relation": "EQUALS",
+              "condition": "smart-ruleset-1783233276235"
+            },
+            {
+              "column": "VARIANT_PRICE",
+              "relation": "LESS_THAN",
+              "condition": "10"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514109407538",
+            "title": "Smart RuleSet Collection 1783233276235",
+            "handle": "smart-ruleset-collection-1783233276235",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "Product 1783233276235"
+                },
+                {
+                  "column": "TYPE",
+                  "relation": "EQUALS",
+                  "condition": "Smart Rule Shirt"
+                },
+                {
+                  "column": "VENDOR",
+                  "relation": "EQUALS",
+                  "condition": "Hermes Smart Rule Vendor"
+                },
+                {
+                  "column": "TAG",
+                  "relation": "EQUALS",
+                  "condition": "smart-ruleset-1783233276235"
+                },
+                {
+                  "column": "VARIANT_PRICE",
+                  "relation": "LESS_THAN",
+                  "condition": "10"
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/514109407538"
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/514109407538",
+          "title": "Smart RuleSet Collection 1783233276235",
+          "handle": "smart-ruleset-collection-1783233276235",
+          "productsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10232099733810",
+                "title": "Smart RuleSet Product 1783233276235",
+                "vendor": "Hermes Smart Rule Vendor",
+                "productType": "Smart Rule Shirt",
+                "tags": ["smart-ruleset-1783233276235"],
+                "variants": {
+                  "nodes": [
+                    {
+                      "price": "7.50"
+                    }
+                  ]
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 32,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "attempts": 1
+  },
+  "upstreamCalls": []
+}
