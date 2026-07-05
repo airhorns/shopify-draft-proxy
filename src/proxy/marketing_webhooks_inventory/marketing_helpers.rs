@@ -89,43 +89,43 @@ pub(in crate::proxy) fn marketing_engagement_payload(
 }
 
 pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing activity does not exist.",
-        "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing activity does not exist.",
+        Some("MARKETING_ACTIVITY_DOES_NOT_EXIST"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
-    json!({
-        "field": null,
-        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
-        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
-    })
+    user_error(
+        Value::Null,
+        "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        Some("CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_to_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
-        "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+        Some("CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_from_storefront_error() -> Value {
-    json!({
-        "field": ["input"],
-        "message": "You can not update an activity tactic from STOREFRONT_APP.",
-        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
-    })
+    user_error(
+        ["input"],
+        "You can not update an activity tactic from STOREFRONT_APP.",
+        Some("CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"),
+    )
 }
 
 pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
-    json!({
-        "field": null,
-        "message": "Marketing event does not exist.",
-        "code": "MARKETING_EVENT_DOES_NOT_EXIST"
-    })
+    user_error(
+        Value::Null,
+        "Marketing event does not exist.",
+        Some("MARKETING_EVENT_DOES_NOT_EXIST"),
+    )
 }
 
 const MARKETING_EVENT_ID_OFFSET: u64 = 1_000_000;
@@ -457,11 +457,11 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     ] {
         if let Some(url) = value {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
-                return Some(json!({
-                    "field": ["input", field],
-                    "message": format!("{} is not a valid URL", field),
-                    "code": "INVALID"
-                }));
+                return Some(user_error(
+                    vec!["input".to_string(), field.to_string()],
+                    &format!("{field} is not a valid URL"),
+                    Some("INVALID"),
+                ));
             }
         }
     }

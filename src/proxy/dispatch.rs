@@ -523,13 +523,13 @@ impl DraftProxy {
             "reverseDelivery": Value::Null,
             "job": Value::Null,
             "bulkOperation": Value::Null,
-            "userErrors": [{
-                "field": Value::Null,
-                "message": format!(
+            "userErrors": [user_error(
+                Value::Null,
+                &format!(
                     "Local staging for {root_field} is not implemented for this request shape"
                 ),
-                "code": "NOT_IMPLEMENTED"
-            }]
+                Some("NOT_IMPLEMENTED"),
+            )]
         });
 
         ok_json(json!({

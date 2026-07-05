@@ -629,10 +629,10 @@ impl DraftProxy {
                 Value::Null,
                 &field.selection,
                 &carrier_selection,
-                vec![carrier_service_user_error(
+                vec![user_error(
                     Value::Null,
                     "Shipping rate provider name can't be blank",
-                    "CARRIER_SERVICE_CREATE_FAILED",
+                    Some("CARRIER_SERVICE_CREATE_FAILED"),
                 )],
             );
         };
@@ -664,10 +664,10 @@ impl DraftProxy {
                 Value::Null,
                 &field.selection,
                 &carrier_selection,
-                vec![carrier_service_user_error(
+                vec![user_error(
                     Value::Null,
                     &format!("{trimmed_name} is already configured"),
-                    "CARRIER_SERVICE_CREATE_FAILED",
+                    Some("CARRIER_SERVICE_CREATE_FAILED"),
                 )],
             );
         }
@@ -719,10 +719,10 @@ impl DraftProxy {
                 Value::Null,
                 &field.selection,
                 &carrier_selection,
-                vec![carrier_service_user_error(
+                vec![user_error(
                     Value::Null,
                     "Shipping rate provider name can't be blank",
-                    "CARRIER_SERVICE_UPDATE_FAILED",
+                    Some("CARRIER_SERVICE_UPDATE_FAILED"),
                 )],
             );
         }
@@ -801,10 +801,10 @@ impl DraftProxy {
             return carrier_service_delete_payload(
                 Value::Null,
                 &field.selection,
-                vec![carrier_service_user_error(
+                vec![user_error(
                     json!(["id"]),
                     "The carrier or app could not be found.",
-                    "CARRIER_SERVICE_DELETE_FAILED",
+                    Some("CARRIER_SERVICE_DELETE_FAILED"),
                 )],
             );
         }

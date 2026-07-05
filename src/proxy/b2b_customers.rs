@@ -489,10 +489,10 @@ impl DraftProxy {
         {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, "expiresAt"],
+                user_error(
+                    [input_name, "expiresAt"],
                     "The expiry date must be in the future",
-                    "EXPIRES_AT_IN_PAST",
+                    Some("EXPIRES_AT_IN_PAST"),
                 ),
             );
         }
@@ -500,14 +500,14 @@ impl DraftProxy {
         if amount <= 0.0 {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     if is_credit {
                         "A positive amount must be used to credit a store credit account"
                     } else {
                         "A positive amount must be used to debit a store credit account"
                     },
-                    "NEGATIVE_OR_ZERO_AMOUNT",
+                    Some("NEGATIVE_OR_ZERO_AMOUNT"),
                 ),
             );
         }
@@ -517,10 +517,10 @@ impl DraftProxy {
                 let Some(existing) = self.store.staged.store_credit_accounts.get(account_id) else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -539,10 +539,10 @@ impl DraftProxy {
         if currency != account_currency {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "currencyCode"],
+                user_error(
+                    [input_name, amount_name, "currencyCode"],
                     "The currency provided does not match the currency of the store credit account",
-                    "MISMATCHING_CURRENCY",
+                    Some("MISMATCHING_CURRENCY"),
                 ),
             );
         }
@@ -550,20 +550,20 @@ impl DraftProxy {
         if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     "The operation would cause the account's credit limit to be exceeded",
-                    "CREDIT_LIMIT_EXCEEDED",
+                    Some("CREDIT_LIMIT_EXCEEDED"),
                 ),
             );
         }
         if !is_credit && amount > current_balance {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
+                user_error(
+                    [input_name, amount_name, "amount"],
                     "The store credit account does not have sufficient funds to satisfy the request",
-                    "INSUFFICIENT_FUNDS",
+                    Some("INSUFFICIENT_FUNDS"),
                 ),
             );
         }
@@ -579,10 +579,10 @@ impl DraftProxy {
                 else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -599,10 +599,10 @@ impl DraftProxy {
                 else {
                     return self.store_credit_error_outcome(
                         field,
-                        store_credit_user_error(
-                            &["id"],
+                        user_error(
+                            ["id"],
                             "Store credit account does not exist",
-                            "ACCOUNT_NOT_FOUND",
+                            Some("ACCOUNT_NOT_FOUND"),
                         ),
                     );
                 };
@@ -4979,10 +4979,10 @@ impl DraftProxy {
                 customer_merge_payload_json(
                     None,
                     None,
-                    vec![customer_merge_user_error(
+                    vec![user_error(
                         Value::Null,
                         "Both customerOneId and customerTwoId are required",
-                        "INVALID_CUSTOMER_ID",
+                        Some("INVALID_CUSTOMER_ID"),
                     )],
                 ),
                 Vec::new(),
@@ -5006,10 +5006,10 @@ impl DraftProxy {
                 customer_merge_payload_json(
                     None,
                     None,
-                    vec![customer_merge_user_error(
+                    vec![user_error(
                         Value::Null,
                         "Customers IDs should not match",
-                        "INVALID_CUSTOMER_ID",
+                        Some("INVALID_CUSTOMER_ID"),
                     )],
                 ),
                 Vec::new(),
@@ -5112,10 +5112,10 @@ impl DraftProxy {
         if self.customer_exists(id) {
             return None;
         }
-        Some(customer_merge_user_error(
+        Some(user_error(
             json!([field]),
             &format!("Customer does not exist with ID {}", resource_id_tail(id)),
-            "INVALID_CUSTOMER_ID",
+            Some("INVALID_CUSTOMER_ID"),
         ))
     }
 
@@ -5135,15 +5135,15 @@ impl DraftProxy {
             .flat_map(customer_tags)
             .collect::<BTreeSet<_>>();
         if combined_tags.len() > 250 {
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerOneId"]),
                 "Customers must have 250 tags or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerTwoId"]),
                 "Customers must have 250 tags or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
         }
         let combined_note_len = one
@@ -5157,15 +5157,15 @@ impl DraftProxy {
                 .chars()
                 .count();
         if combined_note_len > 5000 {
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerOneId"]),
                 "Customer notes must be 5,000 characters or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
-            errors.push(customer_merge_user_error(
+            errors.push(user_error(
                 json!(["customerTwoId"]),
                 "Customer notes must be 5,000 characters or less.",
-                "INVALID_CUSTOMER",
+                Some("INVALID_CUSTOMER"),
             ));
         }
         for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
@@ -5178,10 +5178,10 @@ impl DraftProxy {
                     .and_then(|customer| customer["displayName"].as_str())
                     .filter(|name| !name.is_empty())
                     .unwrap_or("Customer");
-                errors.push(customer_merge_user_error(
+                errors.push(user_error(
                     json!([field_name]),
                     &format!("{name} has gift cards and can\u{2019}t be merged."),
-                    "INVALID_CUSTOMER",
+                    Some("INVALID_CUSTOMER"),
                 ));
             }
         }
@@ -5230,16 +5230,6 @@ fn customer_merge_job_from_request(request: &Value) -> Value {
         "id": request["jobId"].clone(),
         "done": true,
         "query": { "__typename": "QueryRoot" }
-    })
-}
-
-fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
-    json!({
-        "field": field.clone(),
-        "message": message,
-        "code": code,
-        "errorFields": field,
-        "block_type": code
     })
 }
 
@@ -5756,10 +5746,6 @@ fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> St
 /// Shopify rejects a credit/debit that would push an account past this hard cap.
 const STORE_CREDIT_LIMIT: f64 = 100000.0;
 
-fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
 fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
     if is_credit
         && matches!(
@@ -5767,12 +5753,12 @@ fn store_credit_missing_id_user_error(id: &str, is_credit: bool) -> Value {
             Some("Customer" | "CompanyLocation")
         )
     {
-        store_credit_user_error(&["id"], "Owner does not exist", "OWNER_NOT_FOUND")
+        user_error(["id"], "Owner does not exist", Some("OWNER_NOT_FOUND"))
     } else {
-        store_credit_user_error(
-            &["id"],
+        user_error(
+            ["id"],
             "Store credit account does not exist",
-            "ACCOUNT_NOT_FOUND",
+            Some("ACCOUNT_NOT_FOUND"),
         )
     }
 }

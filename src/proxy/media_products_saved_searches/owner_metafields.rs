@@ -145,10 +145,11 @@ impl DraftProxy {
         }) {
             let payload = json!({
                 "deletedMetafields": [],
-                "userErrors": [{
-                    "field": ["metafields", index.to_string(), "namespace"],
-                    "message": APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE
-                }]
+                "userErrors": [user_error_omit_code(
+                    vec!["metafields".to_string(), index.to_string(), "namespace".to_string()],
+                    APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+                    None,
+                )]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
@@ -167,10 +168,11 @@ impl DraftProxy {
         }) {
             let payload = json!({
                 "deletedMetafields": [],
-                "userErrors": [{
-                    "field": ["metafields"],
-                    "message": "Access to this namespace and key on Metafields for this resource type is not allowed."
-                }]
+                "userErrors": [user_error_omit_code(
+                    ["metafields"],
+                    "Access to this namespace and key on Metafields for this resource type is not allowed.",
+                    None,
+                )]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
@@ -238,10 +240,7 @@ impl DraftProxy {
         else {
             let payload = json!({
                 "deletedId": Value::Null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Metafield does not exist"
-                }]
+                "userErrors": [user_error_omit_code(["id"], "Metafield does not exist", None)]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),

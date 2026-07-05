@@ -1968,7 +1968,7 @@ fn legacy_product_variant_create_validates_forbidden_keys_and_missing_product() 
     assert_eq!(forbidden_id.status, 200);
     assert_eq!(
         forbidden_id.body["errors"][0]["extensions"]["code"],
-        json!("no_key_on_create")
+        json!("NO_KEY_ON_CREATE")
     );
 
     let forbidden_adjustment = proxy.process_request(json_graphql_request(
