@@ -261,7 +261,7 @@ impl DraftProxy {
             .into_iter()
             .map(|zone_input| self.delivery_zone_record_from_input(&zone_input))
             .collect::<Vec<_>>();
-        json!({
+        let mut group = json!({
             "locationGroup": {
                 "id": self.next_proxy_synthetic_gid("DeliveryLocationGroup"),
                 "locations": locations,
@@ -269,7 +269,9 @@ impl DraftProxy {
             },
             "locationGroupZones": zones,
             "countriesInAnyZone": []
-        })
+        });
+        refresh_delivery_location_group_countries(&mut group);
+        group
     }
 
     fn delivery_zone_record_from_input(
@@ -307,7 +309,7 @@ impl DraftProxy {
             "id": self.next_proxy_synthetic_gid("DeliveryMethodDefinition"),
             "name": resolved_string_field(input, "name").unwrap_or_default(),
             "active": resolved_bool_field(input, "active").unwrap_or(true),
-            "description": null,
+            "description": delivery_method_description_from_input(input),
             "rateProvider": {
                 "__typename": "DeliveryRateDefinition",
                 "id": self.next_proxy_synthetic_gid("DeliveryRateDefinition"),
@@ -426,6 +428,10 @@ impl DraftProxy {
                 if let Some(name) = resolved_string_field(&zone_update, "name") {
                     zone["zone"]["name"] = json!(name);
                 }
+                if zone_update.contains_key("countries") {
+                    zone["zone"]["countries"] =
+                        json!(delivery_profile_countries_from_input(&zone_update));
+                }
                 for method_update in
                     resolved_object_list_field(&zone_update, "methodDefinitionsToUpdate")
                 {
@@ -444,6 +450,10 @@ impl DraftProxy {
                     if let Some(active) = resolved_bool_field(&method_update, "active") {
                         method["active"] = json!(active);
                     }
+                    if method_update.contains_key("description") {
+                        method["description"] =
+                            delivery_method_description_from_input(&method_update);
+                    }
                     if method_update.contains_key("rateDefinition") {
                         method["rateProvider"]["price"] =
                             delivery_price_from_method_input(&method_update);
@@ -460,6 +470,7 @@ impl DraftProxy {
                     methods.append(&mut new_methods);
                 }
             }
+            refresh_delivery_location_group_countries(group);
         }
         refresh_delivery_profile_counts(profile);
     }
@@ -829,4 +840,40 @@ fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Val
         ),
         Vec::new(),
     )
+}
+
+fn delivery_method_description_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    resolved_string_field(input, "description")
+        .map(Value::String)
+        .unwrap_or(Value::Null)
+}
+
+fn refresh_delivery_location_group_countries(group: &mut Value) {
+    let mut seen = BTreeSet::new();
+    let mut countries_in_any_zone = Vec::new();
+    for zone in group["locationGroupZones"].as_array().into_iter().flatten() {
+        let zone_name = zone["zone"]["name"].as_str().unwrap_or_default();
+        for country in zone["zone"]["countries"].as_array().into_iter().flatten() {
+            let key = delivery_country_union_key(country);
+            if key.is_empty() || !seen.insert(key) {
+                continue;
+            }
+            countries_in_any_zone.push(json!({
+                "zone": zone_name,
+                "country": country
+            }));
+        }
+    }
+    group["countriesInAnyZone"] = Value::Array(countries_in_any_zone);
+}
+
+fn delivery_country_union_key(country: &Value) -> String {
+    if country["code"]["restOfWorld"].as_bool() == Some(true) {
+        return "REST_OF_WORLD".to_string();
+    }
+    country["code"]["countryCode"]
+        .as_str()
+        .or_else(|| country.get("id").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string()
 }

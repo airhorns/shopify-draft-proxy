@@ -4096,3 +4096,17 @@ Practical rule:
 - compare the actual windowed nodes and stable pageInfo fields, but do not make
   the local staged model reproduce the transient root `companyLocations`
   second-page `hasNextPage` overstatement
+
+## 97. Delivery profile zone countries are sorted in write/read projections
+
+Admin GraphQL 2026-04 live capture for the delivery-profile lifecycle on
+`harry-test-heelo.myshopify.com` sent `countries: [{ code: "US" }, { code:
+"CA" }]` in a delivery profile zone. Shopify returned the zone `countries` and
+the derived `countriesInAnyZone` list as `CA`, then `US`, not in request order.
+
+Practical rule:
+
+- normalize staged delivery-profile zone countries by code before building
+  `DeliveryCountry` records
+- derive `countriesInAnyZone` from the normalized zone country records so
+  downstream delivery-profile reads match the captured order

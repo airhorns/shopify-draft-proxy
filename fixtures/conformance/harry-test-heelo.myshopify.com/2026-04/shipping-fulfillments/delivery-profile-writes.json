@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T14:28:21.804Z",
+  "capturedAt": "2026-07-05T05:37:58.042Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -35,7 +35,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1970,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -44,10 +44,10 @@
       }
     },
     "nestedCreate": {
-      "query": "mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n          }\n        }\n      }\n      profileLocationGroups {\n        locationGroup {\n          id\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              id\n              name\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                id\n                name\n                active\n                rateProvider {\n                  ... on DeliveryRateDefinition {\n                    id\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on Weight {\n                      value\n                      unit\n                    }\n                    ... on MoneyV2 {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "query": "mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n          }\n        }\n      }\n      profileLocationGroups {\n        countriesInAnyZone {\n          zone\n          country {\n            code {\n              countryCode\n              restOfWorld\n            }\n          }\n        }\n        locationGroup {\n          id\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              id\n              name\n              countries {\n                code {\n                  countryCode\n                  restOfWorld\n                }\n              }\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                id\n                name\n                active\n                description\n                rateProvider {\n                  ... on DeliveryRateDefinition {\n                    id\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on Weight {\n                      value\n                      unit\n                    }\n                    ... on MoneyV2 {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "profile": {
-          "name": "Delivery profile lifecycle 1782829698479",
+          "name": "Delivery profile lifecycle 1783229874895",
           "locationGroupsToCreate": [
             {
               "locations": ["gid://shopify/Location/106318430514"],
@@ -58,11 +58,16 @@
                     {
                       "code": "US",
                       "includeAllProvinces": true
+                    },
+                    {
+                      "code": "CA",
+                      "includeAllProvinces": true
                     }
                   ],
                   "methodDefinitionsToCreate": [
                     {
                       "name": "Standard",
+                      "description": "Standard ground service",
                       "active": true,
                       "rateDefinition": {
                         "price": {
@@ -93,35 +98,70 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132621336882",
-                "name": "Delivery profile lifecycle 1782829698479",
+                "id": "gid://shopify/DeliveryProfile/132687495474",
+                "name": "Delivery profile lifecycle 1783229874895",
                 "version": 1,
                 "originLocationCount": 1,
-                "zoneCountryCount": 1,
+                "zoneCountryCount": 2,
                 "activeMethodDefinitionsCount": 1,
                 "profileItems": {
                   "nodes": []
                 },
                 "profileLocationGroups": [
                   {
+                    "countriesInAnyZone": [
+                      {
+                        "zone": "Domestic",
+                        "country": {
+                          "code": {
+                            "countryCode": "CA",
+                            "restOfWorld": false
+                          }
+                        }
+                      },
+                      {
+                        "zone": "Domestic",
+                        "country": {
+                          "code": {
+                            "countryCode": "US",
+                            "restOfWorld": false
+                          }
+                        }
+                      }
+                    ],
                     "locationGroup": {
-                      "id": "gid://shopify/DeliveryLocationGroup/134328058162"
+                      "id": "gid://shopify/DeliveryLocationGroup/134394806578"
                     },
                     "locationGroupZones": {
                       "nodes": [
                         {
                           "zone": {
-                            "id": "gid://shopify/DeliveryZone/585227403570",
-                            "name": "Domestic"
+                            "id": "gid://shopify/DeliveryZone/585454813490",
+                            "name": "Domestic",
+                            "countries": [
+                              {
+                                "code": {
+                                  "countryCode": "CA",
+                                  "restOfWorld": false
+                                }
+                              },
+                              {
+                                "code": {
+                                  "countryCode": "US",
+                                  "restOfWorld": false
+                                }
+                              }
+                            ]
                           },
                           "methodDefinitions": {
                             "nodes": [
                               {
-                                "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                                "id": "gid://shopify/DeliveryMethodDefinition/1107931726130",
                                 "name": "Standard",
                                 "active": true,
+                                "description": "Standard ground service",
                                 "rateProvider": {
-                                  "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
+                                  "id": "gid://shopify/DeliveryRateDefinition/1029599396146",
                                   "price": {
                                     "amount": "7.25",
                                     "currencyCode": "USD"
@@ -129,7 +169,7 @@
                                 },
                                 "methodConditions": [
                                   {
-                                    "id": "gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to",
+                                    "id": "gid://shopify/DeliveryCondition/309035270450?operator=greater_than_or_equal_to",
                                     "field": "TOTAL_WEIGHT",
                                     "operator": "GREATER_THAN_OR_EQUAL_TO",
                                     "conditionCriteria": {
@@ -153,11 +193,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 85,
-              "actualQueryCost": 24,
+              "requestedQueryCost": 94,
+              "actualQueryCost": 29,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1966,
                 "restoreRate": 100
               }
             }
@@ -166,27 +206,28 @@
       }
     },
     "nestedUpdate": {
-      "query": "mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "query": "mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      productVariantsCount {\n        count\n        precision\n      }\n      profileLocationGroups {\n        countriesInAnyZone {\n          zone\n          country {\n            code {\n              countryCode\n              restOfWorld\n            }\n          }\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              name\n              countries {\n                code {\n                  countryCode\n                  restOfWorld\n                }\n              }\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                name\n                active\n                description\n              }\n            }\n          }\n        }\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882",
+        "id": "gid://shopify/DeliveryProfile/132687495474",
         "profile": {
           "name": "Delivery profile lifecycle updated",
-          "conditionsToDelete": ["gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to"],
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/309035270450?operator=greater_than_or_equal_to"],
           "locationGroupsToUpdate": [
             {
-              "id": "gid://shopify/DeliveryLocationGroup/134328058162",
+              "id": "gid://shopify/DeliveryLocationGroup/134394806578",
               "locationsToAdd": ["gid://shopify/Location/106318463282"],
               "zonesToUpdate": [
                 {
-                  "id": "gid://shopify/DeliveryZone/585227403570",
+                  "id": "gid://shopify/DeliveryZone/585454813490",
                   "name": "Domestic updated",
                   "methodDefinitionsToUpdate": [
                     {
-                      "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                      "id": "gid://shopify/DeliveryMethodDefinition/1107931726130",
                       "name": "Standard updated",
+                      "description": "Updated standard ground service",
                       "active": false,
                       "rateDefinition": {
-                        "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
+                        "id": "gid://shopify/DeliveryRateDefinition/1029599396146",
                         "price": {
                           "amount": "8.50",
                           "currencyCode": "USD"
@@ -197,6 +238,7 @@
                   "methodDefinitionsToCreate": [
                     {
                       "name": "Express",
+                      "description": "Express air service",
                       "active": true,
                       "rateDefinition": {
                         "price": {
@@ -227,16 +269,77 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132621336882",
+                "id": "gid://shopify/DeliveryProfile/132687495474",
                 "name": "Delivery profile lifecycle updated",
                 "version": 2,
                 "originLocationCount": 2,
-                "zoneCountryCount": 1,
+                "zoneCountryCount": 2,
                 "activeMethodDefinitionsCount": 1,
                 "productVariantsCount": {
                   "count": 0,
                   "precision": "EXACT"
                 },
+                "profileLocationGroups": [
+                  {
+                    "countriesInAnyZone": [
+                      {
+                        "zone": "Domestic updated",
+                        "country": {
+                          "code": {
+                            "countryCode": "CA",
+                            "restOfWorld": false
+                          }
+                        }
+                      },
+                      {
+                        "zone": "Domestic updated",
+                        "country": {
+                          "code": {
+                            "countryCode": "US",
+                            "restOfWorld": false
+                          }
+                        }
+                      }
+                    ],
+                    "locationGroupZones": {
+                      "nodes": [
+                        {
+                          "zone": {
+                            "name": "Domestic updated",
+                            "countries": [
+                              {
+                                "code": {
+                                  "countryCode": "CA",
+                                  "restOfWorld": false
+                                }
+                              },
+                              {
+                                "code": {
+                                  "countryCode": "US",
+                                  "restOfWorld": false
+                                }
+                              }
+                            ]
+                          },
+                          "methodDefinitions": {
+                            "nodes": [
+                              {
+                                "name": "Standard updated",
+                                "active": false,
+                                "description": "Updated standard ground service"
+                              },
+                              {
+                                "name": "Express",
+                                "active": true,
+                                "description": "Express air service"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
                 "profileItems": {
                   "nodes": []
                 }
@@ -246,11 +349,99 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 28,
-              "actualQueryCost": 25,
+              "requestedQueryCost": 61,
+              "actualQueryCost": 37,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1993,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "query": "query DeliveryProfileLifecycleReadAfterUpdate($id: ID!) {\n  deliveryProfile(id: $id) {\n    name\n    profileLocationGroups {\n      countriesInAnyZone {\n        zone\n        country {\n          code {\n            countryCode\n            restOfWorld\n          }\n        }\n      }\n      locationGroupZones(first: 5) {\n        nodes {\n          zone {\n            name\n            countries {\n              code {\n                countryCode\n                restOfWorld\n              }\n            }\n          }\n          methodDefinitions(first: 5) {\n            nodes {\n              name\n              active\n              description\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132687495474"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfile": {
+              "name": "Delivery profile lifecycle updated",
+              "profileLocationGroups": [
+                {
+                  "countriesInAnyZone": [
+                    {
+                      "zone": "Domestic updated",
+                      "country": {
+                        "code": {
+                          "countryCode": "CA",
+                          "restOfWorld": false
+                        }
+                      }
+                    },
+                    {
+                      "zone": "Domestic updated",
+                      "country": {
+                        "code": {
+                          "countryCode": "US",
+                          "restOfWorld": false
+                        }
+                      }
+                    }
+                  ],
+                  "locationGroupZones": {
+                    "nodes": [
+                      {
+                        "zone": {
+                          "name": "Domestic updated",
+                          "countries": [
+                            {
+                              "code": {
+                                "countryCode": "CA",
+                                "restOfWorld": false
+                              }
+                            },
+                            {
+                              "code": {
+                                "countryCode": "US",
+                                "restOfWorld": false
+                              }
+                            }
+                          ]
+                        },
+                        "methodDefinitions": {
+                          "nodes": [
+                            {
+                              "name": "Standard updated",
+                              "active": false,
+                              "description": "Updated standard ground service"
+                            },
+                            {
+                              "name": "Express",
+                              "active": true,
+                              "description": "Express air service"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 34,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -261,7 +452,7 @@
     "remove": {
       "query": "mutation DeliveryProfileLifecycleRemove($id: ID!) {\n  deliveryProfileRemove(id: $id) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882"
+        "id": "gid://shopify/DeliveryProfile/132687495474"
       },
       "result": {
         "status": 200,
@@ -269,7 +460,7 @@
           "data": {
             "deliveryProfileRemove": {
               "job": {
-                "id": "gid://shopify/Job/8a7c70d6-575e-4ddb-a7a3-c38a284c709a",
+                "id": "gid://shopify/Job/25c627d4-306b-4a08-a7b1-2b580c0c8719",
                 "done": false
               },
               "userErrors": []
@@ -292,7 +483,7 @@
     "readAfterRemovePoll": {
       "query": "query DeliveryProfileLifecycleReadAfterRemove($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132621336882"
+        "id": "gid://shopify/DeliveryProfile/132687495474"
       },
       "result": {
         "status": 200,
@@ -408,7 +599,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -490,7 +681,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }

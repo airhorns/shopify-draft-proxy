@@ -8217,6 +8217,184 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
 }
 
 #[test]
+fn delivery_profile_read_after_write_echoes_method_description_and_zone_countries() {
+    let mut proxy = snapshot_proxy();
+    let source_location_id = seed_delivery_profile_location(&mut proxy, "Profile readback source");
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileDescriptionCountryCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              profileLocationGroups {
+                locationGroup { id }
+                countriesInAnyZone {
+                  zone
+                  country { code { countryCode restOfWorld } }
+                }
+                locationGroupZones(first: 5) {
+                  nodes {
+                    zone { id name }
+                    methodDefinitions(first: 5) {
+                      nodes { id name description }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with descriptions and zones",
+                "locationGroupsToCreate": [{
+                    "locations": [source_location_id],
+                    "zonesToCreate": [
+                        {
+                            "name": "Domestic",
+                            "countries": [{ "code": "US", "includeAllProvinces": true }],
+                            "methodDefinitionsToCreate": [{
+                                "name": "Standard",
+                                "description": "Standard ground service",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "7.25", "currencyCode": "USD" }
+                                }
+                            }]
+                        },
+                        {
+                            "name": "Canada",
+                            "countries": [{ "code": "CA", "includeAllProvinces": true }],
+                            "methodDefinitionsToCreate": [{
+                                "name": "Canada standard",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "9.25", "currencyCode": "USD" }
+                                }
+                            }]
+                        }
+                    ]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let profile = &create.body["data"]["deliveryProfileCreate"]["profile"];
+    let profile_id = profile["id"].as_str().unwrap().to_string();
+    let zone_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]["zone"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let method_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+        ["methodDefinitions"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_query = r#"
+        query DeliveryProfileDescriptionCountryRead($id: ID!) {
+          deliveryProfile(id: $id) {
+            profileLocationGroups {
+              countriesInAnyZone {
+                zone
+                country { code { countryCode restOfWorld } }
+              }
+              locationGroupZones(first: 5) {
+                nodes {
+                  zone { name }
+                  methodDefinitions(first: 5) {
+                    nodes { name description }
+                  }
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["countriesInAnyZone"],
+        json!([
+            {
+                "zone": "Domestic",
+                "country": { "code": { "countryCode": "US", "restOfWorld": false } }
+            },
+            {
+                "zone": "Canada",
+                "country": { "code": { "countryCode": "CA", "restOfWorld": false } }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["locationGroupZones"]
+            ["nodes"][0]["methodDefinitions"]["nodes"][0]["description"],
+        json!("Standard ground service")
+    );
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["locationGroupZones"]
+            ["nodes"][1]["methodDefinitions"]["nodes"][0]["description"],
+        Value::Null
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileDescriptionCountryUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroupZones(first: 5) {
+                  nodes {
+                    methodDefinitions(first: 5) { nodes { id description } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": profile_id,
+            "profile": {
+                "locationGroupsToUpdate": [{
+                    "id": profile["profileLocationGroups"][0]["locationGroup"]["id"],
+                    "zonesToUpdate": [{
+                        "id": zone_id,
+                        "methodDefinitionsToUpdate": [{
+                            "id": method_id,
+                            "description": "Updated standard ground service"
+                        }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["deliveryProfile"]["profileLocationGroups"][0]
+            ["locationGroupZones"]["nodes"][0]["methodDefinitions"]["nodes"][0]["description"],
+        json!("Updated standard ground service")
+    );
+}
+
+#[test]
 fn delivery_profiles_connection_windows_and_computes_page_info() {
     let mut proxy = snapshot_proxy();
     for name in [
