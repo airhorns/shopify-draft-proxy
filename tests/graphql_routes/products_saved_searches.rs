@@ -722,13 +722,23 @@ fn product_update_media_ready_image_urls_are_stable_per_media() {
     );
 }
 
+fn assert_invalid_product_taxonomy_node_id(response: &Response, root: &str) {
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"][root], json!(null));
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Invalid product_taxonomy_node_id")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_PRODUCT_TAXONOMY_NODE_ID")
+    );
+    assert_eq!(response.body["errors"][0]["path"], json!([root]));
+}
+
 #[test]
-fn product_create_unknown_category_returns_null_full_name() {
+fn product_create_unknown_category_returns_invalid_taxonomy_error() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
-    let expected_category = json!({
-        "id": unknown_category,
-        "fullName": null
-    });
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -747,38 +757,15 @@ fn product_create_unknown_category_returns_null_full_name() {
             }
         }),
     ));
-    assert_eq!(create.status, 200);
-    assert_eq!(
-        create.body["data"]["productCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        create.body["data"]["productCreate"]["product"]["category"],
-        expected_category
-    );
-    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+    assert_invalid_product_taxonomy_node_id(&create, "productCreate");
 
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query UnknownCategoryCreateRead($id: ID!) {
-          product(id: $id) {
-            category { id fullName }
-          }
-        }
-        "#,
-        json!({ "id": created_id }),
-    ));
-    assert_eq!(read.status, 200);
-    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"], json!([]));
 }
 
 #[test]
-fn product_set_unknown_category_returns_object_with_null_full_name() {
+fn product_set_unknown_category_returns_invalid_taxonomy_error() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
-    let expected_category = json!({
-        "id": unknown_category,
-        "fullName": null
-    });
     let mut proxy = snapshot_proxy();
 
     let set = proxy.process_request(json_graphql_request(
@@ -797,23 +784,143 @@ fn product_set_unknown_category_returns_object_with_null_full_name() {
             }
         }),
     ));
-    assert_eq!(set.status, 200);
-    assert_eq!(set.body["data"]["productSet"]["userErrors"], json!([]));
+    assert_invalid_product_taxonomy_node_id(&set, "productSet");
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"], json!([]));
+}
+
+#[test]
+fn product_update_category_stages_known_category() {
+    let known_category = "gid://shopify/TaxonomyCategory/aa-1-1";
+    let expected_category = json!({
+        "id": known_category,
+        "fullName": "Apparel & Accessories > Clothing > Activewear"
+    });
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateCategorySetup($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id category { id fullName } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Category update setup" } }),
+    ));
+    assert_eq!(create.status, 200);
     assert_eq!(
-        set.body["data"]["productSet"]["product"]["category"],
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["category"],
+        json!(null)
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateKnownCategory($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id category { id fullName } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "category": known_category
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"]["category"],
         expected_category
     );
-    let set_id = set.body["data"]["productSet"]["product"]["id"].clone();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query UnknownCategoryProductSetRead($id: ID!) {
+        query ProductUpdateKnownCategoryRead($id: ID!) {
           product(id: $id) {
             category { id fullName }
           }
         }
         "#,
-        json!({ "id": set_id }),
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
+#[test]
+fn product_update_unknown_category_returns_invalid_taxonomy_error_without_changing_product() {
+    let known_category = "gid://shopify/TaxonomyCategory/aa-1-1";
+    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": known_category,
+        "fullName": "Apparel & Accessories > Clothing > Activewear"
+    });
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateUnknownCategorySetup($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id category { id fullName } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Unknown category update setup",
+                "category": known_category
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["category"],
+        expected_category
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUpdateUnknownCategory($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id category { id fullName } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "category": unknown_category
+            }
+        }),
+    ));
+    assert_invalid_product_taxonomy_node_id(&update, "productUpdate");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductUpdateUnknownCategoryRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
     ));
     assert_eq!(read.status, 200);
     assert_eq!(read.body["data"]["product"]["category"], expected_category);

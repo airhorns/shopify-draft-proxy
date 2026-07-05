@@ -3397,16 +3397,31 @@ pub(in crate::proxy) fn product_category_input_id(
 
 /// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
 /// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// the taxonomy exposes and leave unknown nodes unresolved.
-pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
+/// covered by captured evidence and reject unresolved input IDs before staging.
+pub(in crate::proxy) fn product_category_value(id: &str) -> Option<Value> {
     let full_name = match id {
         "gid://shopify/TaxonomyCategory/aa-1-1" => {
             json!("Apparel & Accessories > Clothing > Activewear")
         }
         "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
-        _ => Value::Null,
+        _ => return None,
     };
-    json!({ "id": id, "fullName": full_name })
+    Some(json!({ "id": id, "fullName": full_name }))
+}
+
+pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(
+    response_key: &str,
+    location: SourceLocation,
+) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "Invalid product_taxonomy_node_id",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "extensions": { "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID" },
+            "path": [response_key]
+        }],
+        "data": { response_key: Value::Null }
+    }))
 }
 
 pub(in crate::proxy) fn product_input(

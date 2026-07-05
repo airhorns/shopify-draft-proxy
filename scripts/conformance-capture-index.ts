@@ -1025,6 +1025,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-category-validation',
+    scriptPath: 'scripts/capture-product-category-validation-conformance.ts',
+    purpose: 'productCreate/productUpdate/productSet unknown taxonomy category validation for Product category input.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-category-validation.json`,
+      'config/parity-specs/products/product-category-validation.json',
+      'config/parity-requests/products/productCategoryValidation-productCreate.graphql',
+      'config/parity-requests/products/productCategoryValidation-productUpdate.graphql',
+      'config/parity-requests/products/productCategoryValidation-productSet.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product for productUpdate validation, records unknown-category branches, and deletes any created products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-user-error-shapes',
     scriptPath: 'scripts/capture-product-user-error-shape-conformance.ts',
     purpose:
