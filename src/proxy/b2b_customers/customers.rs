@@ -3458,10 +3458,6 @@ fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> 
     })))
 }
 
-pub(in crate::proxy) fn is_valid_customer_email(email: &str) -> bool {
-    shopify_email_is_valid(email, EmailValidationMode::Basic)
-}
-
 #[cfg(test)]
 mod customer_search_tests {
     use super::*;
