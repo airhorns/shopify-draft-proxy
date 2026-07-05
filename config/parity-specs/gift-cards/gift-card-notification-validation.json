@@ -353,5 +353,5 @@
       }
     ]
   },
-  "notes": "Captures validation-failing gift-card notification roots only, so no successful customer-visible notification is sent. Expired notification branches use an ordinary recent-past expiresOn date. Notify-disabled validation is covered by runtime tests because public Admin GraphQL 2026-04 exposes no GiftCard notify field or GiftCardCreate/Update notify input to create that stored branch through the conformance harness."
+  "notes": "Captures validation-failing gift-card notification roots only, so no successful customer-visible notification is sent. Expired notification branches use a stable-past expiresOn date so replay remains expired under the fixed parity clock. Notify-disabled validation is covered by runtime tests because public Admin GraphQL 2026-04 exposes no GiftCard notify field or GiftCardCreate/Update notify input to create that stored branch through the conformance harness."
 }
