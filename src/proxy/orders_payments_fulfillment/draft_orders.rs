@@ -509,6 +509,16 @@ pub(in crate::proxy) fn draft_order_input_currency(
     input: &BTreeMap<String, ResolvedValue>,
     shop_currency_code: &str,
 ) -> String {
+    draft_order_explicit_input_currency(input).unwrap_or_else(|| shop_currency_code.to_string())
+}
+
+pub(in crate::proxy) fn draft_order_input_needs_shop_currency(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    draft_order_explicit_input_currency(input).is_none()
+}
+
+fn draft_order_explicit_input_currency(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(input, "currencyCode")
         .or_else(|| {
             resolved_object_field(input, "shippingLine")
@@ -526,7 +536,6 @@ pub(in crate::proxy) fn draft_order_input_currency(
                         .and_then(|money| input_money_currency(&money))
                 })
         })
-        .unwrap_or_else(|| shop_currency_code.to_string())
 }
 
 pub(in crate::proxy) fn draft_order_applied_discount_user_errors(
@@ -1425,6 +1434,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        if draft_order_input_needs_shop_currency(&input) {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         let id = self.next_draft_order_id();
         let name = self.draft_order_name_for_id(&id);
         let customer = draft_order_customer_id(&input)
@@ -1514,7 +1526,7 @@ impl DraftProxy {
     }
 
     pub(super) fn calculate_draft_order_payload(
-        &self,
+        &mut self,
         request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
@@ -1540,6 +1552,9 @@ impl DraftProxy {
                 &json!({ "calculatedDraftOrder": Value::Null, "userErrors": user_errors }),
                 &field.selection,
             );
+        }
+        if draft_order_input_needs_shop_currency(&input) {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         let calculated = draft_order_calculated_record(
             &input,
