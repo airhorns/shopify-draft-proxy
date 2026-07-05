@@ -2939,16 +2939,42 @@ fn metafield_definition_query_field_supported(field: &str) -> bool {
 }
 
 fn metafield_definition_matches_field(definition: &Value, field: &str, expected: &str) -> bool {
+    metafield_definition_matches_field_with(definition, field, expected, false)
+}
+
+fn metafield_definition_matches_field_exact(
+    definition: &Value,
+    field: &str,
+    expected: &str,
+) -> bool {
+    metafield_definition_matches_field_with(definition, field, expected, true)
+}
+
+fn metafield_definition_matches_field_with(
+    definition: &Value,
+    field: &str,
+    expected: &str,
+    exact: bool,
+) -> bool {
+    let Some(actual) = metafield_definition_match_field_value(definition, field) else {
+        return false;
+    };
+    if exact || matches!(field, "id" | "owner_type" | "ownertype") {
+        actual == expected
+    } else {
+        actual.contains(expected)
+    }
+}
+
+fn metafield_definition_match_field_value(definition: &Value, field: &str) -> Option<String> {
     match field {
-        "id" => value_id_cursor(definition).to_ascii_lowercase() == expected,
-        "namespace" | "key" | "name" => {
-            metafield_definition_string_field(definition, field).contains(expected)
-        }
+        "id" => Some(value_id_cursor(definition).to_ascii_lowercase()),
+        "namespace" | "key" | "name" => Some(metafield_definition_string_field(definition, field)),
         "owner_type" | "ownertype" => {
-            metafield_definition_string_field(definition, "ownerType") == expected
+            Some(metafield_definition_string_field(definition, "ownerType"))
         }
-        "type" => metafield_definition_type_name(definition).contains(expected),
-        _ => false,
+        "type" => Some(metafield_definition_type_name(definition)),
+        _ => None,
     }
 }
 
@@ -2989,24 +3015,6 @@ fn metafield_definition_relevance(definition: &Value, query: Option<&str>) -> i6
         })
         .min()
         .unwrap_or(0)
-}
-
-fn metafield_definition_matches_field_exact(
-    definition: &Value,
-    field: &str,
-    expected: &str,
-) -> bool {
-    match field {
-        "id" => value_id_cursor(definition).to_ascii_lowercase() == expected,
-        "namespace" | "key" | "name" => {
-            metafield_definition_string_field(definition, field) == expected
-        }
-        "owner_type" | "ownertype" => {
-            metafield_definition_string_field(definition, "ownerType") == expected
-        }
-        "type" => metafield_definition_type_name(definition) == expected,
-        _ => false,
-    }
 }
 
 fn metafield_definition_search_values(definition: &Value) -> Vec<String> {

@@ -2022,6 +2022,7 @@ mod schema_validation;
 mod selection;
 mod selling_plans;
 mod store_properties;
+mod url_redirects;
 
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
 pub(in crate::proxy) use self::app_shipping_helpers::*;
