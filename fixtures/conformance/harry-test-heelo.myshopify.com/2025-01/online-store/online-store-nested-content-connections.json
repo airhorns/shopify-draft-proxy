@@ -1,0 +1,1014 @@
+{
+  "scenarioId": "online-store-nested-content-connections",
+  "capturedAt": "2026-07-05T03:42:46.261Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Live Shopify capture for nested Blog.articles and Article.comments connection windows, reverse ordering, comment query filters, and cursor-page reads. The scenario creates disposable blog/article records through Admin GraphQL, creates REST comments only as setup, records a cold article comments hydrate cassette, stages commentSpam through Admin GraphQL, records nested reads, and deletes the disposable content during cleanup.",
+  "variables": {
+    "hydrate": {
+      "articleId": "gid://shopify/Article/684625461554"
+    },
+    "blogCreate": {
+      "blog": {
+        "title": "Nested Content Connections Blog 20260705034242",
+        "commentPolicy": "MODERATED"
+      }
+    },
+    "articleCreateAlpha": {
+      "article": {
+        "blogId": "gid://shopify/Blog/121718243634",
+        "title": "Nested Content Connections Alpha 20260705034242",
+        "body": "<p>Nested content connections alpha body.</p>",
+        "summary": "<p>Nested content connections alpha summary.</p>",
+        "isPublished": true,
+        "tags": ["nested-content-20260705034242", "nested-content-alpha-20260705034242"],
+        "author": {
+          "name": "Nested Connections Author 20260705034242"
+        }
+      }
+    },
+    "articleCreateBravo": {
+      "article": {
+        "blogId": "gid://shopify/Blog/121718243634",
+        "title": "Nested Content Connections Bravo 20260705034242",
+        "body": "<p>Nested content connections bravo body.</p>",
+        "summary": "<p>Nested content connections bravo summary.</p>",
+        "isPublished": true,
+        "tags": ["nested-content-20260705034242"],
+        "author": {
+          "name": "Nested Connections Author 20260705034242"
+        }
+      }
+    },
+    "articleCreateCharlie": {
+      "article": {
+        "blogId": "gid://shopify/Blog/121718243634",
+        "title": "Nested Content Connections Charlie 20260705034242",
+        "body": "<p>Nested content connections charlie body.</p>",
+        "summary": "<p>Nested content connections charlie summary.</p>",
+        "isPublished": true,
+        "tags": ["nested-content-20260705034242"],
+        "author": {
+          "name": "Nested Connections Author 20260705034242"
+        }
+      }
+    },
+    "commentSpam": {
+      "id": "gid://shopify/Comment/135023362354"
+    },
+    "readWindows": {
+      "blogId": "gid://shopify/Blog/121718243634",
+      "articleId": "gid://shopify/Article/684625461554",
+      "commentFilterQuery": "status:SPAM"
+    },
+    "readCursors": {
+      "blogId": "gid://shopify/Blog/121718243634",
+      "articleId": "gid://shopify/Article/684625461554",
+      "articleAfter": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+      "articleBefore": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+      "commentAfter": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+      "commentBefore": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+    }
+  },
+  "restComments": [
+    {
+      "id": 135023362354,
+      "body": "Nested Content Connections Comment Alpha 20260705034242",
+      "body_html": "<p>Nested Content Connections Comment Alpha 20260705034242</p>",
+      "author": "Nested Content Connections Fixture",
+      "email": "nested-content-connections@example.com",
+      "status": "pending",
+      "article_id": 684625461554,
+      "blog_id": 121718243634,
+      "created_at": "2026-07-04T23:42:42-04:00",
+      "updated_at": "2026-07-04T23:42:42-04:00",
+      "ip": "127.0.0.1",
+      "user_agent": null,
+      "published_at": null
+    },
+    {
+      "id": 135023395122,
+      "body": "Nested Content Connections Comment Bravo 20260705034242",
+      "body_html": "<p>Nested Content Connections Comment Bravo 20260705034242</p>",
+      "author": "Nested Content Connections Fixture",
+      "email": "nested-content-connections@example.com",
+      "status": "pending",
+      "article_id": 684625461554,
+      "blog_id": 121718243634,
+      "created_at": "2026-07-04T23:42:43-04:00",
+      "updated_at": "2026-07-04T23:42:43-04:00",
+      "ip": "127.0.0.1",
+      "user_agent": null,
+      "published_at": null
+    },
+    {
+      "id": 135023427890,
+      "body": "Nested Content Connections Comment Charlie 20260705034242",
+      "body_html": "<p>Nested Content Connections Comment Charlie 20260705034242</p>",
+      "author": "Nested Content Connections Fixture",
+      "email": "nested-content-connections@example.com",
+      "status": "pending",
+      "article_id": 684625461554,
+      "blog_id": 121718243634,
+      "created_at": "2026-07-04T23:42:45-04:00",
+      "updated_at": "2026-07-04T23:42:45-04:00",
+      "ip": "127.0.0.1",
+      "user_agent": null,
+      "published_at": null
+    }
+  ],
+  "interactions": [
+    {
+      "name": "blogCreate setup",
+      "request": {
+        "query": "mutation OnlineStoreNestedContentConnectionsBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      articlesCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Nested Content Connections Blog 20260705034242",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121718243634",
+              "title": "Nested Content Connections Blog 20260705034242",
+              "handle": "nested-content-connections-blog-20260705034242",
+              "commentPolicy": "MODERATED",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate setup alpha",
+      "request": {
+        "query": "mutation OnlineStoreNestedContentConnectionsArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      tags\n      isPublished\n      blog {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121718243634",
+            "title": "Nested Content Connections Alpha 20260705034242",
+            "body": "<p>Nested content connections alpha body.</p>",
+            "summary": "<p>Nested content connections alpha summary.</p>",
+            "isPublished": true,
+            "tags": ["nested-content-20260705034242", "nested-content-alpha-20260705034242"],
+            "author": {
+              "name": "Nested Connections Author 20260705034242"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/684625461554",
+              "title": "Nested Content Connections Alpha 20260705034242",
+              "handle": "nested-content-connections-alpha-20260705034242",
+              "tags": ["nested-content-20260705034242", "nested-content-alpha-20260705034242"],
+              "isPublished": true,
+              "blog": {
+                "id": "gid://shopify/Blog/121718243634",
+                "title": "Nested Content Connections Blog 20260705034242"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate setup bravo",
+      "request": {
+        "query": "mutation OnlineStoreNestedContentConnectionsArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      tags\n      isPublished\n      blog {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121718243634",
+            "title": "Nested Content Connections Bravo 20260705034242",
+            "body": "<p>Nested content connections bravo body.</p>",
+            "summary": "<p>Nested content connections bravo summary.</p>",
+            "isPublished": true,
+            "tags": ["nested-content-20260705034242"],
+            "author": {
+              "name": "Nested Connections Author 20260705034242"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/684625494322",
+              "title": "Nested Content Connections Bravo 20260705034242",
+              "handle": "nested-content-connections-bravo-20260705034242",
+              "tags": ["nested-content-20260705034242"],
+              "isPublished": true,
+              "blog": {
+                "id": "gid://shopify/Blog/121718243634",
+                "title": "Nested Content Connections Blog 20260705034242"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate setup charlie",
+      "request": {
+        "query": "mutation OnlineStoreNestedContentConnectionsArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      tags\n      isPublished\n      blog {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121718243634",
+            "title": "Nested Content Connections Charlie 20260705034242",
+            "body": "<p>Nested content connections charlie body.</p>",
+            "summary": "<p>Nested content connections charlie summary.</p>",
+            "isPublished": true,
+            "tags": ["nested-content-20260705034242"],
+            "author": {
+              "name": "Nested Connections Author 20260705034242"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/684625527090",
+              "title": "Nested Content Connections Charlie 20260705034242",
+              "handle": "nested-content-connections-charlie-20260705034242",
+              "tags": ["nested-content-20260705034242"],
+              "isPublished": true,
+              "blog": {
+                "id": "gid://shopify/Blog/121718243634",
+                "title": "Nested Content Connections Blog 20260705034242"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "article comments hydrate",
+      "request": {
+        "query": "query OnlineStoreNestedContentConnectionsHydrate($articleId: ID!) {\n  article(id: $articleId) {\n    __typename\n    id\n    title\n    handle\n    createdAt\n    updatedAt\n    blog {\n      id\n      title\n      handle\n    }\n    comments(first: 50) {\n      nodes {\n        __typename\n        id\n        status\n        body\n        bodyHtml\n        isPublished\n        publishedAt\n        createdAt\n        updatedAt\n        article {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "articleId": "gid://shopify/Article/684625461554"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "article": {
+            "__typename": "Article",
+            "id": "gid://shopify/Article/684625461554",
+            "title": "Nested Content Connections Alpha 20260705034242",
+            "handle": "nested-content-connections-alpha-20260705034242",
+            "createdAt": "2026-07-05T03:42:42Z",
+            "updatedAt": "2026-07-05T03:42:42Z",
+            "blog": {
+              "id": "gid://shopify/Blog/121718243634",
+              "title": "Nested Content Connections Blog 20260705034242",
+              "handle": "nested-content-connections-blog-20260705034242"
+            },
+            "comments": {
+              "nodes": [
+                {
+                  "__typename": "Comment",
+                  "id": "gid://shopify/Comment/135023362354",
+                  "status": "UNAPPROVED",
+                  "body": "Nested Content Connections Comment Alpha 20260705034242",
+                  "bodyHtml": "<p>Nested Content Connections Comment Alpha 20260705034242</p>",
+                  "isPublished": false,
+                  "publishedAt": null,
+                  "createdAt": "2026-07-05T03:42:42Z",
+                  "updatedAt": "2026-07-05T03:42:42Z",
+                  "article": {
+                    "id": "gid://shopify/Article/684625461554",
+                    "title": "Nested Content Connections Alpha 20260705034242"
+                  }
+                },
+                {
+                  "__typename": "Comment",
+                  "id": "gid://shopify/Comment/135023395122",
+                  "status": "UNAPPROVED",
+                  "body": "Nested Content Connections Comment Bravo 20260705034242",
+                  "bodyHtml": "<p>Nested Content Connections Comment Bravo 20260705034242</p>",
+                  "isPublished": false,
+                  "publishedAt": null,
+                  "createdAt": "2026-07-05T03:42:43Z",
+                  "updatedAt": "2026-07-05T03:42:43Z",
+                  "article": {
+                    "id": "gid://shopify/Article/684625461554",
+                    "title": "Nested Content Connections Alpha 20260705034242"
+                  }
+                },
+                {
+                  "__typename": "Comment",
+                  "id": "gid://shopify/Comment/135023427890",
+                  "status": "UNAPPROVED",
+                  "body": "Nested Content Connections Comment Charlie 20260705034242",
+                  "bodyHtml": "<p>Nested Content Connections Comment Charlie 20260705034242</p>",
+                  "isPublished": false,
+                  "publishedAt": null,
+                  "createdAt": "2026-07-05T03:42:45Z",
+                  "updatedAt": "2026-07-05T03:42:45Z",
+                  "article": {
+                    "id": "gid://shopify/Article/684625461554",
+                    "title": "Nested Content Connections Alpha 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "commentSpam setup alpha",
+      "request": {
+        "query": "mutation OnlineStoreNestedContentConnectionsCommentSpam($id: ID!) {\n  commentSpam(id: $id) {\n    comment {\n      id\n      status\n      isPublished\n      publishedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Comment/135023362354"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "commentSpam": {
+            "comment": {
+              "id": "gid://shopify/Comment/135023362354",
+              "status": "SPAM",
+              "isPublished": false,
+              "publishedAt": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested connection windows",
+      "request": {
+        "query": "query OnlineStoreNestedContentConnectionsReadWindows(\n  $blogId: ID!\n  $articleId: ID!\n  $commentFilterQuery: String!\n) {\n  blog(id: $blogId) {\n    articlesFirst: articles(first: 2) {\n      nodes {\n        title\n        tags\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    articlesAll: articles(first: 3) {\n      nodes {\n        title\n        tags\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    articlesReverse: articles(first: 2, reverse: true) {\n      nodes {\n        title\n        tags\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  article(id: $articleId) {\n    commentsFirst: comments(first: 2) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          body\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    commentsAll: comments(first: 3) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          body\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    commentsReverse: comments(first: 2, reverse: true) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      edges {\n        cursor\n        node {\n          body\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    commentsFiltered: comments(first: 3, query: $commentFilterQuery) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121718243634",
+          "articleId": "gid://shopify/Article/684625461554",
+          "commentFilterQuery": "status:SPAM"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blog": {
+            "articlesFirst": {
+              "nodes": [
+                {
+                  "title": "Nested Content Connections Alpha 20260705034242",
+                  "tags": ["nested-content-20260705034242", "nested-content-alpha-20260705034242"],
+                  "isPublished": true
+                },
+                {
+                  "title": "Nested Content Connections Bravo 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU0NjE1NTQsImxhc3RfdmFsdWUiOiI2ODQ2MjU0NjE1NTQifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Alpha 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Bravo 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0NjE1NTQsImxhc3RfdmFsdWUiOiI2ODQ2MjU0NjE1NTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ=="
+              }
+            },
+            "articlesAll": {
+              "nodes": [
+                {
+                  "title": "Nested Content Connections Alpha 20260705034242",
+                  "tags": ["nested-content-20260705034242", "nested-content-alpha-20260705034242"],
+                  "isPublished": true
+                },
+                {
+                  "title": "Nested Content Connections Bravo 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                },
+                {
+                  "title": "Nested Content Connections Charlie 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU0NjE1NTQsImxhc3RfdmFsdWUiOiI2ODQ2MjU0NjE1NTQifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Alpha 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Bravo 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Charlie 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0NjE1NTQsImxhc3RfdmFsdWUiOiI2ODQ2MjU0NjE1NTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ=="
+              }
+            },
+            "articlesReverse": {
+              "nodes": [
+                {
+                  "title": "Nested Content Connections Charlie 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                },
+                {
+                  "title": "Nested Content Connections Bravo 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Charlie 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+                  "node": {
+                    "title": "Nested Content Connections Bravo 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ=="
+              }
+            }
+          },
+          "article": {
+            "commentsFirst": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Alpha 20260705034242",
+                  "status": "SPAM",
+                  "isPublished": false
+                },
+                {
+                  "body": "Nested Content Connections Comment Bravo 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Alpha 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Bravo 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ=="
+              }
+            },
+            "commentsAll": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Alpha 20260705034242",
+                  "status": "SPAM",
+                  "isPublished": false
+                },
+                {
+                  "body": "Nested Content Connections Comment Bravo 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                },
+                {
+                  "body": "Nested Content Connections Comment Charlie 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Alpha 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Bravo 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Charlie 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+              }
+            },
+            "commentsReverse": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Charlie 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                },
+                {
+                  "body": "Nested Content Connections Comment Bravo 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Charlie 20260705034242"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+                  "node": {
+                    "body": "Nested Content Connections Comment Bravo 20260705034242"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ=="
+              }
+            },
+            "commentsFiltered": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Alpha 20260705034242",
+                  "status": "SPAM",
+                  "isPublished": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ=="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 34,
+            "actualQueryCost": 33,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1944,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "nested connection cursor windows",
+      "request": {
+        "query": "query OnlineStoreNestedContentConnectionsReadCursors(\n  $blogId: ID!\n  $articleId: ID!\n  $articleAfter: String!\n  $articleBefore: String!\n  $commentAfter: String!\n  $commentBefore: String!\n) {\n  blog(id: $blogId) {\n    articlesAfter: articles(first: 2, after: $articleAfter) {\n      nodes {\n        title\n        tags\n        isPublished\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    articlesBefore: articles(last: 1, before: $articleBefore) {\n      nodes {\n        title\n        tags\n        isPublished\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  article(id: $articleId) {\n    commentsAfter: comments(first: 2, after: $commentAfter) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    commentsBefore: comments(last: 1, before: $commentBefore) {\n      nodes {\n        body\n        status\n        isPublished\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "blogId": "gid://shopify/Blog/121718243634",
+          "articleId": "gid://shopify/Article/684625461554",
+          "articleAfter": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+          "articleBefore": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+          "commentAfter": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+          "commentBefore": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blog": {
+            "articlesAfter": {
+              "nodes": [
+                {
+                  "title": "Nested Content Connections Charlie 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ2MjU1MjcwOTAsImxhc3RfdmFsdWUiOiI2ODQ2MjU1MjcwOTAifQ=="
+              }
+            },
+            "articlesBefore": {
+              "nodes": [
+                {
+                  "title": "Nested Content Connections Bravo 20260705034242",
+                  "tags": ["nested-content-20260705034242"],
+                  "isPublished": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODQ2MjU0OTQzMjIsImxhc3RfdmFsdWUiOiI2ODQ2MjU0OTQzMjIifQ=="
+              }
+            }
+          },
+          "article": {
+            "commentsAfter": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Charlie 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+              }
+            },
+            "commentsBefore": {
+              "nodes": [
+                {
+                  "body": "Nested Content Connections Comment Bravo 20260705034242",
+                  "status": "UNAPPROVED",
+                  "isPublished": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMzUwMjMzOTUxMjIsImxhc3RfdmFsdWUiOiIxMzUwMjMzOTUxMjIifQ=="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1941,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleDelete cleanup charlie",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNestedContentConnectionsArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/684625527090"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/684625527090",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1941,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleDelete cleanup bravo",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNestedContentConnectionsArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/684625494322"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/684625494322",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1944,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleDelete cleanup alpha",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNestedContentConnectionsArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/684625461554"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/684625461554",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNestedContentConnectionsBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121718243634"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121718243634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1952,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreNestedContentConnectionsHydrate",
+      "variables": {
+        "articleId": "gid://shopify/Article/684625461554"
+      },
+      "query": "query OnlineStoreNestedContentConnectionsHydrate($articleId: ID!) {\n  article(id: $articleId) {\n    __typename\n    id\n    title\n    handle\n    createdAt\n    updatedAt\n    blog {\n      id\n      title\n      handle\n    }\n    comments(first: 50) {\n      nodes {\n        __typename\n        id\n        status\n        body\n        bodyHtml\n        isPublished\n        publishedAt\n        createdAt\n        updatedAt\n        article {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/684625461554",
+              "title": "Nested Content Connections Alpha 20260705034242",
+              "handle": "nested-content-connections-alpha-20260705034242",
+              "createdAt": "2026-07-05T03:42:42Z",
+              "updatedAt": "2026-07-05T03:42:42Z",
+              "blog": {
+                "id": "gid://shopify/Blog/121718243634",
+                "title": "Nested Content Connections Blog 20260705034242",
+                "handle": "nested-content-connections-blog-20260705034242"
+              },
+              "comments": {
+                "nodes": [
+                  {
+                    "__typename": "Comment",
+                    "id": "gid://shopify/Comment/135023362354",
+                    "status": "UNAPPROVED",
+                    "body": "Nested Content Connections Comment Alpha 20260705034242",
+                    "bodyHtml": "<p>Nested Content Connections Comment Alpha 20260705034242</p>",
+                    "isPublished": false,
+                    "publishedAt": null,
+                    "createdAt": "2026-07-05T03:42:42Z",
+                    "updatedAt": "2026-07-05T03:42:42Z",
+                    "article": {
+                      "id": "gid://shopify/Article/684625461554",
+                      "title": "Nested Content Connections Alpha 20260705034242"
+                    }
+                  },
+                  {
+                    "__typename": "Comment",
+                    "id": "gid://shopify/Comment/135023395122",
+                    "status": "UNAPPROVED",
+                    "body": "Nested Content Connections Comment Bravo 20260705034242",
+                    "bodyHtml": "<p>Nested Content Connections Comment Bravo 20260705034242</p>",
+                    "isPublished": false,
+                    "publishedAt": null,
+                    "createdAt": "2026-07-05T03:42:43Z",
+                    "updatedAt": "2026-07-05T03:42:43Z",
+                    "article": {
+                      "id": "gid://shopify/Article/684625461554",
+                      "title": "Nested Content Connections Alpha 20260705034242"
+                    }
+                  },
+                  {
+                    "__typename": "Comment",
+                    "id": "gid://shopify/Comment/135023427890",
+                    "status": "UNAPPROVED",
+                    "body": "Nested Content Connections Comment Charlie 20260705034242",
+                    "bodyHtml": "<p>Nested Content Connections Comment Charlie 20260705034242</p>",
+                    "isPublished": false,
+                    "publishedAt": null,
+                    "createdAt": "2026-07-05T03:42:45Z",
+                    "updatedAt": "2026-07-05T03:42:45Z",
+                    "article": {
+                      "id": "gid://shopify/Article/684625461554",
+                      "title": "Nested Content Connections Alpha 20260705034242"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMzUwMjMzNjIzNTQsImxhc3RfdmFsdWUiOiIxMzUwMjMzNjIzNTQifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMzUwMjM0Mjc4OTAsImxhc3RfdmFsdWUiOiIxMzUwMjM0Mjc4OTAifQ=="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

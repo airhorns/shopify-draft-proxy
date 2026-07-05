@@ -1,0 +1,22 @@
+#graphql
+  mutation PublishableInputValidationUnpublishInlineEmpty($id: ID!) {
+    publishableUnpublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

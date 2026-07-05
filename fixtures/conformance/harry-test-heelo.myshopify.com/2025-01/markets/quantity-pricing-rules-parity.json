@@ -1,7 +1,7 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-06T22:45:42.996Z",
+  "capturedAt": "2026-07-05T06:10:54.518Z",
   "scope": "quantity pricing/rules live capture",
   "setup": {
     "priceListId": "gid://shopify/PriceList/32128106802",
@@ -303,6 +303,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75465010",
                       "minimumQuantity": 2,
                       "price": {
                         "amount": "10.0",
@@ -316,6 +317,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75497778",
                       "minimumQuantity": 3,
                       "price": {
                         "amount": "9.0",
@@ -329,6 +331,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75530546",
                       "minimumQuantity": 4,
                       "price": {
                         "amount": "8.0",
@@ -342,6 +345,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75563314",
                       "minimumQuantity": 5,
                       "price": {
                         "amount": "7.0",
@@ -355,6 +359,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75596082",
                       "minimumQuantity": 6,
                       "price": {
                         "amount": "6.0",
@@ -368,6 +373,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75628850",
                       "minimumQuantity": 7,
                       "price": {
                         "amount": "5.0",
@@ -381,6 +387,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75661618",
                       "minimumQuantity": 8,
                       "price": {
                         "amount": "3.0",
@@ -394,6 +401,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75694386",
                       "minimumQuantity": 9,
                       "price": {
                         "amount": "1.0",
@@ -407,6 +415,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75727154",
                       "minimumQuantity": 10,
                       "price": {
                         "amount": "0.5",
@@ -420,6 +429,7 @@
                   {
                     "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
                     "node": {
+                      "id": "gid://shopify/QuantityPriceBreak/75759922",
                       "minimumQuantity": 11,
                       "price": {
                         "amount": "0.25",
@@ -1121,7 +1131,7 @@
           "quantityPriceBreaksToDelete": []
         }
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -1420,6 +1430,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75465010",
                               "minimumQuantity": 2,
                               "price": {
                                 "amount": "10.0",
@@ -1433,6 +1444,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75497778",
                               "minimumQuantity": 3,
                               "price": {
                                 "amount": "9.0",
@@ -1446,6 +1458,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75530546",
                               "minimumQuantity": 4,
                               "price": {
                                 "amount": "8.0",
@@ -1459,6 +1472,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75563314",
                               "minimumQuantity": 5,
                               "price": {
                                 "amount": "7.0",
@@ -1472,6 +1486,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75596082",
                               "minimumQuantity": 6,
                               "price": {
                                 "amount": "6.0",
@@ -1485,6 +1500,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75628850",
                               "minimumQuantity": 7,
                               "price": {
                                 "amount": "5.0",
@@ -1498,6 +1514,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75661618",
                               "minimumQuantity": 8,
                               "price": {
                                 "amount": "3.0",
@@ -1511,6 +1528,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75694386",
                               "minimumQuantity": 9,
                               "price": {
                                 "amount": "1.0",
@@ -1524,6 +1542,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75727154",
                               "minimumQuantity": 10,
                               "price": {
                                 "amount": "0.5",
@@ -1537,6 +1556,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75759922",
                               "minimumQuantity": 11,
                               "price": {
                                 "amount": "0.25",
@@ -1734,7 +1754,7 @@
         "priceListId": "gid://shopify/PriceList/32128106802",
         "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2033,6 +2053,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75465010",
                               "minimumQuantity": 2,
                               "price": {
                                 "amount": "10.0",
@@ -2046,6 +2067,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75497778",
                               "minimumQuantity": 3,
                               "price": {
                                 "amount": "9.0",
@@ -2059,6 +2081,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75530546",
                               "minimumQuantity": 4,
                               "price": {
                                 "amount": "8.0",
@@ -2072,6 +2095,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75563314",
                               "minimumQuantity": 5,
                               "price": {
                                 "amount": "7.0",
@@ -2085,6 +2109,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75596082",
                               "minimumQuantity": 6,
                               "price": {
                                 "amount": "6.0",
@@ -2098,6 +2123,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75628850",
                               "minimumQuantity": 7,
                               "price": {
                                 "amount": "5.0",
@@ -2111,6 +2137,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75661618",
                               "minimumQuantity": 8,
                               "price": {
                                 "amount": "3.0",
@@ -2124,6 +2151,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75694386",
                               "minimumQuantity": 9,
                               "price": {
                                 "amount": "1.0",
@@ -2137,6 +2165,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75727154",
                               "minimumQuantity": 10,
                               "price": {
                                 "amount": "0.5",
@@ -2150,6 +2179,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75759922",
                               "minimumQuantity": 11,
                               "price": {
                                 "amount": "0.25",
@@ -2333,7 +2363,7 @@
               "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1950,
+                "currentlyAvailable": 1954,
                 "restoreRate": 100
               }
             }
@@ -2378,7 +2408,7 @@
           "quantityPriceBreaksToDelete": []
         }
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2550,7 +2580,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1947,
+                "currentlyAvailable": 1951,
                 "restoreRate": 100
               }
             }
@@ -2571,7 +2601,7 @@
           }
         ]
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2743,7 +2773,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1922,
+                "currentlyAvailable": 1943,
                 "restoreRate": 100
               }
             }
@@ -2757,7 +2787,7 @@
         "priceListId": "gid://shopify/PriceList/0",
         "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2929,7 +2959,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1902,
+                "currentlyAvailable": 1935,
                 "restoreRate": 100
               }
             }
@@ -2950,7 +2980,7 @@
           }
         ]
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -3249,6 +3279,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75465010",
                               "minimumQuantity": 2,
                               "price": {
                                 "amount": "10.0",
@@ -3262,6 +3293,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75497778",
                               "minimumQuantity": 3,
                               "price": {
                                 "amount": "9.0",
@@ -3275,6 +3307,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75530546",
                               "minimumQuantity": 4,
                               "price": {
                                 "amount": "8.0",
@@ -3288,6 +3321,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75563314",
                               "minimumQuantity": 5,
                               "price": {
                                 "amount": "7.0",
@@ -3301,6 +3335,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75596082",
                               "minimumQuantity": 6,
                               "price": {
                                 "amount": "6.0",
@@ -3314,6 +3349,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75628850",
                               "minimumQuantity": 7,
                               "price": {
                                 "amount": "5.0",
@@ -3327,6 +3363,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75661618",
                               "minimumQuantity": 8,
                               "price": {
                                 "amount": "3.0",
@@ -3340,6 +3377,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75694386",
                               "minimumQuantity": 9,
                               "price": {
                                 "amount": "1.0",
@@ -3353,6 +3391,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75727154",
                               "minimumQuantity": 10,
                               "price": {
                                 "amount": "0.5",
@@ -3366,6 +3405,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75759922",
                               "minimumQuantity": 11,
                               "price": {
                                 "amount": "0.25",
@@ -3549,7 +3589,7 @@
               "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1838,
+                "currentlyAvailable": 1909,
                 "restoreRate": 100
               }
             }
@@ -3563,7 +3603,7 @@
         "priceListId": "gid://shopify/PriceList/32128106802",
         "variantIds": ["gid://shopify/ProductVariant/0"]
       },
-      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { id minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -3862,6 +3902,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75465010",
                               "minimumQuantity": 2,
                               "price": {
                                 "amount": "10.0",
@@ -3875,6 +3916,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75497778",
                               "minimumQuantity": 3,
                               "price": {
                                 "amount": "9.0",
@@ -3888,6 +3930,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75530546",
                               "minimumQuantity": 4,
                               "price": {
                                 "amount": "8.0",
@@ -3901,6 +3944,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75563314",
                               "minimumQuantity": 5,
                               "price": {
                                 "amount": "7.0",
@@ -3914,6 +3958,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75596082",
                               "minimumQuantity": 6,
                               "price": {
                                 "amount": "6.0",
@@ -3927,6 +3972,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75628850",
                               "minimumQuantity": 7,
                               "price": {
                                 "amount": "5.0",
@@ -3940,6 +3986,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75661618",
                               "minimumQuantity": 8,
                               "price": {
                                 "amount": "3.0",
@@ -3953,6 +4000,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75694386",
                               "minimumQuantity": 9,
                               "price": {
                                 "amount": "1.0",
@@ -3966,6 +4014,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75727154",
                               "minimumQuantity": 10,
                               "price": {
                                 "amount": "0.5",
@@ -3979,6 +4028,7 @@
                           {
                             "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
                             "node": {
+                              "id": "gid://shopify/QuantityPriceBreak/75759922",
                               "minimumQuantity": 11,
                               "price": {
                                 "amount": "0.25",
@@ -4162,7 +4212,7 @@
               "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1830,
+                "currentlyAvailable": 1889,
                 "restoreRate": 100
               }
             }

@@ -1,31 +1,31 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10230804119858",
-      "mediaIds": ["gid://shopify/MediaImage/43991145840946"]
+      "productId": "gid://shopify/Product/10232069259570",
+      "mediaIds": ["gid://shopify/MediaImage/43997129343282"]
     },
     "response": {
       "data": {
         "productDeleteMedia": {
-          "deletedMediaIds": ["gid://shopify/MediaImage/43991145840946"],
-          "deletedProductImageIds": ["gid://shopify/ProductImage/53947466252594"],
+          "deletedMediaIds": ["gid://shopify/MediaImage/43997129343282"],
+          "deletedProductImageIds": ["gid://shopify/ProductImage/53954520973618"],
           "mediaUserErrors": [],
           "product": {
-            "id": "gid://shopify/Product/10230804119858",
+            "id": "gid://shopify/Product/10232069259570",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43991145906482",
+                  "id": "gid://shopify/MediaImage/43997129670962",
                   "alt": "Valid in mixed create",
                   "mediaContentType": "IMAGE",
                   "status": "READY",
                   "preview": {
                     "image": {
-                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_9863b968-c1cf-4c80-9e76-4164e9323e6e.png?v=1783088757"
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927"
                     }
                   },
                   "image": {
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_9863b968-c1cf-4c80-9e76-4164e9323e6e.png?v=1783088757"
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927"
                   }
                 }
               ]
@@ -39,7 +39,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1979,
             "restoreRate": 100
           }
         }
@@ -49,34 +49,75 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10230804119858",
+        "id": "gid://shopify/Product/10232069259570",
         "media": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43991145906482",
+              "id": "gid://shopify/MediaImage/43997129670962",
               "alt": "Valid in mixed create",
               "mediaContentType": "IMAGE",
               "status": "READY",
               "preview": {
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_9863b968-c1cf-4c80-9e76-4164e9323e6e.png?v=1783088757"
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927"
                 }
               },
               "image": {
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_9863b968-c1cf-4c80-9e76-4164e9323e6e.png?v=1783088757"
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927"
               }
             }
           ]
+        },
+        "images": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductImage/53954521334066",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927",
+              "altText": "Valid in mixed create"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk5NzEyOTY3MDk2MiwibGFzdF92YWx1ZSI6IjEifQ==",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk5NzEyOTY3MDk2MiwibGFzdF92YWx1ZSI6IjEifQ=="
+          }
+        },
+        "featuredImage": {
+          "id": "gid://shopify/ProductImage/53954521334066",
+          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927",
+          "altText": "Valid in mixed create"
+        },
+        "featuredMedia": {
+          "__typename": "MediaImage",
+          "id": "gid://shopify/MediaImage/43997129670962",
+          "alt": "Valid in mixed create",
+          "mediaContentType": "IMAGE",
+          "status": "READY",
+          "image": {
+            "id": "gid://shopify/ImageSource/43997129670962",
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927",
+            "altText": "Valid in mixed create",
+            "width": 600,
+            "height": 400
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_58cfc8c9-e4ab-4df0-8698-3598d655a17a.png?v=1783231927",
+              "width": 600,
+              "height": 400
+            }
+          }
         }
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 19,
-        "actualQueryCost": 6,
+        "requestedQueryCost": 30,
+        "actualQueryCost": 15,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1994,
+          "currentlyAvailable": 1985,
           "restoreRate": 100
         }
       }

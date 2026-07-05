@@ -32,6 +32,10 @@ query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: 
     blog {
       id
       title
+      handle
+      commentPolicy
+      createdAt
+      updatedAt
     }
   }
   articles(first: 5, query: $articleQuery) {

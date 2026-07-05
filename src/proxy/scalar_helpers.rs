@@ -91,3 +91,36 @@ fn shopify_data_sale_opt_out_email_is_valid(email: &str) -> bool {
         && tld.chars().all(char::is_alphabetic);
     email.chars().count() <= 255 && local_valid && domain_valid
 }
+
+pub(in crate::proxy) fn search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+pub(in crate::proxy) fn search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
+}
+
+pub(in crate::proxy) fn normalized_search_query_value(value: &str) -> String {
+    value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase()
+}
+
+pub(in crate::proxy) fn ascii_word_starts_with(value: &str, prefix: &str) -> bool {
+    value
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|part| part.starts_with(prefix))
+}

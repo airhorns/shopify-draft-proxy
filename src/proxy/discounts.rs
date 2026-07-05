@@ -504,9 +504,11 @@ impl DraftProxy {
             _ => MutationFieldOutcome::unlogged(discount_payload_for_root(
                 &field.name,
                 Value::Null,
-                vec![discount_null_field_user_error(
+                vec![user_error_with_extra_info(
+                    Value::Null,
                     "Local staging for this discount mutation is not implemented.",
                     Some("NOT_IMPLEMENTED"),
+                    Value::Null,
                 )],
             )),
         }
@@ -763,11 +765,11 @@ impl DraftProxy {
     /// Whether a product / variant / collection gid is already present in staged
     /// state (and so does not need an upstream existence lookup).
     fn discount_reference_already_staged(&self, gid: &str) -> bool {
-        if gid.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(gid, "Product") {
             self.store.has_product(gid)
-        } else if gid.starts_with("gid://shopify/ProductVariant/") {
+        } else if is_shopify_gid_of_type(gid, "ProductVariant") {
             self.store.product_variant_by_id(gid).is_some()
-        } else if gid.starts_with("gid://shopify/Collection/") {
+        } else if is_shopify_gid_of_type(gid, "Collection") {
             self.store.collection_by_id(gid).is_some()
         } else {
             false
@@ -795,10 +797,11 @@ impl DraftProxy {
             if !code.trim().is_empty()
                 && self.discount_code_is_taken(request, &code, exclude_discount_id)
             {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![input_arg, "code"],
                     "Code must be unique. Please try a different code.",
-                    "TAKEN",
+                    Some("TAKEN"),
+                    Value::Null,
                 ));
             }
         }
@@ -874,21 +877,23 @@ impl DraftProxy {
         let has_product_refs = !products.is_empty() || !variants.is_empty();
         if !collections.is_empty() {
             if has_product_refs {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![input_arg, selection, "items", "collections", "add"],
                     "Cannot entitle collections in combination with product variants or products",
-                    "CONFLICT",
+                    Some("CONFLICT"),
+                    Value::Null,
                 ));
             } else {
                 for collection_id in &collections {
                     if !self.discount_reference_collection_exists(collection_id) {
-                        errors.push(discount_user_error(
+                        errors.push(user_error_with_extra_info(
                             vec![input_arg, selection, "items", "collections", "add"],
                             &format!(
                                 "Collection with id: {} is invalid",
                                 resource_id_tail(collection_id)
                             ),
-                            "INVALID",
+                            Some("INVALID"),
+                            Value::Null,
                         ));
                     }
                 }
@@ -896,19 +901,20 @@ impl DraftProxy {
         }
         for product_id in &products {
             if !self.discount_reference_product_exists(product_id) {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![input_arg, selection, "items", "products", "productsToAdd"],
                     &format!(
                         "Product with id: {} is invalid",
                         resource_id_tail(product_id)
                     ),
-                    "INVALID",
+                    Some("INVALID"),
+                    Value::Null,
                 ));
             }
         }
         for variant_id in &variants {
             if !self.discount_reference_product_variant_exists(variant_id) {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![
                         input_arg,
                         selection,
@@ -920,7 +926,8 @@ impl DraftProxy {
                         "Product variant with id: {} is invalid",
                         resource_id_tail(variant_id)
                     ),
-                    "INVALID",
+                    Some("INVALID"),
+                    Value::Null,
                 ));
             }
         }
@@ -1146,10 +1153,11 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
         let mut errors = if self.discount_record(&id).is_none() {
-            vec![discount_user_error(
+            vec![user_error_with_extra_info(
                 vec!["id"],
                 "Discount does not exist.",
-                "INVALID",
+                Some("INVALID"),
+                Value::Null,
             )]
         } else {
             app_discount_input_user_errors(input.as_ref(), input_arg, typename, false)
@@ -1430,15 +1438,12 @@ impl DraftProxy {
             };
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_null_field_user_error(message, Some("TOO_MANY_ARGUMENTS"))],
+                "userErrors": [user_error_with_extra_info(Value::Null, message, Some("TOO_MANY_ARGUMENTS"), Value::Null)],
             }));
         }
         MutationFieldOutcome::unlogged(json!({
             "job": Value::Null,
-            "userErrors": [discount_null_field_user_error(
-                "Local staging for this discount mutation is not implemented.",
-                Some("NOT_IMPLEMENTED"),
-            )],
+            "userErrors": [user_error_with_extra_info(Value::Null, "Local staging for this discount mutation is not implemented.", Some("NOT_IMPLEMENTED"), Value::Null)],
         }))
     }
 
@@ -1575,20 +1580,20 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
+                "userErrors": [user_error_with_extra_info(vec!["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let codes = resolved_redeem_codes(field);
         if codes.len() > 250 {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [discount_user_error(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), "MAX_INPUT_SIZE_EXCEEDED")]
+                "userErrors": [user_error_with_extra_info(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), Some("MAX_INPUT_SIZE_EXCEEDED"), Value::Null)]
             }));
         }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
-                "userErrors": [discount_user_error(vec!["codes"], "Codes can't be blank", "BLANK")]
+                "userErrors": [user_error_with_extra_info(vec!["codes"], "Codes can't be blank", Some("BLANK"), Value::Null)]
             }));
         }
         // Codes already assigned to any discount in the shop (uppercased). Code
@@ -1675,36 +1680,27 @@ impl DraftProxy {
         if selector_count == 0 {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_null_field_user_error(
-                    "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
-                    Some("MISSING_ARGUMENT")
-                )]
+                "userErrors": [user_error_with_extra_info(Value::Null, "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.", Some("MISSING_ARGUMENT"), Value::Null)]
             }));
         }
         if selector_count > 1 {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_null_field_user_error(
-                    "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
-                    Some("TOO_MANY_ARGUMENTS")
-                )]
+                "userErrors": [user_error_with_extra_info(Value::Null, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.", Some("TOO_MANY_ARGUMENTS"), Value::Null)]
             }));
         }
         let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
         if self.discount_record(&discount_id).is_none() {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
+                "userErrors": [user_error_with_extra_info(vec!["discountId"], "Code discount does not exist.", Some("INVALID"), Value::Null)]
             }));
         }
         let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
             Some(ResolvedValue::List(ids)) if ids.is_empty() => {
                 return MutationFieldOutcome::unlogged(json!({
                     "job": Value::Null,
-                    "userErrors": [discount_null_field_user_error(
-                        "Something went wrong, please try again.",
-                        None
-                    )]
+                    "userErrors": [user_error_with_extra_info(Value::Null, "Something went wrong, please try again.", None, Value::Null)]
                 }));
             }
             Some(ResolvedValue::List(ids)) => ids
@@ -1720,7 +1716,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_user_error(vec!["search"], "'Search' can't be blank.", "BLANK")]
+                "userErrors": [user_error_with_extra_info(vec!["search"], "'Search' can't be blank.", Some("BLANK"), Value::Null)]
             }));
         }
         if field.arguments.contains_key("savedSearchId")
@@ -1728,7 +1724,7 @@ impl DraftProxy {
         {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
-                "userErrors": [discount_user_error(vec!["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID")]
+                "userErrors": [user_error_with_extra_info(vec!["savedSearchId"], "Invalid 'saved_search_id'.", Some("INVALID"), Value::Null)]
             }));
         }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
@@ -1972,10 +1968,11 @@ impl DraftProxy {
         let function_handle = resolved_non_blank_string_field(input, "functionHandle");
         let identifier = function_id.as_deref().or(function_handle.as_deref());
         let Some(identifier) = identifier else {
-            return Err(app_discount_user_error(
+            return Err(user_error_with_extra_info(
                 [input_arg, "functionHandle"],
                 "Function id can't be blank.",
                 Some("MISSING_FUNCTION_IDENTIFIER"),
+                Value::Null,
             ));
         };
         let field_name = if function_id.is_some() {
@@ -1996,21 +1993,13 @@ impl DraftProxy {
                 )
             });
         let Some(function) = function else {
-            return Err(app_discount_user_error(
-                [input_arg, field_name],
-                &format!(
+            return Err(user_error_with_extra_info([input_arg, field_name], &format!(
                     "Function {identifier} not found. Ensure that it is released in the current app ({}), and that the app is installed.",
                     request_api_client_id(request)
-                ),
-                Some("INVALID"),
-            ));
+                ), Some("INVALID"), Value::Null));
         };
         if !app_discount_function_api_type_is_supported(&function) {
-            return Err(app_discount_user_error(
-                [input_arg, field_name],
-                "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
-                None,
-            ));
+            return Err(user_error_with_extra_info([input_arg, field_name], "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].", None, Value::Null));
         }
         Ok(function)
     }
@@ -2232,14 +2221,14 @@ impl DraftProxy {
     }
 
     fn discount_product_title_for_gid(&self, gid: &str) -> Option<String> {
-        if gid.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(gid, "Product") {
             return self
                 .store
                 .product_by_id(gid)
                 .map(|product| product.title.clone())
                 .filter(|title| !title.trim().is_empty());
         }
-        if gid.starts_with("gid://shopify/ProductVariant/") {
+        if is_shopify_gid_of_type(gid, "ProductVariant") {
             let variant = self.store.product_variant_by_id(gid)?;
             return self
                 .store
@@ -2295,10 +2284,11 @@ fn discount_input_user_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let Some(input) = input else {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg],
             "Input is required.",
-            "REQUIRED",
+            Some("REQUIRED"),
+            Value::Null,
         ));
         return errors;
     };
@@ -2311,10 +2301,11 @@ fn discount_input_user_errors(
     let combines_invalid = is_free_shipping
         && resolved_bool_path(input, &["combinesWith", "shippingDiscounts"]) == Some(true);
     if combines_invalid {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "combinesWith"],
             "The combinesWith settings are not valid for the discount class.",
-            "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
+            Some("INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS"),
+            Value::Null,
         ));
     }
     // (bxgy) `customerGets` cannot entitle "all" items; Shopify reports this ahead of
@@ -2322,10 +2313,11 @@ fn discount_input_user_errors(
     if typename.contains("Bxgy")
         && resolved_bool_path(input, &["customerGets", "items", "all"]) == Some(true)
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets"],
             "Items in 'customer get' cannot be set to all",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     // When an automatic free-shipping discount also has an invalid combinesWith
@@ -2337,58 +2329,66 @@ fn discount_input_user_errors(
     if let Some(title) = resolved_string_path(input, &["title"]) {
         if title.trim().is_empty() {
             if !skip_title_blank {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![input_arg, "title"],
                     "Title can't be blank",
-                    "BLANK",
+                    Some("BLANK"),
+                    Value::Null,
                 ));
             }
         } else if title.chars().count() > 255 {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "title"],
                 "Title is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                Some("TOO_LONG"),
+                Value::Null,
             ));
         }
     } else if !skip_title_blank {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "title"],
             "Title can't be blank",
-            "BLANK",
+            Some("BLANK"),
+            Value::Null,
         ));
     }
     if typename.starts_with("DiscountCode") && create {
         match resolved_string_path(input, &["code"]) {
-            Some(code) if code.is_empty() => errors.push(discount_user_error(
+            Some(code) if code.is_empty() => errors.push(user_error_with_extra_info(
                 vec![input_arg, "code"],
                 "Code is too short (minimum is 1 character)",
-                "TOO_SHORT",
+                Some("TOO_SHORT"),
+                Value::Null,
             )),
             Some(code) if code.contains('\n') || code.contains('\r') => {
-                errors.push(discount_user_error(
+                errors.push(user_error_with_extra_info(
                     vec![input_arg, "code"],
                     "Code cannot contain newline characters.",
-                    "INVALID",
+                    Some("INVALID"),
+                    Value::Null,
                 ))
             }
-            Some(code) if code.chars().count() > 255 => errors.push(discount_user_error(
+            Some(code) if code.chars().count() > 255 => errors.push(user_error_with_extra_info(
                 vec![input_arg, "code"],
                 "Code is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                Some("TOO_LONG"),
+                Value::Null,
             )),
             Some(_) => {}
-            None => errors.push(discount_user_error(
+            None => errors.push(user_error_with_extra_info(
                 vec![input_arg, "code"],
                 "Code can't be blank",
-                "BLANK",
+                Some("BLANK"),
+                Value::Null,
             )),
         }
     }
     if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "startsAt"],
             "Starts at can't be blank",
-            "BLANK",
+            Some("BLANK"),
+            Value::Null,
         ));
     }
     if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
@@ -2405,7 +2405,7 @@ fn discount_input_user_errors(
         )
         .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![
                 input_arg,
                 "minimumRequirement",
@@ -2413,9 +2413,10 @@ fn discount_input_user_errors(
                 "greaterThanOrEqualToSubtotal",
             ],
             "Minimum subtotal cannot be defined when minimum quantity is.",
-            "CONFLICT",
+            Some("CONFLICT"),
+            Value::Null,
         ));
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![
                 input_arg,
                 "minimumRequirement",
@@ -2423,7 +2424,8 @@ fn discount_input_user_errors(
                 "greaterThanOrEqualToQuantity",
             ],
             "Minimum quantity cannot be defined when minimum subtotal is.",
-            "CONFLICT",
+            Some("CONFLICT"),
+            Value::Null,
         ));
     }
     if !typename.contains("Bxgy")
@@ -2433,10 +2435,11 @@ fn discount_input_user_errors(
         )
         .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets", "value", "discountOnQuantity"],
             "discountOnQuantity field is only permitted with bxgy discounts.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if typename.contains("Bxgy") {
@@ -2461,10 +2464,11 @@ fn discount_input_user_errors(
         resolved_string_path(input, &["endsAt"]),
     ) {
         if !ends_at.trim().is_empty() && !starts_at.trim().is_empty() && ends_at < starts_at {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "endsAt"],
                 "Ends at needs to be after starts_at",
-                "INVALID",
+                Some("INVALID"),
+                Value::Null,
             ));
         }
     }
@@ -2500,10 +2504,11 @@ fn discount_bxgy_customer_gets_user_errors(
 
     if resolved_object_path(Some(&input_value), &["customerGets", "value", "percentage"]).is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets", "value", "percentage"],
             "Only discountOnQuantity permitted with bxgy discounts.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_object_path(
@@ -2512,10 +2517,11 @@ fn discount_bxgy_customer_gets_user_errors(
     )
     .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets", "value", "discountAmount"],
             "Only discountOnQuantity permitted with bxgy discounts.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if is_code && create {
@@ -2528,7 +2534,7 @@ fn discount_bxgy_customer_gets_user_errors(
             Some(_) => false,
         };
         if quantity_blank {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![
                     input_arg,
                     "customerGets",
@@ -2537,7 +2543,8 @@ fn discount_bxgy_customer_gets_user_errors(
                     "quantity",
                 ],
                 "Quantity cannot be blank.",
-                "BLANK",
+                Some("BLANK"),
+                Value::Null,
             ));
         }
     }
@@ -2547,10 +2554,11 @@ fn discount_bxgy_customer_gets_user_errors(
     )
     .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets", "appliesOnSubscription"],
             unsupported_message,
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_object_path(
@@ -2559,10 +2567,11 @@ fn discount_bxgy_customer_gets_user_errors(
     )
     .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![input_arg, "customerGets", "appliesOnOneTimePurchase"],
             unsupported_message,
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     // A bxgy create must entitle concrete `customerBuys` items; an "all" items block
@@ -2573,10 +2582,11 @@ fn discount_bxgy_customer_gets_user_errors(
             resolved_object_path(Some(&input_value), &["customerBuys", "items"]).is_some();
         let buys_all = resolved_bool_path(input, &["customerBuys", "items", "all"]) == Some(true);
         if !buys_items_present || buys_all {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "customerBuys", "items"],
                 "Items in 'customer buys' must be defined",
-                "BLANK",
+                Some("BLANK"),
+                Value::Null,
             ));
         }
     }
@@ -2607,20 +2617,17 @@ fn discount_combines_with_user_errors(
     )
     .is_some()
     {
-        errors.push(discount_user_error(
+        errors.push(user_error_with_extra_info(
             vec![
                 input_arg,
                 "combinesWith",
                 "productDiscountsWithTagsOnSameCartLine",
             ],
             "The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.",
-            "PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED",
+            Some("PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED"),
+            Value::Null,
         ));
-        errors.push(discount_user_error(
-            vec![input_arg, "combinesWith", "productDiscountsWithTagsOnSameCartLine"],
-            "Combines with product discounts with tags on same cart line is only valid for discounts with the PRODUCT discount class",
-            "INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS",
-        ));
+        errors.push(user_error_with_extra_info(vec![input_arg, "combinesWith", "productDiscountsWithTagsOnSameCartLine"], "Combines with product discounts with tags on same cart line is only valid for discounts with the PRODUCT discount class", Some("INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS"), Value::Null));
     }
     // NOTE: the free-shipping self-combine (INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS)
     // error is emitted ahead of the title check in `discount_input_user_errors` to
@@ -2636,10 +2643,11 @@ fn discount_context_customer_selection_user_error(
     if resolved_object_path(Some(&input_value), &["context"]).is_some()
         && resolved_object_path(Some(&input_value), &["customerSelection"]).is_some()
     {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![input_arg, "context"],
             DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     None
@@ -2834,10 +2842,11 @@ fn app_discount_input_user_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let Some(input) = input else {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg],
             "Input is required.",
             Some("REQUIRED"),
+            Value::Null,
         ));
         return errors;
     };
@@ -2845,7 +2854,7 @@ fn app_discount_input_user_errors(
     let validate_title = !code_app || create || resolved_string_path(input, &["title"]).is_some();
     if validate_title {
         match resolved_string_path(input, &["title"]) {
-            Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
+            Some(title) if title.trim().is_empty() => errors.push(user_error_with_extra_info(
                 [input_arg, "title"],
                 if code_app {
                     "can't be blank"
@@ -2853,14 +2862,16 @@ fn app_discount_input_user_errors(
                     "Title can't be blank."
                 },
                 Some("INVALID"),
+                Value::Null,
             )),
-            Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
+            Some(title) if title.chars().count() > 255 => errors.push(user_error_with_extra_info(
                 [input_arg, "title"],
                 "is too long (maximum is 255 characters)",
                 Some("INVALID"),
+                Value::Null,
             )),
             Some(_) => {}
-            None => errors.push(app_discount_user_error(
+            None => errors.push(user_error_with_extra_info(
                 [input_arg, "title"],
                 if code_app {
                     "Required argument not found."
@@ -2868,96 +2879,109 @@ fn app_discount_input_user_errors(
                     "Title can't be blank."
                 },
                 Some("INVALID"),
+                Value::Null,
             )),
         }
     }
     if code_app {
         match resolved_string_path(input, &["code"]) {
-            Some(code) if code.trim().is_empty() => errors.push(app_discount_user_error(
+            Some(code) if code.trim().is_empty() => errors.push(user_error_with_extra_info(
                 [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
+                Value::Null,
             )),
             Some(code) if code.contains('\n') || code.contains('\r') => {
-                errors.push(app_discount_user_error(
+                errors.push(user_error_with_extra_info(
                     [input_arg, "code"],
                     "Code cannot contain newline characters.",
                     Some("INVALID"),
+                    Value::Null,
                 ))
             }
-            Some(code) if code.chars().count() > 255 => errors.push(app_discount_user_error(
+            Some(code) if code.chars().count() > 255 => errors.push(user_error_with_extra_info(
                 [input_arg, "code"],
                 "Code is too long (maximum is 255 characters)",
                 Some("INVALID"),
+                Value::Null,
             )),
             Some(_) => {}
-            None if create => errors.push(app_discount_user_error(
+            None if create => errors.push(user_error_with_extra_info(
                 [input_arg, "code"],
                 "Discount code can't be blank.",
                 Some("INVALID"),
+                Value::Null,
             )),
             None => {}
         }
     }
     if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "startsAt"],
             "Starts at can't be blank.",
             Some("INVALID"),
+            Value::Null,
         ));
     }
     if matches!(
         resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["discountClasses"]),
         Some(ResolvedValue::List(values)) if values.is_empty()
     ) {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "discountClasses"],
             "Discount classes can't be empty.",
             Some("INVALID"),
+            Value::Null,
         ));
     }
     if discount_context_customer_selection_user_error(input, input_arg).is_some() {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "context"],
             DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
             Some("INVALID"),
+            Value::Null,
         ));
     }
     if app_discount_empty_customer_selection(input) {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "customerSelection"],
             "a minimum of one prerequisite segment or prerequisite customer must be provided",
             Some("INVALID"),
+            Value::Null,
         ));
     }
     if typename == "DiscountAutomaticApp" && input.contains_key("channelIds") {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "channelIds"],
             "Channel IDs are not supported for automatic app discounts.",
             Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_bool_path(input, &["markets", "removeAllMarkets"]).unwrap_or(false)
         && !resolved_string_list_path(input, &["markets", "add"]).is_empty()
     {
-        errors.push(app_discount_user_error(
+        errors.push(user_error_with_extra_info(
             [input_arg, "markets"],
             "Cannot add markets while removeAllMarkets is true.",
             Some("INVALID"),
+            Value::Null,
         ));
     }
     let function_id = resolved_non_blank_string_field(input, "functionId");
     let function_handle = resolved_non_blank_string_field(input, "functionHandle");
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => errors.push(app_discount_user_error(
+        (false, false) => errors.push(user_error_with_extra_info(
             [input_arg, "functionHandle"],
             "Function id can't be blank.",
             Some("MISSING_FUNCTION_IDENTIFIER"),
+            Value::Null,
         )),
-        (true, true) => errors.push(app_discount_user_error(
+        (true, true) => errors.push(user_error_with_extra_info(
             [input_arg],
             "Only one of functionId or functionHandle is allowed.",
             Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+            Value::Null,
         )),
         _ => {}
     }
@@ -2980,14 +3004,6 @@ fn app_discount_empty_customer_selection(input: &BTreeMap<String, ResolvedValue>
     )
 }
 
-fn app_discount_user_error(
-    field: impl Into<UserErrorField>,
-    message: &str,
-    code: Option<&str>,
-) -> Value {
-    user_error_with_extra_info(field, message, code, Value::Null)
-}
-
 /// Enforce the signed 32-bit integer bounds Shopify applies to `usageLimit` and
 /// `recurringCycleLimit`. These accumulate (a value below the minimum trips both the
 /// "must be greater than 0" and the "must be >= -2147483648" guards).
@@ -3000,33 +3016,37 @@ fn discount_usage_recurring_bounds_user_errors(
     let mut errors = Vec::new();
     if let Some(usage_limit) = resolved_i64_path(input, &["usageLimit"]) {
         if usage_limit > I32_MAX {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "usageLimit"],
                 "Usage limit must be less than or equal to 2147483647",
-                "LESS_THAN_OR_EQUAL_TO",
+                Some("LESS_THAN_OR_EQUAL_TO"),
+                Value::Null,
             ));
         }
         if usage_limit <= 0 {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "usageLimit"],
                 "Usage limit must be greater than 0",
-                "GREATER_THAN",
+                Some("GREATER_THAN"),
+                Value::Null,
             ));
         }
         if usage_limit < I32_MIN {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "usageLimit"],
                 "Usage limit must be greater than or equal to -2147483648",
-                "GREATER_THAN_OR_EQUAL_TO",
+                Some("GREATER_THAN_OR_EQUAL_TO"),
+                Value::Null,
             ));
         }
     }
     if let Some(recurring_cycle_limit) = resolved_i64_path(input, &["recurringCycleLimit"]) {
         if recurring_cycle_limit > I32_MAX {
-            errors.push(discount_user_error(
+            errors.push(user_error_with_extra_info(
                 vec![input_arg, "recurringCycleLimit"],
                 "Recurring cycle limit must be less than or equal to 2147483647",
-                "LESS_THAN_OR_EQUAL_TO",
+                Some("LESS_THAN_OR_EQUAL_TO"),
+                Value::Null,
             ));
         }
     }
@@ -3063,38 +3083,42 @@ fn discount_subscription_field_user_error(
     .is_some()
         && !subscription_only(&["customerGets"])
     {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![input_arg, "customerGets", "appliesOnSubscription"],
             "Customer gets applies on subscription is not permitted for this shop.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_object_path(Some(&input_value), &["appliesOnSubscription"]).is_some()
         && !subscription_only(&[])
     {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![input_arg, "appliesOnSubscription"],
             "Applies on subscription is not permitted for this shop.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_object_path(Some(&input_value), &["appliesOnOneTimePurchase"]).is_some()
         && !subscription_only(&[])
     {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![input_arg, "appliesOnOneTimePurchase"],
             "Applies on one time purchase is not permitted for this shop.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     if resolved_object_path(Some(&input_value), &["recurringCycleLimit"]).is_some()
         && !subscription_only(&[])
         && !subscription_only(&["customerGets"])
     {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![input_arg, "recurringCycleLimit"],
             "Recurring cycle limit is not permitted for this shop.",
-            "INVALID",
+            Some("INVALID"),
+            Value::Null,
         ));
     }
     None
@@ -3115,7 +3139,7 @@ fn discount_numeric_user_error(
         ],
     ) {
         if minimum_quantity >= DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     input_arg,
                     "minimumRequirement",
@@ -3123,7 +3147,8 @@ fn discount_numeric_user_error(
                     "greaterThanOrEqualToQuantity",
                 ],
                 "Minimum quantity must be less than 2147483647",
-                "LESS_THAN",
+                Some("LESS_THAN"),
+                Value::Null,
             ));
         }
     }
@@ -3137,7 +3162,7 @@ fn discount_numeric_user_error(
         DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND,
         DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL,
     ) {
-        return Some(discount_user_error(
+        return Some(user_error_with_extra_info(
             vec![
                 input_arg,
                 "minimumRequirement",
@@ -3145,7 +3170,8 @@ fn discount_numeric_user_error(
                 "greaterThanOrEqualToSubtotal",
             ],
             "Minimum subtotal must be less than 1000000000000000000",
-            "LESS_THAN",
+            Some("LESS_THAN"),
+            Value::Null,
         ));
     }
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
@@ -3155,10 +3181,11 @@ fn discount_numeric_user_error(
             !(0.0..=1.0).contains(&percentage)
         };
         if outside_range {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![input_arg, "customerGets", "value", "percentage"],
                 "Value must be between 0.0 and 1.0",
-                "VALUE_OUTSIDE_RANGE",
+                Some("VALUE_OUTSIDE_RANGE"),
+                Value::Null,
             ));
         }
     }
@@ -3167,7 +3194,7 @@ fn discount_numeric_user_error(
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
         if is_automatic_basic && amount <= 0.0 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     input_arg,
                     "customerGets",
@@ -3176,11 +3203,12 @@ fn discount_numeric_user_error(
                     "amount",
                 ],
                 "Value must be less than 0",
-                "GREATER_THAN",
+                Some("GREATER_THAN"),
+                Value::Null,
             ));
         }
         if !is_automatic_basic && amount < 0.0 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     input_arg,
                     "customerGets",
@@ -3189,11 +3217,12 @@ fn discount_numeric_user_error(
                     "amount",
                 ],
                 "Value must be less than or equal to 0",
-                "LESS_THAN_OR_EQUAL_TO",
+                Some("LESS_THAN_OR_EQUAL_TO"),
+                Value::Null,
             ));
         }
         if amount >= 1_000_000_000_000_000_000.0 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     input_arg,
                     "customerGets",
@@ -3202,7 +3231,8 @@ fn discount_numeric_user_error(
                     "amount",
                 ],
                 "Value must be greater than -1000000000000000000",
-                "LESS_THAN",
+                Some("LESS_THAN"),
+                Value::Null,
             ));
         }
     }
@@ -3548,10 +3578,7 @@ fn discount_nullable_string_sort_value(record: &Value, field: &str) -> StagedSor
 }
 
 fn discount_gid_tail_sort_value(record: &Value) -> StagedSortValue {
-    let tail = resource_id_tail(discount_id(record));
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(Some(discount_id(record)))
 }
 
 fn app_discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {
@@ -3607,7 +3634,7 @@ fn discount_unknown_id_user_error(root: &str) -> Value {
     } else {
         "Code discount does not exist."
     };
-    discount_user_error(vec!["id"], message, "INVALID")
+    user_error_with_extra_info(vec!["id"], message, Some("INVALID"), Value::Null)
 }
 
 fn discount_id(record: &Value) -> &str {
@@ -4692,24 +4719,27 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
     if let Some(value) = input.get("usesPerOrderLimit") {
         if let Some(n) = resolved_i64(value) {
             if n == 0 {
-                return Some(discount_user_error(
+                return Some(user_error_with_extra_info(
                     vec![prefix, "usesPerOrderLimit"],
                     "Allocation limit cannot be zero",
-                    "VALUE_OUTSIDE_RANGE",
+                    Some("VALUE_OUTSIDE_RANGE"),
+                    Value::Null,
                 ));
             }
             if n < 0 {
-                return Some(discount_user_error(
+                return Some(user_error_with_extra_info(
                     vec![prefix, "usesPerOrderLimit"],
                     "Allocation limit must be greater than 0",
-                    "GREATER_THAN",
+                    Some("GREATER_THAN"),
+                    Value::Null,
                 ));
             }
             if n > 2_147_483_647 {
-                return Some(discount_user_error(
+                return Some(user_error_with_extra_info(
                     vec![prefix, "usesPerOrderLimit"],
                     "Allocation limit must be less than or equal to 2147483647",
-                    "LESS_THAN_OR_EQUAL_TO",
+                    Some("LESS_THAN_OR_EQUAL_TO"),
+                    Value::Null,
                 ));
             }
         }
@@ -4717,17 +4747,19 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
 
     if let Some(n) = resolved_i64_path(input, &["customerBuys", "value", "quantity"]) {
         if n == 0 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![prefix, "customerBuys", "value", "quantity"],
                 "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
-                "GREATER_THAN",
+                Some("GREATER_THAN"),
+                Value::Null,
             ));
         }
         if n >= 100_000 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![prefix, "customerBuys", "value", "quantity"],
                 "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
-                "LESS_THAN",
+                Some("LESS_THAN"),
+                Value::Null,
             ));
         }
     }
@@ -4737,7 +4769,7 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
         &["customerGets", "value", "discountOnQuantity", "quantity"],
     ) {
         if n == 0 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     prefix,
                     "customerGets",
@@ -4746,11 +4778,12 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
                     "quantity",
                 ],
                 "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
-                "GREATER_THAN",
+                Some("GREATER_THAN"),
+                Value::Null,
             ));
         }
         if n >= 100_000 {
-            return Some(discount_user_error(
+            return Some(user_error_with_extra_info(
                 vec![
                     prefix,
                     "customerGets",
@@ -4759,15 +4792,12 @@ pub(in crate::proxy) fn discount_bxgy_user_error(
                     "quantity",
                 ],
                 "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
-                "LESS_THAN",
+                Some("LESS_THAN"),
+                Value::Null,
             ));
         }
     }
     None
-}
-
-pub(in crate::proxy) fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    user_error_with_extra_info(field, message, Some(code), Value::Null)
 }
 
 pub(in crate::proxy) fn redeem_code_bulk_delete_selector_count(
@@ -4778,10 +4808,6 @@ pub(in crate::proxy) fn redeem_code_bulk_delete_selector_count(
     let saved_search_present = field.arguments.contains_key("savedSearchId")
         || field.arguments.contains_key("saved_search_id");
     ids_present as usize + search_present as usize + saved_search_present as usize
-}
-
-pub(in crate::proxy) fn discount_null_field_user_error(message: &str, code: Option<&str>) -> Value {
-    user_error_with_extra_info(Value::Null, message, code, Value::Null)
 }
 
 pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
@@ -4810,11 +4836,11 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
         "codesCount": codes.len(),
         "importedCount": imported_count,
         "failedCount": failed_count,
-        "codes": {
-            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)).collect::<Vec<_>>(),
-            "edges": [],
-            "pageInfo": empty_page_info()
-        }
+        "codes": connection_json_with_empty_edges(
+            codes.iter().enumerate().map(|(index, code)| {
+                discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)
+            }).collect::<Vec<_>>()
+        )
     })
 }
 
@@ -4894,13 +4920,28 @@ pub(in crate::proxy) fn redeem_code_errors(
     existing: &BTreeSet<String>,
 ) -> Vec<Value> {
     if code.is_empty() {
-        return vec![redeem_code_error("is too short (minimum is 1 character)")];
+        return vec![user_error_with_extra_info(
+            ["code"],
+            "is too short (minimum is 1 character)",
+            None,
+            Value::Null,
+        )];
     }
     if code.contains('\n') || code.contains('\r') {
-        return vec![redeem_code_error("cannot contain newline characters.")];
+        return vec![user_error_with_extra_info(
+            ["code"],
+            "cannot contain newline characters.",
+            None,
+            Value::Null,
+        )];
     }
     if code.chars().count() > 255 {
-        return vec![redeem_code_error("is too long (maximum is 255 characters)")];
+        return vec![user_error_with_extra_info(
+            ["code"],
+            "is too long (maximum is 255 characters)",
+            None,
+            Value::Null,
+        )];
     }
     let normalized = code.to_ascii_uppercase();
     // A second (or later) occurrence of the same code within this submission.
@@ -4909,21 +4950,23 @@ pub(in crate::proxy) fn redeem_code_errors(
         .take(index)
         .any(|candidate| candidate.to_ascii_uppercase() == normalized)
     {
-        return vec![redeem_code_error(
+        return vec![user_error_with_extra_info(
+            ["code"],
             "Codes must be unique within BulkDiscountCodeCreation",
+            None,
+            Value::Null,
         )];
     }
     // The code is already assigned to some discount in the shop.
     if existing.contains(&normalized) {
-        return vec![redeem_code_error(
+        return vec![user_error_with_extra_info(
+            ["code"],
             "must be unique. Please try a different code.",
+            None,
+            Value::Null,
         )];
     }
     Vec::new()
-}
-
-pub(in crate::proxy) fn redeem_code_error(message: &str) -> Value {
-    user_error_with_extra_info(["code"], message, None, Value::Null)
 }
 
 pub(in crate::proxy) fn stable_redeem_code_suffix(code: &str) -> u64 {

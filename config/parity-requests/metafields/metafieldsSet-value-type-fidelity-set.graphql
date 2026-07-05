@@ -1,0 +1,17 @@
+mutation MetafieldsSetValueTypeFidelity($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      namespace
+      key
+      type
+      value
+      jsonValue
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

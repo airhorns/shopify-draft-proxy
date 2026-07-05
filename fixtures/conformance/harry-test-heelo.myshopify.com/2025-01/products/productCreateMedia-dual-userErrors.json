@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-03T14:26:03.514Z",
+  "capturedAt": "2026-07-05T06:12:12.817Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
@@ -7,8 +7,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10230804119858",
-            "title": "Hermes Product Media Conformance 1783088748291"
+            "id": "gid://shopify/Product/10232069259570",
+            "title": "Hermes Product Media Conformance 1783231918471"
           },
           "userErrors": []
         }
@@ -28,7 +28,7 @@
   },
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10230804119858",
+      "productId": "gid://shopify/Product/10232069259570",
       "media": [
         {
           "mediaContentType": "IMAGE",
@@ -73,7 +73,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10230804119858"]
+        "ids": ["gid://shopify/Product/10232069259570"]
       },
       "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        handle\n        status\n        media(first: 250) {\n          nodes {\n            __typename\n            id\n            alt\n            mediaContentType\n            status\n            preview {\n              image {\n                url\n                width\n                height\n              }\n            }\n            ... on MediaImage {\n              image {\n                id\n                url\n                altText\n                width\n                height\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n",
       "response": {
@@ -83,9 +83,9 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10230804119858",
-                "title": "Hermes Product Media Conformance 1783088748291",
-                "handle": "hermes-product-media-conformance-1783088748291",
+                "id": "gid://shopify/Product/10232069259570",
+                "title": "Hermes Product Media Conformance 1783231918471",
+                "handle": "hermes-product-media-conformance-1783231918471",
                 "status": "DRAFT",
                 "media": {
                   "nodes": []
@@ -99,7 +99,7 @@
               "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }

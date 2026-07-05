@@ -96,5 +96,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 public Admin API capture for successful transactionVoid and downstream order read on a disposable manual authorization order. This restores the old local-staging scenario ID with public Shopify evidence. Private OrderTransaction paymentId/paymentReferenceId projections from the retired local-runtime request shape remain covered by focused Rust tests because public Admin GraphQL rejects paymentReferenceId on OrderTransaction."
+  "notes": "Live 2026-04 public Admin API capture for successful transactionVoid and downstream order read on a disposable manual authorization order. This restores the old local-staging scenario ID with public Shopify evidence. Private OrderTransaction paymentId/paymentReferenceId projections from the retired local-runtime request shape remain covered by focused Rust tests because public Admin GraphQL rejects paymentReferenceId on OrderTransaction. Evidence trail: registered capture script scripts/capture-order-payment-transaction-void-conformance.ts writes the listed fixture and request files through capture-index entry order-payment-transaction-void; tests/graphql_routes/orders.rs keeps the local downstream money-set readback path executable."
 }

@@ -39,7 +39,9 @@
             "titleQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.titleQuery" },
             "createdAtQuery": "created_at:\">=2024-01-01T00:00:02.000Z\"",
             "idRangeQuery": "id:>1",
-            "scheduledEndQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.scheduledEndQuery" }
+            "scheduledEndQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.scheduledEndQuery" },
+            "booleanOrQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.booleanOrQuery" },
+            "booleanAndQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.booleanAndQuery" }
           },
           "apiVersion": "2026-04"
         },
@@ -53,6 +55,12 @@
           "$.createdAtFilter.nodes[0].title",
           "$.idRangeFilter.nodes[0].title",
           "$.scheduledEndFilter.nodes[0].title",
+          "$.booleanOr.nodes[0].title",
+          "$.booleanOr.nodes[0].status",
+          "$.booleanOr.nodes[1].title",
+          "$.booleanOr.nodes[1].status",
+          "$.booleanAnd.nodes[0].title",
+          "$.booleanAnd.nodes[0].status",
           "$.latestEvent.nodes[0].type",
           "$.latestEvent.edges[0].cursor",
           "$.latestEvent.pageInfo.hasNextPage",
@@ -89,5 +97,5 @@
       }
     ]
   },
-  "notes": "Records live Shopify evidence for two disposable external marketing activities sorted by CREATED_AT descending, first-page hasNextPage behavior, after-cursor windowing, MarketingEvent ID ordering, and documented marketing activity query fields. Volatile Shopify IDs, timestamps, and opaque cursor strings are intentionally not compared except for cursor non-emptiness."
+  "notes": "Records live Shopify evidence for two disposable external marketing activities sorted by CREATED_AT descending, first-page hasNextPage behavior, after-cursor windowing, MarketingEvent ID ordering, documented marketing activity query fields, and boolean query operators where OR returns the union of title matches while AND narrows to a title plus scheduled-end match. Volatile Shopify IDs, timestamps, and opaque cursor strings are intentionally not compared except for cursor non-emptiness. The focused runtime test covers the ticket's `status:ACTIVE OR status:PAUSED` branch; the live 2026-04 conformance API currently reports `status` as an invalid search field for marketingActivities."
 }
