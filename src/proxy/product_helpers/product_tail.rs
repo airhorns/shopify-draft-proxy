@@ -1470,19 +1470,15 @@ fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
 
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
     const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
-    json!({
-        "message": format!(
+    top_level_access_denied_error_envelope(
+        format!(
             "Access denied for {} field. Required access: {REQUIRED_ACCESS}",
             field.name
         ),
-        "locations": [{"line": field.location.line, "column": field.location.column}],
-        "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": REQUIRED_ACCESS
-        },
-        "path": [field.response_key.clone()]
-    })
+        Some(field.location),
+        vec![json!(field.response_key.clone())],
+        Some(REQUIRED_ACCESS),
+    )
 }
 
 fn product_combined_listing_role(product: &ProductRecord) -> Option<String> {

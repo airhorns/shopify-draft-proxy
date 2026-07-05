@@ -8948,8 +8948,8 @@ fn product_change_status_stages_archived_status_and_effective_downstream_read() 
 
     let null_id = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductChangeStatusNullLiteralConformance {
-          productChangeStatus(productId: null, status: ARCHIVED) {
+        mutation ProductChangeStatusNullLiteralDerivedPath {
+          statusAlias: productChangeStatus(productId: null, status: ARCHIVED) {
             product { id status updatedAt }
             userErrors { field message }
           }
@@ -8964,8 +8964,8 @@ fn product_change_status_stages_archived_status_and_effective_downstream_read() 
     assert_eq!(
         null_id.body["errors"][0]["path"],
         json!([
-            "mutation ProductChangeStatusNullLiteralConformance",
-            "productChangeStatus",
+            "mutation ProductChangeStatusNullLiteralDerivedPath",
+            "statusAlias",
             "productId"
         ])
     );
@@ -9558,10 +9558,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
 fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_variables_by_ast() {
     let mut proxy = snapshot_proxy();
 
-    let missing_inline = proxy.process_request(graphql_request(
-        "POST",
-        &json!({
-            "query": r#"
+    let missing_inline_query = r#"
                 mutation AnyDeleteName {
                   deletionAlias: productDelete(input: {
                   }) {
@@ -9569,7 +9566,11 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     userErrors { field message  }
                   }
                 }
-            "#
+            "#;
+    let missing_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": missing_inline_query
         })
         .to_string(),
     ));
@@ -9578,11 +9579,12 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
         missing_inline.body["errors"][0]["extensions"]["code"],
         json!("missingRequiredInputObjectAttribute")
     );
+    assert_eq!(
+        missing_inline.body["errors"][0]["path"],
+        json!(["mutation AnyDeleteName", "deletionAlias", "input", "id"])
+    );
 
-    let null_inline = proxy.process_request(graphql_request(
-        "POST",
-        &json!({
-            "query": r#"
+    let null_inline_query = r#"
                 mutation AnyDeleteName {
                   deletionAlias: productDelete(input: {
                     id: null
@@ -9591,7 +9593,11 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     userErrors { field message  }
                   }
                 }
-            "#
+            "#;
+    let null_inline = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": null_inline_query
         })
         .to_string(),
     ));
@@ -9600,18 +9606,21 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
         null_inline.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
     );
+    assert_eq!(
+        null_inline.body["errors"][0]["path"],
+        json!(["mutation AnyDeleteName", "deletionAlias", "input", "id"])
+    );
 
-    let unbound_variable = proxy.process_request(json_graphql_request(
-        r#"
+    let unbound_variable_query = r#"
             mutation AnyDeleteName($input: ProductDeleteInput!) {
               deletionAlias: productDelete(input: $input) {
                 deletedProductId
                 userErrors { field message  }
               }
             }
-        "#,
-        json!({}),
-    ));
+        "#;
+    let unbound_variable =
+        proxy.process_request(json_graphql_request(unbound_variable_query, json!({})));
     assert_eq!(unbound_variable.status, 200);
     assert_eq!(
         unbound_variable.body["errors"][0]["extensions"]["code"],
