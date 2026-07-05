@@ -1,0 +1,739 @@
+{
+  "scenarioId": "metafieldsSet-value-type-fidelity",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-04T23:37:10.486Z",
+  "setup": {
+    "createProduct": {
+      "request": {
+        "variables": {
+          "product": {
+            "title": "metafieldsSet value type fidelity mr704z1f",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231719002418",
+              "title": "metafieldsSet value type fidelity mr704z1f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "acceptedSet": {
+    "request": {
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_t",
+            "type": "boolean",
+            "value": "t"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_true",
+            "type": "boolean",
+            "value": "true"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_one",
+            "type": "boolean",
+            "value": "1"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_f",
+            "type": "boolean",
+            "value": "f"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_false",
+            "type": "boolean",
+            "value": "false"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_zero",
+            "type": "boolean",
+            "value": "0"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "boolean_trimmed_upper",
+            "type": "boolean",
+            "value": " TRUE "
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "integer_decimal_zero",
+            "type": "number_integer",
+            "value": "5.0"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "integer_decimal_zeroes",
+            "type": "number_integer",
+            "value": "5.000"
+          },
+          {
+            "ownerId": "gid://shopify/Product/10231719002418",
+            "namespace": "value_type_mr704z1f",
+            "key": "decimal_truncated",
+            "type": "number_decimal",
+            "value": "1.1234567891"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_t",
+              "type": "boolean",
+              "value": "true",
+              "jsonValue": true
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_true",
+              "type": "boolean",
+              "value": "true",
+              "jsonValue": true
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_one",
+              "type": "boolean",
+              "value": "true",
+              "jsonValue": true
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_f",
+              "type": "boolean",
+              "value": "false",
+              "jsonValue": "false"
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_false",
+              "type": "boolean",
+              "value": "false",
+              "jsonValue": "false"
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_zero",
+              "type": "boolean",
+              "value": "false",
+              "jsonValue": "false"
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "boolean_trimmed_upper",
+              "type": "boolean",
+              "value": "true",
+              "jsonValue": true
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "integer_decimal_zero",
+              "type": "number_integer",
+              "value": "5",
+              "jsonValue": 5
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "integer_decimal_zeroes",
+              "type": "number_integer",
+              "value": "5",
+              "jsonValue": 5
+            },
+            {
+              "namespace": "value_type_mr704z1f",
+              "key": "decimal_truncated",
+              "type": "number_decimal",
+              "value": "1.123456789",
+              "jsonValue": "1.123456789"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "request": {
+      "variables": {
+        "id": "gid://shopify/Product/10231719002418",
+        "namespace": "value_type_mr704z1f"
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "metafields": {
+            "nodes": [
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_t",
+                "type": "boolean",
+                "value": "true",
+                "jsonValue": true
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_true",
+                "type": "boolean",
+                "value": "true",
+                "jsonValue": true
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_one",
+                "type": "boolean",
+                "value": "true",
+                "jsonValue": true
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_f",
+                "type": "boolean",
+                "value": "false",
+                "jsonValue": "false"
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_false",
+                "type": "boolean",
+                "value": "false",
+                "jsonValue": "false"
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_zero",
+                "type": "boolean",
+                "value": "false",
+                "jsonValue": "false"
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "boolean_trimmed_upper",
+                "type": "boolean",
+                "value": "true",
+                "jsonValue": true
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "integer_decimal_zero",
+                "type": "number_integer",
+                "value": "5",
+                "jsonValue": 5
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "integer_decimal_zeroes",
+                "type": "number_integer",
+                "value": "5",
+                "jsonValue": 5
+              },
+              {
+                "namespace": "value_type_mr704z1f",
+                "key": "decimal_truncated",
+                "type": "number_decimal",
+                "value": "1.123456789",
+                "jsonValue": "1.123456789"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidCases": {
+    "integerPlus": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "integer_plus",
+              "type": "number_integer",
+              "value": "+5"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be an integer.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moneyBlankCurrency": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "money_blank_currency",
+              "type": "money",
+              "value": "{\"amount\":\"1.00\",\"currency_code\":\"\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must have a currency code.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moneyAmountType": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "money_amount_type",
+              "type": "money",
+              "value": "{\"amount\":\"abc\",\"currency_code\":\"USD\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must have a numeric amount.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moneyOutOfRange": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "money_out_of_range",
+              "type": "money",
+              "value": "{\"amount\":\"1000000000000000001\",\"currency_code\":\"CAD\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be within +/-1000000000000000000.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moneyInvalidShape": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "money_invalid_shape",
+              "type": "money",
+              "value": "[]"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moneyInvalidCurrency": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "money_invalid_currency",
+              "type": "money",
+              "value": "{\"amount\":\"1.00\",\"currency_code\":\"ZZZ\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value contains an invalid currency, ZZZ.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "urlMissingScheme": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "url_missing_scheme",
+              "type": "url",
+              "value": "example.com"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "urlUnsupportedScheme": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "url_unsupported_scheme",
+              "type": "url",
+              "value": "ftp://x"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be one of the following URL schemes: http, https, mailto, sms, tel.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "dateTime": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "date_time",
+              "type": "date_time",
+              "value": "nope"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "jsonBlank": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231719002418",
+              "namespace": "value_type_mr704z1f",
+              "key": "json_blank",
+              "type": "json",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value can't be blank.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "productDelete": {
+        "deletedProductId": "gid://shopify/Product/10231719002418",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

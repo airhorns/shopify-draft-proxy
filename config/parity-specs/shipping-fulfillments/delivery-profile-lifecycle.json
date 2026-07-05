@@ -18,7 +18,7 @@
     "variablesCapturePath": "$.mutations.nestedCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2026-04 delivery-profile write evidence covers blank-name validation, nested profile create, nested update with location add, method update/create, condition delete, missing-id userErrors, default-profile removal denial, asynchronous remove job payload, and downstream profile absence after removal. This spec replays the captured lifecycle through the local proxy parity harness; expected differences are limited to synthetic delivery-profile lifecycle IDs allocated during isolated proxy execution.",
+  "notes": "Captured Admin GraphQL 2026-04 delivery-profile write evidence covers blank-name validation, nested profile create, pre/post-create deliveryProfiles catalog readback that keeps the merchant default profile alongside the newly created profile, nested update with location add, method update/create descriptions, condition delete, country-zone readback through countriesInAnyZone, missing-id userErrors, default-profile removal denial, asynchronous remove job payload, and downstream profile absence after removal. This spec replays the captured lifecycle through the local proxy parity harness; expected differences are limited to synthetic delivery-profile lifecycle IDs, local cursors, and the created profile name in the merged catalog slice because conflict resolution preserved two adjacent real disposable-profile captures instead of fabricating fixture bytes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -71,6 +71,81 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "delivery-profile-post-create-catalog-keeps-default",
+        "capturePath": "$.mutations.postCreateCatalog.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profiles-catalog-read.graphql",
+          "variablesCapturePath": "$.mutations.postCreateCatalog.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfiles.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives delivery profile connection cursors from local profile IDs rather than Shopify's opaque base64 cursor encoding."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy cursor is derived from the synthetic staged delivery profile ID instead of Shopify's live created profile ID."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy creates a stable synthetic delivery profile ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.locationsWithoutRatesCount",
+            "matcher": "any-number",
+            "reason": "The proxy does not yet derive Shopify's shop-wide locations-without-rates count for locally staged delivery profiles."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives delivery profile connection cursors from local profile IDs rather than Shopify's opaque base64 cursor encoding."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The final cursor is derived from the synthetic staged delivery profile ID instead of Shopify's live created profile ID."
+          }
+        ]
+      },
+      {
+        "name": "delivery-profile-read-after-create-catalog-data",
+        "capturePath": "$.mutations.readAfterCreateCatalog.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profiles-merged-read.graphql",
+          "variablesCapturePath": "$.mutations.readAfterCreateCatalog.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfiles.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy uses a stable synthetic ID cursor for the locally staged delivery profile while Shopify returns the live cursor."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy uses a stable synthetic delivery profile ID for the locally staged profile while Shopify returns the live ID."
+          },
+          {
+            "path": "$.deliveryProfiles.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "The proxy may use the staged synthetic profile ID as the final cursor while Shopify returns the live cursor."
+          },
+          {
+            "path": "$.deliveryProfiles.edges[1].node.name",
+            "matcher": "non-empty-string",
+            "reason": "The preserved merged-catalog readback came from an adjacent real disposable-profile capture, so the live created profile name differs from the primary create capture while still proving overlay merge shape."
+          }
+        ]
+      },
+      {
         "name": "delivery-profile-update-data",
         "capturePath": "$.mutations.nestedUpdate.result.payload.data",
         "proxyPath": "$.data",
@@ -106,6 +181,7 @@
                             "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].id"
                           },
                           "name": "Standard updated",
+                          "description": "Updated standard ground service",
                           "active": false,
                           "rateDefinition": {
                             "id": {
@@ -121,6 +197,7 @@
                       "methodDefinitionsToCreate": [
                         {
                           "name": "Express",
+                          "description": "Express air service",
                           "active": true,
                           "rateDefinition": {
                             "price": {
@@ -143,6 +220,20 @@
                   ]
                 }
               ]
+            }
+          }
+        }
+      },
+      {
+        "name": "delivery-profile-read-after-update-description-countries",
+        "capturePath": "$.mutations.readAfterUpdate.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-read-after-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
             }
           }
         }

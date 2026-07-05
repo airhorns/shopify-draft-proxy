@@ -1,0 +1,38 @@
+query OnlineStoreNestedContentConnectionsHydrate($articleId: ID!) {
+  article(id: $articleId) {
+    __typename
+    id
+    title
+    handle
+    createdAt
+    updatedAt
+    blog {
+      id
+      title
+      handle
+    }
+    comments(first: 50) {
+      nodes {
+        __typename
+        id
+        status
+        body
+        bodyHtml
+        isPublished
+        publishedAt
+        createdAt
+        updatedAt
+        article {
+          id
+          title
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

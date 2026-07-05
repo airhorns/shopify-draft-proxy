@@ -1,0 +1,35 @@
+mutation OrderEditCommitDerivedStatusesAddCustomItem($id: ID!, $title: String!, $quantity: Int!, $price: MoneyInput!) {
+  orderEditAddCustomItem(id: $id, title: $title, quantity: $quantity, price: $price) {
+    calculatedOrder {
+      id
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      addedLineItems(first: 5) {
+        nodes {
+          id
+          title
+          quantity
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

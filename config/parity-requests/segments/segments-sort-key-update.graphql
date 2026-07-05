@@ -1,0 +1,15 @@
+mutation SegmentsSortKeyUpdate($id: ID!, $name: String!, $query: String!) {
+    segmentUpdate(id: $id, name: $name, query: $query) {
+      segment {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

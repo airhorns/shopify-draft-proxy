@@ -5,7 +5,6 @@ mutation GiftCardRecipientValidationUpdateMissingId($activeId: ID!) {
     }
     userErrors {
       field
-      code
       message
     }
   }

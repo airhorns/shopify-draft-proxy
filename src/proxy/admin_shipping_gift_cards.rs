@@ -14,7 +14,9 @@ mod segments;
 
 pub(in crate::proxy) use self::locations::{
     country_name_for_code, location_connection_json, location_country_code_is_valid,
+    province_name_for_code,
 };
 pub(in crate::proxy) use self::publishable::{
-    publishable_empty_string_publication_error, publishable_input_publication_ids,
+    publishable_empty_string_publication_error,
+    publishable_input_needs_publication_catalog_hydration, publishable_input_publication_ids,
 };

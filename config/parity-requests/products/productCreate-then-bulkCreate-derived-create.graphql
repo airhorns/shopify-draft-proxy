@@ -22,6 +22,20 @@ mutation ProductDerivedFieldsCreate($product: ProductCreateInput!) {
           currencyCode
         }
       }
+      variantsCount {
+        count
+        precision
+      }
+      compareAtPriceRange {
+        minVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+        maxVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+      }
       variants(first: 10) {
         nodes {
           id

@@ -1,0 +1,1175 @@
+{
+  "scenarioId": "connection-sort-key-coverage",
+  "capturedAt": "2026-07-05T06:59:02.167Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Live Shopify Admin GraphQL capture for staged connection sort keys. Setup uses public productSet, draftOrderCreate, draftOrderComplete, segmentCreate, and segmentUpdate requests with unique tags/names; sorted reads are captured after Shopify search/catalog visibility is observed.",
+  "operations": {
+    "products": {
+      "locationProbe": {
+        "query": "query ConnectionSortKeyCoverageLocations {\n    shop {\n      currencyCode\n    }\n    locations(first: 1) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n  }",
+        "variables": {},
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "shop": {
+                "currencyCode": "CAD"
+              },
+              "locations": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Location/112829759794",
+                    "name": "HAR-571 transfer destination 20260505000619",
+                    "isActive": true
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 4,
+                "actualQueryCost": 4,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1996,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "alphaSet": {
+        "query": "mutation ProductsSortKeyInventoryTotalSet($input: ProductSetInput!, $synchronous: Boolean!) {\n    productSet(input: $input, synchronous: $synchronous) {\n      product {\n        id\n        title\n        tags\n        totalInventory\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "synchronous": true,
+          "input": {
+            "title": "Alpha Inventory Sort 20260705065831",
+            "status": "DRAFT",
+            "vendor": "Connection Sort Probe",
+            "productType": "SortKey Probe",
+            "tags": ["connection-sort-key-20260705065831"],
+            "productOptions": [
+              {
+                "name": "Title",
+                "position": 1,
+                "values": [
+                  {
+                    "name": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "variants": [
+              {
+                "optionValues": [
+                  {
+                    "optionName": "Title",
+                    "name": "Default Title"
+                  }
+                ],
+                "sku": "ALPHA-INVENTORY-SORT-20260705065831",
+                "inventoryItem": {
+                  "tracked": true,
+                  "requiresShipping": false
+                },
+                "inventoryQuantities": [
+                  {
+                    "locationId": "gid://shopify/Location/112829759794",
+                    "name": "available",
+                    "quantity": 9
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "productSet": {
+                "product": {
+                  "id": "gid://shopify/Product/10232107073842",
+                  "title": "Alpha Inventory Sort 20260705065831",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalInventory": 9
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "middleSet": {
+        "query": "mutation ProductsSortKeyInventoryTotalSet($input: ProductSetInput!, $synchronous: Boolean!) {\n    productSet(input: $input, synchronous: $synchronous) {\n      product {\n        id\n        title\n        tags\n        totalInventory\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "synchronous": true,
+          "input": {
+            "title": "Middle Inventory Sort 20260705065831",
+            "status": "DRAFT",
+            "vendor": "Connection Sort Probe",
+            "productType": "SortKey Probe",
+            "tags": ["connection-sort-key-20260705065831"],
+            "productOptions": [
+              {
+                "name": "Title",
+                "position": 1,
+                "values": [
+                  {
+                    "name": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "variants": [
+              {
+                "optionValues": [
+                  {
+                    "optionName": "Title",
+                    "name": "Default Title"
+                  }
+                ],
+                "sku": "MIDDLE-INVENTORY-SORT-20260705065831",
+                "inventoryItem": {
+                  "tracked": true,
+                  "requiresShipping": false
+                },
+                "inventoryQuantities": [
+                  {
+                    "locationId": "gid://shopify/Location/112829759794",
+                    "name": "available",
+                    "quantity": 4
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "productSet": {
+                "product": {
+                  "id": "gid://shopify/Product/10232107106610",
+                  "title": "Middle Inventory Sort 20260705065831",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalInventory": 4
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "zuluSet": {
+        "query": "mutation ProductsSortKeyInventoryTotalSet($input: ProductSetInput!, $synchronous: Boolean!) {\n    productSet(input: $input, synchronous: $synchronous) {\n      product {\n        id\n        title\n        tags\n        totalInventory\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "synchronous": true,
+          "input": {
+            "title": "Zulu Inventory Sort 20260705065831",
+            "status": "DRAFT",
+            "vendor": "Connection Sort Probe",
+            "productType": "SortKey Probe",
+            "tags": ["connection-sort-key-20260705065831"],
+            "productOptions": [
+              {
+                "name": "Title",
+                "position": 1,
+                "values": [
+                  {
+                    "name": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "variants": [
+              {
+                "optionValues": [
+                  {
+                    "optionName": "Title",
+                    "name": "Default Title"
+                  }
+                ],
+                "sku": "ZULU-INVENTORY-SORT-20260705065831",
+                "inventoryItem": {
+                  "tracked": true,
+                  "requiresShipping": false
+                },
+                "inventoryQuantities": [
+                  {
+                    "locationId": "gid://shopify/Location/112829759794",
+                    "name": "available",
+                    "quantity": 1
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "productSet": {
+                "product": {
+                  "id": "gid://shopify/Product/10232107139378",
+                  "title": "Zulu Inventory Sort 20260705065831",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalInventory": 1
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "read": {
+        "query": "query ProductsSortKeyInventoryTotalRead($query: String!) {\n    inventoryTotalOrder: products(first: 10, query: $query, sortKey: INVENTORY_TOTAL) {\n      nodes {\n        title\n        totalInventory\n      }\n    }\n    reverseWindow: products(first: 1, query: $query, sortKey: INVENTORY_TOTAL, reverse: true) {\n      nodes {\n        title\n        totalInventory\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }",
+        "variables": {
+          "query": "tag:connection-sort-key-20260705065831"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "inventoryTotalOrder": {
+                "nodes": [
+                  {
+                    "title": "Zulu Inventory Sort 20260705065831",
+                    "totalInventory": 1
+                  },
+                  {
+                    "title": "Middle Inventory Sort 20260705065831",
+                    "totalInventory": 4
+                  },
+                  {
+                    "title": "Alpha Inventory Sort 20260705065831",
+                    "totalInventory": 9
+                  }
+                ]
+              },
+              "reverseWindow": {
+                "nodes": [
+                  {
+                    "title": "Alpha Inventory Sort 20260705065831",
+                    "totalInventory": 9
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 9,
+                "actualQueryCost": 7,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1993,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "orders": {
+      "expensiveDraftCreate": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "input": {
+            "email": "expensive-sort-20260705065831@example.com",
+            "tags": ["connection-sort-key-20260705065831"],
+            "lineItems": [
+              {
+                "title": "expensive-sort total price sort",
+                "quantity": 1,
+                "originalUnitPriceWithCurrency": {
+                  "amount": "30.00",
+                  "currencyCode": "CAD"
+                },
+                "sku": "expensive-sort-20260705065831"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029862194",
+                  "email": "expensive-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "30.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "expensiveComplete": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        email\n        tags\n        status\n        order {\n          id\n          email\n          tags\n          totalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1276029862194",
+          "paymentPending": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderComplete": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029862194",
+                  "email": "expensive-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "status": "COMPLETED",
+                  "order": {
+                    "id": "gid://shopify/Order/8892118696242",
+                    "email": "expensive-sort-20260705065831@example.com",
+                    "tags": ["connection-sort-key-20260705065831"],
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "30.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "cheapDraftCreate": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "input": {
+            "email": "cheap-sort-20260705065831@example.com",
+            "tags": ["connection-sort-key-20260705065831"],
+            "lineItems": [
+              {
+                "title": "cheap-sort total price sort",
+                "quantity": 1,
+                "originalUnitPriceWithCurrency": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                },
+                "sku": "cheap-sort-20260705065831"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029894962",
+                  "email": "cheap-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "cheapComplete": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        email\n        tags\n        status\n        order {\n          id\n          email\n          tags\n          totalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1276029894962",
+          "paymentPending": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderComplete": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029894962",
+                  "email": "cheap-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "status": "COMPLETED",
+                  "order": {
+                    "id": "gid://shopify/Order/8892118827314",
+                    "email": "cheap-sort-20260705065831@example.com",
+                    "tags": ["connection-sort-key-20260705065831"],
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "middleDraftCreate": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "input": {
+            "email": "middle-sort-20260705065831@example.com",
+            "tags": ["connection-sort-key-20260705065831"],
+            "lineItems": [
+              {
+                "title": "middle-sort total price sort",
+                "quantity": 1,
+                "originalUnitPriceWithCurrency": {
+                  "amount": "20.00",
+                  "currencyCode": "CAD"
+                },
+                "sku": "middle-sort-20260705065831"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderCreate": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029927730",
+                  "email": "middle-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "middleComplete": {
+        "query": "mutation OrdersSortKeyTotalPriceDraftComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        email\n        tags\n        status\n        order {\n          id\n          email\n          tags\n          totalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1276029927730",
+          "paymentPending": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "draftOrderComplete": {
+                "draftOrder": {
+                  "id": "gid://shopify/DraftOrder/1276029927730",
+                  "email": "middle-sort-20260705065831@example.com",
+                  "tags": ["connection-sort-key-20260705065831"],
+                  "status": "COMPLETED",
+                  "order": {
+                    "id": "gid://shopify/Order/8892118892850",
+                    "email": "middle-sort-20260705065831@example.com",
+                    "tags": ["connection-sort-key-20260705065831"],
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "read": {
+        "query": "query OrdersSortKeyTotalPriceRead($query: String!) {\n    totalPriceOrder: orders(first: 10, query: $query, sortKey: TOTAL_PRICE) {\n      nodes {\n        email\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    reverseWindow: orders(first: 1, query: $query, sortKey: TOTAL_PRICE, reverse: true) {\n      nodes {\n        email\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }",
+        "variables": {
+          "query": "tag:connection-sort-key-20260705065831"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "totalPriceOrder": {
+                "nodes": [
+                  {
+                    "email": "cheap-sort-20260705065831@example.com",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  {
+                    "email": "middle-sort-20260705065831@example.com",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  },
+                  {
+                    "email": "expensive-sort-20260705065831@example.com",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "30.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "reverseWindow": {
+                "nodes": [
+                  {
+                    "email": "expensive-sort-20260705065831@example.com",
+                    "totalPriceSet": {
+                      "shopMoney": {
+                        "amount": "30.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 9,
+                "actualQueryCost": 6,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1982,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "segments": {
+      "alphaCreate": {
+        "query": "mutation SegmentsSortKeyCreate($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "name": "Alpha Segment Sort 20260705065831",
+          "query": "number_of_orders >= 1"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "segmentCreate": {
+                "segment": {
+                  "id": "gid://shopify/Segment/652819759410",
+                  "name": "Alpha Segment Sort 20260705065831",
+                  "query": "number_of_orders >= 1",
+                  "creationDate": "2026-07-05T06:58:54Z",
+                  "lastEditDate": "2026-07-05T06:58:54Z"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "betaCreate": {
+        "query": "mutation SegmentsSortKeyCreate($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "name": "Beta Segment Sort 20260705065831",
+          "query": "number_of_orders >= 2"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "segmentCreate": {
+                "segment": {
+                  "id": "gid://shopify/Segment/652819792178",
+                  "name": "Beta Segment Sort 20260705065831",
+                  "query": "number_of_orders >= 2",
+                  "creationDate": "2026-07-05T06:58:55Z",
+                  "lastEditDate": "2026-07-05T06:58:55Z"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "gammaCreate": {
+        "query": "mutation SegmentsSortKeyCreate($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "name": "Gamma Segment Sort 20260705065831",
+          "query": "number_of_orders >= 3"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "segmentCreate": {
+                "segment": {
+                  "id": "gid://shopify/Segment/652819824946",
+                  "name": "Gamma Segment Sort 20260705065831",
+                  "query": "number_of_orders >= 3",
+                  "creationDate": "2026-07-05T06:58:55Z",
+                  "lastEditDate": "2026-07-05T06:58:55Z"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "alphaUpdate": {
+        "query": "mutation SegmentsSortKeyUpdate($id: ID!, $name: String!, $query: String!) {\n    segmentUpdate(id: $id, name: $name, query: $query) {\n      segment {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Segment/652819759410",
+          "name": "Alpha Segment Sort Updated 20260705065831",
+          "query": "number_of_orders >= 4"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "segmentUpdate": {
+                "segment": {
+                  "id": "gid://shopify/Segment/652819759410",
+                  "name": "Alpha Segment Sort Updated 20260705065831",
+                  "query": "number_of_orders >= 4",
+                  "creationDate": "2026-07-05T06:58:54Z",
+                  "lastEditDate": "2026-07-05T06:58:56Z"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1954,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "read": {
+        "query": "query SegmentsSortKeyRead($first: Int!) {\n    byLastEditReverse: segments(first: $first, sortKey: LAST_EDIT_DATE, reverse: true) {\n      nodes {\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    byCreationDateReverse: segments(first: $first, sortKey: CREATION_DATE, reverse: true) {\n      nodes {\n        name\n      }\n    }\n    byIdReverse: segments(first: $first, sortKey: ID, reverse: true) {\n      nodes {\n        name\n      }\n    }\n  }",
+        "variables": {
+          "first": 3
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "byLastEditReverse": {
+                "nodes": [
+                  {
+                    "name": "Alpha Segment Sort Updated 20260705065831"
+                  },
+                  {
+                    "name": "Gamma Segment Sort 20260705065831"
+                  },
+                  {
+                    "name": "Beta Segment Sort 20260705065831"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              },
+              "byCreationDateReverse": {
+                "nodes": [
+                  {
+                    "name": "Gamma Segment Sort 20260705065831"
+                  },
+                  {
+                    "name": "Beta Segment Sort 20260705065831"
+                  },
+                  {
+                    "name": "Alpha Segment Sort Updated 20260705065831"
+                  }
+                ]
+              },
+              "byIdReverse": {
+                "nodes": [
+                  {
+                    "name": "Gamma Segment Sort 20260705065831"
+                  },
+                  {
+                    "name": "Beta Segment Sort 20260705065831"
+                  },
+                  {
+                    "name": "Alpha Segment Sort Updated 20260705065831"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 12,
+                "actualQueryCost": 12,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "products": [
+        {
+          "query": "mutation ProductsSortKeyCleanupDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Product/10232107073842"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "productDelete": {
+                  "deletedProductId": "gid://shopify/Product/10232107073842",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1987,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation ProductsSortKeyCleanupDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Product/10232107106610"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "productDelete": {
+                  "deletedProductId": "gid://shopify/Product/10232107106610",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation ProductsSortKeyCleanupDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Product/10232107139378"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "productDelete": {
+                  "deletedProductId": "gid://shopify/Product/10232107139378",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "orders": [
+        {
+          "query": "mutation OrdersSortKeyCleanupCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "orderId": "gid://shopify/Order/8892118696242",
+            "reason": "OTHER",
+            "notifyCustomer": false,
+            "restock": true
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "orderCancel": {
+                  "job": {
+                    "id": "gid://shopify/Job/0656aea2-75d2-4ea8-93ab-f5ecf72e2e4b",
+                    "done": false
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1977,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation OrdersSortKeyCleanupCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "orderId": "gid://shopify/Order/8892118827314",
+            "reason": "OTHER",
+            "notifyCustomer": false,
+            "restock": true
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "orderCancel": {
+                  "job": {
+                    "id": "gid://shopify/Job/fc58f0c9-3065-4607-a63a-477f2f86912e",
+                    "done": false
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1978,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation OrdersSortKeyCleanupCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "orderId": "gid://shopify/Order/8892118892850",
+            "reason": "OTHER",
+            "notifyCustomer": false,
+            "restock": true
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "orderCancel": {
+                  "job": {
+                    "id": "gid://shopify/Job/120584d8-aab8-4a54-be98-359b684179be",
+                    "done": false
+                  },
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1979,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "segments": [
+        {
+          "query": "mutation SegmentsSortKeyCleanupDelete($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Segment/652819759410"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "segmentDelete": {
+                  "deletedSegmentId": "gid://shopify/Segment/652819759410",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1981,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation SegmentsSortKeyCleanupDelete($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Segment/652819792178"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "segmentDelete": {
+                  "deletedSegmentId": "gid://shopify/Segment/652819792178",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1982,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "mutation SegmentsSortKeyCleanupDelete($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Segment/652819824946"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "segmentDelete": {
+                  "deletedSegmentId": "gid://shopify/Segment/652819824946",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1982,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

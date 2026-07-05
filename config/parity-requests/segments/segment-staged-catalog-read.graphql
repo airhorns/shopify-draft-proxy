@@ -1,0 +1,83 @@
+query SegmentStagedCatalogRead(
+  $first: Int!
+  $filterSearch: String!
+  $valueSearch: String!
+  $valueFilterQueryName: String!
+) {
+  segments(first: $first) {
+    nodes {
+      id
+      name
+      query
+    }
+  }
+  filters: segmentFilters(first: 2) {
+    edges {
+      cursor
+      node {
+        __typename
+        queryName
+        localizedName
+        multiValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  filterSuggestions: segmentFilterSuggestions(first: 2, search: $filterSearch) {
+    edges {
+      cursor
+      node {
+        __typename
+        queryName
+        localizedName
+        multiValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  valueSuggestions: segmentValueSuggestions(
+    first: 3
+    search: $valueSearch
+    filterQueryName: $valueFilterQueryName
+  ) {
+    edges {
+      cursor
+      node {
+        queryName
+        localizedValue
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  migrations: segmentMigrations(first: 2) {
+    edges {
+      cursor
+      node {
+        id
+        savedSearchId
+        segmentId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -39,6 +39,9 @@
           discountedPriceSet { shopMoney { amount currencyCode } }
         }
         subtotalPriceSet { shopMoney { amount currencyCode } }
+        lineItemsSubtotalPrice { shopMoney { amount currencyCode } }
+        totalTax
+        totalTaxSet { shopMoney { amount currencyCode } }
         totalDiscountsSet { shopMoney { amount currencyCode } }
         totalShippingPriceSet { shopMoney { amount currencyCode } }
         totalPriceSet { shopMoney { amount currencyCode } }

@@ -1,0 +1,21 @@
+query ReturnableFulfillmentsRecorded($orderId: ID!) {
+  returnableFulfillments(orderId: $orderId, first: 5) {
+    nodes {
+      fulfillment {
+        id
+      }
+      returnableFulfillmentLineItems(first: 5) {
+        nodes {
+          fulfillmentLineItem {
+            id
+            lineItem {
+              id
+              title
+            }
+          }
+          quantity
+        }
+      }
+    }
+  }
+}
