@@ -1,5 +1,13 @@
 use super::*;
 
+mod errors;
+mod hydrate_queries;
+mod redeem_codes;
+
+use self::errors::*;
+use self::hydrate_queries::*;
+use self::redeem_codes::*;
+
 const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
     "Only one of context or customerSelection can be provided.";
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
@@ -25,195 +33,6 @@ const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabi
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
 const DISCOUNT_UNIQUENESS_QUERY: &str =
     include_str!("../../config/parity-requests/discounts/discount-uniqueness-check.graphql");
-/// Read query used to hydrate a discount that is not staged locally so an
-/// activate/deactivate transition can be applied against its real dates and
-/// status. Must match the recorded cassette `DiscountHydrate` upstream call
-/// byte-for-byte (the cassette matcher is strict on query text + variables).
-const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
-  query DiscountHydrate($id: ID!) {
-    codeNode: codeDiscountNode(id: $id) {
-      id
-      codeDiscount {
-        __typename
-        ... on DiscountCodeBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          codes(first: 250) {
-            nodes {
-              id
-              code
-              asyncUsageCount
-            }
-          }
-        }
-        ... on DiscountCodeApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-      }
-    }
-    automaticNode: automaticDiscountNode(id: $id) {
-      id
-      automaticDiscount {
-        __typename
-        ... on DiscountAutomaticBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-      }
-    }
-  }
-"#;
-const DISCOUNT_UPDATE_HYDRATE_QUERY: &str = r#"#graphql
-  query DiscountHydrate($id: ID!) {
-    codeNode: codeDiscountNode(id: $id) {
-      id
-      codeDiscount {
-        __typename
-        ... on DiscountCodeBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          codes(first: 250) {
-            nodes {
-              id
-              code
-              asyncUsageCount
-            }
-          }
-        }
-        ... on DiscountCodeApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          codes(first: 250) {
-            nodes {
-              id
-              code
-              asyncUsageCount
-            }
-          }
-          appliesOnOneTimePurchase
-          appliesOnSubscription
-        }
-      }
-    }
-    automaticNode: automaticDiscountNode(id: $id) {
-      id
-      automaticDiscount {
-        __typename
-        ... on DiscountAutomaticBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          appliesOnOneTimePurchase
-          appliesOnSubscription
-        }
-      }
-    }
-  }
-"#;
 /// Item-entitlement existence probe forwarded before a native discount create /
 /// update is
 /// validated. Discounts that entitle products / variants / collections must
@@ -539,39 +358,10 @@ impl DraftProxy {
             ));
         }
         let input = input.unwrap_or_default();
-        let id_type = if discount_kind == "automatic" {
-            "DiscountAutomaticNode"
-        } else {
-            "DiscountCodeNode"
-        };
-        let id = self.next_proxy_synthetic_gid(id_type);
-        // A code discount auto-creates a DiscountRedeemCode, which Shopify allocates
-        // the next sequential id to. Reserve that id so the global synthetic counter
-        // stays in lockstep with captured local-runtime id sequences.
-        if discount_kind != "automatic"
-            && resolved_string_path(&input, &["code"])
-                .map(|code| !code.trim().is_empty())
-                .unwrap_or(false)
-        {
-            let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
-        }
-        let shop_currency_code = self.store.shop_currency_code();
-        let summary = self.discount_summary_for_input(typename, &input);
-        let now_epoch = self.current_epoch_seconds();
-        let timestamp = self.next_mutation_timestamp();
-        let mut record = discount_record_from_input(
-            &id,
-            discount_kind,
-            typename,
-            &input,
-            None,
-            DiscountRecordBuildContext {
-                shop_currency_code: &shop_currency_code,
-                summary,
-                timestamp: &timestamp,
-                now_epoch,
-            },
-        );
+        let id = self.next_discount_node_id(discount_kind, &input);
+        let context = self.discount_record_build_context(typename, &input);
+        let mut record =
+            discount_record_from_input(&id, discount_kind, typename, &input, None, context);
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -582,6 +372,50 @@ impl DraftProxy {
             ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    fn next_discount_node_id(
+        &mut self,
+        discount_kind: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
+        let id = self.next_proxy_synthetic_gid(discount_node_id_type(discount_kind));
+        self.reserve_discount_redeem_code_id(discount_kind, input);
+        id
+    }
+
+    fn reserve_discount_redeem_code_id(
+        &mut self,
+        discount_kind: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        // Code discounts auto-create a DiscountRedeemCode, which Shopify allocates
+        // the next sequential id to. Reserve that id so the global synthetic counter
+        // stays in lockstep with captured local-runtime id sequences.
+        if discount_kind != "automatic"
+            && resolved_string_path(input, &["code"])
+                .map(|code| !code.trim().is_empty())
+                .unwrap_or(false)
+        {
+            let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
+        }
+    }
+
+    fn discount_record_build_context(
+        &mut self,
+        typename: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> DiscountRecordBuildContext {
+        let shop_currency_code = self.store.shop_currency_code();
+        let summary = self.discount_summary_for_input(typename, input);
+        let now_epoch = self.current_epoch_seconds();
+        let timestamp = self.next_mutation_timestamp();
+        DiscountRecordBuildContext {
+            shop_currency_code,
+            summary,
+            timestamp,
+            now_epoch,
+        }
     }
 
     /// Fill in buyer-context member display names / segment names from records the
@@ -928,38 +762,41 @@ impl DraftProxy {
     }
 
     fn discount_reference_product_exists(&self, gid: &str) -> bool {
-        if resource_id_tail(gid) == "0" {
-            return false;
-        }
-        if self.store.has_product_state() {
-            self.store.has_product(gid)
-        } else {
-            true
-        }
+        self.discount_reference_exists(
+            gid,
+            self.store.has_product_state(),
+            self.store.has_product(gid),
+        )
     }
 
     fn discount_reference_product_variant_exists(&self, gid: &str) -> bool {
-        if resource_id_tail(gid) == "0" {
-            return false;
-        }
         let authoritative = !self.store.staged.product_variants.records.is_empty()
             || !self.store.base.product_variants.records.is_empty();
-        if authoritative {
-            self.store.product_variant_by_id(gid).is_some()
-        } else {
-            true
-        }
+        self.discount_reference_exists(
+            gid,
+            authoritative,
+            self.store.product_variant_by_id(gid).is_some(),
+        )
     }
 
     fn discount_reference_collection_exists(&self, gid: &str) -> bool {
+        self.discount_reference_exists(
+            gid,
+            self.store.has_collection_state(),
+            self.store.collection_by_id(gid).is_some(),
+        )
+    }
+
+    fn discount_reference_exists(
+        &self,
+        gid: &str,
+        authoritative_state: bool,
+        exists: bool,
+    ) -> bool {
         if resource_id_tail(gid) == "0" {
             return false;
         }
-        if self.store.has_collection_state() {
-            self.store.collection_by_id(gid).is_some()
-        } else {
-            true
-        }
+        !authoritative_state || exists
     }
 
     fn discount_update(
@@ -1032,22 +869,14 @@ impl DraftProxy {
             ));
         }
         let input = input.unwrap_or_default();
-        let summary = self.discount_summary_for_input(typename, &input);
-        let shop_currency_code = self.store.shop_currency_code();
-        let now_epoch = self.current_epoch_seconds();
-        let timestamp = self.next_mutation_timestamp();
+        let context = self.discount_record_build_context(typename, &input);
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             existing_record.as_ref(),
-            DiscountRecordBuildContext {
-                shop_currency_code: &shop_currency_code,
-                summary,
-                timestamp: &timestamp,
-                now_epoch,
-            },
+            context,
         );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
@@ -1089,40 +918,10 @@ impl DraftProxy {
                 ))
             }
         };
-        let id_type = if discount_kind == "automatic" {
-            "DiscountAutomaticNode"
-        } else {
-            "DiscountCodeNode"
-        };
-        let id = self.next_proxy_synthetic_gid(id_type);
-        // A code app discount auto-creates a DiscountRedeemCode for its `code`, which
-        // Shopify allocates the next sequential id to. Reserve that id so the global
-        // synthetic counter stays in lockstep with captured id sequences (mirrors the
-        // basic `discount_create` reservation).
-        if discount_kind != "automatic"
-            && resolved_string_path(&input, &["code"])
-                .map(|code| !code.trim().is_empty())
-                .unwrap_or(false)
-        {
-            let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
-        }
-        let shop_currency_code = self.store.shop_currency_code();
-        let summary = self.discount_summary_for_input(typename, &input);
-        let now_epoch = self.current_epoch_seconds();
-        let timestamp = self.next_mutation_timestamp();
-        let mut record = discount_record_from_input(
-            &id,
-            discount_kind,
-            typename,
-            &input,
-            None,
-            DiscountRecordBuildContext {
-                shop_currency_code: &shop_currency_code,
-                summary,
-                timestamp: &timestamp,
-                now_epoch,
-            },
-        );
+        let id = self.next_discount_node_id(discount_kind, &input);
+        let context = self.discount_record_build_context(typename, &input);
+        let mut record =
+            discount_record_from_input(&id, discount_kind, typename, &input, None, context);
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -1174,22 +973,14 @@ impl DraftProxy {
             }
         };
         let existing = self.discount_record(&id).cloned();
-        let summary = self.discount_summary_for_input(typename, &input);
-        let shop_currency_code = self.store.shop_currency_code();
-        let now_epoch = self.current_epoch_seconds();
-        let timestamp = self.next_mutation_timestamp();
+        let context = self.discount_record_build_context(typename, &input);
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             existing.as_ref(),
-            DiscountRecordBuildContext {
-                shop_currency_code: &shop_currency_code,
-                summary,
-                timestamp: &timestamp,
-                now_epoch,
-            },
+            context,
         );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
@@ -1422,7 +1213,7 @@ impl DraftProxy {
     /// a sibling of a locally-dispatched mutation; standalone bulk requests are
     /// forwarded upstream instead).
     fn discount_bulk_action(&self, field: &RootFieldSelection) -> MutationFieldOutcome {
-        if redeem_code_bulk_delete_selector_count(field) > 1 {
+        if discount_bulk_selector_count(field) > 1 {
             let message = if field.name.starts_with("discountAutomatic") {
                 "Only one of IDs, search argument or saved search ID is allowed."
             } else {
@@ -1671,7 +1462,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let selector_count = redeem_code_bulk_delete_selector_count(field);
+        let selector_count = discount_bulk_selector_count(field);
         if selector_count == 0 {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
@@ -3214,10 +3005,10 @@ fn discount_numeric_user_error(
     None
 }
 
-struct DiscountRecordBuildContext<'a> {
-    shop_currency_code: &'a str,
+struct DiscountRecordBuildContext {
+    shop_currency_code: String,
     summary: String,
-    timestamp: &'a str,
+    timestamp: String,
     now_epoch: i64,
 }
 
@@ -3227,8 +3018,10 @@ fn discount_record_from_input(
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    context: DiscountRecordBuildContext<'_>,
+    context: DiscountRecordBuildContext,
 ) -> Value {
+    let shop_currency_code = context.shop_currency_code.as_str();
+    let timestamp = context.timestamp.as_str();
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
         .unwrap_or_else(|| "Untitled discount".to_string());
@@ -3285,7 +3078,7 @@ fn discount_record_from_input(
         .and_then(|record| record.get("asyncUsageCount").cloned())
         .unwrap_or_else(|| json!(0));
     let customer_gets =
-        discount_customer_gets_for_update(typename, input, existing, context.shop_currency_code);
+        discount_customer_gets_for_update(typename, input, existing, shop_currency_code);
     let applies_on_one_time_purchase = resolved_bool_path(input, &["appliesOnOneTimePurchase"])
         .map(Value::from)
         .or_else(|| {
@@ -3312,7 +3105,7 @@ fn discount_record_from_input(
         "startsAt": starts_at,
         "endsAt": ends_at,
         "createdAt": created_at,
-        "updatedAt": context.timestamp,
+        "updatedAt": timestamp,
         "asyncUsageCount": async_usage_count,
         "usageLimit": resolved_i64_path(input, &["usageLimit"]).map(Value::from).unwrap_or(Value::Null),
         "usesPerOrderLimit": resolved_i64_path(input, &["usesPerOrderLimit"]).map(Value::from).unwrap_or(Value::Null),
@@ -3325,15 +3118,15 @@ fn discount_record_from_input(
         "context": discount_context_from_input(input),
         "customerBuys": discount_customer_buys_from_input(typename, input),
         "customerGets": customer_gets,
-        "minimumRequirement": discount_minimum_requirement_from_input(input, context.shop_currency_code),
+        "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
         "destinationSelection": discount_destination_selection_from_input(input),
-        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, context.shop_currency_code),
+        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
         "appliesOncePerCustomer": resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false),
         "appliesOnOneTimePurchase": applies_on_one_time_purchase,
         "appliesOnSubscription": applies_on_subscription,
         "codes": codes,
         "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
-        "metafields": discount_metafields_from_input(input, context.timestamp)
+        "metafields": discount_metafields_from_input(input, timestamp)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
         "summary": context.summary
@@ -3623,6 +3416,14 @@ fn discount_kind_for_lifecycle_root(root: &str) -> &'static str {
         "automatic"
     } else {
         "code"
+    }
+}
+
+fn discount_node_id_type(discount_kind: &str) -> &'static str {
+    if discount_kind == "automatic" {
+        "DiscountAutomaticNode"
+    } else {
+        "DiscountCodeNode"
     }
 }
 
@@ -4420,521 +4221,4 @@ fn discount_country_summary_name(country_code: &str) -> String {
         _ => country_code,
     }
     .to_string()
-}
-
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(
-    id: &str,
-    _shop_currency_code: &str,
-) -> Value {
-    let timestamp = default_product_timestamp();
-    json!({
-        "__typename": "GiftCard",
-        "id": id,
-        "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": null,
-        "maskedCode": null,
-        "giftCardCode": null,
-        "enabled": true,
-        "deactivatedAt": null,
-        "disabledAt": null,
-        "expiresOn": null,
-        "note": null,
-        "templateSuffix": null,
-        "createdAt": timestamp.clone(),
-        "updatedAt": timestamp,
-        "initialValue": null,
-        "balance": null,
-        "customer": null,
-        "recipientAttributes": null,
-        "transactions": connection_json(Vec::new())
-    })
-}
-
-pub(in crate::proxy) fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
-    json!({
-        "issueLimit": money_value("3000.0", shop_currency_code),
-        "purchaseLimit": money_value("14000.0", shop_currency_code)
-    })
-}
-
-pub(in crate::proxy) fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
-    if !card.get("transactions").is_some_and(Value::is_object) {
-        card["transactions"] = connection_json(Vec::new());
-    } else {
-        if !card["transactions"]
-            .get("nodes")
-            .is_some_and(Value::is_array)
-        {
-            card["transactions"]["nodes"] = json!([]);
-        }
-        if !card["transactions"]
-            .get("edges")
-            .is_some_and(Value::is_array)
-        {
-            card["transactions"]["edges"] = json!([]);
-        }
-        if !card["transactions"]
-            .get("pageInfo")
-            .is_some_and(Value::is_object)
-        {
-            card["transactions"]["pageInfo"] = empty_page_info();
-        }
-    }
-    if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
-        nodes.push(transaction);
-    }
-}
-
-pub(in crate::proxy) fn backup_region_country_code_coercion_error(
-    message: &str,
-    operation_path: &str,
-    code: &str,
-    location: SourceLocation,
-) -> Value {
-    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
-    if code == "missingRequiredInputObjectAttribute" {
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
-        extensions.insert(
-            "inputObjectType".to_string(),
-            json!("BackupRegionUpdateInput"),
-        );
-    } else {
-        extensions.insert("typeName".to_string(), json!("InputObject"));
-        extensions.insert("argumentName".to_string(), json!("countryCode"));
-    }
-
-    json!({
-        "errors": [{
-            "message": message,
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
-            "extensions": extensions
-        }]
-    })
-}
-
-pub(in crate::proxy) fn merge_shipping_package_input(
-    package: &mut Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) {
-    for (key, value) in input {
-        package[key] = resolved_value_json(value);
-    }
-}
-
-pub(in crate::proxy) fn local_node_value(
-    id: &str,
-    selection: &[SelectedField],
-    backup_region: Option<&Value>,
-) -> Option<Value> {
-    if is_safe_no_data_node_gid(id) {
-        return Some(Value::Null);
-    }
-    if let Some(region) = backup_region {
-        if region.get("id").and_then(Value::as_str) == Some(id) {
-            return Some(selected_json(region, selection));
-        }
-    }
-    None
-}
-
-pub(in crate::proxy) fn is_safe_no_data_node_gid(id: &str) -> bool {
-    [
-        "gid://shopify/CashTrackingSession/",
-        "gid://shopify/PointOfSaleDevice/",
-        "gid://shopify/ShopifyPaymentsDispute/",
-    ]
-    .iter()
-    .any(|prefix| id.starts_with(prefix))
-}
-
-pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
-    root_payload_json(fields, |field| {
-        Some(match field.name.as_str() {
-            "cashTrackingSession"
-            | "pointOfSaleDevice"
-            | "dispute"
-            | "disputeEvidence"
-            | "shopPayPaymentRequestReceipt" => Value::Null,
-            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
-                selected_empty_connection_json(&field.selection)
-            }
-            _ => Value::Null,
-        })
-    })
-}
-
-pub(in crate::proxy) fn discount_bxgy_variable_error(
-    input: &BTreeMap<String, ResolvedValue>,
-    is_code: bool,
-    is_create: bool,
-    graphql_type: &str,
-) -> Option<Value> {
-    let column = match (is_code, is_create) {
-        (true, true) => 50,
-        (true, false) => 60,
-        (false, true) => 55,
-        (false, false) => 65,
-    };
-
-    if let Some(value) = input.get("usesPerOrderLimit") {
-        match (is_code, value) {
-            (true, ResolvedValue::String(raw)) => {
-                return Some(discount_bxgy_invalid_variable(
-                    graphql_type,
-                    "usesPerOrderLimit",
-                    vec!["usesPerOrderLimit"],
-                    format!("Could not coerce value \"{raw}\" to Int"),
-                    false,
-                    column,
-                ));
-            }
-            (false, ResolvedValue::String(raw)) => match raw.parse::<i64>() {
-                Ok(n) if n >= 0 => {}
-                Ok(n) => {
-                    return Some(discount_bxgy_invalid_variable(
-                        graphql_type,
-                        "usesPerOrderLimit",
-                        vec!["usesPerOrderLimit"],
-                        format!("UnsignedInt64 '{n}' is out of range"),
-                        true,
-                        column,
-                    ));
-                }
-                Err(_) => {
-                    return Some(discount_bxgy_invalid_variable(
-                        graphql_type,
-                        "usesPerOrderLimit",
-                        vec!["usesPerOrderLimit"],
-                        format!("UnsignedInt64 invalid value '{raw}'"),
-                        true,
-                        column,
-                    ));
-                }
-            },
-            (false, ResolvedValue::Int(n)) if *n < 0 => {
-                return Some(discount_bxgy_invalid_variable(
-                    graphql_type,
-                    "usesPerOrderLimit",
-                    vec!["usesPerOrderLimit"],
-                    format!("UnsignedInt64 '{n}' is out of range"),
-                    true,
-                    column,
-                ));
-            }
-            _ => {}
-        }
-    }
-
-    for (path, label) in [
-        (
-            vec!["customerBuys", "value", "quantity"],
-            "customerBuys.value.quantity",
-        ),
-        (
-            vec!["customerGets", "value", "discountOnQuantity", "quantity"],
-            "customerGets.value.discountOnQuantity.quantity",
-        ),
-    ] {
-        if let Some(value) =
-            resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &path)
-        {
-            match value {
-                ResolvedValue::String(raw) if raw.contains('.') => {
-                    return Some(discount_bxgy_invalid_variable(
-                        graphql_type,
-                        label,
-                        path,
-                        format!("UnsignedInt64 invalid value '{raw}'"),
-                        true,
-                        column,
-                    ));
-                }
-                ResolvedValue::String(raw) if raw.starts_with('-') => {
-                    return Some(discount_bxgy_invalid_variable(
-                        graphql_type,
-                        label,
-                        path,
-                        format!("UnsignedInt64 '{raw}' is out of range"),
-                        true,
-                        column,
-                    ));
-                }
-                _ => {}
-            }
-        }
-    }
-    None
-}
-
-pub(in crate::proxy) fn discount_bxgy_invalid_variable(
-    graphql_type: &str,
-    label: &str,
-    path: Vec<&str>,
-    explanation: String,
-    include_problem_message: bool,
-    column: i64,
-) -> Value {
-    let mut problem = serde_json::Map::new();
-    problem.insert("path".to_string(), json!(path));
-    problem.insert("explanation".to_string(), json!(explanation));
-    if include_problem_message {
-        problem.insert("message".to_string(), problem["explanation"].clone());
-    }
-    json!({
-        "message": format!("Variable $input of type {graphql_type}! was provided invalid value for {label} ({})", problem["explanation"].as_str().unwrap_or_default()),
-        "locations": [{ "line": 1, "column": column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "problems": [Value::Object(problem)]
-        }
-    })
-}
-
-pub(in crate::proxy) fn discount_bxgy_user_error(
-    input: &BTreeMap<String, ResolvedValue>,
-    prefix: &str,
-) -> Option<Value> {
-    if let Some(value) = input.get("usesPerOrderLimit") {
-        if let Some(n) = resolved_i64(value) {
-            if n == 0 {
-                return Some(discount_user_error(
-                    vec![prefix, "usesPerOrderLimit"],
-                    "Allocation limit cannot be zero",
-                    "VALUE_OUTSIDE_RANGE",
-                ));
-            }
-            if n < 0 {
-                return Some(discount_user_error(
-                    vec![prefix, "usesPerOrderLimit"],
-                    "Allocation limit must be greater than 0",
-                    "GREATER_THAN",
-                ));
-            }
-            if n > 2_147_483_647 {
-                return Some(discount_user_error(
-                    vec![prefix, "usesPerOrderLimit"],
-                    "Allocation limit must be less than or equal to 2147483647",
-                    "LESS_THAN_OR_EQUAL_TO",
-                ));
-            }
-        }
-    }
-
-    if let Some(n) = resolved_i64_path(input, &["customerBuys", "value", "quantity"]) {
-        if n == 0 {
-            return Some(discount_user_error(
-                vec![prefix, "customerBuys", "value", "quantity"],
-                "Prerequisite to entitlement quantity ratio antecedent must be greater than 0",
-                "GREATER_THAN",
-            ));
-        }
-        if n >= 100_000 {
-            return Some(discount_user_error(
-                vec![prefix, "customerBuys", "value", "quantity"],
-                "Prerequisite to entitlement quantity ratio antecedent must be less than 100000",
-                "LESS_THAN",
-            ));
-        }
-    }
-
-    if let Some(n) = resolved_i64_path(
-        input,
-        &["customerGets", "value", "discountOnQuantity", "quantity"],
-    ) {
-        if n == 0 {
-            return Some(discount_user_error(
-                vec![
-                    prefix,
-                    "customerGets",
-                    "value",
-                    "discountOnQuantity",
-                    "quantity",
-                ],
-                "Prerequisite to entitlement quantity ratio consequent must be greater than 0",
-                "GREATER_THAN",
-            ));
-        }
-        if n >= 100_000 {
-            return Some(discount_user_error(
-                vec![
-                    prefix,
-                    "customerGets",
-                    "value",
-                    "discountOnQuantity",
-                    "quantity",
-                ],
-                "Prerequisite to entitlement quantity ratio consequent must be less than 100000",
-                "LESS_THAN",
-            ));
-        }
-    }
-    None
-}
-
-pub(in crate::proxy) fn discount_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    user_error_with_extra_info(field, message, Some(code), Value::Null)
-}
-
-pub(in crate::proxy) fn redeem_code_bulk_delete_selector_count(
-    field: &RootFieldSelection,
-) -> usize {
-    let ids_present = field.arguments.contains_key("ids");
-    let search_present = field.arguments.contains_key("search");
-    let saved_search_present = field.arguments.contains_key("savedSearchId")
-        || field.arguments.contains_key("saved_search_id");
-    ids_present as usize + search_present as usize + saved_search_present as usize
-}
-
-pub(in crate::proxy) fn discount_null_field_user_error(message: &str, code: Option<&str>) -> Value {
-    user_error_with_extra_info(Value::Null, message, code, Value::Null)
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
-    codes: &[String],
-    existing: &BTreeSet<String>,
-    pending: bool,
-) -> Value {
-    let failed_count = if pending {
-        0
-    } else {
-        codes
-            .iter()
-            .enumerate()
-            .filter(|(index, code)| !redeem_code_accepted(code, codes, *index, existing))
-            .count()
-    };
-    let imported_count = if pending {
-        0
-    } else {
-        codes.len() - failed_count
-    };
-    // The caller assigns the synthetic creation id; this id is always overwritten.
-    json!({
-        "id": Value::Null,
-        "done": !pending,
-        "codesCount": codes.len(),
-        "importedCount": imported_count,
-        "failedCount": failed_count,
-        "codes": {
-            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)).collect::<Vec<_>>(),
-            "edges": [],
-            "pageInfo": empty_page_info()
-        }
-    })
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
-    code: &str,
-    codes: &[String],
-    index: usize,
-    existing: &BTreeSet<String>,
-    pending: bool,
-) -> Value {
-    let errors = if pending {
-        Vec::new()
-    } else {
-        redeem_code_errors(code, codes, index, existing)
-    };
-    let accepted = errors.is_empty();
-    json!({
-        "code": code,
-        "errors": errors,
-        "discountRedeemCode": if pending || !accepted { Value::Null } else { json!({
-            "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
-            "code": code
-        }) }
-    })
-}
-
-/// Whether a `discountRedeemCodeBulkAdd` `codes` argument was supplied as a bare
-/// `[String!]` list (the legacy local-runtime shape) rather than the schema
-/// `[DiscountRedeemCodeInput!]` object list. String submissions complete
-/// synchronously; object submissions follow Shopify's async creation shape.
-pub(in crate::proxy) fn redeem_codes_are_string_inputs(field: &RootFieldSelection) -> bool {
-    match field.arguments.get("codes") {
-        Some(ResolvedValue::List(items)) => {
-            !items.is_empty()
-                && items
-                    .iter()
-                    .all(|item| matches!(item, ResolvedValue::String(_)))
-        }
-        _ => false,
-    }
-}
-
-pub(in crate::proxy) fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec<String> {
-    match field.arguments.get("codes") {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .filter_map(|item| match item {
-                ResolvedValue::Object(object) => match object.get("code") {
-                    Some(ResolvedValue::String(code)) => Some(code.clone()),
-                    _ => None,
-                },
-                ResolvedValue::String(code) => Some(code.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-pub(in crate::proxy) fn redeem_code_accepted(
-    code: &str,
-    codes: &[String],
-    index: usize,
-    existing: &BTreeSet<String>,
-) -> bool {
-    redeem_code_errors(code, codes, index, existing).is_empty()
-}
-
-/// Per-code validation for a `discountRedeemCodeBulkAdd` submission. `existing`
-/// is the set of codes (uppercased) already assigned to any discount in the
-/// shop before this batch; `codes`/`index` locate the code within the batch so
-/// duplicates within the same submission can be detected.
-pub(in crate::proxy) fn redeem_code_errors(
-    code: &str,
-    codes: &[String],
-    index: usize,
-    existing: &BTreeSet<String>,
-) -> Vec<Value> {
-    if code.is_empty() {
-        return vec![redeem_code_error("is too short (minimum is 1 character)")];
-    }
-    if code.contains('\n') || code.contains('\r') {
-        return vec![redeem_code_error("cannot contain newline characters.")];
-    }
-    if code.chars().count() > 255 {
-        return vec![redeem_code_error("is too long (maximum is 255 characters)")];
-    }
-    let normalized = code.to_ascii_uppercase();
-    // A second (or later) occurrence of the same code within this submission.
-    if codes
-        .iter()
-        .take(index)
-        .any(|candidate| candidate.to_ascii_uppercase() == normalized)
-    {
-        return vec![redeem_code_error(
-            "Codes must be unique within BulkDiscountCodeCreation",
-        )];
-    }
-    // The code is already assigned to some discount in the shop.
-    if existing.contains(&normalized) {
-        return vec![redeem_code_error(
-            "must be unique. Please try a different code.",
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn redeem_code_error(message: &str) -> Value {
-    user_error_with_extra_info(["code"], message, None, Value::Null)
-}
-
-pub(in crate::proxy) fn stable_redeem_code_suffix(code: &str) -> u64 {
-    code.bytes().fold(0_u64, |acc, byte| {
-        acc.wrapping_mul(131).wrapping_add(byte as u64)
-    })
 }
