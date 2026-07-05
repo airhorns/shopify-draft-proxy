@@ -5748,6 +5748,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-localizable-resource-connections',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-localizable-resource-connections-conformance.mts',
+    purpose:
+      'MarketLocalizableResource plural and byIds connection read-after-observation parity for a disposable product-owned money metafield.',
+    requiredAuthScopes: ['read_markets', 'read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-localizable-resource-connections.json`,
+      'config/parity-specs/markets/market-localizable-resource-connections.json',
+      'config/parity-requests/markets/market-localizable-resource-connections-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned money metafield definition and product metafield, captures singular observation plus plural/byIds reads, then deletes the product and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-web-presence-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
