@@ -1,0 +1,127 @@
+query MetafieldReferenceFieldsRead($ownerId: ID!) {
+  product(id: $ownerId) {
+    id
+    productRef: metafield(namespace: "reference_fields", key: "product_ref") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on Product {
+          id
+          title
+          handle
+        }
+      }
+      references(first: 5) {
+        nodes {
+          __typename
+        }
+      }
+    }
+    productRefs: metafield(namespace: "reference_fields", key: "product_refs") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+      }
+      references(first: 5) {
+        nodes {
+          __typename
+          ... on Product {
+            id
+            title
+            handle
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    variantRef: metafield(namespace: "reference_fields", key: "variant_ref") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on ProductVariant {
+          id
+          title
+          product {
+            id
+          }
+        }
+      }
+    }
+    collectionRef: metafield(namespace: "reference_fields", key: "collection_ref") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on Collection {
+          id
+          title
+          handle
+        }
+      }
+    }
+    fileRef: metafield(namespace: "reference_fields", key: "file_ref") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on MediaImage {
+          id
+          alt
+        }
+      }
+    }
+    pageRef: metafield(namespace: "reference_fields", key: "page_ref") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on Page {
+          id
+          title
+          handle
+        }
+      }
+    }
+    plain: metafield(namespace: "reference_fields", key: "plain") {
+      id
+      namespace
+      key
+      type
+      value
+      reference {
+        __typename
+      }
+      references(first: 5) {
+        nodes {
+          __typename
+        }
+      }
+    }
+  }
+}

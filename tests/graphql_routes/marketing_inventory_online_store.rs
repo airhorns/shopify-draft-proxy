@@ -10450,6 +10450,339 @@ fn metaobject_mixed_reference_accepts_unobserved_metaobject_gid_when_definition_
 }
 
 #[test]
+fn metaobject_reference_fields_and_referenced_by_resolve_staged_targets() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": true});
+    let target_definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "reference_target_type",
+        vec![title_field.clone()],
+    );
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "reference_parent_type",
+        vec![
+            title_field,
+            json!({"key": "single_ref", "name": "Single Ref", "type": "metaobject_reference", "required": false, "validations": [{"name": "metaobject_definition_id", "value": target_definition_id}]}),
+            json!({"key": "list_ref", "name": "List Ref", "type": "list.metaobject_reference", "required": false, "validations": [{"name": "metaobject_definition_id", "value": target_definition_id}]}),
+            json!({"key": "plain", "name": "Plain", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let target_a = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "reference_target_type",
+            "handle": "target-a",
+            "fields": [{"key": "title", "value": "Target A"}]
+        }}),
+    ));
+    assert_eq!(
+        target_a.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let target_a_id = target_a.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let target_b = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "reference_target_type",
+            "handle": "target-b",
+            "fields": [{"key": "title", "value": "Target B"}]
+        }}),
+    ));
+    assert_eq!(
+        target_b.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let target_b_id = target_b.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let parent = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "reference_parent_type",
+            "handle": "reference-parent",
+            "fields": [
+                {"key": "title", "value": "Reference Parent"},
+                {"key": "single_ref", "value": target_a_id},
+                {"key": "list_ref", "value": json!([target_a_id, target_b_id]).to_string()},
+                {"key": "plain", "value": target_a_id}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        parent.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let parent_id = parent.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let product_owner = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobjectReferenceProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Metaobject reference owner"}}),
+    ));
+    assert_eq!(
+        product_owner.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_owner_id = product_owner.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let metafields = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetMetaobjectReferenceMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {
+                "ownerId": product_owner_id,
+                "namespace": "custom",
+                "key": "metaobject_ref",
+                "type": "metaobject_reference",
+                "value": target_a_id
+            },
+            {
+                "ownerId": product_owner_id,
+                "namespace": "custom",
+                "key": "metaobject_refs",
+                "type": "list.metaobject_reference",
+                "value": json!([target_b_id]).to_string()
+            }
+        ]}),
+    ));
+    assert_eq!(
+        metafields.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMetaobjectReferences($targetAId: ID!, $targetBId: ID!, $parentId: ID!) {
+          targetA: metaobject(id: $targetAId) {
+            referencedBy(first: 10) {
+              nodes {
+                key
+                name
+                namespace
+                referencer {
+                  __typename
+                  ... on Metaobject { id handle type displayName }
+                  ... on Product { id title handle }
+                }
+              }
+            }
+          }
+          targetB: metaobject(id: $targetBId) {
+            referencedBy(first: 10) {
+              nodes {
+                key
+                name
+                namespace
+                referencer {
+                  __typename
+                  ... on Metaobject { id handle type displayName }
+                  ... on Product { id title handle }
+                }
+              }
+            }
+          }
+          parent: metaobject(id: $parentId) {
+            singleRef: field(key: "single_ref") {
+              key
+              type
+              value
+              reference {
+                __typename
+                ... on Metaobject { id handle type displayName }
+              }
+              references(first: 5) { nodes { __typename } }
+            }
+            singleRefNoTypename: field(key: "single_ref") {
+              reference {
+                ... on Metaobject { id handle }
+              }
+            }
+            listRef: field(key: "list_ref") {
+              key
+              type
+              value
+              reference { __typename ... on Metaobject { id } }
+              references(first: 5) {
+                nodes {
+                  __typename
+                  ... on Metaobject { id handle type displayName }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            plain: field(key: "plain") {
+              key
+              type
+              value
+              reference { __typename ... on Metaobject { id } }
+              references(first: 5) { nodes { __typename } }
+            }
+          }
+        }
+        "#,
+        json!({"targetAId": target_a_id, "targetBId": target_b_id, "parentId": parent_id}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["parent"]["singleRef"]["reference"],
+        json!({
+            "__typename": "Metaobject",
+            "id": target_a_id,
+            "handle": "target-a",
+            "type": "reference_target_type",
+            "displayName": "Target A"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["singleRefNoTypename"]["reference"],
+        json!({
+            "id": target_a_id,
+            "handle": "target-a"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["singleRef"]["references"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["listRef"]["reference"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["listRef"]["references"]["nodes"],
+        json!([
+            {
+                "__typename": "Metaobject",
+                "id": target_a_id,
+                "handle": "target-a",
+                "type": "reference_target_type",
+                "displayName": "Target A"
+            },
+            {
+                "__typename": "Metaobject",
+                "id": target_b_id,
+                "handle": "target-b",
+                "type": "reference_target_type",
+                "displayName": "Target B"
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["listRef"]["references"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["listRef"]["references"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    assert_eq!(
+        read.body["data"]["parent"]["plain"]["reference"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["targetA"]["referencedBy"]["nodes"],
+        json!([
+            {
+                "key": "single_ref",
+                "name": "Single Ref",
+                "namespace": "reference_parent_type",
+                "referencer": {
+                    "__typename": "Metaobject",
+                    "id": parent_id,
+                    "handle": "reference-parent",
+                    "type": "reference_parent_type",
+                    "displayName": "Reference Parent"
+                }
+            },
+            {
+                "key": "list_ref",
+                "name": "List Ref",
+                "namespace": "reference_parent_type",
+                "referencer": {
+                    "__typename": "Metaobject",
+                    "id": parent_id,
+                    "handle": "reference-parent",
+                    "type": "reference_parent_type",
+                    "displayName": "Reference Parent"
+                }
+            },
+            {
+                "key": "metaobject_ref",
+                "name": "metaobject_ref",
+                "namespace": "custom",
+                "referencer": {
+                    "__typename": "Product",
+                    "id": product_owner_id,
+                    "title": "Metaobject reference owner",
+                    "handle": "metaobject-reference-owner"
+                }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["targetB"]["referencedBy"]["nodes"],
+        json!([{
+            "key": "list_ref",
+            "name": "List Ref",
+            "namespace": "reference_parent_type",
+            "referencer": {
+                "__typename": "Metaobject",
+                "id": parent_id,
+                "handle": "reference-parent",
+                "type": "reference_parent_type",
+                "displayName": "Reference Parent"
+            }
+        },
+        {
+            "key": "metaobject_refs",
+            "name": "metaobject_refs",
+            "namespace": "custom",
+            "referencer": {
+                "__typename": "Product",
+                "id": product_owner_id,
+                "title": "Metaobject reference owner",
+                "handle": "metaobject-reference-owner"
+            }
+        }])
+    );
+}
+
+#[test]
 fn metaobject_update_reports_undefined_input_and_new_required_schema_field() {
     let mut proxy = snapshot_proxy();
     let definition_id = create_metaobject_definition_for_test(

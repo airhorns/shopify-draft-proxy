@@ -2519,6 +2519,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-reference-fields',
+    scriptPath: 'scripts/capture-metafield-reference-fields-conformance.mts',
+    purpose:
+      'Product-owned Metafield.reference and Metafield.references downstream resolution for product, variant, collection, file, and page reference targets.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_files',
+      'write_files',
+      'read_content',
+      'write_content',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-reference-fields-lifecycle.json`,
+      'config/parity-specs/metafields/metafield-reference-fields-lifecycle.json',
+      'config/parity-requests/metafields/metafield-reference-fields-product-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-collection-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-file-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-page-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-set.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable owner/target products, a variant, a collection, a media image, and an online-store page; sets reference metafields, captures downstream reads, then deletes created resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafields-custom-namespace-typed-keys',
     scriptPath: 'scripts/capture-metafields-custom-namespace-typed-keys-conformance.mts',
     purpose:

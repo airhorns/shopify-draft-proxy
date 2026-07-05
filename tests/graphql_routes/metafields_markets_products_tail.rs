@@ -7746,6 +7746,334 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
 }
 
 #[test]
+fn product_metafield_reference_fields_resolve_staged_targets() {
+    let mut proxy = snapshot_proxy();
+
+    let target_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceTarget($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Referenced product"}}),
+    ));
+    assert_eq!(
+        target_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let target_id = target_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let owner_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Reference owner"}}),
+    ));
+    assert_eq!(
+        owner_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = owner_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let variant = create_legacy_variant(&mut proxy, &target_id, "REF-VARIANT", "12.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let collection_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Referenced collection"}}),
+    ));
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let file_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceFile($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt fileStatus filename ... on MediaImage { image { url } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "alt": "Referenced image",
+            "contentType": "IMAGE",
+            "filename": "referenced-image.jpg",
+            "originalSource": "https://cdn.example.com/referenced-image.jpg"
+        }]}),
+    ));
+    assert_eq!(
+        file_create.body["data"]["fileCreate"]["userErrors"],
+        json!([])
+    );
+    let file_id = file_create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let page_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferencePage($page: PageCreateInput!) {
+          pageCreate(page: $page) {
+            page { id title handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"page": {"title": "Referenced page", "body": "<p>Reference page body</p>"}}),
+    ));
+    assert_eq!(
+        page_create.body["data"]["pageCreate"]["userErrors"],
+        json!([])
+    );
+    let page_id = page_create.body["data"]["pageCreate"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetReferenceMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "product_ref",
+                "type": "product_reference",
+                "value": target_id
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "product_refs",
+                "type": "list.product_reference",
+                "value": json!([target_id]).to_string()
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "variant_ref",
+                "type": "variant_reference",
+                "value": variant_id
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "collection_ref",
+                "type": "collection_reference",
+                "value": collection_id
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "file_ref",
+                "type": "file_reference",
+                "value": file_id
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "page_ref",
+                "type": "page_reference",
+                "value": page_id
+            },
+            {
+                "ownerId": owner_id,
+                "namespace": "custom",
+                "key": "plain",
+                "type": "single_line_text_field",
+                "value": target_id
+            }
+        ]}),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceMetafields($ownerId: ID!) {
+          product(id: $ownerId) {
+            single: metafield(namespace: "custom", key: "product_ref") {
+              type
+              value
+              reference {
+                __typename
+                ... on Product { id title handle }
+              }
+              references(first: 5) {
+                nodes { __typename ... on Product { id title } }
+              }
+            }
+            singleNoTypename: metafield(namespace: "custom", key: "product_ref") {
+              reference {
+                ... on Product { id title }
+              }
+            }
+            list: metafield(namespace: "custom", key: "product_refs") {
+              type
+              value
+              reference { __typename ... on Product { id } }
+              references(first: 5) {
+                nodes { __typename ... on Product { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            variant: metafield(namespace: "custom", key: "variant_ref") {
+              reference {
+                __typename
+                ... on ProductVariant { id title sku product { id } }
+              }
+            }
+            collection: metafield(namespace: "custom", key: "collection_ref") {
+              reference {
+                __typename
+                ... on Collection { id title handle }
+              }
+            }
+            file: metafield(namespace: "custom", key: "file_ref") {
+              reference {
+                __typename
+                ... on MediaImage { id alt image { url } }
+              }
+            }
+            page: metafield(namespace: "custom", key: "page_ref") {
+              reference {
+                __typename
+                ... on Page { id title handle }
+              }
+            }
+            plain: metafield(namespace: "custom", key: "plain") {
+              type
+              value
+              reference { __typename ... on Product { id } }
+              references(first: 5) { nodes { __typename } }
+            }
+          }
+        }
+        "#,
+        json!({"ownerId": owner_id}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["single"]["reference"],
+        json!({
+            "__typename": "Product",
+            "id": target_id,
+            "title": "Referenced product",
+            "handle": "referenced-product"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["singleNoTypename"]["reference"],
+        json!({
+            "id": target_id,
+            "title": "Referenced product"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["single"]["references"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["product"]["list"]["reference"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["product"]["list"]["references"]["nodes"],
+        json!([{
+            "__typename": "Product",
+            "id": target_id,
+            "title": "Referenced product"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["product"]["list"]["references"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["list"]["references"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["variant"]["reference"],
+        json!({
+            "__typename": "ProductVariant",
+            "id": variant_id,
+            "title": "REF-VARIANT",
+            "sku": "REF-VARIANT",
+            "product": { "id": target_id }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["collection"]["reference"],
+        json!({
+            "__typename": "Collection",
+            "id": collection_id,
+            "title": "Referenced collection",
+            "handle": "referenced-collection"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["file"]["reference"],
+        json!({
+            "__typename": "MediaImage",
+            "id": file_id,
+            "alt": "Referenced image",
+            "image": { "url": "https://cdn.example.com/referenced-image.jpg" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["page"]["reference"],
+        json!({
+            "__typename": "Page",
+            "id": page_id,
+            "title": "Referenced page",
+            "handle": "referenced-page"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["plain"]["reference"],
+        Value::Null
+    );
+    assert_eq!(
+        read.body["data"]["product"]["plain"]["references"],
+        Value::Null
+    );
+}
+
+#[test]
 fn product_metafields_set_stages_product_owned_readbacks() {
     let cases = [
         "metafields-set-parity.json",

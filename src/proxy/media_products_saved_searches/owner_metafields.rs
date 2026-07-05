@@ -670,6 +670,9 @@ impl DraftProxy {
                 self.store.staged.metaobjects.contains_key(id)
                     && !self.store.staged.metaobjects.is_tombstoned(id)
             }
+            Some("Page") => self
+                .online_store_content_node_value(id, &[])
+                .is_some_and(|value| !value.is_null()),
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
                 self.store.staged.media_files.contains_key(id)
                     && !self.store.staged.media_files.is_tombstoned(id)
@@ -1162,7 +1165,7 @@ impl DraftProxy {
             resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
         let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
         self.owner_metafield(owner_id, &namespace, &key)
-            .map(|metafield| selected_json(&metafield, &selection.selection))
+            .map(|metafield| self.selected_reference_field_record(&metafield, &selection.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -1179,7 +1182,7 @@ impl DraftProxy {
             return self.selected_owner_metafield(owner_id, selection);
         }
         if let Some(metafield) = base_owner_metafield(base, &namespace, &key) {
-            return selected_json(&metafield, &selection.selection);
+            return self.selected_reference_field_record(&metafield, &selection.selection);
         }
         base.get(selection.response_key.as_str())
             .or_else(|| base.get(selection.name.as_str()))
@@ -1214,7 +1217,7 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &records_for_output,
             &selection.selection,
-            selected_json,
+            |metafield, selections| self.selected_reference_field_record(metafield, selections),
             |metafield| metafield_cursor(metafield).unwrap_or_default(),
             page_info,
         )

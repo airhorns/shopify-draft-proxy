@@ -1,0 +1,18 @@
+mutation MetafieldReferenceFieldsSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

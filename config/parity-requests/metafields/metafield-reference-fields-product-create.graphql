@@ -1,0 +1,19 @@
+mutation MetafieldReferenceFieldsProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      variants(first: 1) {
+        nodes {
+          id
+          title
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

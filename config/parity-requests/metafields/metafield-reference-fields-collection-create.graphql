@@ -1,0 +1,13 @@
+mutation MetafieldReferenceFieldsCollectionCreate($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

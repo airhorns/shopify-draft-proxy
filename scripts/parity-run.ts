@@ -424,6 +424,11 @@ function resolveSpecialVariables(
       if (!response) throw new Error(`fromProxyResponse references unknown target: ${object['fromProxyResponse']}`);
       return getPath(response.body, object['path']);
     }
+    if ('jsonStringify' in object) {
+      return JSON.stringify(
+        resolveSpecialVariables(object['jsonStringify'], capture, primaryResponse, previousResponse, namedResponses),
+      );
+    }
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [
         key,
