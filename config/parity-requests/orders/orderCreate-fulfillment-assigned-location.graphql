@@ -1,0 +1,30 @@
+#graphql
+  fragment OrderCreateFulfillmentAssignedLocationFields on FulfillmentOrder {
+    id
+    status
+    assignedLocation {
+      name
+      location {
+        id
+        name
+      }
+    }
+  }
+
+  mutation OrderCreateFulfillmentAssignedLocation($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+    orderCreate(order: $order, options: $options) {
+      order {
+        id
+        name
+        fulfillmentOrders(first: 5) {
+          nodes {
+            ...OrderCreateFulfillmentAssignedLocationFields
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

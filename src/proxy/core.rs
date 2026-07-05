@@ -405,6 +405,18 @@ impl DraftProxy {
             snapshot["stagedState"]["bulkOperationStagedUploads"] =
                 json!(self.store.staged.bulk_operation_staged_uploads.clone());
         }
+        if !self
+            .store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .is_empty()
+        {
+            snapshot["stagedState"]["bulkOperationStagedUploadBodies"] = json!(self
+                .store
+                .staged
+                .bulk_operation_staged_upload_bodies
+                .clone());
+        }
         if !self.store.staged.bulk_operation_results.is_empty() {
             snapshot["stagedState"]["bulkOperationResults"] =
                 json!(self.store.staged.bulk_operation_results.clone());
@@ -989,6 +1001,18 @@ impl DraftProxy {
                 uploads
                     .iter()
                     .map(|(path, size)| (path.clone(), size.as_u64()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_operation_staged_upload_bodies = state["stagedState"]
+            .get("bulkOperationStagedUploadBodies")
+            .and_then(Value::as_object)
+            .map(|uploads| {
+                uploads
+                    .iter()
+                    .filter_map(|(path, body)| {
+                        body.as_str().map(|body| (path.clone(), body.to_string()))
+                    })
                     .collect()
             })
             .unwrap_or_default();

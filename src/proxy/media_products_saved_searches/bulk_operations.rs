@@ -476,6 +476,16 @@ impl DraftProxy {
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
             );
         }
+        let Some(staged_upload_body) = self
+            .bulk_operation_staged_upload_body(&staged_upload_path)
+            .map(str::to_string)
+        else {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_no_such_file_user_error()],
+            );
+        };
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -490,27 +500,26 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
+        let result_jsonl = self.bulk_operation_run_mutation_result_jsonl(
+            request,
+            &mutation_text,
+            &staged_upload_body,
+        );
+        let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
             id: &id,
             status: "COMPLETED",
             operation_type: "MUTATION",
             query: &mutation_text,
-            count: "0",
+            count: &object_count,
             created_at: &created_at,
-            file_size: "0",
+            file_size: &file_size,
         });
-        self.stage_bulk_operation_result(&id, String::new());
+        self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), terminal_operation);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "bulkOperationRunMutation",
-            vec![id.clone()],
-        );
 
         let payload = json!({
             "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
@@ -553,11 +562,76 @@ impl DraftProxy {
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
-        self.store
+        let declared = self
+            .store
             .staged
             .bulk_operation_staged_uploads
             .get(staged_upload_path)
-            .cloned()
+            .cloned()?;
+        if let Some(body) = self.bulk_operation_staged_upload_body(staged_upload_path) {
+            return Some(Some(body.len() as u64));
+        }
+        Some(declared)
+    }
+
+    fn bulk_operation_staged_upload_body(&self, staged_upload_path: &str) -> Option<&str> {
+        self.store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .get(staged_upload_path)
+            .map(String::as_str)
+    }
+
+    fn bulk_operation_run_mutation_result_jsonl(
+        &mut self,
+        request: &Request,
+        mutation_text: &str,
+        jsonl: &str,
+    ) -> String {
+        let mut rows = Vec::new();
+        for (line_number, line) in jsonl.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let variables = match serde_json::from_str::<Value>(line) {
+                Ok(Value::Object(variables)) => Value::Object(variables),
+                Ok(other) => {
+                    rows.push(bulk_operation_run_mutation_line_error(
+                        line_number,
+                        &format!("Expected JSON object variables, got {other}"),
+                    ));
+                    continue;
+                }
+                Err(error) => {
+                    rows.push(bulk_operation_run_mutation_line_error(
+                        line_number,
+                        &format!("Failed to parse JSONL variables: {error}"),
+                    ));
+                    continue;
+                }
+            };
+            let row_request = Request {
+                method: "POST".to_string(),
+                path: request.path.clone(),
+                headers: request.headers.clone(),
+                body: json!({
+                    "query": mutation_text,
+                    "variables": variables
+                })
+                .to_string(),
+            };
+            let mut row = self.dispatch_graphql(&row_request).body;
+            if let Some(object) = row.as_object_mut() {
+                object.insert("__lineNumber".to_string(), json!(line_number));
+            } else {
+                row = json!({
+                    "data": row,
+                    "__lineNumber": line_number
+                });
+            }
+            rows.push(row);
+        }
+        values_to_jsonl(rows)
     }
 
     pub(in crate::proxy) fn bulk_operation_cancel(
@@ -859,6 +933,47 @@ mod tests {
         }
     }
 
+    fn staged_bulk_mutation_upload_path_with_body(
+        proxy: &mut DraftProxy,
+        filename: &str,
+        body: &str,
+    ) -> String {
+        let staged = proxy.process_request(test_request(
+            r#"
+            mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+              stagedUploadsCreate(input: $input) {
+                stagedTargets { parameters { name value } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": [{
+                    "resource": "BULK_MUTATION_VARIABLES",
+                    "filename": filename,
+                    "mimeType": "text/jsonl",
+                    "httpMethod": "POST",
+                    "fileSize": body.len().to_string()
+                }]
+            }),
+        ));
+        assert_eq!(staged.status, 200);
+        assert_eq!(
+            staged.body["data"]["stagedUploadsCreate"]["userErrors"],
+            json!([])
+        );
+        let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|parameter| parameter["name"] == "key")
+            .and_then(|parameter| parameter["value"].as_str())
+            .unwrap()
+            .to_string();
+        assert!(proxy.record_bulk_operation_staged_upload_body(&path, body.to_string()));
+        path
+    }
+
     fn test_proxy() -> DraftProxy {
         DraftProxy::new(Config {
             read_mode: ReadMode::LiveHybrid,
@@ -993,6 +1108,142 @@ mod tests {
     }
 
     #[test]
+    fn bulk_operation_run_mutation_applies_uploaded_product_updates_in_order() {
+        let mut proxy = test_proxy();
+        let jsonl = [
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "First bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "First final bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/2", "title": "Second bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/2", "title": ""}}).to_string(),
+        ]
+        .join("\n")
+            + "\n";
+        let path =
+            staged_bulk_mutation_upload_path_with_body(&mut proxy, "product-updates.jsonl", &jsonl);
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RunBulkImport($mutation: String!, $path: String!) {
+              bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+                bulkOperation { id status type objectCount rootObjectCount fileSize url }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "mutation": "mutation BulkProductUpdate($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }",
+                "path": path
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+            json!([])
+        );
+        let operation_id = response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+            json!("CREATED")
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["objectCount"],
+            json!("0")
+        );
+
+        let current = proxy.process_request(test_request(
+            r#"
+            query CurrentBulkMutation {
+              currentBulkOperation(type: MUTATION) {
+                id
+                status
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["id"],
+            json!(operation_id)
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["objectCount"],
+            json!("4")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["rootObjectCount"],
+            json!("4")
+        );
+
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
+        assert_eq!(artifact.status, 200);
+        let artifact_body = artifact.body.as_str().unwrap();
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadBulkUpdatedProducts($first: ID!, $second: ID!) {
+              first: product(id: $first) { id title }
+              second: product(id: $second) { id title }
+            }
+            "#,
+            json!({
+                "first": "gid://shopify/Product/1",
+                "second": "gid://shopify/Product/2"
+            }),
+        ));
+        assert_eq!(
+            read.body["data"]["first"]["title"],
+            json!("First final bulk update")
+        );
+        assert_eq!(
+            read.body["data"]["second"]["title"],
+            json!("Second bulk update")
+        );
+
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["fileSize"],
+            json!(artifact_body.len().to_string())
+        );
+        let rows = artifact_body
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["__lineNumber"], json!(0));
+        assert_eq!(
+            rows[1]["data"]["productUpdate"]["product"]["title"],
+            json!("First final bulk update")
+        );
+        assert_eq!(
+            rows[2]["data"]["productUpdate"]["product"]["title"],
+            json!("Second bulk update")
+        );
+        assert_eq!(rows[3]["__lineNumber"], json!(3));
+        assert_eq!(
+            rows[3]["data"]["productUpdate"]["userErrors"][0]["message"],
+            json!("Title can't be blank")
+        );
+        assert_eq!(
+            rows[3]["data"]["productUpdate"]["product"]["title"],
+            json!("Second bulk update")
+        );
+    }
+
+    #[test]
     fn bulk_operation_run_query_missing_query_returns_graphql_error() {
         let mut proxy = test_proxy();
 
@@ -1074,6 +1325,13 @@ fn values_to_jsonl(rows: Vec<Value>) -> String {
 
 fn bulk_operation_result_metadata(jsonl: &str) -> (String, String) {
     (jsonl.lines().count().to_string(), jsonl.len().to_string())
+}
+
+fn bulk_operation_run_mutation_line_error(line_number: usize, message: &str) -> Value {
+    json!({
+        "errors": [{ "message": message }],
+        "__lineNumber": line_number
+    })
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
