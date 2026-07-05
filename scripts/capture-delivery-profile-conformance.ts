@@ -375,6 +375,19 @@ function readDefaultProfileId(result: ConformanceGraphqlResult): string {
   throw new Error(`deliveryProfiles catalog did not include a default profile: ${JSON.stringify(result.payload)}`);
 }
 
+function deliveryProfilesCatalogIncludesId(result: ConformanceGraphqlResult, profileId: string): boolean {
+  const data = readObject(result.payload.data);
+  const deliveryProfiles = readObject(data?.['deliveryProfiles']);
+  const edges = deliveryProfiles?.['edges'];
+  if (!Array.isArray(edges)) {
+    throw new Error(`deliveryProfiles catalog did not return edges: ${JSON.stringify(result.payload)}`);
+  }
+  return edges.some((edge) => {
+    const node = readObject(readObject(edge)?.['node']);
+    return node?.['id'] === profileId;
+  });
+}
+
 function readUsableLocationIds(hydrate: GraphqlCapture): string[] {
   assertHttpOk('locations hydrate', hydrate.result);
   const nodes = readPath(hydrate.result.payload, ['data', 'locationsAvailableForDeliveryProfilesConnection', 'nodes']);
@@ -450,6 +463,7 @@ const deliveryProfileLifecycleMissingRemoveMutation = await readRequest(
 const deliveryProfileLifecycleDefaultRemoveMutation = await readRequest(
   'delivery-profile-lifecycle-default-remove.graphql',
 );
+const deliveryProfilesMergedReadQuery = await readRequest('delivery-profiles-merged-read.graphql');
 
 const locationsHydrate = await captureGraphql(locationsHydrateQuery);
 const usableLocationIds = readUsableLocationIds(locationsHydrate);
@@ -529,6 +543,7 @@ const lifecycleStamp = Date.now();
 const lifecycleBlankCreate = await captureGraphql(deliveryProfileLifecycleBlankCreateMutation, {
   profile: { name: '' },
 });
+const lifecyclePreCreateCatalog = await captureGraphql(deliveryProfilesMergedReadQuery, { first: 10 });
 const lifecycleNestedCreate = await captureGraphql(deliveryProfileLifecycleCreateMutation, {
   profile: {
     name: `Delivery profile lifecycle ${lifecycleStamp}`,
@@ -644,6 +659,15 @@ const lifecycleConditionId = requireString(
   ]),
   'created condition id',
 );
+const lifecycleReadAfterCreateCatalog = await captureGraphql(deliveryProfilesMergedReadQuery, { first: 10 });
+readDefaultProfileId(lifecycleReadAfterCreateCatalog.result);
+if (!deliveryProfilesCatalogIncludesId(lifecycleReadAfterCreateCatalog.result, lifecycleProfileId)) {
+  throw new Error(
+    `deliveryProfiles read after create did not include created profile ${lifecycleProfileId}: ${JSON.stringify(
+      lifecycleReadAfterCreateCatalog.result.payload,
+    )}`,
+  );
+}
 
 const locationsToAdd = secondaryLocationId === undefined ? {} : { locationsToAdd: [secondaryLocationId] };
 const lifecycleNestedUpdate = await captureGraphql(deliveryProfileLifecycleUpdateMutation, {
@@ -728,7 +752,9 @@ await writeFile(
       },
       mutations: {
         blankCreate: lifecycleBlankCreate,
+        preCreateCatalog: lifecyclePreCreateCatalog,
         nestedCreate: lifecycleNestedCreate,
+        readAfterCreateCatalog: lifecycleReadAfterCreateCatalog,
         nestedUpdate: lifecycleNestedUpdate,
         readAfterUpdate: lifecycleReadAfterUpdate,
         remove: lifecycleRemove,
@@ -739,6 +765,7 @@ await writeFile(
       },
       notes: [
         'Captured with home-folder conformance auth against a disposable Shopify test store.',
+        'The capture records deliveryProfiles before and after creating one disposable delivery profile so parity can replay the upstream default/base catalog and compare the downstream merged catalog read.',
         'The capture creates one disposable delivery profile, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches.',
       ],
       upstreamCalls: [
@@ -749,6 +776,15 @@ await writeFile(
           response: {
             status: locationsHydrate.result.status,
             body: locationsHydrate.result.payload,
+          },
+        },
+        {
+          operationName: 'DeliveryProfilesCatalog',
+          variables: lifecyclePreCreateCatalog.variables,
+          query: lifecyclePreCreateCatalog.query,
+          response: {
+            status: lifecyclePreCreateCatalog.result.status,
+            body: lifecyclePreCreateCatalog.result.payload,
           },
         },
         {
