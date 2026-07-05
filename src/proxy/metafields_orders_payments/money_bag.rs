@@ -373,25 +373,19 @@ fn money_bag_order_money_set(order: &Value, key: &str) -> Value {
         let Some(value) = order.get(candidate).filter(|value| value.is_object()) else {
             continue;
         };
-        let shop_amount = value["shopMoney"]["amount"]
-            .as_str()
-            .or_else(|| value["amount"].as_str())
-            .unwrap_or("0.0");
-        let shop_currency = value["shopMoney"]["currencyCode"]
-            .as_str()
-            .or_else(|| value["currencyCode"].as_str())
-            .unwrap_or("USD");
-        let presentment_amount = value["presentmentMoney"]["amount"]
-            .as_str()
-            .unwrap_or(shop_amount);
-        let presentment_currency = value["presentmentMoney"]["currencyCode"]
-            .as_str()
-            .unwrap_or(shop_currency);
+        let shop_amount = money_amount(value, "shopMoney")
+            .or_else(|| value["amount"].as_str().map(ToString::to_string))
+            .unwrap_or_else(|| "0.0".to_string());
+        let shop_currency = money_set_shop_currency(value).unwrap_or_else(|| "USD".to_string());
+        let presentment_amount =
+            money_set_presentment_or_shop_amount(value).unwrap_or_else(|| shop_amount.clone());
+        let presentment_currency =
+            money_set_presentment_currency(value).unwrap_or_else(|| shop_currency.clone());
         return money_set_pair(
-            shop_amount,
-            shop_currency,
-            presentment_amount,
-            presentment_currency,
+            &shop_amount,
+            &shop_currency,
+            &presentment_amount,
+            &presentment_currency,
         );
     }
     let currency = money_bag_currency(&order["totalPriceSet"]);
@@ -414,10 +408,9 @@ fn money_bag_refund_transaction_total(
         .or_else(|| resolved_string_field(transaction, "currency"))
         .or_else(|| resolved_string_field(transaction, "currencyCode"))
         .or_else(|| {
-            parent_amount_set.as_ref().and_then(|amount_set| {
-                payment_money_currency(amount_set, "presentmentMoney")
-                    .or_else(|| payment_money_currency(amount_set, "shopMoney"))
-            })
+            parent_amount_set
+                .as_ref()
+                .and_then(money_set_presentment_or_shop_currency)
         })
         .unwrap_or_else(|| order_presentment_currency(order, &shop_currency));
     let conversion_basis =

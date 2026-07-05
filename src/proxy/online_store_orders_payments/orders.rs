@@ -95,14 +95,13 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_amount =
-        payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_amount = money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
-        payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+        money_set_presentment_or_shop_amount(money_set).unwrap_or_else(|| shop_amount.clone());
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -118,10 +117,7 @@ pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
 }
 
 pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
-    payment_money_amount(money_set, "presentmentMoney")
-        .or_else(|| payment_money_amount(money_set, "shopMoney"))
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0)
+    money_set_presentment_or_shop_amount_value(money_set)
 }
 
 pub(in crate::proxy) fn add_order_money_sets(
@@ -132,23 +128,23 @@ pub(in crate::proxy) fn add_order_money_sets(
 ) -> Value {
     let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
     let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
-    let left_shop = payment_money_amount(&left, "shopMoney")
+    let left_shop = money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let right_shop = payment_money_amount(&right, "shopMoney")
+    let right_shop = money_amount(&right, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
-    let left_presentment = payment_money_amount(&left, "presentmentMoney")
+    let left_presentment = money_amount(&left, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(left_shop);
-    let right_presentment = payment_money_amount(&right, "presentmentMoney")
+    let right_presentment = money_amount(&right, "presentmentMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(right_shop);
-    let shop_currency = payment_money_currency(&right, "shopMoney")
-        .or_else(|| payment_money_currency(&left, "shopMoney"))
+    let shop_currency = money_currency(&right, "shopMoney")
+        .or_else(|| money_currency(&left, "shopMoney"))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(&right, "presentmentMoney")
-        .or_else(|| payment_money_currency(&left, "presentmentMoney"))
+    let presentment_currency = money_currency(&right, "presentmentMoney")
+        .or_else(|| money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
     money_set_pair(
         &format_money_amount(left_shop + right_shop),
@@ -163,10 +159,10 @@ pub(in crate::proxy) fn zero_order_money_set_like(
     order: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
+    let shop_currency = money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
         .unwrap_or_else(|| shop_currency_code.to_string());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+    let presentment_currency = money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
                 .as_str()
@@ -784,10 +780,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
                 resolved_money_currency(&fixed).unwrap_or_else(|| currency_code.to_string());
             json!({
                 "title": resolved_string_field(&discount, "title").unwrap_or_default(),
-                "value": {
-                    "amount": format_money_amount(amount),
-                    "currencyCode": currency
-                }
+                "value": money_value(&format_money_amount(amount), &currency)
             })
         })
         .collect::<Vec<_>>();
@@ -814,6 +807,8 @@ pub(in crate::proxy) fn order_create_line_item_record(
             })
         })
         .unwrap_or(Value::Null);
+    let unit_amount_text = format_money_amount(unit_amount);
+    let presentment_amount_text = format_money_amount(presentment_amount);
     let line = json!({
         "id": shopify_gid("LineItem", index + 1),
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
@@ -836,26 +831,18 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
         "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
-        "originalUnitPriceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": line_currency
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency
-            }
-        }),
-        "priceSet": json!({
-            "shopMoney": {
-                "amount": format_money_amount(unit_amount),
-                "currencyCode": currency_code
-            },
-            "presentmentMoney": {
-                "amount": format_money_amount(presentment_amount),
-                "currencyCode": presentment_currency_code
-            }
-        }),
+        "originalUnitPriceSet": money_set_pair(
+            &unit_amount_text,
+            &line_currency,
+            &presentment_amount_text,
+            &presentment_currency
+        ),
+        "priceSet": money_set_pair(
+            &unit_amount_text,
+            currency_code,
+            &presentment_amount_text,
+            presentment_currency_code
+        ),
         "taxLines": tax_lines
     });
     (line, unit_amount * quantity as f64, tax_total)

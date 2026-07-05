@@ -102,5 +102,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture."
+  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture. Evidence trail: registered capture script scripts/capture-payments-salvaged-parity-conformance.ts writes the listed fixture and request files through capture-index entry payments-salvaged-parity-replacements; tests/graphql_routes/orders.rs keeps the local payment-terms order money-total projection path executable."
 }
