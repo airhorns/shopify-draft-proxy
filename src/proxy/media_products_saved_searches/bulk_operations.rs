@@ -19,8 +19,14 @@ struct BulkOperationRecordSpec<'a> {
     operation_type: &'a str,
     query: &'a str,
     count: &'a str,
+    root_count: &'a str,
     created_at: &'a str,
     file_size: &'a str,
+}
+
+struct BulkOperationRunQueryResult {
+    jsonl: String,
+    root_object_count: usize,
 }
 
 impl DraftProxy {
@@ -62,23 +68,36 @@ impl DraftProxy {
         id
     }
 
-    fn bulk_operation_run_query_result_jsonl(&self, query_text: &str) -> String {
+    fn bulk_operation_run_query_result(&self, query_text: &str) -> BulkOperationRunQueryResult {
         let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
-            return String::new();
+            return BulkOperationRunQueryResult {
+                jsonl: String::new(),
+                root_object_count: 0,
+            };
         };
         let Some(field) = document.root_fields.first() else {
-            return String::new();
+            return BulkOperationRunQueryResult {
+                jsonl: String::new(),
+                root_object_count: 0,
+            };
         };
 
         match field.name.as_str() {
-            "products" => self.bulk_operation_products_result_jsonl(field),
-            "productVariants" => self.bulk_operation_product_variants_result_jsonl(field),
-            _ => String::new(),
+            "products" => self.bulk_operation_products_result(field),
+            "productVariants" => self.bulk_operation_product_variants_result(field),
+            _ => BulkOperationRunQueryResult {
+                jsonl: String::new(),
+                root_object_count: 0,
+            },
         }
     }
 
-    fn bulk_operation_products_result_jsonl(&self, field: &RootFieldSelection) -> String {
+    fn bulk_operation_products_result(
+        &self,
+        field: &RootFieldSelection,
+    ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
+        let root_object_count = products.len();
 
         let node_selection = edge_node_selection(&field.selection);
         let product_selection = bulk_jsonl_node_selection(&node_selection);
@@ -91,18 +110,10 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = product_json_with_variants_and_currency(
+            let product_json = self.product_owner_json_with_store_currency(
                 &product,
                 &variants,
                 &product_selection,
-                &self.store.shop_currency_code(),
-            );
-            let product_json = self.owner_metafield_overlay_owner_json_with_product_variants(
-                "product",
-                &product.id,
-                &product_selection,
-                &product.variants,
-                product_json,
             );
             rows.push(product_json);
 
@@ -116,10 +127,16 @@ impl DraftProxy {
             }
         }
 
-        values_to_jsonl(rows)
+        BulkOperationRunQueryResult {
+            jsonl: values_to_jsonl(rows),
+            root_object_count,
+        }
     }
 
-    fn bulk_operation_product_variants_result_jsonl(&self, field: &RootFieldSelection) -> String {
+    fn bulk_operation_product_variants_result(
+        &self,
+        field: &RootFieldSelection,
+    ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let node_selection = edge_node_selection(&field.selection);
         let variant_selection = bulk_jsonl_node_selection(&node_selection);
@@ -134,7 +151,11 @@ impl DraftProxy {
             }
         }
 
-        values_to_jsonl(rows)
+        let root_object_count = rows.len();
+        BulkOperationRunQueryResult {
+            jsonl: values_to_jsonl(rows),
+            root_object_count,
+        }
     }
 
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -340,18 +361,20 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
-        let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
+        let result = self.bulk_operation_run_query_result(&query_text);
+        let (object_count, file_size) = bulk_operation_result_metadata(&result.jsonl);
+        let root_object_count = result.root_object_count.to_string();
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
             id: &id,
             status: "COMPLETED",
             operation_type: "QUERY",
             query: &query_text,
             count: &object_count,
+            root_count: &root_object_count,
             created_at: &created_at,
             file_size: &file_size,
         });
-        self.stage_bulk_operation_result(&id, result_jsonl);
+        self.stage_bulk_operation_result(&id, result.jsonl);
         self.store
             .staged
             .bulk_operations
@@ -371,6 +394,7 @@ impl DraftProxy {
                 operation_type: "QUERY",
                 query: &query_text,
                 count: "0",
+                root_count: "0",
                 created_at: &created_at,
                 file_size: "0",
             }),
@@ -476,6 +500,16 @@ impl DraftProxy {
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
             );
         }
+        let Some(staged_upload_body) = self
+            .bulk_operation_staged_upload_body(&staged_upload_path)
+            .map(str::to_string)
+        else {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_no_such_file_user_error()],
+            );
+        };
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -490,27 +524,27 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
+        let result_jsonl = self.bulk_operation_run_mutation_result_jsonl(
+            request,
+            &mutation_text,
+            &staged_upload_body,
+        );
+        let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
             id: &id,
             status: "COMPLETED",
             operation_type: "MUTATION",
             query: &mutation_text,
-            count: "0",
+            count: &object_count,
+            root_count: &object_count,
             created_at: &created_at,
-            file_size: "0",
+            file_size: &file_size,
         });
-        self.stage_bulk_operation_result(&id, String::new());
+        self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), terminal_operation);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "bulkOperationRunMutation",
-            vec![id.clone()],
-        );
 
         let payload = json!({
             "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
@@ -519,6 +553,7 @@ impl DraftProxy {
                 operation_type: "MUTATION",
                 query: &mutation_text,
                 count: "0",
+                root_count: "0",
                 created_at: &created_at,
                 file_size: "0",
             }),
@@ -553,11 +588,76 @@ impl DraftProxy {
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
-        self.store
+        let declared = self
+            .store
             .staged
             .bulk_operation_staged_uploads
             .get(staged_upload_path)
-            .cloned()
+            .cloned()?;
+        if let Some(body) = self.bulk_operation_staged_upload_body(staged_upload_path) {
+            return Some(Some(body.len() as u64));
+        }
+        Some(declared)
+    }
+
+    fn bulk_operation_staged_upload_body(&self, staged_upload_path: &str) -> Option<&str> {
+        self.store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .get(staged_upload_path)
+            .map(String::as_str)
+    }
+
+    fn bulk_operation_run_mutation_result_jsonl(
+        &mut self,
+        request: &Request,
+        mutation_text: &str,
+        jsonl: &str,
+    ) -> String {
+        let mut rows = Vec::new();
+        for (line_number, line) in jsonl.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let variables = match serde_json::from_str::<Value>(line) {
+                Ok(Value::Object(variables)) => Value::Object(variables),
+                Ok(other) => {
+                    rows.push(bulk_operation_run_mutation_line_error(
+                        line_number,
+                        &format!("Expected JSON object variables, got {other}"),
+                    ));
+                    continue;
+                }
+                Err(error) => {
+                    rows.push(bulk_operation_run_mutation_line_error(
+                        line_number,
+                        &format!("Failed to parse JSONL variables: {error}"),
+                    ));
+                    continue;
+                }
+            };
+            let row_request = Request {
+                method: "POST".to_string(),
+                path: request.path.clone(),
+                headers: request.headers.clone(),
+                body: json!({
+                    "query": mutation_text,
+                    "variables": variables
+                })
+                .to_string(),
+            };
+            let mut row = self.dispatch_graphql(&row_request).body;
+            if let Some(object) = row.as_object_mut() {
+                object.insert("__lineNumber".to_string(), json!(line_number));
+            } else {
+                row = json!({
+                    "data": row,
+                    "__lineNumber": line_number
+                });
+            }
+            rows.push(row);
+        }
+        values_to_jsonl(rows)
     }
 
     pub(in crate::proxy) fn bulk_operation_cancel(
@@ -668,7 +768,7 @@ fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: 
         "createdAt": spec.created_at,
         "completedAt": if completed { json!(spec.created_at) } else { Value::Null },
         "objectCount": if completed { spec.count } else { "0" },
-        "rootObjectCount": if completed { spec.count } else { "0" },
+        "rootObjectCount": if completed { spec.root_count } else { "0" },
         "fileSize": file_size_value,
         "url": if completed { json!(artifact_url) } else { Value::Null },
         "partialDataUrl": null,
@@ -859,6 +959,47 @@ mod tests {
         }
     }
 
+    fn staged_bulk_mutation_upload_path_with_body(
+        proxy: &mut DraftProxy,
+        filename: &str,
+        body: &str,
+    ) -> String {
+        let staged = proxy.process_request(test_request(
+            r#"
+            mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+              stagedUploadsCreate(input: $input) {
+                stagedTargets { parameters { name value } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": [{
+                    "resource": "BULK_MUTATION_VARIABLES",
+                    "filename": filename,
+                    "mimeType": "text/jsonl",
+                    "httpMethod": "POST",
+                    "fileSize": body.len().to_string()
+                }]
+            }),
+        ));
+        assert_eq!(staged.status, 200);
+        assert_eq!(
+            staged.body["data"]["stagedUploadsCreate"]["userErrors"],
+            json!([])
+        );
+        let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|parameter| parameter["name"] == "key")
+            .and_then(|parameter| parameter["value"].as_str())
+            .unwrap()
+            .to_string();
+        assert!(proxy.record_bulk_operation_staged_upload_body(&path, body.to_string()));
+        path
+    }
+
     fn test_proxy() -> DraftProxy {
         DraftProxy::new(Config {
             read_mode: ReadMode::LiveHybrid,
@@ -933,6 +1074,7 @@ mod tests {
             operation_type: "QUERY",
             query: "{ products { edges { node { id } } } }",
             count: "1",
+            root_count: "1",
             created_at: "2024-01-01T00:00:00Z",
             file_size: "10",
         });
@@ -990,6 +1132,142 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(rows, vec![json!({ "id": red["id"], "sku": "RED-SKU" })]);
+    }
+
+    #[test]
+    fn bulk_operation_run_mutation_applies_uploaded_product_updates_in_order() {
+        let mut proxy = test_proxy();
+        let jsonl = [
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "First bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "First final bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/2", "title": "Second bulk update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/2", "title": ""}}).to_string(),
+        ]
+        .join("\n")
+            + "\n";
+        let path =
+            staged_bulk_mutation_upload_path_with_body(&mut proxy, "product-updates.jsonl", &jsonl);
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RunBulkImport($mutation: String!, $path: String!) {
+              bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+                bulkOperation { id status type objectCount rootObjectCount fileSize url }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "mutation": "mutation BulkProductUpdate($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }",
+                "path": path
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+            json!([])
+        );
+        let operation_id = response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+            json!("CREATED")
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["objectCount"],
+            json!("0")
+        );
+
+        let current = proxy.process_request(test_request(
+            r#"
+            query CurrentBulkMutation {
+              currentBulkOperation(type: MUTATION) {
+                id
+                status
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["id"],
+            json!(operation_id)
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["objectCount"],
+            json!("4")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["rootObjectCount"],
+            json!("4")
+        );
+
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
+        assert_eq!(artifact.status, 200);
+        let artifact_body = artifact.body.as_str().unwrap();
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadBulkUpdatedProducts($first: ID!, $second: ID!) {
+              first: product(id: $first) { id title }
+              second: product(id: $second) { id title }
+            }
+            "#,
+            json!({
+                "first": "gid://shopify/Product/1",
+                "second": "gid://shopify/Product/2"
+            }),
+        ));
+        assert_eq!(
+            read.body["data"]["first"]["title"],
+            json!("First final bulk update")
+        );
+        assert_eq!(
+            read.body["data"]["second"]["title"],
+            json!("Second bulk update")
+        );
+
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["fileSize"],
+            json!(artifact_body.len().to_string())
+        );
+        let rows = artifact_body
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(rows[0]["__lineNumber"], json!(0));
+        assert_eq!(
+            rows[1]["data"]["productUpdate"]["product"]["title"],
+            json!("First final bulk update")
+        );
+        assert_eq!(
+            rows[2]["data"]["productUpdate"]["product"]["title"],
+            json!("Second bulk update")
+        );
+        assert_eq!(rows[3]["__lineNumber"], json!(3));
+        assert_eq!(
+            rows[3]["data"]["productUpdate"]["userErrors"][0]["message"],
+            json!("Title can't be blank")
+        );
+        assert_eq!(
+            rows[3]["data"]["productUpdate"]["product"]["title"],
+            json!("Second bulk update")
+        );
     }
 
     #[test]
@@ -1074,6 +1352,13 @@ fn values_to_jsonl(rows: Vec<Value>) -> String {
 
 fn bulk_operation_result_metadata(jsonl: &str) -> (String, String) {
     (jsonl.lines().count().to_string(), jsonl.len().to_string())
+}
+
+fn bulk_operation_run_mutation_line_error(line_number: usize, message: &str) -> Value {
+    json!({
+        "errors": [{ "message": message }],
+        "__lineNumber": line_number
+    })
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
@@ -1547,22 +1832,33 @@ fn bulk_operation_matches_query(
         return true;
     };
     for token in query.split_whitespace() {
+        if token.eq_ignore_ascii_case("AND") {
+            continue;
+        }
         let Some((key, raw_value)) = token.split_once(':') else {
             continue;
         };
-        let value = raw_value
-            .trim_matches('"')
-            .trim_start_matches(">=")
-            .trim_start_matches("<=")
-            .trim_start_matches('>')
-            .trim_start_matches('<');
-        let matches = match key {
+        let value = bulk_operation_clean_search_value(raw_value);
+        let matches = match key.to_ascii_lowercase().as_str() {
             "id" => operation.get("id").and_then(Value::as_str) == Some(value),
             "operation_type" | "type" => {
-                operation.get("type").and_then(Value::as_str) == Some(value)
+                bulk_operation_valid_type_filter(value)
+                    && operation
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .is_some_and(|operation_type| operation_type.eq_ignore_ascii_case(value))
             }
-            "status" => operation.get("status").and_then(Value::as_str) == Some(value),
-            "created_at" => operation.get("createdAt").and_then(Value::as_str) == Some(value),
+            "status" => {
+                bulk_operation_valid_status_filter(value)
+                    && operation
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .is_some_and(|status| status.eq_ignore_ascii_case(value))
+            }
+            "created_at" => bulk_operation_matches_datetime_comparator(
+                operation.get("createdAt").and_then(Value::as_str),
+                value,
+            ),
             _ => true,
         };
         if !matches {
@@ -1578,18 +1874,18 @@ fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Val
         .filter(|field| field.name == "bulkOperations")
         .filter_map(|field| {
             let query = resolved_string_field(&field.arguments, "query")?;
-            let (filter, value) = bulk_operation_invalid_search_filter(&query)?;
+            let warning = bulk_operation_invalid_search_filter(&query)?;
             Some(json!({
                 "path": [field.response_key.clone()],
                 "query": query,
                 "parsed": {
-                    "field": filter,
-                    "match_all": value
+                    "field": warning.field,
+                    "match_all": warning.value
                 },
                 "warnings": [{
-                    "field": filter,
-                    "message": format!("Input `{value}` is not an accepted value."),
-                    "code": "invalid_value"
+                    "field": warning.field,
+                    "message": warning.message,
+                    "code": warning.code
                 }]
             }))
         })
@@ -1597,39 +1893,140 @@ fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Val
     (!warnings.is_empty()).then_some(Value::Array(warnings))
 }
 
-fn bulk_operation_invalid_search_filter(query: &str) -> Option<(&'static str, String)> {
-    if let Some(value) = bulk_operation_query_filter_value(query, "status") {
-        if !matches!(
-            value,
-            "CREATED" | "RUNNING" | "COMPLETED" | "CANCELING" | "CANCELED" | "FAILED"
-        ) {
-            return Some(("status", value.to_string()));
+struct BulkOperationSearchWarning {
+    field: String,
+    value: String,
+    message: String,
+    code: &'static str,
+}
+
+fn bulk_operation_invalid_search_filter(query: &str) -> Option<BulkOperationSearchWarning> {
+    for token in query.split_whitespace() {
+        if token.eq_ignore_ascii_case("AND") {
+            continue;
         }
-    }
-    if let Some(value) = bulk_operation_query_filter_value(query, "operation_type") {
-        if !matches!(value, "QUERY" | "MUTATION") {
-            return Some(("operation_type", value.to_string()));
+        let Some((field, value)) = token.split_once(':') else {
+            continue;
+        };
+        let value = bulk_operation_clean_search_value(value).to_string();
+        match field.to_ascii_lowercase().as_str() {
+            "status" => {
+                if !bulk_operation_valid_status_filter(&value) {
+                    return Some(bulk_operation_invalid_value_search_warning(field, value));
+                }
+            }
+            "operation_type" | "type" => {
+                if !bulk_operation_valid_type_filter(&value) {
+                    return Some(bulk_operation_invalid_value_search_warning(field, value));
+                }
+            }
+            "created_at" | "id" => {}
+            _ => {
+                return Some(BulkOperationSearchWarning {
+                    field: field.to_string(),
+                    value,
+                    message: "Invalid search field for this query.".to_string(),
+                    code: "invalid_field",
+                });
+            }
         }
     }
     None
 }
 
+fn bulk_operation_invalid_value_search_warning(
+    field: &str,
+    value: String,
+) -> BulkOperationSearchWarning {
+    BulkOperationSearchWarning {
+        field: field.to_string(),
+        message: format!("Input `{value}` is not an accepted value."),
+        value,
+        code: "invalid_value",
+    }
+}
+
 fn bulk_operation_query_filter_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     query.split_whitespace().find_map(|token| {
         let (candidate, value) = token.split_once(':')?;
-        (candidate == key).then_some(value.trim_matches('"'))
+        (candidate == key).then_some(bulk_operation_clean_search_value(value))
     })
 }
 
+fn bulk_operation_clean_search_value(value: &str) -> &str {
+    value.trim_matches('"').trim_matches('\'')
+}
+
 fn bulk_operation_valid_timestamp_filter(value: &str) -> bool {
-    let value = value
-        .trim_start_matches(">=")
-        .trim_start_matches("<=")
-        .trim_start_matches('>')
-        .trim_start_matches('<');
+    let value = bulk_operation_clean_search_value(value);
+    let (_, expected) = bulk_operation_search_comparator(value);
+    bulk_operation_valid_date_or_datetime_filter(expected)
+}
+
+fn bulk_operation_valid_date_or_datetime_filter(value: &str) -> bool {
+    if value.len() == "2026-05-05".len() {
+        return value.chars().enumerate().all(|(index, character)| {
+            matches!(index, 4 | 7)
+                .then_some(character == '-')
+                .unwrap_or_else(|| character.is_ascii_digit())
+        });
+    }
     value.len() >= "2026-05-05T20:32:29Z".len()
         && value.chars().nth(4) == Some('-')
         && value.chars().nth(7) == Some('-')
         && value.contains('T')
         && value.ends_with('Z')
+}
+
+fn bulk_operation_valid_status_filter(value: &str) -> bool {
+    matches!(
+        value.to_ascii_uppercase().as_str(),
+        "CREATED" | "RUNNING" | "COMPLETED" | "CANCELING" | "CANCELED" | "FAILED"
+    )
+}
+
+fn bulk_operation_valid_type_filter(value: &str) -> bool {
+    matches!(value.to_ascii_uppercase().as_str(), "QUERY" | "MUTATION")
+}
+
+fn bulk_operation_matches_datetime_comparator(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = bulk_operation_clean_search_value(query_value);
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = bulk_operation_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = bulk_operation_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn bulk_operation_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn bulk_operation_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
 }

@@ -47,6 +47,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'gift-cards');
 const outputPath = path.join(outputDir, 'gift-card-notification-validation.json');
+const expiredExpiresOn = '2000-01-01';
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -87,6 +88,21 @@ async function capture(
 ): Promise<CapturedRequest> {
   const response = await runGraphqlRequest(query, variables);
   return { label, query, variables, response };
+}
+
+async function hydrateShopPricing(): Promise<RecordedCall> {
+  const query = `query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }`;
+  const variables = {};
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName: 'DraftProxyShopPricingHydrate',
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
 }
 
 async function createCustomer(
@@ -335,7 +351,7 @@ const setupIds: SetupIds = { customers: [], giftCards: [] };
 const setup: CapturedRequest[] = [];
 const operations: Partial<Record<OperationKey, CapturedRequest>> = {};
 const cleanup: CapturedRequest[] = [];
-const upstreamCalls: RecordedCall[] = [];
+const upstreamCalls: RecordedCall[] = [await hydrateShopPricing()];
 const stamp = Date.now();
 
 try {
@@ -468,7 +484,7 @@ try {
       initialValue: '5.00',
       code: `GCNVF${String(stamp).slice(-8)}`,
       note: 'Expired notification validation.',
-      expiresOn: '2026-04-28',
+      expiresOn: expiredExpiresOn,
       customerId: contactCustomerId,
       recipientAttributes: {
         id: contactCustomerId,
@@ -524,7 +540,7 @@ await writeFile(
       scenarioId: 'gift-card-notification-validation',
       notes: [
         'Captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
-        'The expired notification branches use an ordinary recent-past expiresOn date instead of a fixture-coupled sentinel year.',
+        'The expired notification branches use a stable-past expiresOn date so replay remains expired under the fixed parity clock.',
         `Live Admin GraphQL ${apiVersion} serializes base-scoped notification userErrors with field: null, and the local runtime matches that public Admin GraphQL shape.`,
         `Public Admin GraphQL ${apiVersion} does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.`,
       ],
@@ -534,8 +550,7 @@ await writeFile(
       cleanup,
       notifyDisabledCapture: {
         captured: false,
-        reason:
-          'Public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct a notify=false gift card through this conformance harness.',
+        reason: `Public Admin GraphQL ${apiVersion} exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct a notify=false gift card through this conformance harness.`,
       },
       upstreamCalls,
     },

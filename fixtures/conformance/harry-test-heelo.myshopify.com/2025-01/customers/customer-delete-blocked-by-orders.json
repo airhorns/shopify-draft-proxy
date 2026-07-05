@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T16:07:44.163Z",
+  "capturedAt": "2026-07-05T05:23:53.797Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
@@ -8,7 +8,7 @@
       "query": "mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "email": "hermes-delete-blocked-1782835662372@example.com",
+          "email": "hermes-delete-blocked-1783229032217@example.com",
           "firstName": "Blocked",
           "lastName": "Delete"
         }
@@ -17,8 +17,8 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10870524936498",
-              "email": "hermes-delete-blocked-1782835662372@example.com",
+              "id": "gid://shopify/Customer/10900114014514",
+              "email": "hermes-delete-blocked-1783229032217@example.com",
               "displayName": "Blocked Delete"
             },
             "userErrors": []
@@ -42,8 +42,8 @@
       "query": "mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "order": {
-          "email": "hermes-delete-blocked-1782835662372@example.com",
-          "customerId": "gid://shopify/Customer/10870524936498",
+          "email": "hermes-delete-blocked-1783229032217@example.com",
+          "customerId": "gid://shopify/Customer/10900114014514",
           "currency": "CAD",
           "lineItems": [
             {
@@ -63,10 +63,10 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8882613453106",
+              "id": "gid://shopify/Order/8891932246322",
               "customer": {
-                "id": "gid://shopify/Customer/10870524936498",
-                "email": "hermes-delete-blocked-1782835662372@example.com",
+                "id": "gid://shopify/Customer/10900114014514",
+                "email": "hermes-delete-blocked-1783229032217@example.com",
                 "displayName": "Blocked Delete"
               }
             },
@@ -92,8 +92,8 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10870524936498",
-            "email": "hermes-delete-blocked-1782835662372@example.com",
+            "id": "gid://shopify/Customer/10900114014514",
+            "email": "hermes-delete-blocked-1783229032217@example.com",
             "displayName": "Blocked Delete"
           },
           "userErrors": []
@@ -115,10 +115,10 @@
       "data": {
         "orderCreate": {
           "order": {
-            "id": "gid://shopify/Order/8882613453106",
+            "id": "gid://shopify/Order/8891932246322",
             "customer": {
-              "id": "gid://shopify/Customer/10870524936498",
-              "email": "hermes-delete-blocked-1782835662372@example.com",
+              "id": "gid://shopify/Customer/10900114014514",
+              "email": "hermes-delete-blocked-1783229032217@example.com",
               "displayName": "Blocked Delete"
             }
           },
@@ -164,16 +164,17 @@
     "readAfterBlockedDelete": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10870524936498",
-          "email": "hermes-delete-blocked-1782835662372@example.com",
+          "id": "gid://shopify/Customer/10900114014514",
+          "email": "hermes-delete-blocked-1783229032217@example.com",
           "displayName": "Blocked Delete",
+          "canDelete": false,
           "orders": {
             "nodes": [
               {
-                "id": "gid://shopify/Order/8882613453106",
+                "id": "gid://shopify/Order/8891932246322",
                 "customer": {
-                  "id": "gid://shopify/Customer/10870524936498",
-                  "email": "hermes-delete-blocked-1782835662372@example.com",
+                  "id": "gid://shopify/Customer/10900114014514",
+                  "email": "hermes-delete-blocked-1783229032217@example.com",
                   "displayName": "Blocked Delete"
                 }
               }
@@ -181,8 +182,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo4ODgyNjEzNDUzMTA2LCJsYXN0X3ZhbHVlIjoiODg4MjYxMzQ1MzEwNiJ9",
-              "endCursor": "eyJsYXN0X2lkIjo4ODgyNjEzNDUzMTA2LCJsYXN0X3ZhbHVlIjoiODg4MjYxMzQ1MzEwNiJ9"
+              "startCursor": "eyJsYXN0X2lkIjo4ODkxOTMyMjQ2MzIyLCJsYXN0X3ZhbHVlIjoiODg5MTkzMjI0NjMyMiJ9",
+              "endCursor": "eyJsYXN0X2lkIjo4ODkxOTMyMjQ2MzIyLCJsYXN0X3ZhbHVlIjoiODg5MTkzMjI0NjMyMiJ9"
             }
           }
         }
@@ -193,7 +194,7 @@
           "actualQueryCost": 5,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1995,
+            "currentlyAvailable": 1994,
             "restoreRate": 100
           }
         }
@@ -205,13 +206,13 @@
       "operationName": "CustomerDeleteOrderPreconditionOrderCancel",
       "query": "#graphql\n  mutation CustomerDeleteOrderPreconditionOrderCancel($orderId: ID!) {\n    orderCancel(orderId: $orderId, reason: OTHER, notifyCustomer: false, restock: true) {\n      job { id done }\n      orderCancelUserErrors { field message code }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
-        "orderId": "gid://shopify/Order/8882613453106"
+        "orderId": "gid://shopify/Order/8891932246322"
       },
       "response": {
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/8f443017-389a-44f1-b8e2-df551683e5b1",
+              "id": "gid://shopify/Job/b84deb9e-4565-4be8-a194-89758f14f2a7",
               "done": false
             },
             "orderCancelUserErrors": [],
@@ -235,12 +236,12 @@
       "operationName": "CustomerDeleteOrderPreconditionOrderDelete",
       "query": "#graphql\n  mutation CustomerDeleteOrderPreconditionOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "orderId": "gid://shopify/Order/8882613453106"
+        "orderId": "gid://shopify/Order/8891932246322"
       },
       "response": {
         "data": {
           "orderDelete": {
-            "deletedId": "gid://shopify/Order/8882613453106",
+            "deletedId": "gid://shopify/Order/8891932246322",
             "userErrors": []
           }
         },
@@ -262,7 +263,7 @@
       "query": "mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10870524936498"
+          "id": "gid://shopify/Customer/10900114014514"
         }
       },
       "response": {

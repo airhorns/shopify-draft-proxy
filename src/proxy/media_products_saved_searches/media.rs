@@ -185,13 +185,11 @@ impl DraftProxy {
         self.hydrate_referenced_products(request, &inputs);
         self.hydrate_file_update_targets(request, &inputs);
 
-        let mut missing_ids = Vec::new();
-        extend_unique_strings(
-            &mut missing_ids,
+        let missing_ids = missing_media_file_ids(
             inputs
                 .iter()
-                .filter_map(|input| resolved_string_field(input, "id"))
-                .filter(|id| self.media_file_for_update(id).is_none()),
+                .filter_map(|input| resolved_string_field(input, "id")),
+            |id| self.media_file_for_update(id).is_some(),
         );
         if !missing_ids.is_empty() {
             return MutationOutcome::response(media_file_update_error_response(
@@ -201,19 +199,12 @@ impl DraftProxy {
             ));
         }
 
-        let non_ready_ids = inputs
-            .iter()
-            .filter_map(|input| resolved_string_field(input, "id"))
-            .filter(|id| {
-                self.media_file_for_update(id)
-                    .and_then(|file| {
-                        file.get("fileStatus")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                    })
-                    .is_none_or(|status| status != "READY")
-            })
-            .collect::<Vec<_>>();
+        let non_ready_ids = non_ready_media_file_ids(
+            inputs
+                .iter()
+                .filter_map(|input| resolved_string_field(input, "id")),
+            |id| self.media_file_for_update(id),
+        );
         if !non_ready_ids.is_empty() {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
@@ -231,12 +222,12 @@ impl DraftProxy {
             .enumerate()
             .flat_map(|(index, input)| validate_file_update_post_readiness_fields(input, index))
             .collect::<Vec<_>>();
-        if !post_readiness_field_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                post_readiness_field_errors,
-            ));
+        if let Some(outcome) = media_file_update_errors_outcome(
+            &response_key,
+            &payload_selection,
+            post_readiness_field_errors,
+        ) {
+            return outcome;
         }
 
         // Supplying both originalSource and previewImageSource is rejected with
@@ -247,12 +238,10 @@ impl DraftProxy {
             .enumerate()
             .flat_map(|(index, input)| validate_file_update_ready_source_fields(input, index))
             .collect::<Vec<_>>();
-        if !ready_source_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                ready_source_errors,
-            ));
+        if let Some(outcome) =
+            media_file_update_errors_outcome(&response_key, &payload_selection, ready_source_errors)
+        {
+            return outcome;
         }
 
         let target_errors = inputs
@@ -260,12 +249,10 @@ impl DraftProxy {
             .enumerate()
             .flat_map(|(index, input)| self.validate_file_update_target(input, index))
             .collect::<Vec<_>>();
-        if !target_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                target_errors,
-            ));
+        if let Some(outcome) =
+            media_file_update_errors_outcome(&response_key, &payload_selection, target_errors)
+        {
+            return outcome;
         }
 
         let source_version_errors = inputs
@@ -273,21 +260,21 @@ impl DraftProxy {
             .enumerate()
             .filter_map(|(index, input)| file_update_source_version_conflict(input, index))
             .collect::<Vec<_>>();
-        if !source_version_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                source_version_errors,
-            ));
+        if let Some(outcome) = media_file_update_errors_outcome(
+            &response_key,
+            &payload_selection,
+            source_version_errors,
+        ) {
+            return outcome;
         }
 
         let reference_target_errors = self.validate_file_update_reference_targets(&inputs);
-        if !reference_target_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                reference_target_errors,
-            ));
+        if let Some(outcome) = media_file_update_errors_outcome(
+            &response_key,
+            &payload_selection,
+            reference_target_errors,
+        ) {
+            return outcome;
         }
 
         let mut updated_files = Vec::new();
@@ -373,12 +360,8 @@ impl DraftProxy {
         // existence checks run against the real backend and the post-delete
         // cascade can clear the file from those owners.
         self.hydrate_media_file_references(request, &ids);
-        let mut missing_ids = Vec::new();
-        extend_unique_strings(
-            &mut missing_ids,
-            ids.iter()
-                .filter(|id| !self.media_file_delete_target_exists(id)),
-        );
+        let missing_ids =
+            missing_media_file_ids(ids.iter(), |id| self.media_file_delete_target_exists(id));
         if !missing_ids.is_empty() {
             let payload = json!({
                 "deletedFileIds": Value::Null,
@@ -412,13 +395,9 @@ impl DraftProxy {
                 "fileAcknowledgeUpdateFailed".to_string()
             });
         let file_ids = media_string_list_arg(query, variables, "fileIds");
-        let mut missing_ids = Vec::new();
-        extend_unique_strings(
-            &mut missing_ids,
-            file_ids
-                .iter()
-                .filter(|id| self.media_file_for_update(id).is_none()),
-        );
+        let missing_ids = missing_media_file_ids(file_ids.iter(), |id| {
+            self.media_file_for_update(id).is_some()
+        });
         if !missing_ids.is_empty() {
             let payload = json!({
                 "files": Value::Null,
@@ -429,19 +408,8 @@ impl DraftProxy {
             })));
         }
 
-        let mut non_ready_ids = Vec::new();
-        extend_unique_strings(
-            &mut non_ready_ids,
-            file_ids.iter().filter(|id| {
-                self.media_file_for_update(id)
-                    .and_then(|file| {
-                        file.get("fileStatus")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                    })
-                    .is_none_or(|status| status != "READY")
-            }),
-        );
+        let non_ready_ids =
+            non_ready_media_file_ids(file_ids.iter(), |id| self.media_file_for_update(id));
         if !non_ready_ids.is_empty() {
             let payload = json!({
                 "files": Value::Null,
@@ -574,8 +542,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn resolve_media_file_delete_id(&self, id: &str) -> String {
-        if self.store.staged.media_files.contains_key(id) || !id.starts_with("gid://shopify/Video/")
-        {
+        if self.store.staged.media_files.contains_key(id) || !is_shopify_gid_of_type(id, "Video") {
             return id.to_string();
         }
         let numeric_id = shopify_gid_tail_for_type(id, "Video").unwrap_or(id);
@@ -745,7 +712,7 @@ impl DraftProxy {
         let Some(product_id) = product_node
             .get("id")
             .and_then(Value::as_str)
-            .filter(|id| id.starts_with("gid://shopify/Product/"))
+            .filter(|id| is_shopify_gid_of_type(id, "Product"))
             .map(str::to_string)
         else {
             return;
@@ -1395,6 +1362,57 @@ fn media_file_update_error_response(
     ok_json(json!({"data": {response_key: selected_json(&payload, payload_selection)}}))
 }
 
+fn media_file_update_errors_outcome(
+    response_key: &str,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Option<MutationOutcome> {
+    (!user_errors.is_empty()).then(|| {
+        MutationOutcome::response(media_file_update_error_response(
+            response_key,
+            payload_selection,
+            user_errors,
+        ))
+    })
+}
+
+fn missing_media_file_ids<I, S, Exists>(ids: I, mut exists: Exists) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+    Exists: FnMut(&str) -> bool,
+{
+    let mut missing_ids = Vec::new();
+    for id in ids {
+        let id = id.as_ref();
+        if !exists(id) && !missing_ids.iter().any(|existing| existing == id) {
+            missing_ids.push(id.to_string());
+        }
+    }
+    missing_ids
+}
+
+fn non_ready_media_file_ids<I, S, Lookup>(ids: I, mut lookup: Lookup) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+    Lookup: FnMut(&str) -> Option<Value>,
+{
+    let mut non_ready_ids = Vec::new();
+    for id in ids {
+        let id = id.as_ref();
+        let ready = lookup(id).is_some_and(|file| {
+            file.get("fileStatus")
+                .and_then(Value::as_str)
+                .is_some_and(|status| status == "READY")
+        });
+        if !ready && !non_ready_ids.iter().any(|existing| existing == id) {
+            non_ready_ids.push(id.to_string());
+        }
+    }
+    non_ready_ids
+}
+
 fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
     let quoted = format!(
         "[{}]",
@@ -1730,7 +1748,7 @@ fn media_file_string_sort_value(file: &Value, field: &str) -> StagedSortValue {
 fn media_file_gid_tail_sort_value(file: &Value) -> StagedSortValue {
     file.get("id")
         .and_then(Value::as_str)
-        .map(gid_tail_sort_string)
+        .map(|id| resource_id_tail_sort_value(Some(id)))
         .unwrap_or(StagedSortValue::Null)
 }
 
@@ -1986,25 +2004,6 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
         record["mediaWarnings"] = json!([]);
     }
     Some(record)
-}
-
-fn connection_nodes(connection: &Value) -> Vec<Value> {
-    let mut nodes = connection
-        .get("nodes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>();
-    nodes.extend(
-        connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned()),
-    );
-    nodes
 }
 
 fn promote_media_file_record_to_ready(file: &mut Value) {

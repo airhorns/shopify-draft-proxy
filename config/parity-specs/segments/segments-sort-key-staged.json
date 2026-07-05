@@ -1,0 +1,82 @@
+{
+  "scenarioId": "segments-sort-key-staged",
+  "operationNames": ["segmentCreate", "segmentUpdate", "segments"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["sort-order-semantics", "runtime-staging", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/connection-sort-key-coverage.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segments-sort-key-create.graphql",
+    "variablesCapturePath": "$.operations.segments.alphaCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for local staged segments(sortKey:) ordering. Replay stages three segments through public segmentCreate requests, updates one segment to move lastEditDate, then reads LAST_EDIT_DATE, CREATION_DATE, and ID ordering through the public segments root.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "alpha-segment-create-setup",
+        "capturePath": "$.operations.segments.alphaCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.segmentCreate.segment.name", "$.segmentCreate.segment.query", "$.segmentCreate.userErrors"]
+      },
+      {
+        "name": "beta-segment-create-setup",
+        "capturePath": "$.operations.segments.betaCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-sort-key-create.graphql",
+          "variablesCapturePath": "$.operations.segments.betaCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.segmentCreate.segment.name", "$.segmentCreate.segment.query", "$.segmentCreate.userErrors"]
+      },
+      {
+        "name": "gamma-segment-create-setup",
+        "capturePath": "$.operations.segments.gammaCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-sort-key-create.graphql",
+          "variablesCapturePath": "$.operations.segments.gammaCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.segmentCreate.segment.name", "$.segmentCreate.segment.query", "$.segmentCreate.userErrors"]
+      },
+      {
+        "name": "alpha-segment-update-last-edit",
+        "capturePath": "$.operations.segments.alphaUpdate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-sort-key-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.segmentCreate.segment.id"
+            },
+            "name": {
+              "fromCapturePath": "$.operations.segments.alphaUpdate.variables.name"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.segments.alphaUpdate.variables.query"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.segmentUpdate.segment.name", "$.segmentUpdate.segment.query", "$.segmentUpdate.userErrors"]
+      },
+      {
+        "name": "segments-sort-key-orderings",
+        "capturePath": "$.operations.segments.read.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-sort-key-read.graphql",
+          "variablesCapturePath": "$.operations.segments.read.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

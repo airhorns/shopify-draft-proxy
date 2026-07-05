@@ -172,14 +172,17 @@ hydrated local orders. Request-status transitions, merchant request records,
 split-off remaining fulfillment orders, and merged line-item quantities are
 written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
-`Order.fulfillmentOrders` reads. These slices operate on local order-backed
-fulfillment records and are not a general fulfillment-service execution engine.
-`fulfillmentOrdersSetFulfillmentDeadline` stages `fulfillBy` for every
-requested fulfillment order that exists in local or hydrated order state,
-including `CLOSED` and `CANCELLED` fulfillment orders. When none of the
-requested IDs resolve, it returns `success: false` with a single user error:
-`field: null`, message `Fulfillment orders could not be found.`, and
-`code: null`.
+`Order.fulfillmentOrders` reads. Locally created order fulfillment orders derive
+their initial `assignedLocation` from the first active observed/staged shop
+location that fulfills online orders; the runtime does not fabricate
+`gid://shopify/Location/1` when no such location is known. These slices operate
+on local order-backed fulfillment records and are not a general
+fulfillment-service execution engine. `fulfillmentOrdersSetFulfillmentDeadline`
+stages `fulfillBy` for every requested fulfillment order that exists in local or
+hydrated order state, including `CLOSED` and `CANCELLED` fulfillment orders.
+When none of the requested IDs resolve, it returns `success: false` with a single
+user error: `field: null`, message
+`Fulfillment orders could not be found.`, and `code: null`.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
@@ -203,9 +206,13 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
 IDs supplied in delivery-profile location groups must resolve from staged,
 observed, or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` uses
-the staged effective profile order to compute page windows and `pageInfo`
-boundary cursors instead of returning a canned connection envelope.
+synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` merges
+observed merchant baseline profiles, including the default profile, with staged
+profile creates/updates/removals before computing page windows and `pageInfo`
+boundary cursors instead of returning a canned connection envelope. Captured
+2026-04 parity target `delivery-profile-post-create-catalog-keeps-default`
+creates a disposable profile and then lists `deliveryProfiles`, asserting the
+merchant default profile remains visible alongside the staged create.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
