@@ -91,8 +91,25 @@
           "$.article.isPublished",
           "$.article.templateSuffix",
           "$.article.author",
+          "$.article.blog.title",
+          "$.article.blog.handle",
+          "$.article.blog.commentPolicy",
+          "$.article.blog.createdAt",
+          "$.article.blog.updatedAt",
           "$.article.commentsCount",
           "$.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.article.blog.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          }
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/online-store-content-article-create.graphql",
@@ -155,6 +172,10 @@
           "$.article.title",
           "$.article.isPublished",
           "$.article.blog.title",
+          "$.article.blog.handle",
+          "$.article.blog.commentPolicy",
+          "$.article.blog.createdAt",
+          "$.article.blog.updatedAt",
           "$.articles.nodes",
           "$.articles.pageInfo.hasNextPage",
           "$.articles.pageInfo.hasPreviousPage",
@@ -164,6 +185,18 @@
           "$.articleTags",
           "$.blogsCount",
           "$.pagesCount"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.article.blog.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          }
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/online-store-content-read-after-update.graphql",
@@ -193,7 +226,23 @@
           "$.page.isPublished",
           "$.article.title",
           "$.article.isPublished",
-          "$.article.blog.title"
+          "$.article.blog.title",
+          "$.article.blog.handle",
+          "$.article.blog.commentPolicy",
+          "$.article.blog.createdAt",
+          "$.article.blog.updatedAt"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.article.blog.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local proxy uses a synthetic staged Blog timestamp while the capture contains the live Shopify Blog timestamp."
+          }
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/admin-platform/admin-platform-online-store-content-node-read-after-update.graphql",

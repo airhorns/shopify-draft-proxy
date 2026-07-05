@@ -656,6 +656,9 @@ fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Ve
         .filter(|field| field.selection.is_empty())
         .filter_map(|field| {
             let output_type = output_schema.query_root_fields.get(&field.name)?;
+            if !output_type.composite {
+                return None;
+            }
             Some(json!({
                 "message": format!(
                     "Field must have selections (field '{}' returns {} but has no selections. Did you mean '{} {{ ... }}'?)",

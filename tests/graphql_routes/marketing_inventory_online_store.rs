@@ -12948,6 +12948,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let blog_handle = create.body["data"]["madeBlog"]["blog"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let blog_created_at = assert_online_store_operation_timestamp(
         &create.body["data"]["madeBlog"]["blog"]["createdAt"],
         "blogCreate.createdAt",
@@ -12958,6 +12962,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     );
     assert_eq!(blog_created_at, blog_updated_at);
     let page_id = create.body["data"]["madePage"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let page_handle = create.body["data"]["madePage"]["page"]["handle"]
         .as_str()
         .unwrap()
         .to_string();
@@ -13011,6 +13019,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let article_handle = article_create.body["data"]["madeArticle"]["article"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let article_created_at = assert_online_store_operation_timestamp(
         &article_create.body["data"]["madeArticle"]["article"]["createdAt"],
         "articleCreate.createdAt",
@@ -13039,6 +13051,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
           }
           page(id: $pageId) { id title handle isPublished createdAt updatedAt }
           article(id: $articleId) { id title isPublished publishedAt createdAt updatedAt blog { id title } commentsCount { count precision } }
+          articleTags(limit: 10)
           blogsCount { count precision }
           pagesCount { count precision }
         }
@@ -13083,6 +13096,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!(article_published_at)
     );
     assert_eq!(
+        read.body["data"]["articleTags"],
+        json!(["cms", "online-store"])
+    );
+    assert_eq!(
         read.body["data"]["blogsCount"],
         json!({"count": 1, "precision": "EXACT"})
     );
@@ -13101,6 +13118,66 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     assert_eq!(
         node_read.body["data"]["articleNode"]["__typename"],
         json!("Article")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCmsWithoutHandles(
+          $blogId: ID!
+          $pageId: ID!
+          $articleId: ID!
+          $blog: BlogUpdateInput!
+          $page: PageUpdateInput!
+          $article: ArticleUpdateInput!
+        ) {
+          blogUpdate(id: $blogId, blog: $blog) {
+            blog { id title handle }
+            userErrors { field message code }
+          }
+          pageUpdate(id: $pageId, page: $page) {
+            page { id title handle }
+            userErrors { field message code }
+          }
+          articleUpdate(id: $articleId, article: $article) {
+            article { id title handle blog { id title handle } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blogId": blog_id,
+            "pageId": page_id,
+            "articleId": article_id,
+            "blog": {"title": "CMS Lifecycle Blog Updated"},
+            "page": {"title": "CMS Lifecycle Page Updated"},
+            "article": {"title": "CMS Lifecycle Article Updated"}
+        }),
+    ));
+    assert_eq!(update.body["data"]["blogUpdate"]["userErrors"], json!([]));
+    assert_eq!(update.body["data"]["pageUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["blogUpdate"]["blog"]["handle"],
+        json!(blog_handle)
+    );
+    assert_eq!(
+        update.body["data"]["pageUpdate"]["page"]["handle"],
+        json!(page_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["handle"],
+        json!(article_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "CMS Lifecycle Blog Updated",
+            "handle": blog_handle
+        })
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -13147,6 +13224,236 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!([])
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_content_back_references_project_full_parent_records() {
+    let comment_id = "gid://shopify/Comment/9203";
+    let hydrated_article_id = Arc::new(Mutex::new(String::new()));
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let hydrated_article_id = Arc::clone(&hydrated_article_id);
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            *upstream_calls.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("OnlineStoreCommentHydrate"),
+                "unexpected online-store hydrate query: {query}"
+            );
+            let article_id = hydrated_article_id.lock().unwrap().clone();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "comment": {
+                            "__typename": "Comment",
+                            "id": comment_id,
+                            "status": "UNAPPROVED",
+                            "body": "Back reference comment",
+                            "bodyHtml": "<p>Back reference comment</p>",
+                            "isPublished": false,
+                            "publishedAt": null,
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z",
+                            "article": { "id": article_id }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let blog_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceBlog($blog: BlogCreateInput!) {
+          blogCreate(blog: $blog) {
+            blog { id title handle commentPolicy createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"blog": {"title": "Back Reference Blog", "commentPolicy": "MODERATED"}}),
+    ));
+    assert_eq!(
+        blog_create.body["data"]["blogCreate"]["userErrors"],
+        json!([])
+    );
+    let blog = &blog_create.body["data"]["blogCreate"]["blog"];
+    let blog_id = blog["id"].as_str().unwrap().to_string();
+    let blog_created_at = blog["createdAt"].clone();
+    let blog_updated_at = blog["updatedAt"].clone();
+
+    let article_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceArticle($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article {
+              id
+              title
+              publishedAt
+              author { name }
+              blog { id title handle commentPolicy createdAt updatedAt }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"article": {
+            "title": "Back Reference Article",
+            "blogId": blog_id,
+            "author": {"name": "Initial Back Reference Author"},
+            "isPublished": true
+        }}),
+    ));
+    assert_eq!(
+        article_create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        article_create.body["data"]["articleCreate"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "Back Reference Blog",
+            "handle": "back-reference-blog",
+            "commentPolicy": "MODERATED",
+            "createdAt": blog_created_at,
+            "updatedAt": blog_updated_at
+        })
+    );
+    let article_id = article_create.body["data"]["articleCreate"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    *hydrated_article_id.lock().unwrap() = article_id.clone();
+
+    let blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+          blogUpdate(id: $id, blog: $blog) {
+            blog { id commentPolicy updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": blog_id, "blog": {"commentPolicy": "CLOSED"}}),
+    ));
+    assert_eq!(
+        blog_update.body["data"]["blogUpdate"]["userErrors"],
+        json!([])
+    );
+    let blog_updated_again_at = blog_update.body["data"]["blogUpdate"]["blog"]["updatedAt"].clone();
+
+    let article_after_blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleBackReferenceAfterBlogUpdate($id: ID!) {
+          article(id: $id) {
+            id
+            blog { id title handle commentPolicy createdAt updatedAt }
+          }
+        }
+        "#,
+        json!({"id": article_id}),
+    ));
+    assert_eq!(
+        article_after_blog_update.body["data"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "Back Reference Blog",
+            "handle": "back-reference-blog",
+            "commentPolicy": "CLOSED",
+            "createdAt": blog_created_at,
+            "updatedAt": blog_updated_again_at
+        })
+    );
+
+    let comment_approve = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceComment($id: ID!) {
+          commentApprove(id: $id) {
+            comment {
+              id
+              status
+              article {
+                id
+                title
+                publishedAt
+                author { name }
+                blog { id title handle commentPolicy createdAt updatedAt }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": comment_id}),
+    ));
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["comment"]["article"]["author"],
+        json!({"name": "Initial Back Reference Author"})
+    );
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["comment"]["article"]["blog"]
+            ["commentPolicy"],
+        json!("CLOSED")
+    );
+
+    let article_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article { id title author { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": article_id, "article": {
+            "title": "Updated Back Reference Article",
+            "author": {"name": "Updated Back Reference Author"}
+        }}),
+    ));
+    assert_eq!(
+        article_update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let comment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CommentBackReferenceAfterArticleUpdate($id: ID!) {
+          comment(id: $id) {
+            id
+            article {
+              id
+              title
+              author { name }
+              publishedAt
+              blog { id commentPolicy }
+            }
+          }
+        }
+        "#,
+        json!({"id": comment_id}),
+    ));
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["title"],
+        json!("Updated Back Reference Article")
+    );
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["author"],
+        json!({"name": "Updated Back Reference Author"})
+    );
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["blog"],
+        json!({"id": blog_id, "commentPolicy": "CLOSED"})
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]
@@ -13206,6 +13513,8 @@ fn online_store_articles_published_status_query_controls_visibility() {
           byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
           byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
           byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          draftTagDefault: articles(first: 10, query: "draft-tag") { nodes { id title isPublished } }
+          draftTagAny: articles(first: 10, query: "published_status:any draft-tag") { nodes { id title isPublished } }
           titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
           titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
           unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
@@ -13241,6 +13550,11 @@ fn online_store_articles_published_status_query_controls_visibility() {
     assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["draftTagDefault"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["draftTagAny"]["nodes"],
+        json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
+    );
     assert_eq!(
         read.body["data"]["titleSorted"]["nodes"],
         json!([
