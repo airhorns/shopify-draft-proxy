@@ -297,7 +297,10 @@ impl DraftProxy {
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
         } else {
-            json!({"deletedId": null, "userErrors": [catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND")]})
+            payload_user_error(
+                "deletedId",
+                catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND"),
+            )
         };
         selected_json(&payload, &field.selection)
     }

@@ -588,10 +588,7 @@ impl DraftProxy {
             self.cascade_market_delete(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
-            json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "Market does not exist", json!("MARKET_NOT_FOUND"))]
-            })
+            market_id_payload_error("deletedId", "Market does not exist", "MARKET_NOT_FOUND")
         };
         selected_json(&payload, &field.selection)
     }

@@ -80,6 +80,8 @@ const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 /// for the target market from an exact Admin GraphQL preflight.
 const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) { marketLocalizableResource(resourceId: $resourceId) { resourceId marketLocalizableContent { key value digest } marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } } } markets(first: $marketsFirst) { nodes { id name handle status type } } }";
 const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
+const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
+    "The primary locale of your store can't be changed through this endpoint.";
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
@@ -557,6 +559,46 @@ fn selected_market_error(
     code: Value,
 ) -> Value {
     selected_market_user_errors(field, vec![market_user_error(path, message, code)])
+}
+
+fn selected_payload_user_error(
+    selection: &[SelectedField],
+    root_key: &str,
+    user_error: Value,
+) -> Value {
+    selected_json(&payload_user_error(root_key, user_error), selection)
+}
+
+fn shop_locale_payload_error(root_key: &str, message: &str) -> Value {
+    payload_user_error(root_key, shop_locale_user_error(vec!["locale"], message))
+}
+
+fn selected_market_localization_error(
+    selection: &[SelectedField],
+    path: Vec<&str>,
+    code: &str,
+    message: &str,
+) -> Value {
+    selected_payload_user_error(
+        selection,
+        "marketLocalizations",
+        market_localization_error(path, message, code),
+    )
+}
+
+fn market_id_payload_error(root_key: &str, message: &str, code: &str) -> Value {
+    payload_user_error(
+        root_key,
+        market_user_error(vec!["id"], message, json!(code)),
+    )
+}
+
+fn selected_translation_error(selection: &[SelectedField], message: &str, code: &str) -> Value {
+    selected_payload_user_error(
+        selection,
+        "translations",
+        user_error(["resourceId"], message, Some(code)),
+    )
 }
 
 /// Add an alternate locale + root URL to a staged web-presence record if absent.

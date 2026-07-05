@@ -136,16 +136,18 @@ impl DraftProxy {
     /// only subfolder presences (which carry a null `domain`) can be removed.
     pub(in crate::proxy) fn web_presence_delete_payload(&mut self, id: &str) -> Value {
         let Some(record) = self.store.staged.web_presences.get(id) else {
-            return json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]
-            });
+            return market_id_payload_error(
+                "deletedId",
+                "The market web presence wasn't found.",
+                "WEB_PRESENCE_NOT_FOUND",
+            );
         };
         if record.get("domain").is_some_and(|domain| !domain.is_null()) {
-            return json!({
-                "deletedId": null,
-                "userErrors": [market_user_error(vec!["id"], "The shop must have a web presence that uses the primary domain.", json!("SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"))]
-            });
+            return market_id_payload_error(
+                "deletedId",
+                "The shop must have a web presence that uses the primary domain.",
+                "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE",
+            );
         }
         self.store.staged.web_presences.remove(id);
         json!({"deletedId": id, "userErrors": []})
@@ -187,7 +189,7 @@ impl DraftProxy {
             &mut errors,
         );
         if !errors.is_empty() {
-            return json!({"webPresence": null, "userErrors": errors});
+            return payload_error("webPresence", errors);
         }
         let id = shopify_gid(
             "MarketWebPresence",
@@ -234,7 +236,11 @@ impl DraftProxy {
         record_log: bool,
     ) -> Value {
         let Some(existing) = self.store.staged.web_presences.get(id).cloned() else {
-            return json!({"webPresence": null, "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]});
+            return market_id_payload_error(
+                "webPresence",
+                "The market web presence wasn't found.",
+                "WEB_PRESENCE_NOT_FOUND",
+            );
         };
         let mut errors = Vec::new();
         let primary_locale = self.localization_primary_locale();
@@ -259,7 +265,7 @@ impl DraftProxy {
             &mut errors,
         );
         if !errors.is_empty() {
-            return json!({"webPresence": null, "userErrors": errors});
+            return payload_error("webPresence", errors);
         }
         let shop_domain = web_presence_shop_domain(&self.store);
         let record =
