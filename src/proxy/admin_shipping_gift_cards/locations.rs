@@ -1058,7 +1058,7 @@ impl DraftProxy {
                 "location" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection))
+                        .map(|location| self.location_selected_json(&location, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "locationByIdentifier" => {
@@ -1067,7 +1067,7 @@ impl DraftProxy {
                     let id = resolved_string_field(&identifier, "id").unwrap_or_default();
                     let location = self
                         .location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection));
+                        .map(|location| self.location_selected_json(&location, &field.selection));
                     if location.is_none() && identifier.contains_key("customId") {
                         errors.push(json!({
                             "message": "Metafield definition of type 'id' is required when using custom ids.",
@@ -1143,7 +1143,7 @@ impl DraftProxy {
         selections: &[SelectedField],
     ) -> Value {
         let locations = self.locations_for_connection(arguments);
-        location_connection_json(locations, arguments, selections)
+        self.location_connection_json(locations, arguments, selections)
     }
 
     fn locations_count_json(
@@ -1263,6 +1263,70 @@ impl DraftProxy {
         }
         seen.insert(id.to_string());
         locations.push(location);
+    }
+
+    fn location_connection_json(
+        &self,
+        locations: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let result = staged_connection_query(
+            locations,
+            arguments,
+            location_search_decision,
+            location_staged_sort_key,
+            value_id_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selections,
+            |location, fields| self.location_selected_json(location, fields),
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    fn location_selected_json(&self, location: &Value, selections: &[SelectedField]) -> Value {
+        let mut fields = serde_json::Map::new();
+        for selection in selections {
+            let value = match selection.name.as_str() {
+                "inventoryLevels" => {
+                    let location_id = location
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    Some(self.location_inventory_levels_connection_selected_json(
+                        location_id,
+                        Some(location),
+                        &selection.arguments,
+                        &selection.selection,
+                    ))
+                }
+                "metafield" => location_metafield_json(location, selection),
+                "metafields" => Some(location_metafields_connection_json(location, selection)),
+                _ => location.get(&selection.name).map(|value| {
+                    if selection.selection.is_empty() {
+                        value.clone()
+                    } else if value.is_null() {
+                        Value::Null
+                    } else if let Some(values) = value.as_array() {
+                        Value::Array(
+                            values
+                                .iter()
+                                .map(|item| self.location_selected_json(item, &selection.selection))
+                                .collect(),
+                        )
+                    } else {
+                        selected_json(value, &selection.selection)
+                    }
+                }),
+            };
+            if let Some(value) = value {
+                fields.insert(selection.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -1539,6 +1603,22 @@ impl DraftProxy {
     }
 }
 
+fn location_visible_in_connection(
+    location: &Value,
+    include_inactive: bool,
+    include_legacy: bool,
+) -> bool {
+    let is_active = location
+        .get("isActive")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let is_legacy = location
+        .get("isFulfillmentService")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    (include_inactive || is_active) && (include_legacy || !is_legacy)
+}
+
 pub(in crate::proxy) fn location_connection_json(
     locations: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -1558,22 +1638,6 @@ pub(in crate::proxy) fn location_connection_json(
         value_id_cursor,
         result.page_info,
     )
-}
-
-fn location_visible_in_connection(
-    location: &Value,
-    include_inactive: bool,
-    include_legacy: bool,
-) -> bool {
-    let is_active = location
-        .get("isActive")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-    let is_legacy = location
-        .get("isFulfillmentService")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    (include_inactive || is_active) && (include_legacy || !is_legacy)
 }
 
 fn location_staged_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
