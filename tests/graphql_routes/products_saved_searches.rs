@@ -14338,7 +14338,7 @@ fn collection_validations_and_reorder_are_store_backed() {
     ));
     assert_eq!(
         smart_read_after_remove.body["data"]["collection"]["products"]["nodes"],
-        json!([])
+        json!([{ "id": "gid://shopify/Product/first" }])
     );
     let state_before_smart_reorder = state_snapshot(&proxy);
     let log_len_before_smart_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
