@@ -448,7 +448,7 @@ fn tax_app_configure_has_authority(request: &Request) -> bool {
 }
 
 fn request_has_access_scope(request: &Request, expected: &str) -> bool {
-    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some_and(|scopes| {
+    request_header(request, ACCESS_SCOPES_HEADER).is_some_and(|scopes| {
         scopes
             .split(',')
             .map(str::trim)
@@ -561,7 +561,7 @@ fn function_matches_canonical_api_type(function: &Value, api_type: &str) -> bool
 fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
     let Some(caller_api_client_id) = request
         .headers
-        .get("x-shopify-draft-proxy-api-client-id")
+        .get(API_CLIENT_ID_HEADER)
         .filter(|value| !value.is_empty())
     else {
         return true;
@@ -689,16 +689,9 @@ const FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD: FunctionPayloadDescriptor =
         not_found_message: FunctionNotFoundMessage::ReleasedFunction,
     };
 
-fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
-    let mut payload = serde_json::Map::new();
-    payload.insert(desc.payload_key.to_string(), Value::Null);
-    payload.insert("userErrors".to_string(), Value::Array(vec![error]));
-    Value::Object(payload)
-}
-
 fn maximum_cart_transforms_error() -> Value {
-    payload_error(
-        CART_TRANSFORM_FUNCTION_PAYLOAD,
+    payload_user_error(
+        CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
         user_error(
             ["base"],
             "The maximum number of cart transforms per shop has been reached.",
@@ -713,16 +706,16 @@ fn function_identifier_error(
     function_handle: &Option<String>,
 ) -> Option<Value> {
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(payload_error(
-            desc,
+        (false, false) => Some(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, "functionHandle"),
                 "Either function_id or function_handle must be provided.",
                 Some("MISSING_FUNCTION_IDENTIFIER"),
             ),
         )),
-        (true, true) => Some(payload_error(
-            desc,
+        (true, true) => Some(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_multiple_identifier_field(desc),
                 "Only one of function_id or function_handle can be provided, not both.",
@@ -793,8 +786,8 @@ fn function_not_found_error(
     current_app_id: &str,
 ) -> Value {
     let message = function_not_found_message(desc, function_id, function_handle, current_app_id);
-    payload_error(
-        desc,
+    payload_user_error(
+        desc.payload_key,
         user_error(
             function_error_field(desc, field_name),
             &message,
@@ -837,8 +830,8 @@ fn function_resolution_payload(
         } else {
             desc.api_mismatch_handle_code
         };
-        return Err(payload_error(
-            desc,
+        return Err(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
                 desc.api_mismatch_message,
@@ -847,8 +840,8 @@ fn function_resolution_payload(
         ));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(payload_error(
-            desc,
+        return Err(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
                 function["createGuardrailMessage"]
@@ -916,26 +909,40 @@ fn validation_metafield_reference_exists(_: &str) -> bool {
     true
 }
 
-fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
-    match input.get("metafields") {
+fn function_metafield_errors<MetafieldError, InvalidValueError>(
+    metafields: Option<&ResolvedValue>,
+    metafield_error: MetafieldError,
+    invalid_value_error: InvalidValueError,
+) -> Vec<Value>
+where
+    MetafieldError: Fn(&BTreeMap<String, ResolvedValue>, usize) -> Option<Value>,
+    InvalidValueError: Fn(usize) -> Value,
+{
+    match metafields {
         Some(ResolvedValue::List(metafields)) => metafields
             .iter()
             .enumerate()
             .filter_map(|(index, value)| match value {
-                ResolvedValue::Object(metafield) => metafield_input_error(metafield, index),
-                _ => Some(user_error(
-                    vec![
-                        "validation".to_string(),
-                        "metafields".to_string(),
-                        index.to_string(),
-                    ],
-                    "The value is invalid.",
-                    Some("INVALID_VALUE"),
-                )),
+                ResolvedValue::Object(metafield) => metafield_error(metafield, index),
+                _ => Some(invalid_value_error(index)),
             })
             .collect(),
         _ => Vec::new(),
     }
+}
+
+fn validation_metafield_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    function_metafield_errors(input.get("metafields"), metafield_input_error, |index| {
+        user_error(
+            vec![
+                "validation".to_string(),
+                "metafields".to_string(),
+                index.to_string(),
+            ],
+            "The value is invalid.",
+            Some("INVALID_VALUE"),
+        )
+    })
 }
 
 fn validation_metafields_from_input(
@@ -1065,27 +1072,21 @@ fn cart_transform_metafield_error(
 }
 
 fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
-    match field.arguments.get("metafields") {
-        Some(ResolvedValue::List(metafields)) => metafields
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| match value {
-                ResolvedValue::Object(metafield) => {
-                    cart_transform_metafield_error(metafield, index)
-                }
-                _ => Some(user_error(
-                    vec![
-                        "metafields".to_string(),
-                        index.to_string(),
-                        "value".to_string(),
-                    ],
-                    "may not be empty",
-                    Some("INVALID_METAFIELDS"),
-                )),
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    function_metafield_errors(
+        field.arguments.get("metafields"),
+        cart_transform_metafield_error,
+        |index| {
+            user_error(
+                vec![
+                    "metafields".to_string(),
+                    index.to_string(),
+                    "value".to_string(),
+                ],
+                "may not be empty",
+                Some("INVALID_METAFIELDS"),
+            )
+        },
+    )
 }
 
 fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &str) -> bool {
@@ -1165,41 +1166,28 @@ fn cart_transform_metafield_id(owner_id: &str, namespace: &str, key: &str) -> St
 
 pub(in crate::proxy) fn cart_transform_record_for_selection(
     record: &Value,
-    connection_selection: &[SelectedField],
+    selection: &[SelectedField],
 ) -> Value {
-    let mut record = record.clone();
-    let Some(node_selection) = selected_child_selection(connection_selection, "nodes") else {
-        return record;
-    };
-    let Some(metafield_selection) = node_selection
-        .iter()
-        .find(|field| field.name == "metafield")
-    else {
-        return record;
-    };
-    apply_metafield_for_selection(&mut record, metafield_selection);
-    record
+    let mut public =
+        function_record_with_output_fields(record, "CartTransform", CART_TRANSFORM_OUTPUT_FIELDS);
+    if let Some(metafield_selection) =
+        selected_output_type_field(selection, "CartTransform", "metafield", true)
+    {
+        apply_metafield_for_selection(&mut public, metafield_selection);
+    }
+    public
 }
 
 fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
-    match field.arguments.get("deliveryMethodTypes") {
-        Some(ResolvedValue::List(values)) => values
-            .iter()
-            .filter_map(|value| match value {
-                ResolvedValue::String(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    list_string_field(&field.arguments, "deliveryMethodTypes")
 }
 
 fn fulfillment_constraint_rule_delivery_method_error(
     delivery_method_types: &[String],
 ) -> Option<Value> {
     if delivery_method_types.is_empty() {
-        Some(payload_error(
-            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+        Some(payload_user_error(
+            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
             user_error(
                 ["deliveryMethodTypes"],
                 "Delivery method types cannot be empty.",
@@ -1345,54 +1333,88 @@ pub(in crate::proxy) fn functions_output_selection_errors(
         match field.name.as_str() {
             "validation" => push_output_selection_errors(
                 &mut errors,
-                &operation_path,
-                &field.response_key,
-                "Validation",
-                VALIDATION_OUTPUT_FIELDS,
-                &field.selection,
-                true,
-                false,
-            ),
-            "validations" => push_output_selection_errors(
-                &mut errors,
-                &operation_path,
-                &field.response_key,
-                "Validation",
-                VALIDATION_OUTPUT_FIELDS,
-                &field.selection,
-                false,
-                false,
-            ),
-            "fulfillmentConstraintRules" => push_output_selection_errors(
-                &mut errors,
-                &operation_path,
-                &field.response_key,
-                "FulfillmentConstraintRule",
-                FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
-                &field.selection,
-                true,
-                false,
-            ),
-            "node" | "nodes" => {
-                push_output_selection_errors(
-                    &mut errors,
+                OutputSelectionErrorContext::new(
                     &operation_path,
                     &field.response_key,
                     "Validation",
                     VALIDATION_OUTPUT_FIELDS,
-                    &field.selection,
                     true,
-                    true,
-                );
-                push_output_selection_errors(
-                    &mut errors,
+                    false,
+                ),
+                &field.selection,
+            ),
+            "validations" => push_output_selection_errors(
+                &mut errors,
+                OutputSelectionErrorContext::new(
+                    &operation_path,
+                    &field.response_key,
+                    "Validation",
+                    VALIDATION_OUTPUT_FIELDS,
+                    false,
+                    false,
+                ),
+                &field.selection,
+            ),
+            "cartTransforms" => push_output_selection_errors(
+                &mut errors,
+                OutputSelectionErrorContext::new(
+                    &operation_path,
+                    &field.response_key,
+                    "CartTransform",
+                    CART_TRANSFORM_OUTPUT_FIELDS,
+                    false,
+                    false,
+                ),
+                &field.selection,
+            ),
+            "fulfillmentConstraintRules" => push_output_selection_errors(
+                &mut errors,
+                OutputSelectionErrorContext::new(
                     &operation_path,
                     &field.response_key,
                     "FulfillmentConstraintRule",
                     FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+                    true,
+                    false,
+                ),
+                &field.selection,
+            ),
+            "node" | "nodes" => {
+                push_output_selection_errors(
+                    &mut errors,
+                    OutputSelectionErrorContext::new(
+                        &operation_path,
+                        &field.response_key,
+                        "Validation",
+                        VALIDATION_OUTPUT_FIELDS,
+                        true,
+                        true,
+                    ),
                     &field.selection,
-                    true,
-                    true,
+                );
+                push_output_selection_errors(
+                    &mut errors,
+                    OutputSelectionErrorContext::new(
+                        &operation_path,
+                        &field.response_key,
+                        "CartTransform",
+                        CART_TRANSFORM_OUTPUT_FIELDS,
+                        true,
+                        true,
+                    ),
+                    &field.selection,
+                );
+                push_output_selection_errors(
+                    &mut errors,
+                    OutputSelectionErrorContext::new(
+                        &operation_path,
+                        &field.response_key,
+                        "FulfillmentConstraintRule",
+                        FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+                        true,
+                        true,
+                    ),
+                    &field.selection,
                 );
             }
             _ => {}
@@ -1401,40 +1423,55 @@ pub(in crate::proxy) fn functions_output_selection_errors(
     errors
 }
 
-#[allow(clippy::too_many_arguments)]
-fn push_output_selection_errors(
-    errors: &mut Vec<Value>,
-    operation_path: &str,
-    response_key: &str,
-    type_name: &str,
-    output_fields: &[&str],
-    selections: &[SelectedField],
+#[derive(Clone, Copy)]
+struct OutputSelectionErrorContext<'a> {
+    operation_path: &'a str,
+    response_key: &'a str,
+    type_name: &'static str,
+    output_fields: &'static [&'static str],
     include_direct: bool,
     require_type_condition: bool,
-) {
-    collect_output_selection_errors(
-        errors,
-        operation_path,
-        response_key,
-        type_name,
-        output_fields,
-        selections,
-        include_direct,
-        require_type_condition,
-        &[],
-    );
 }
 
-#[allow(clippy::too_many_arguments)]
+impl<'a> OutputSelectionErrorContext<'a> {
+    fn new(
+        operation_path: &'a str,
+        response_key: &'a str,
+        type_name: &'static str,
+        output_fields: &'static [&'static str],
+        include_direct: bool,
+        require_type_condition: bool,
+    ) -> Self {
+        Self {
+            operation_path,
+            response_key,
+            type_name,
+            output_fields,
+            include_direct,
+            require_type_condition,
+        }
+    }
+
+    fn nested(self) -> Self {
+        Self {
+            include_direct: true,
+            ..self
+        }
+    }
+}
+
+fn push_output_selection_errors(
+    errors: &mut Vec<Value>,
+    context: OutputSelectionErrorContext<'_>,
+    selections: &[SelectedField],
+) {
+    collect_output_selection_errors(errors, context, selections, &[]);
+}
+
 fn collect_output_selection_errors(
     errors: &mut Vec<Value>,
-    operation_path: &str,
-    response_key: &str,
-    type_name: &str,
-    output_fields: &[&str],
+    context: OutputSelectionErrorContext<'_>,
     selections: &[SelectedField],
-    include_direct: bool,
-    require_type_condition: bool,
     container_path: &[&str],
 ) {
     for selection in selections {
@@ -1444,13 +1481,8 @@ fn collect_output_selection_errors(
                 next_path.push("nodes");
                 collect_output_selection_errors(
                     errors,
-                    operation_path,
-                    response_key,
-                    type_name,
-                    output_fields,
+                    context.nested(),
                     &selection.selection,
-                    true,
-                    require_type_condition,
                     &next_path,
                 );
             }
@@ -1465,30 +1497,25 @@ fn collect_output_selection_errors(
                     next_path.push("node");
                     collect_output_selection_errors(
                         errors,
-                        operation_path,
-                        response_key,
-                        type_name,
-                        output_fields,
+                        context.nested(),
                         &node.selection,
-                        true,
-                        require_type_condition,
                         &next_path,
                     );
                 }
             }
-            _ if include_direct
+            _ if context.include_direct
                 && selection_matches_validation_scope(
                     selection,
-                    type_name,
-                    require_type_condition,
+                    context.type_name,
+                    context.require_type_condition,
                 )
-                && !output_fields.contains(&selection.name.as_str()) =>
+                && !context.output_fields.contains(&selection.name.as_str()) =>
             {
                 errors.push(function_output_undefined_field_error(
-                    operation_path,
-                    response_key,
+                    context.operation_path,
+                    context.response_key,
                     container_path,
-                    type_name,
+                    context.type_name,
                     selection,
                 ));
             }
@@ -1573,8 +1600,8 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_error(
-                    VALIDATION_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
@@ -1596,12 +1623,12 @@ impl DraftProxy {
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return json!({ "validation": Value::Null, "userErrors": errors });
+            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && active_validation_count(&self.store.staged.function_validations, None) >= 25 {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
@@ -1637,8 +1664,8 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_error(
-                    VALIDATION_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
@@ -1648,14 +1675,14 @@ impl DraftProxy {
             }
         };
         let Some(mut validation) = self.store.staged.function_validations.get(&id).cloned() else {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
             );
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return json!({ "validation": Value::Null, "userErrors": errors });
+            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let next_enable = resolved_bool_field(input, "enable")
             .or_else(|| resolved_bool_field(input, "enabled"))
@@ -1663,8 +1690,8 @@ impl DraftProxy {
         if next_enable
             && active_validation_count(&self.store.staged.function_validations, Some(&id)) >= 25
         {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
@@ -1700,10 +1727,10 @@ impl DraftProxy {
             Some(&mut self.store.staged.function_validation),
             &id,
             json!({ "deletedId": id, "userErrors": [] }),
-            json!({
-                "deletedId": Value::Null,
-                "userErrors": [user_error(["id"], "Extension not found.", Some("NOT_FOUND"))]
-            }),
+            payload_user_error(
+                "deletedId",
+                user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
+            ),
         );
         if deleted {
             self.store.staged.functions_dirty = true;
@@ -1732,8 +1759,8 @@ impl DraftProxy {
                     function_id,
                 )
             {
-                return payload_error(
-                    CART_TRANSFORM_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["functionId"],
                         "Could not enable cart transform because it is already registered",
@@ -1757,7 +1784,7 @@ impl DraftProxy {
         }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
-            return json!({ "cartTransform": Value::Null, "userErrors": errors });
+            return payload_error(CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let id = self.next_proxy_synthetic_gid("CartTransform");
         let metafield_ids: Vec<String> = Vec::new();
@@ -1815,14 +1842,14 @@ impl DraftProxy {
             Some(&mut self.store.staged.function_cart_transform),
             &id,
             json!({ "deletedId": id, "userErrors": [] }),
-            json!({
-                "deletedId": Value::Null,
-                "userErrors": [user_error(
+            payload_user_error(
+                "deletedId",
+                user_error(
                     ["id"],
                     &format!("Could not find cart transform with id: {id}"),
-                    Some("NOT_FOUND")
-                )]
-            }),
+                    Some("NOT_FOUND"),
+                ),
+            ),
         );
         if deleted {
             self.store.staged.functions_dirty = true;
@@ -1929,8 +1956,8 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return payload_error(
-                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     ["id"],
                     &format!("Could not find FulfillmentConstraintRule with id: {id}"),
@@ -2011,59 +2038,54 @@ impl DraftProxy {
     }
 
     fn stage_function_validation(&mut self, validation: Value) {
-        self.store.staged.functions_dirty = true;
-        let Some(id) = validation["id"].as_str().map(str::to_string) else {
-            return;
-        };
-        if !self.store.staged.function_validations.contains_key(&id) {
-            self.store.staged.function_validation_order.push(id.clone());
-        }
-        self.store
-            .staged
-            .function_validations
-            .insert(id, validation.clone());
-        self.store.staged.function_validation = Some(validation);
+        stage_function_record(
+            &mut self.store.staged.functions_dirty,
+            &mut self.store.staged.function_validations,
+            &mut self.store.staged.function_validation_order,
+            Some(&mut self.store.staged.function_validation),
+            validation,
+        );
     }
 
     fn stage_function_cart_transform(&mut self, cart_transform: Value) {
-        self.store.staged.functions_dirty = true;
-        let Some(id) = cart_transform["id"].as_str().map(str::to_string) else {
-            return;
-        };
-        if !self.store.staged.function_cart_transforms.contains_key(&id) {
-            self.store
-                .staged
-                .function_cart_transform_order
-                .push(id.clone());
-        }
-        self.store
-            .staged
-            .function_cart_transforms
-            .insert(id, cart_transform.clone());
-        self.store.staged.function_cart_transform = Some(cart_transform);
+        stage_function_record(
+            &mut self.store.staged.functions_dirty,
+            &mut self.store.staged.function_cart_transforms,
+            &mut self.store.staged.function_cart_transform_order,
+            Some(&mut self.store.staged.function_cart_transform),
+            cart_transform,
+        );
     }
 
     fn stage_function_fulfillment_constraint_rule(&mut self, rule: Value) {
-        self.store.staged.functions_dirty = true;
-        let Some(id) = rule["id"].as_str().map(str::to_string) else {
-            return;
-        };
-        if !self
-            .store
-            .staged
-            .function_fulfillment_constraint_rules
-            .contains_key(&id)
-        {
-            self.store
-                .staged
-                .function_fulfillment_constraint_rule_order
-                .push(id.clone());
-        }
-        self.store
-            .staged
-            .function_fulfillment_constraint_rules
-            .insert(id, rule);
+        stage_function_record(
+            &mut self.store.staged.functions_dirty,
+            &mut self.store.staged.function_fulfillment_constraint_rules,
+            &mut self.store.staged.function_fulfillment_constraint_rule_order,
+            None,
+            rule,
+        );
     }
+}
+
+fn stage_function_record(
+    functions_dirty: &mut bool,
+    records: &mut BTreeMap<String, Value>,
+    order: &mut Vec<String>,
+    singleton: Option<&mut Option<Value>>,
+    record: Value,
+) {
+    *functions_dirty = true;
+    let Some(id) = record["id"].as_str().map(str::to_string) else {
+        return;
+    };
+    if !records.contains_key(&id) {
+        order.push(id.clone());
+    }
+    if let Some(singleton) = singleton {
+        *singleton = Some(record.clone());
+    }
+    records.insert(id, record);
 }
 
 /// Output fields defined on the `CartTransform` type (2026-04). A selection of
@@ -2077,98 +2099,3 @@ const CART_TRANSFORM_OUTPUT_FIELDS: &[&str] = &[
     "metafields",
     "__typename",
 ];
-
-pub(in crate::proxy) fn cart_transform_selection_errors(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    fields: &[RootFieldSelection],
-) -> Vec<Value> {
-    let operation_path = parsed_document(query, variables)
-        .map(|document| document.operation_path)
-        .unwrap_or_default();
-    let mut errors = Vec::new();
-    for field in fields {
-        if field.name != "cartTransforms" {
-            continue;
-        }
-        for child in &field.selection {
-            // cartTransforms(first: N) { nodes { <CartTransform> } }
-            //                          { edges { node { <CartTransform> } } }
-            let (container_path, selections): (Vec<&str>, Vec<&SelectedField>) =
-                match child.name.as_str() {
-                    "nodes" => (vec!["nodes"], child.selection.iter().collect()),
-                    "edges" => (
-                        vec!["edges", "node"],
-                        child
-                            .selection
-                            .iter()
-                            .filter(|edge_child| edge_child.name == "node")
-                            .flat_map(|node| node.selection.iter())
-                            .collect(),
-                    ),
-                    _ => continue,
-                };
-            for selection in selections {
-                if !CART_TRANSFORM_OUTPUT_FIELDS.contains(&selection.name.as_str()) {
-                    errors.push(cart_transform_undefined_field_error(
-                        query,
-                        &operation_path,
-                        &field.response_key,
-                        &container_path,
-                        &selection.name,
-                    ));
-                }
-            }
-        }
-    }
-    errors
-}
-
-fn cart_transform_undefined_field_error(
-    query: &str,
-    operation_path: &str,
-    response_key: &str,
-    container_path: &[&str],
-    field_name: &str,
-) -> Value {
-    let location = cart_transform_field_token_location(query, field_name)
-        .unwrap_or(SourceLocation { line: 1, column: 1 });
-    let mut path = vec![Value::from(operation_path), Value::from(response_key)];
-    path.extend(container_path.iter().map(|segment| Value::from(*segment)));
-    path.push(Value::from(field_name));
-    json!({
-        "message": format!("Field '{field_name}' doesn't exist on type 'CartTransform'"),
-        "locations": [{ "line": location.line, "column": location.column }],
-        "path": path,
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": "CartTransform",
-            "fieldName": field_name
-        }
-    })
-}
-
-fn cart_transform_field_token_location(query: &str, field_name: &str) -> Option<SourceLocation> {
-    let bytes = query.as_bytes();
-    let mut from = 0;
-    while let Some(relative) = query[from..].find(field_name) {
-        let index = from + relative;
-        let after = index + field_name.len();
-        let before_ok = index == 0 || !is_cart_transform_name_byte(bytes[index - 1]);
-        let after_ok = after >= bytes.len() || !is_cart_transform_name_byte(bytes[after]);
-        if before_ok && after_ok {
-            let line = query[..index].bytes().filter(|byte| *byte == b'\n').count() + 1;
-            let line_start = query[..index].rfind('\n').map_or(0, |newline| newline + 1);
-            return Some(SourceLocation {
-                line,
-                column: index - line_start + 1,
-            });
-        }
-        from = after;
-    }
-    None
-}
-
-fn is_cart_transform_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
-}

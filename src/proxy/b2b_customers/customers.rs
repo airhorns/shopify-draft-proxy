@@ -3475,7 +3475,7 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
-    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+    parse_rfc3339_epoch_seconds(expires_at)
         .map(|expires_at| expires_at <= now_epoch)
         .unwrap_or(false)
 }
@@ -3513,29 +3513,6 @@ fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> 
         }],
         "data": Value::Object(data)
     })))
-}
-
-/// Basic email format validation matching Shopify's rules:
-/// must contain exactly one @, with non-empty local and domain parts,
-pub(in crate::proxy) fn is_valid_customer_email(email: &str) -> bool {
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    let local = parts[0];
-    let domain = parts[1];
-    if local.is_empty() || domain.is_empty() {
-        return false;
-    }
-    // Domain must contain a dot and not start/end with a dot
-    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
-        return false;
-    }
-    // No spaces allowed
-    if email.contains(' ') {
-        return false;
-    }
-    true
 }
 
 #[cfg(test)]

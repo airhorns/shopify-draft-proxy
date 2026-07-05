@@ -1015,7 +1015,9 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
                 None,
             )]);
         }
-        if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+        if resolved_string_field(input, "email")
+            .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+        {
             return Some(vec![user_error_omit_code(
                 ["email"],
                 "Email is invalid",
@@ -1111,7 +1113,9 @@ pub(in crate::proxy) fn draft_order_calculate_user_errors(
             None,
         )]);
     }
-    if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+    if resolved_string_field(input, "email")
+        .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+    {
         return Some(vec![user_error_omit_code(
             ["email"],
             "Email is invalid",
@@ -1158,14 +1162,16 @@ pub(in crate::proxy) fn draft_order_max_input_error(
     count: usize,
     max: usize,
 ) -> Value {
-    json!({
-        "message": format!(
-            "The input array size of {count} is greater than the maximum allowed of {max}."
-        ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [field.response_key.clone(), "input", argument],
-        "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" }
-    })
+    max_input_size_exceeded_error(
+        vec![
+            field.response_key.clone(),
+            "input".to_string(),
+            argument.to_string(),
+        ],
+        count,
+        max,
+        Some(json!([{ "line": field.location.line, "column": field.location.column }])),
+    )
 }
 
 impl DraftProxy {

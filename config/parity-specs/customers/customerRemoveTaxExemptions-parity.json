@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers customerRemoveTaxExemptions local staging, downstream customer/customerByIdentifier/customers/customersCount reads, unknown-customer payload userErrors, empty-list no-op behavior, no-op removal, and invalid enum GraphQL variable validation.",
+  "notes": "Strict comparison covers customerRemoveTaxExemptions local staging, downstream customer/customerByIdentifier/customers/customersCount reads, unknown-customer payload userErrors, empty-list no-op behavior, no-op removal, and invalid enum GraphQL variable plus inline-literal validation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -102,6 +102,19 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customerRemoveTaxExemptions-parity.graphql",
           "variablesCapturePath": "$.validation.invalidEnumVariable.variables"
+        }
+      },
+      {
+        "name": "invalid-enum-literal-errors",
+        "capturePath": "$.validation.invalidEnumLiteral.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerRemoveTaxExemptions-inline-invalid-enum.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerRemoveTaxExemptions.customer.id"
+            }
+          }
         }
       }
     ]

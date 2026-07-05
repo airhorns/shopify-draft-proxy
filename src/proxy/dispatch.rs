@@ -660,7 +660,10 @@ impl DraftProxy {
             ));
         }
         if let Some(cart_transform) = self.store.staged.function_cart_transforms.get(id) {
-            return Some(selected_json(cart_transform, selection));
+            return Some(selected_json(
+                &cart_transform_record_for_selection(cart_transform, selection),
+                selection,
+            ));
         }
         if let Some(cart_transform) = self
             .store
@@ -669,7 +672,10 @@ impl DraftProxy {
             .as_ref()
             .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
         {
-            return Some(selected_json(cart_transform, selection));
+            return Some(selected_json(
+                &cart_transform_record_for_selection(cart_transform, selection),
+                selection,
+            ));
         }
         if let Some(rule) = self
             .store
@@ -2704,11 +2710,8 @@ impl DraftProxy {
                     response
                 } else {
                     let fields = try_root_fields!(&query, &variables);
-                    let mut selection_errors =
-                        cart_transform_selection_errors(&query, &variables, &fields);
-                    selection_errors.extend(functions_output_selection_errors(
-                        &query, &variables, &fields,
-                    ));
+                    let selection_errors =
+                        functions_output_selection_errors(&query, &variables, &fields);
                     if selection_errors.is_empty() {
                         ok_json(
                             json!({ "data": self.functions_metadata_read_data(request, &fields) }),
@@ -2944,4 +2947,46 @@ impl DraftProxy {
             _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
+}
+
+fn local_node_value(
+    id: &str,
+    selection: &[SelectedField],
+    backup_region: Option<&Value>,
+) -> Option<Value> {
+    if is_safe_no_data_node_gid(id) {
+        return Some(Value::Null);
+    }
+    if let Some(region) = backup_region {
+        if region.get("id").and_then(Value::as_str) == Some(id) {
+            return Some(selected_json(region, selection));
+        }
+    }
+    None
+}
+
+fn is_safe_no_data_node_gid(id: &str) -> bool {
+    [
+        "gid://shopify/CashTrackingSession/",
+        "gid://shopify/PointOfSaleDevice/",
+        "gid://shopify/ShopifyPaymentsDispute/",
+    ]
+    .iter()
+    .any(|prefix| id.starts_with(prefix))
+}
+
+fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
+    root_payload_json(fields, |field| {
+        Some(match field.name.as_str() {
+            "cashTrackingSession"
+            | "pointOfSaleDevice"
+            | "dispute"
+            | "disputeEvidence"
+            | "shopPayPaymentRequestReceipt" => Value::Null,
+            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
+                selected_empty_connection_json(&field.selection)
+            }
+            _ => Value::Null,
+        })
+    })
 }
