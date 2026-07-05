@@ -1579,12 +1579,6 @@ impl DraftProxy {
             }));
         }
         let codes = resolved_redeem_codes(field);
-        if codes.len() > 250 {
-            return MutationFieldOutcome::unlogged(json!({
-                "bulkCreation": Value::Null,
-                "userErrors": [discount_user_error(vec!["codes"], &format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()), "MAX_INPUT_SIZE_EXCEEDED")]
-            }));
-        }
         if codes.is_empty() {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,

@@ -614,7 +614,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
         let record = self.webhook_subscription_record(
             &id,
@@ -655,7 +655,7 @@ impl DraftProxy {
                 )],
             );
         };
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
         let record = self.webhook_subscription_record(
             &id,
@@ -814,9 +814,7 @@ impl DraftProxy {
         }
         if uri.starts_with("arn:aws:events:") {
             if let Some(arn_api_client_id) = eventbridge_arn_api_client_id(uri) {
-                if let Some(caller_api_client_id) =
-                    request.headers.get("x-shopify-draft-proxy-api-client-id")
-                {
+                if let Some(caller_api_client_id) = request.headers.get(API_CLIENT_ID_HEADER) {
                     if arn_api_client_id != caller_api_client_id {
                         errors.push(user_error_omit_code(
                             json!(address_field),

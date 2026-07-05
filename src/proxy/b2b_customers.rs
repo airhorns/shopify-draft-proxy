@@ -1666,14 +1666,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
-        self.customer_update_existing_payload(
-            request,
-            "customerUpdate",
-            &id,
-            existing,
-            &input,
-            false,
-        )
+        self.customer_update_existing_payload(request, &id, existing, &input, false)
     }
 
     fn customer_delete_payload(
@@ -1765,14 +1758,7 @@ impl DraftProxy {
                 let Some(existing) = self.customer_existing_for_update(request, &id) else {
                     return (customer_set_not_found_payload(), Vec::new(), Vec::new());
                 };
-                return self.customer_update_existing_payload(
-                    request,
-                    "customerSet",
-                    &id,
-                    existing,
-                    &input,
-                    true,
-                );
+                return self.customer_update_existing_payload(request, &id, existing, &input, true);
             }
             if let Some(email) = resolved_string_field(identifier, "email") {
                 return self.customer_set_contact_identifier_payload(
@@ -1857,14 +1843,7 @@ impl DraftProxy {
             let Some(existing) = self.customer_existing_for_update(request, &id) else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
-            self.customer_update_existing_payload(
-                request,
-                "customerSet",
-                &id,
-                existing,
-                input,
-                true,
-            )
+            self.customer_update_existing_payload(request, &id, existing, input, true)
         } else if let Some(id) = self.customer_upstream_contact_identifier_id(
             identifier_field,
             identifier_value,
@@ -1873,14 +1852,7 @@ impl DraftProxy {
             let Some(existing) = self.customer_existing_for_update(request, &id) else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
-            self.customer_update_existing_payload(
-                request,
-                "customerSet",
-                &id,
-                existing,
-                input,
-                true,
-            )
+            self.customer_update_existing_payload(request, &id, existing, input, true)
         } else {
             self.customer_set_create_payload(request, input)
         }
@@ -1938,7 +1910,6 @@ impl DraftProxy {
     fn customer_update_existing_payload(
         &mut self,
         request: &Request,
-        _root_field: &str,
         id: &str,
         existing: Value,
         input: &BTreeMap<String, ResolvedValue>,

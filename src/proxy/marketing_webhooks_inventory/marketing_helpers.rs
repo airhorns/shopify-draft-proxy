@@ -807,10 +807,7 @@ impl DraftProxy {
             &id,
             input,
             None,
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            request.headers.get(API_CLIENT_ID_HEADER).cloned(),
             &timestamp,
             &shop_currency_code,
         );
@@ -839,10 +836,7 @@ impl DraftProxy {
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            request.headers.get(API_CLIENT_ID_HEADER).cloned(),
             &timestamp,
             &shop_currency_code,
         );
@@ -1091,10 +1085,7 @@ impl DraftProxy {
             &id,
             input,
             existing.as_ref(),
-            request
-                .headers
-                .get("x-shopify-draft-proxy-api-client-id")
-                .cloned(),
+            request.headers.get(API_CLIENT_ID_HEADER).cloned(),
             new_marketing_event_id,
             &timestamp,
             &shop_currency_code,
@@ -1162,7 +1153,7 @@ impl DraftProxy {
             return None;
         }
         let activity = self.store.staged.marketing_activities.get(id)?;
-        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         if activity["apiClientId"].as_str() == request_app.map(String::as_str) {
             Some(activity)
         } else {
@@ -1361,7 +1352,7 @@ impl DraftProxy {
     }
 
     fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {
-        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
             .staged
             .marketing_activities
@@ -1419,7 +1410,7 @@ impl DraftProxy {
         request: &Request,
         matches_record: impl Fn(&Value) -> bool,
     ) -> Option<String> {
-        let app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        let app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
             .staged
             .marketing_activities

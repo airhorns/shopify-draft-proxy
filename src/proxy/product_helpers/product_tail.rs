@@ -1463,7 +1463,7 @@ impl DraftProxy {
 }
 
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
-    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+    request_header(request, ACCESS_SCOPES_HEADER).is_some()
         && !app_access_scope_handles(&current_app_installation_from_request(request))
             .contains("write_resource_feedbacks")
 }

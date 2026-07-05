@@ -497,7 +497,6 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
     }
 }
 
-pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE: &str =
     "API client identity is required to resolve or authorize app-reserved namespaces and types.";
 

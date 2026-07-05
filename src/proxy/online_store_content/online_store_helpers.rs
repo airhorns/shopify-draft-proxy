@@ -60,7 +60,7 @@ pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
 pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) -> Vec<Value> {
     let scopes = request
         .headers
-        .get("x-shopify-draft-proxy-access-scopes")
+        .get(ACCESS_SCOPES_HEADER)
         .map(|header| {
             header
                 .split(',')

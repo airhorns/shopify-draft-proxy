@@ -211,7 +211,7 @@ pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -
 }
 
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
-    let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+    let explicit_app_id = request_header(request, API_CLIENT_ID_HEADER);
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
     let installation_id = request_header(request, "x-shopify-draft-proxy-app-installation-id")
         .map(|value| normalize_app_installation_gid(&value))
@@ -237,8 +237,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     });
     let requested_access_scopes =
         request_required_access_scope_values(request).unwrap_or_else(|| {
-            if explicit_app_id.is_some()
-                || request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+            if explicit_app_id.is_some() || request_header(request, ACCESS_SCOPES_HEADER).is_some()
             {
                 Vec::new()
             } else {
@@ -262,7 +261,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
 }
 
 fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
+    request_header(request, ACCESS_SCOPES_HEADER)
         .map(|header| access_scope_values_from_header(&header))
         .filter(|scopes| !scopes.is_empty())
 }
@@ -2561,7 +2560,7 @@ fn valid_utc_date_time(
 }
 
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())
 }
 
