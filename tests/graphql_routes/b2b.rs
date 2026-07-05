@@ -3261,6 +3261,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
             catalogs(first: 5) { nodes { id title } }
           }
           companyNode: node(id: $companyId) {
+            __typename
             ... on Company {
               totalSpent { amount currencyCode }
               ordersCount { count precision }
@@ -3268,6 +3269,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
             }
           }
           locationNode: node(id: $locationId) {
+            __typename
             ... on CompanyLocation {
               totalSpent { amount currencyCode }
               currency
@@ -3327,30 +3329,34 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
         read.body["data"]["companyLocation"]["catalogs"]["nodes"],
         json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
     );
+    let company_node = &read.body["data"]["companyNode"];
+    let location_node = &read.body["data"]["locationNode"];
+    assert_eq!(company_node["__typename"], json!("Company"));
     assert_eq!(
-        read.body["data"]["companyNode"]["totalSpent"],
+        company_node["totalSpent"],
         json!({ "amount": "25.0", "currencyCode": "USD" })
     );
     assert_eq!(
-        read.body["data"]["companyNode"]["ordersCount"],
+        company_node["ordersCount"],
         json!({ "count": 1, "precision": "EXACT" })
     );
     assert_eq!(
-        read.body["data"]["companyNode"]["lifetimeDuration"],
+        company_node["lifetimeDuration"],
         json!("less than 5 seconds")
     );
+    assert_eq!(location_node["__typename"], json!("CompanyLocation"));
     assert_eq!(
-        read.body["data"]["locationNode"]["totalSpent"],
+        location_node["totalSpent"],
         json!({ "amount": "25.0", "currencyCode": "USD" })
     );
-    assert_eq!(read.body["data"]["locationNode"]["currency"], json!("USD"));
+    assert_eq!(location_node["currency"], json!("USD"));
     assert_eq!(
-        read.body["data"]["locationNode"]["ordersCount"],
+        location_node["ordersCount"],
         json!({ "count": 1, "precision": "EXACT" })
     );
-    assert_eq!(read.body["data"]["locationNode"]["orderCount"], json!(1));
+    assert_eq!(location_node["orderCount"], json!(1));
     assert_eq!(
-        read.body["data"]["locationNode"]["catalogs"]["nodes"],
+        location_node["catalogs"]["nodes"],
         json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
     );
 }

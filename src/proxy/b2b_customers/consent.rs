@@ -168,14 +168,7 @@ impl DraftProxy {
         if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
             || (is_email && marketing_state == "INVALID")
         {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: Value::Null,
                 top_level_error: Some(customer_consent_invalid_state_error(
@@ -197,14 +190,7 @@ impl DraftProxy {
             } else {
                 user_error(Value::Null, "Customer not found", None)
             };
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: customer_consent_payload(Value::Null, vec![user_error]),
                 top_level_error: None,
@@ -213,14 +199,7 @@ impl DraftProxy {
 
         let marketing_opt_in_level_input = resolved_string_field(&consent, "marketingOptInLevel");
         if marketing_state == "SUBSCRIBED" && marketing_opt_in_level_input.is_none() {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             let customer = if is_email {
                 existing_customer.clone()
             } else {
@@ -244,14 +223,7 @@ impl DraftProxy {
 
         if let Some(consent_updated_at) = consent_updated_at.as_deref() {
             if customer_consent_updated_at_is_future(consent_updated_at) {
-                self.record_mutation_log_with_status(
-                    request,
-                    query,
-                    variables,
-                    &field.name,
-                    Vec::new(),
-                    "failed",
-                );
+                self.record_failed_mutation(request, query, variables, &field.name);
                 let customer = if is_email {
                     existing_customer.clone()
                 } else {
@@ -272,14 +244,7 @@ impl DraftProxy {
         }
 
         if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             let customer = if is_email {
                 existing_customer.clone()
             } else {
@@ -299,14 +264,7 @@ impl DraftProxy {
         }
 
         if !is_email && !customer_has_default_phone(&existing_customer) {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, &field.name);
             return CustomerConsentOutcome {
                 payload: customer_consent_payload(
                     Value::Null,
@@ -386,26 +344,13 @@ pub(in crate::proxy) fn customer_tax_exemptions_invalid_enum_response(
             continue;
         };
         if let Some(literal) = raw_tax_exemption_literal(raw_value) {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": tax_exemption_invalid_literal_message(
-                        "taxExemptions",
-                        &field.name,
-                        literal,
-                        "[TaxExemption!]!",
-                    ),
-                    "locations": [{
-                        "line": field.location.line,
-                        "column": field.location.column
-                    }],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "Field",
-                        "argumentName": "taxExemptions"
-                    },
-                    "path": tax_exemption_invalid_literal_path(query, field, "taxExemptions")
-                }]
-            })));
+            return Some(tax_exemption_invalid_literal_response(
+                query,
+                field,
+                "taxExemptions",
+                literal,
+                "[TaxExemption!]!",
+            ));
         }
         if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
             return Some(tax_exemption_invalid_variable_response(query, &invalid));
@@ -649,26 +594,13 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
                 continue;
             };
             if let Some(literal) = raw_tax_exemption_literal(raw_value) {
-                return Some(ok_json(json!({
-                    "errors": [{
-                        "message": tax_exemption_invalid_literal_message(
-                            argument_name,
-                            "companyLocationTaxSettingsUpdate",
-                            literal,
-                            "[TaxExemption!]",
-                        ),
-                        "locations": [{
-                            "line": field.location.line,
-                            "column": field.location.column
-                        }],
-                        "extensions": {
-                            "code": "argumentLiteralsIncompatible",
-                            "typeName": "Field",
-                            "argumentName": argument_name
-                        },
-                        "path": tax_exemption_invalid_literal_path(query, field, argument_name)
-                    }]
-                })));
+                return Some(tax_exemption_invalid_literal_response(
+                    query,
+                    field,
+                    argument_name,
+                    literal,
+                    "[TaxExemption!]",
+                ));
             }
             if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
                 return Some(tax_exemption_invalid_variable_response(query, &invalid));
@@ -676,6 +608,43 @@ pub(in crate::proxy) fn b2b_tax_settings_invalid_enum_response(
         }
     }
     None
+}
+
+fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
+    match value {
+        RawArgumentValue::Enum(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
+        RawArgumentValue::List(values) => values.iter().find_map(raw_tax_exemption_literal),
+        _ => None,
+    }
+}
+
+fn tax_exemption_invalid_literal_response(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+    literal: &str,
+    expected_type: &str,
+) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": tax_exemption_invalid_literal_message(
+                argument_name,
+                &field.name,
+                literal,
+                expected_type,
+            ),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column,
+            }],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": argument_name,
+            },
+            "path": tax_exemption_invalid_literal_path(query, field, argument_name),
+        }]
+    }))
 }
 
 fn tax_exemption_invalid_literal_message(
@@ -698,14 +667,6 @@ fn tax_exemption_invalid_literal_path(
         .map(|document| document.operation_path)
         .unwrap_or_else(|| "mutation".to_string());
     json!([operation_path, field.name.clone(), argument_name])
-}
-
-fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
-    match value {
-        RawArgumentValue::Enum(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
-        RawArgumentValue::List(values) => values.iter().find_map(raw_tax_exemption_literal),
-        _ => None,
-    }
 }
 
 fn tax_exemption_invalid_variable(value: &RawArgumentValue) -> Option<InvalidTaxExemptionVariable> {
@@ -758,25 +719,17 @@ fn tax_exemption_invalid_variable_response(
         "Variable ${} of type {declared_type} was provided invalid value for {first_index} (Expected \"{first_value}\" to be one of: {one_of})",
         invalid.variable_name
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) =
-        graphql_variable_definition_location(query, &invalid.variable_name)
-    {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": invalid.provided,
-            "problems": problems,
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+    let location = graphql_variable_definition_location(query, &invalid.variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            invalid.provided.clone(),
+            Value::Array(problems),
+        )]
+    }))
 }
 
 /// Members of the `CustomerSmsMarketingState` GraphQL enum. Values outside this set
@@ -842,26 +795,20 @@ fn sms_consent_invalid_variable_response(
     let message = format!(
         "Variable ${variable_name} of type {declared_type} was provided invalid value for smsMarketingConsent.marketingState ({explanation})"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(input),
-            "problems": [{
+    let location = graphql_variable_definition_location(query, variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            resolved_value_json(input),
+            json!([{
                 "path": ["smsMarketingConsent", "marketingState"],
                 "explanation": explanation,
-            }],
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+            }]),
+        )]
+    }))
 }
 
 fn is_known_tax_exemption(value: &str) -> bool {

@@ -33,22 +33,29 @@ pub(super) fn online_store_search_decision(
         return StagedSearchDecision::Match;
     };
 
-    for token in online_store_query_tokens(query) {
+    let tokens = online_store_query_tokens(query);
+    let allow_extended_article_free_text = kind == OnlineStoreKind::Article
+        && tokens.iter().any(|token| {
+            token.field.as_deref() == Some("published_status")
+                && token.value.eq_ignore_ascii_case("any")
+        });
+    for token in tokens {
         if token.field.is_none() && token.value.eq_ignore_ascii_case("AND") {
             continue;
         }
-        match online_store_search_token_decision(kind, record, &token) {
+        match online_store_search_token_decision(
+            kind,
+            record,
+            &token,
+            allow_extended_article_free_text,
+        ) {
             StagedSearchDecision::Match => {}
             StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
             StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
         }
     }
 
-    if online_store_search_visibility_decision(kind, record, Some(query)) {
-        StagedSearchDecision::Match
-    } else {
-        StagedSearchDecision::NoMatch
-    }
+    StagedSearchDecision::Match
 }
 
 fn online_store_query_tokens(query: &str) -> Vec<OnlineStoreQueryToken> {
@@ -122,38 +129,17 @@ fn online_store_search_token_decision(
     kind: OnlineStoreKind,
     record: &Value,
     token: &OnlineStoreQueryToken,
+    allow_extended_article_free_text: bool,
 ) -> StagedSearchDecision {
     match token.field.as_deref() {
         Some(field) => online_store_field_search_decision(kind, record, field, &token.value),
-        None => online_store_free_text_search_decision(kind, record, &token.value),
+        None => online_store_free_text_search_decision(
+            kind,
+            record,
+            &token.value,
+            allow_extended_article_free_text,
+        ),
     }
-}
-
-fn online_store_search_visibility_decision(
-    kind: OnlineStoreKind,
-    record: &Value,
-    query: Option<&str>,
-) -> bool {
-    if kind != OnlineStoreKind::Article {
-        return true;
-    }
-    let Some(query) = query else {
-        return true;
-    };
-    if query.trim().is_empty() {
-        return true;
-    }
-    let tokens = online_store_query_tokens(query);
-    if tokens
-        .iter()
-        .any(|token| token.field.as_deref() == Some("published_status"))
-    {
-        return true;
-    }
-    record
-        .get("isPublished")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
 }
 
 fn online_store_field_search_decision(
@@ -279,11 +265,15 @@ fn online_store_free_text_search_decision(
     kind: OnlineStoreKind,
     record: &Value,
     value: &str,
+    allow_extended_article_fields: bool,
 ) -> StagedSearchDecision {
     let fields = match kind {
         OnlineStoreKind::Blog => vec!["title", "handle"],
         OnlineStoreKind::Page => vec!["title", "handle", "body", "bodySummary"],
-        OnlineStoreKind::Article => vec!["title", "handle", "body", "summary"],
+        OnlineStoreKind::Article if allow_extended_article_fields => {
+            vec!["title", "handle", "body", "summary"]
+        }
+        OnlineStoreKind::Article => vec!["title", "body", "summary"],
         OnlineStoreKind::Comment => vec!["body", "bodyHtml", "status"],
     };
     let field_match = fields.into_iter().any(|field| {
@@ -303,7 +293,7 @@ fn online_store_free_text_search_decision(
                     .and_then(|blog| blog.get("title"))
                     .and_then(Value::as_str),
                 value,
-            ) || array_field_matches(record, "tags", value)
+            ) || (allow_extended_article_fields && array_field_matches(record, "tags", value))
         }
         OnlineStoreKind::Blog => array_field_matches(record, "tags", value),
         OnlineStoreKind::Comment => online_store_search_string_matches(

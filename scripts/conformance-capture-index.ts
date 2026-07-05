@@ -2319,6 +2319,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventoryAdjust-then-hasOutOfStockVariants-parity.json',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-bulk-create.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-create.graphql',
+      'config/parity-requests/products/productCreate-then-bulkCreate-derived-delete.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql',
       'config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql',
       'config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-adjust.graphql',
@@ -2396,6 +2397,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-location-levels-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-location-levels-overlay-windowing-conformance.ts',
+    purpose:
+      'Location.inventoryLevels read-after-write overlay, inventory item query filtering, and cursor windowing over disposable product-backed inventory levels.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-location-levels-overlay-windowing.json`,
+      'config/parity-specs/products/inventory-location-levels-overlay-windowing.json',
+      'config/parity-requests/products/inventory-location-levels-set.graphql',
+      'config/parity-requests/products/inventory-location-levels-adjust.graphql',
+      'config/parity-requests/products/inventory-location-levels-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-item-read.graphql',
+      'config/parity-requests/products/inventory-location-levels-window.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable location and one disposable two-variant product, sets and adjusts location inventory, records location-level reads and cursor windows, then deletes the product and deactivates/deletes the location best-effort.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

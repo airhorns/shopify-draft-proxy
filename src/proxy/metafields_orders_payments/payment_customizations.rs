@@ -100,6 +100,20 @@ pub(in crate::proxy) fn payment_customization_payload(
     selected_json(&payload, selections)
 }
 
+pub(in crate::proxy) fn payment_customization_error_payload(
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    payment_customization_payload(None, selections, user_errors, None, None)
+}
+
+pub(in crate::proxy) fn payment_customization_record_payload(
+    customization: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    payment_customization_payload(Some(customization), selections, Vec::new(), None, None)
+}
+
 pub(in crate::proxy) fn payment_customization_user_error(
     field: Vec<&str>,
     code: &str,

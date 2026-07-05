@@ -1,5 +1,5 @@
-mutation ProductDerivedFieldsPriceUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+mutation ProductDerivedFieldsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
     product {
       id
       priceRangeV2 {
@@ -27,15 +27,6 @@ mutation ProductDerivedFieldsPriceUpdate($productId: ID!, $variants: [ProductVar
         }
       }
       totalVariants
-      hasOnlyDefaultVariant
-      hasOutOfStockVariants
-      tracksInventory
-      totalInventory
-    }
-    productVariants {
-      id
-      price
-      compareAtPrice
     }
     userErrors {
       field

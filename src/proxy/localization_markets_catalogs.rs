@@ -2378,6 +2378,14 @@ impl DraftProxy {
             {
                 touched_ids.push(id.to_string());
             }
+            for id in outcome.value["deletedQuantityRulesVariantIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                push_unique_string(&mut touched_ids, id);
+            }
             errors.extend(outcome.errors);
             Some(outcome.value)
         });
@@ -2971,7 +2979,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn quantity_rules_delete_price_list_response(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
     ) -> Value {
         let price_list_id =
@@ -2987,6 +2995,9 @@ impl DraftProxy {
         } else {
             let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
             if variant_errors.is_empty() {
+                if let Some(price_list) = self.store.staged.price_lists.get_mut(&price_list_id) {
+                    delete_quantity_rule_nodes(price_list, &variant_ids);
+                }
                 json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
             } else {
                 json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})

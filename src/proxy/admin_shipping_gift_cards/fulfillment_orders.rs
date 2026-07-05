@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::proxy::online_store_orders_payments::{
+use crate::proxy::orders_payments_fulfillment::{
     data_response, fulfillment_order_display_status, fulfillment_order_nodes,
     fulfillment_order_nodes_mut,
 };

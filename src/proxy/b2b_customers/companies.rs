@@ -254,32 +254,24 @@ impl DraftProxy {
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
         if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["companyLocationId"],
-                        "The company location doesn't exist",
-                        Some("RESOURCE_NOT_FOUND"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["companyLocationId"],
+                    "The company location doesn't exist",
+                    Some("RESOURCE_NOT_FOUND"),
+                )],
+            ));
         }
         if tax_exempt_is_null {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["taxExempt"],
-                        "Tax exempt must be true or false",
-                        Some("INVALID_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["taxExempt"],
+                    "Tax exempt must be true or false",
+                    Some("INVALID_INPUT"),
+                )],
+            ));
         }
 
         let mut location = self
@@ -1065,6 +1057,7 @@ impl DraftProxy {
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
         let mut company = json!({
+            "__typename": "Company",
             "id": id,
             "name": name,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
@@ -3358,6 +3351,7 @@ impl DraftProxy {
         let currency =
             b2b_company_location_input_currency_code(input, &self.store.shop_currency_code());
         let location = json!({
+            "__typename": "CompanyLocation",
             "id": id,
             "name": name,
             "companyId": company_id,

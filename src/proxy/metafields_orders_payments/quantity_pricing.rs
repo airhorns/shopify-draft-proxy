@@ -1,38 +1,111 @@
 use super::*;
 
-pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    store: &Store,
-) -> Response {
-    let (response_key, payload_selection) =
-        primary_root_response_selection(query, variables, || {
-            "quantityPricingByVariantUpdate".to_string()
+impl DraftProxy {
+    pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let (response_key, payload_selection) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection))
+            .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
+        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
+        let mut product_variant_ids = quantity_pricing_variant_ids_from_input(&input);
+        let user_errors = quantity_pricing_by_variant_errors(&self.store, &price_list_id, &input);
+        let product_variants_value = if user_errors.is_empty() {
+            if product_variant_ids.is_empty() {
+                product_variant_ids = quantity_pricing_delete_variant_ids_from_input(&input);
+            }
+            self.stage_quantity_pricing_by_variant_update(&price_list_id, &input);
+            let mut touched_ids = Vec::new();
+            if !price_list_id.is_empty() {
+                touched_ids.push(price_list_id.clone());
+            }
+            extend_unique_strings(&mut touched_ids, product_variant_ids.clone());
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "quantityPricingByVariantUpdate",
+                touched_ids,
+            );
+            Value::Array(quantity_pricing_product_variants(
+                &self.store,
+                &product_variant_ids,
+            ))
+        } else {
+            Value::Null
+        };
+        let payload = json!({
+            "productVariants": product_variants_value,
+            "userErrors": user_errors
         });
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
-    let mut product_variant_ids = quantity_pricing_variant_ids_from_input(&input);
-    let user_errors = quantity_pricing_by_variant_errors(store, &price_list_id, &input);
-    let product_variants_value = if user_errors.is_empty() {
-        if product_variant_ids.is_empty() {
-            product_variant_ids = quantity_pricing_delete_variant_ids_from_input(&input);
-        }
-        Value::Array(quantity_pricing_product_variants(
-            store,
-            &product_variant_ids,
-        ))
-    } else {
-        Value::Null
-    };
-    let payload = json!({
-        "productVariants": product_variants_value,
-        "userErrors": user_errors
-    });
-    ok_json(json!({
-        "data": {
-            response_key: selected_json(&payload, &payload_selection)
-        }
-    }))
+        ok_json(json!({
+            "data": {
+                response_key: selected_json(&payload, &payload_selection)
+            }
+        }))
+    }
+
+    fn stage_quantity_pricing_by_variant_update(
+        &mut self,
+        price_list_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let Some(mut price_list) = self.store.staged.price_lists.get(price_list_id).cloned() else {
+            return;
+        };
+
+        let prices_to_add = resolved_object_list_field(input, "pricesToAdd")
+            .into_iter()
+            .map(ResolvedValue::Object)
+            .collect::<Vec<_>>();
+        let prices_to_delete = list_string_field(input, "pricesToDeleteByVariantId");
+        upsert_fixed_price_nodes(&mut price_list, &self.store, &prices_to_add);
+        delete_fixed_price_nodes(&mut price_list, &prices_to_delete);
+
+        let quantity_rules_to_add = resolved_object_list_field(input, "quantityRulesToAdd");
+        let quantity_rules_to_delete = list_string_field(input, "quantityRulesToDeleteByVariantId");
+        upsert_quantity_rule_nodes(&mut price_list, &quantity_rules_to_add);
+        delete_quantity_rule_nodes(&mut price_list, &quantity_rules_to_delete);
+
+        let quantity_price_breaks_to_delete =
+            list_string_field(input, "quantityPriceBreaksToDelete");
+        let quantity_price_breaks_to_delete_by_variant =
+            list_string_field(input, "quantityPriceBreaksToDeleteByVariantId");
+        delete_quantity_price_break_nodes(&mut price_list, &quantity_price_breaks_to_delete);
+        delete_quantity_price_break_nodes_for_variants(
+            &mut price_list,
+            &quantity_price_breaks_to_delete_by_variant,
+        );
+
+        let quantity_price_break_inputs =
+            resolved_object_list_field(input, "quantityPriceBreaksToAdd");
+        let quantity_price_breaks_to_add = quantity_price_break_inputs
+            .into_iter()
+            .map(|break_input| {
+                let id = resolved_string_field(&break_input, "variantId")
+                    .zip(resolved_int_field(&break_input, "minimumQuantity"))
+                    .and_then(|(variant_id, minimum_quantity)| {
+                        quantity_price_break_id_for_variant_minimum(
+                            &price_list,
+                            &variant_id,
+                            minimum_quantity,
+                        )
+                    })
+                    .unwrap_or_else(|| self.next_proxy_synthetic_gid("QuantityPriceBreak"));
+                (break_input, id)
+            })
+            .collect::<Vec<_>>();
+        upsert_quantity_price_break_nodes(&mut price_list, &quantity_price_breaks_to_add);
+
+        self.store
+            .staged
+            .price_lists
+            .insert(price_list_id.to_string(), price_list);
+    }
 }
 
 pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
@@ -135,9 +208,6 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
     let quantity_rules = resolved_object_list_field(input, "quantityRulesToAdd");
     for (index, rule) in quantity_rules.iter().enumerate() {
         let index = index.to_string();
-        let minimum = resolved_int_field(rule, "minimum").unwrap_or(1);
-        let maximum = resolved_int_field(rule, "maximum");
-        let increment = resolved_int_field(rule, "increment").unwrap_or(1);
         let variant_id = resolved_string_field(rule, "variantId").unwrap_or_default();
         if !store.has_product_variant_reference(&variant_id) {
             return vec![quantity_pricing_error(
@@ -146,50 +216,50 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
                 "Variant not found.",
             )];
         }
-        if minimum < 1 {
-            return vec![
-                quantity_pricing_error(
-                    vec!["input", "quantityRulesToAdd", &index],
-                    "QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE",
-                    "Minimum is less than one",
-                ),
-                quantity_pricing_error(
-                    vec!["input", "quantityRulesToAdd", &index],
-                    "QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM",
-                    "Increment is greater than minimum",
-                ),
-            ];
-        }
-        if increment < 1 {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE",
-                "Increment is less than one",
-            )];
-        }
-        if maximum.map(|max| minimum > max).unwrap_or(false) {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM",
-                "Minimum is greater than maximum",
-            )];
-        }
-        if minimum % increment != 0 {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
-                "minimum is not a multiple of increment",
-            )];
-        }
-        if maximum.map(|max| max % increment != 0).unwrap_or(false) {
-            return vec![quantity_pricing_error(
-                vec!["input", "quantityRulesToAdd", &index],
-                "QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
-                "Maximum is not a multiple of increment",
-            )];
+        let bounds = quantity_bounds_from_rule(rule);
+        if let Some(violations) = quantity_pricing_bounds_violations(bounds) {
+            return violations
+                .into_iter()
+                .map(|violation| quantity_pricing_bounds_error(&index, violation))
+                .collect();
         }
     }
     Vec::new()
+}
+
+fn quantity_pricing_bounds_error(index: &str, violation: QuantityBoundsViolation) -> Value {
+    match violation {
+        QuantityBoundsViolation::MinimumLessThanOne => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE",
+            "Minimum is less than one",
+        ),
+        QuantityBoundsViolation::IncrementLessThanOne => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE",
+            "Increment is less than one",
+        ),
+        QuantityBoundsViolation::IncrementGreaterThanMinimum => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM",
+            "Increment is greater than minimum",
+        ),
+        QuantityBoundsViolation::MinimumGreaterThanMaximum => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM",
+            "Minimum is greater than maximum",
+        ),
+        QuantityBoundsViolation::MinimumNotMultipleOfIncrement => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+            "minimum is not a multiple of increment",
+        ),
+        QuantityBoundsViolation::MaximumNotMultipleOfIncrement => quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", index],
+            "QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT",
+            "Maximum is not a multiple of increment",
+        ),
+    }
 }
 
 pub(in crate::proxy) fn quantity_pricing_error(

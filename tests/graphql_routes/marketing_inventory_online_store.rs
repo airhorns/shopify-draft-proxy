@@ -2808,6 +2808,475 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
 }
 
 #[test]
+fn location_inventory_levels_overlay_and_args() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-BETA");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Location Level Source");
+    let destination_location_id =
+        add_inventory_test_location(&mut proxy, "Location Level Destination");
+    let source_level_id = inventory_level_id_for_test(&first_item_id, &source_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLocationInventoryLevels($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": source_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustLocationInventoryLevel($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "delta": 3, "changeFromQuantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsActive($locationId: ID!, $firstItemQuery: String!) {
+          location(id: $locationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+            firstPage: inventoryLevels(first: 1) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, query: $firstItemQuery) {
+              nodes { item { id } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "locationId": source_location_id,
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    let location_levels = &active_read.body["data"]["location"]["inventoryLevels"]["nodes"];
+    assert_eq!(
+        location_levels,
+        &json!([
+            {
+                "item": {"id": first_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 7},
+                    {"name": "on_hand", "quantity": 7}
+                ]
+            },
+            {
+                "item": {"id": second_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 8},
+                    {"name": "on_hand", "quantity": 8}
+                ]
+            }
+        ])
+    );
+    let item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FirstItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              location { id name }
+              quantities(names: ["available", "on_hand"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": source_location_id}),
+    ));
+    assert_eq!(
+        item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        location_levels[0]
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["firstPage"],
+        json!({
+            "nodes": [{"item": {"id": first_item_id}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": source_level_id
+            }
+        })
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["filtered"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDestinationLevel($inventoryItemId: ID!, $locationId: ID!, $idempotencyKey: String!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": first_item_id,
+            "locationId": destination_location_id,
+            "idempotencyKey": "location-level-activate"
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateSourceLevel($inventoryLevelId: ID!, $idempotencyKey: String!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": source_level_id,
+            "idempotencyKey": "location-level-deactivate"
+        }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let inactive_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsInactive(
+          $sourceLocationId: ID!
+          $destinationLocationId: ID!
+          $firstItemId: ID!
+          $after: String!
+          $before: String!
+          $firstItemQuery: String!
+        ) {
+          source: location(id: $sourceLocationId) {
+            activeLevels: inventoryLevels(first: 10) {
+              nodes { item { id } isActive }
+            }
+            allLevels: inventoryLevels(first: 10, includeInactive: true) {
+              nodes { item { id } isActive }
+            }
+            afterFirst: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeSecond: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, includeInactive: true, query: $firstItemQuery) {
+              nodes {
+                item { id }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+          destination: location(id: $destinationLocationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                isActive
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "sourceLocationId": source_location_id,
+            "destinationLocationId": destination_location_id,
+            "firstItemId": first_item_id,
+            "after": source_level_id,
+            "before": inventory_level_id_for_test(&second_item_id, &source_location_id),
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    assert_eq!(
+        inactive_read.body["data"]["source"]["activeLevels"]["nodes"],
+        json!([{ "item": { "id": second_item_id }, "isActive": true }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["allLevels"]["nodes"],
+        json!([
+            { "item": { "id": first_item_id }, "isActive": false },
+            { "item": { "id": second_item_id }, "isActive": true }
+        ])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["afterFirst"]["nodes"],
+        json!([{ "item": { "id": second_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["beforeSecond"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["filtered"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 7}]
+        }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["destination"]["inventoryLevels"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "isActive": true,
+            "quantities": [{"name": "available", "quantity": 0}]
+        }])
+    );
+    let destination_item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query DestinationItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              quantities(names: ["available"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": destination_location_id}),
+    ));
+    assert_eq!(
+        destination_item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        json!({
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 0}]
+        })
+    );
+}
+
+#[test]
+fn location_inventory_levels_preserves_hydrated_untouched_levels() {
+    let location_id = "gid://shopify/Location/9001";
+    let first_item_id = "gid://shopify/InventoryItem/9002";
+    let second_item_id = "gid://shopify/InventoryItem/9003";
+    let first_level_id =
+        "gid://shopify/InventoryLevel/9002-9001?inventory_item_id=gid://shopify/InventoryItem/9002";
+    let second_level_id =
+        "gid://shopify/InventoryLevel/9003-9001?inventory_item_id=gid://shopify/InventoryItem/9003";
+    let location_node = json!({
+        "__typename": "Location",
+        "id": location_id,
+        "name": "Hydrated Stockroom",
+        "isActive": true,
+        "isFulfillmentService": false,
+        "inventoryLevels": {
+            "nodes": [
+                {
+                    "id": first_level_id,
+                    "isActive": true,
+                    "item": { "id": first_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 5 },
+                        { "name": "on_hand", "quantity": 5 }
+                    ]
+                },
+                {
+                    "id": second_level_id,
+                    "isActive": true,
+                    "item": { "id": second_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 12 },
+                        { "name": "on_hand", "quantity": 12 }
+                    ]
+                }
+            ]
+        }
+    });
+    let first_item_node = json!({
+        "__typename": "InventoryItem",
+        "id": first_item_id,
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/9002",
+            "title": "Hydrated Alpha",
+            "sku": "HYDRATED-ALPHA",
+            "inventoryQuantity": 5,
+            "product": {
+                "id": "gid://shopify/Product/9002",
+                "title": "Hydrated Product",
+                "handle": "hydrated-product",
+                "status": "ACTIVE",
+                "totalInventory": 5,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": {
+            "nodes": [{
+                "id": first_level_id,
+                "isActive": true,
+                "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                "quantities": [
+                    { "name": "available", "quantity": 5 },
+                    { "name": "on_hand", "quantity": 5 }
+                ]
+            }]
+        }
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        let location_node = location_node.clone();
+        let first_item_node = first_item_node.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("upstream inventory hydration body parses");
+            upstream_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("node(id:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "node": location_node.clone() } }),
+                };
+            }
+            if query.contains("nodes(ids:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": [first_item_node.clone(), location_node.clone()] } }),
+                };
+            }
+            panic!("unexpected upstream inventory request: {body}");
+        }
+    });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateLocationInventoryLevels($id: ID!) {
+          node(id: $id) {
+            ... on Location {
+              id
+              name
+              inventoryLevels(first: 10) {
+                nodes {
+                  id
+                  isActive
+                  item { id }
+                  location { id name }
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(hydrate.body["data"]["node"]["id"], json!(location_id));
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustHydratedLocationLevel(
+          $input: InventoryAdjustQuantitiesInput!
+          $idempotencyKey: String!
+        ) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "idempotencyKey": "hydrated-location-level-adjust",
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "changes": [{
+                    "inventoryItemId": first_item_id,
+                    "locationId": location_id,
+                    "delta": 3,
+                    "changeFromQuantity": 5
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedLocationInventoryLevels($id: ID!) {
+          location(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"]["inventoryLevels"]["nodes"],
+        json!([
+            {
+                "item": { "id": first_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 8 },
+                    { "name": "on_hand", "quantity": 8 }
+                ]
+            },
+            {
+                "item": { "id": second_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 12 },
+                    { "name": "on_hand", "quantity": 12 }
+                ]
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        2,
+        "location read after staging should use local hydrated state"
+    );
+}
+
+#[test]
 fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ADJUST-ROOT");
@@ -13413,163 +13882,6 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
 }
 
 #[test]
-fn online_store_nested_blog_articles_connection_honors_args_and_staged_writes() {
-    let mut proxy = snapshot_proxy();
-
-    let blog = proxy.process_request(json_graphql_request(
-        r#"
-        mutation NestedArticleBlog {
-          blogCreate(blog: { title: "Nested article blog" }) {
-            blog { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(blog.body["data"]["blogCreate"]["userErrors"], json!([]));
-    let blog_id = blog.body["data"]["blogCreate"]["blog"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let mut article_ids = Vec::<(String, String)>::new();
-    for title in [
-        "Alpha nested article",
-        "Bravo nested article",
-        "Charlie nested article",
-    ] {
-        let create = proxy.process_request(json_graphql_request(
-            r#"
-            mutation NestedArticleCreate($article: ArticleCreateInput!) {
-              articleCreate(article: $article) {
-                article { id title }
-                userErrors { field message code }
-              }
-            }
-            "#,
-            json!({
-                "article": {
-                    "title": title,
-                    "blogId": blog_id,
-                    "author": { "name": "Nested Author" }
-                }
-            }),
-        ));
-        assert_eq!(
-            create.body["data"]["articleCreate"]["userErrors"],
-            json!([])
-        );
-        article_ids.push((
-            title.to_string(),
-            create.body["data"]["articleCreate"]["article"]["id"]
-                .as_str()
-                .unwrap()
-                .to_string(),
-        ));
-    }
-
-    let alpha_id = article_ids
-        .iter()
-        .find(|(title, _)| title.starts_with("Alpha"))
-        .unwrap()
-        .1
-        .clone();
-    let bravo_id = article_ids
-        .iter()
-        .find(|(title, _)| title.starts_with("Bravo"))
-        .unwrap()
-        .1
-        .clone();
-    let charlie_id = article_ids
-        .iter()
-        .find(|(title, _)| title.starts_with("Charlie"))
-        .unwrap()
-        .1
-        .clone();
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query NestedBlogArticles($blogId: ID!, $after: String!, $before: String!) {
-          firstPage: blog(id: $blogId) {
-            articlesFirst: articles(first: 2) {
-              nodes { id title }
-              edges { cursor node { id } }
-              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-            }
-          }
-          afterPage: blog(id: $blogId) {
-            articlesAfter: articles(first: 2, after: $after) {
-              nodes { id title }
-              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-            }
-          }
-          beforePage: blog(id: $blogId) {
-            articlesBefore: articles(last: 1, before: $before) {
-              nodes { id title }
-              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-            }
-          }
-          reversePage: blog(id: $blogId) {
-            articlesReverse: articles(first: 2, reverse: true) {
-              nodes { id title }
-              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-            }
-          }
-        }
-        "#,
-        json!({"blogId": blog_id, "after": bravo_id, "before": charlie_id}),
-    ));
-
-    assert_eq!(
-        read.body["data"]["firstPage"]["articlesFirst"]["nodes"],
-        json!([
-            {"id": alpha_id, "title": "Alpha nested article"},
-            {"id": bravo_id, "title": "Bravo nested article"}
-        ])
-    );
-    assert_eq!(
-        read.body["data"]["firstPage"]["articlesFirst"]["edges"],
-        json!([
-            {"cursor": alpha_id, "node": {"id": alpha_id}},
-            {"cursor": bravo_id, "node": {"id": bravo_id}}
-        ])
-    );
-    assert_eq!(
-        read.body["data"]["firstPage"]["articlesFirst"]["pageInfo"],
-        json!({
-            "hasNextPage": true,
-            "hasPreviousPage": false,
-            "startCursor": alpha_id,
-            "endCursor": bravo_id
-        })
-    );
-    assert_eq!(
-        read.body["data"]["afterPage"]["articlesAfter"]["nodes"],
-        json!([{"id": charlie_id, "title": "Charlie nested article"}])
-    );
-    assert_eq!(
-        read.body["data"]["afterPage"]["articlesAfter"]["pageInfo"]["hasPreviousPage"],
-        json!(true)
-    );
-    assert_eq!(
-        read.body["data"]["beforePage"]["articlesBefore"]["nodes"],
-        json!([{"id": bravo_id, "title": "Bravo nested article"}])
-    );
-    assert_eq!(
-        read.body["data"]["beforePage"]["articlesBefore"]["pageInfo"]["hasNextPage"],
-        json!(true)
-    );
-    assert_eq!(
-        read.body["data"]["reversePage"]["articlesReverse"]["nodes"],
-        json!([
-            {"id": charlie_id, "title": "Charlie nested article"},
-            {"id": bravo_id, "title": "Bravo nested article"}
-        ])
-    );
-}
-
-#[test]
 fn online_store_content_back_references_project_full_parent_records() {
     let comment_id = "gid://shopify/Comment/9203";
     let hydrated_article_id = Arc::new(Mutex::new(String::new()));
@@ -13800,6 +14112,163 @@ fn online_store_content_back_references_project_full_parent_records() {
 }
 
 #[test]
+fn online_store_nested_blog_articles_connection_honors_args_and_staged_writes() {
+    let mut proxy = snapshot_proxy();
+
+    let blog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NestedArticleBlog {
+          blogCreate(blog: { title: "Nested article blog" }) {
+            blog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(blog.body["data"]["blogCreate"]["userErrors"], json!([]));
+    let blog_id = blog.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut article_ids = Vec::<(String, String)>::new();
+    for title in [
+        "Alpha nested article",
+        "Bravo nested article",
+        "Charlie nested article",
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NestedArticleCreate($article: ArticleCreateInput!) {
+              articleCreate(article: $article) {
+                article { id title }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "article": {
+                    "title": title,
+                    "blogId": blog_id,
+                    "author": { "name": "Nested Author" }
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["articleCreate"]["userErrors"],
+            json!([])
+        );
+        article_ids.push((
+            title.to_string(),
+            create.body["data"]["articleCreate"]["article"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        ));
+    }
+
+    let alpha_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Alpha"))
+        .unwrap()
+        .1
+        .clone();
+    let bravo_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Bravo"))
+        .unwrap()
+        .1
+        .clone();
+    let charlie_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Charlie"))
+        .unwrap()
+        .1
+        .clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedBlogArticles($blogId: ID!, $after: String!, $before: String!) {
+          firstPage: blog(id: $blogId) {
+            articlesFirst: articles(first: 2) {
+              nodes { id title }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          afterPage: blog(id: $blogId) {
+            articlesAfter: articles(first: 2, after: $after) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          beforePage: blog(id: $blogId) {
+            articlesBefore: articles(last: 1, before: $before) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          reversePage: blog(id: $blogId) {
+            articlesReverse: articles(first: 2, reverse: true) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"blogId": blog_id, "after": bravo_id, "before": charlie_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["nodes"],
+        json!([
+            {"id": alpha_id, "title": "Alpha nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["edges"],
+        json!([
+            {"cursor": alpha_id, "node": {"id": alpha_id}},
+            {"cursor": bravo_id, "node": {"id": bravo_id}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha_id,
+            "endCursor": bravo_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["nodes"],
+        json!([{"id": charlie_id, "title": "Charlie nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["nodes"],
+        json!([{"id": bravo_id, "title": "Bravo nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["articlesReverse"]["nodes"],
+        json!([
+            {"id": charlie_id, "title": "Charlie nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
+}
+
+#[test]
 fn online_store_articles_published_status_query_controls_visibility() {
     let mut proxy = snapshot_proxy();
 
@@ -13855,6 +14324,8 @@ fn online_store_articles_published_status_query_controls_visibility() {
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
           byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
           byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          bareTagText: articles(first: 10, query: "status-tag") { nodes { id title } }
+          bareHandleText: articles(first: 10, query: "published-article") { nodes { id title } }
           byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
           draftTagDefault: articles(first: 10, query: "draft-tag") { nodes { id title isPublished } }
           draftTagAny: articles(first: 10, query: "published_status:any draft-tag") { nodes { id title isPublished } }
@@ -13893,6 +14364,8 @@ fn online_store_articles_published_status_query_controls_visibility() {
         json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
     assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["bareTagText"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["bareHandleText"]["nodes"], json!([]));
     assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
     assert_eq!(read.body["data"]["draftTagDefault"]["nodes"], json!([]));
     assert_eq!(

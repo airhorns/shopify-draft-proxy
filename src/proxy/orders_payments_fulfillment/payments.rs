@@ -673,6 +673,29 @@ fn payment_transaction_supports_final_capture(transaction: &Value) -> bool {
     transaction["gateway"].as_str() == Some("shopify_payments")
 }
 
+pub(in crate::proxy) fn payment_user_error(
+    field: Value,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    user_error_omit_code(field, message, code)
+}
+
+fn payment_capture_error(
+    order: &Value,
+    field: Value,
+    message: impl Into<String>,
+    code: Option<&str>,
+) -> Option<(Value, Value, Vec<Value>, Vec<String>)> {
+    let message = message.into();
+    Some((
+        Value::Null,
+        order.clone(),
+        vec![payment_user_error(field, &message, code)],
+        Vec::new(),
+    ))
+}
+
 pub(in crate::proxy) fn payment_order_record(
     id: &str,
     display_financial_status: &str,
@@ -1501,16 +1524,12 @@ impl DraftProxy {
                     .cloned()
             });
         let Some(parent_transaction) = parent_transaction else {
-            return Some((
+            return payment_capture_error(
+                order,
                 Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    Value::Null,
-                    "Unable to find parent transaction",
-                    None,
-                )],
-                Vec::new(),
-            ));
+                "Unable to find parent transaction",
+                None,
+            );
         };
         let parent_id = parent_transaction["id"]
             .as_str()
@@ -1535,56 +1554,40 @@ impl DraftProxy {
         if (requires_currency || currency.is_some())
             && currency.as_deref() != Some(expected_currency.as_str())
         {
-            return Some((
-                Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    json!(["currency"]),
-                    &format!("Currency Currency must match parent transaction {expected_currency}"),
-                    None,
-                )],
-                Vec::new(),
-            ));
+            return payment_capture_error(
+                order,
+                json!(["currency"]),
+                format!("Currency Currency must match parent transaction {expected_currency}"),
+                None,
+            );
         }
         if requested_amount_value <= 0.0 {
-            return Some((
+            return payment_capture_error(
+                order,
                 Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    Value::Null,
-                    "Amount must be greater than zero for capture transactions",
-                    None,
-                )],
-                Vec::new(),
-            ));
+                "Amount must be greater than zero for capture transactions",
+                None,
+            );
         }
         if parent_transaction["kind"].as_str() != Some("AUTHORIZATION")
             || parent_transaction["status"].as_str() != Some("SUCCESS")
         {
-            return Some((
-                Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    json!(["parent_transaction_id"]),
-                    "Parent transaction must be a successful authorization",
-                    Some("INVALID_TRANSACTION_STATE"),
-                )],
-                Vec::new(),
-            ));
+            return payment_capture_error(
+                order,
+                json!(["parent_transaction_id"]),
+                "Parent transaction must be a successful authorization",
+                Some("INVALID_TRANSACTION_STATE"),
+            );
         }
         if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
             && !payment_transaction_supports_final_capture(&parent_transaction)
         {
-            return Some((
+            return payment_capture_error(
+                order,
                 Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    Value::Null,
-                    FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
-                    None,
-                )],
-                Vec::new(),
-            ));
+                FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
+                None,
+            );
         }
         let already_captured: f64 = transactions
             .iter()
@@ -1609,20 +1612,12 @@ impl DraftProxy {
             } else {
                 "Amount exceeds capturable amount".to_string()
             };
-            return Some((
-                Value::Null,
-                order.clone(),
-                vec![user_error_omit_code(
-                    if parent_amount_set.get("presentmentMoney").is_some() {
-                        Value::Null
-                    } else {
-                        json!(["amount"])
-                    },
-                    &message,
-                    Some("OVER_CAPTURE"),
-                )],
-                Vec::new(),
-            ));
+            let field = if parent_amount_set.get("presentmentMoney").is_some() {
+                Value::Null
+            } else {
+                json!(["amount"])
+            };
+            return payment_capture_error(order, field, message, Some("OVER_CAPTURE"));
         }
         let remaining_amount = if final_capture {
             0.0
@@ -1864,53 +1859,38 @@ impl DraftProxy {
             required_errors.push(payment_customization_required_input_field_error("enabled"));
         }
         if !required_errors.is_empty() {
-            return payment_customization_payload(
-                None,
-                &field.selection,
-                required_errors,
-                None,
-                None,
-            );
+            return payment_customization_error_payload(&field.selection, required_errors);
         }
         if function_id.is_some() && function_handle.is_some() {
-            return payment_customization_payload(
-                None,
+            return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_user_error(
                     vec!["paymentCustomization"],
                     "MULTIPLE_FUNCTION_IDENTIFIERS",
                     "Only one of function_id or function_handle can be provided, not both.",
                 )],
-                None,
-                None,
             );
         }
         if function_id.is_none() && function_handle.is_none() {
-            return payment_customization_payload(
-                None,
+            return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_user_error(
                     vec!["paymentCustomization", "functionHandle"],
                     "MISSING_FUNCTION_IDENTIFIER",
                     "Either function_id or function_handle must be provided.",
                 )],
-                None,
-                None,
             );
         }
         let resolved_function = if let Some(handle) = function_handle.as_deref() {
             let Some(function) =
                 self.resolve_payment_customization_function(request, None, Some(handle))
             else {
-                return payment_customization_payload(
-                    None,
+                return payment_customization_error_payload(
                     &field.selection,
                     vec![payment_customization_function_not_found_error(
                         handle,
                         &request_api_client_id(request),
                     )],
-                    None,
-                    None,
                 );
             };
             Some(function)
@@ -1919,13 +1899,7 @@ impl DraftProxy {
         };
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
-            return payment_customization_payload(
-                None,
-                &field.selection,
-                metafield_errors,
-                None,
-                None,
-            );
+            return payment_customization_error_payload(&field.selection, metafield_errors);
         }
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
@@ -1936,7 +1910,7 @@ impl DraftProxy {
             .staged
             .payment_customizations
             .insert(id.clone(), record.clone());
-        payment_customization_payload(Some(&record), &field.selection, Vec::new(), None, None)
+        payment_customization_record_payload(&record, &field.selection)
     }
 
     pub(in crate::proxy) fn payment_customization_update_payload(
@@ -1949,52 +1923,40 @@ impl DraftProxy {
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
         let Some(existing) = self.store.staged.payment_customizations.get(&id).cloned() else {
-            return payment_customization_payload(
-                None,
+            return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_not_found_error(&id)],
-                None,
-                None,
             );
         };
 
         if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
-            return payment_customization_payload(
-                None,
+            return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_required_input_field_error("title")],
-                None,
-                None,
             );
         }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
             let Some(function) =
                 self.resolve_payment_customization_function(request, None, Some(&handle))
             else {
-                return payment_customization_payload(
-                    None,
+                return payment_customization_error_payload(
                     &field.selection,
                     vec![payment_customization_function_not_found_error(
                         &handle,
                         &request_api_client_id(request),
                     )],
-                    None,
-                    None,
                 );
             };
             let Some(function_key) = function["id"]
                 .as_str()
                 .map(payment_customization_function_key)
             else {
-                return payment_customization_payload(
-                    None,
+                return payment_customization_error_payload(
                     &field.selection,
                     vec![payment_customization_function_not_found_error(
                         &handle,
                         &request_api_client_id(request),
                     )],
-                    None,
-                    None,
                 );
             };
             if !self.payment_customization_record_matches_function_key(
@@ -2002,14 +1964,11 @@ impl DraftProxy {
                 &existing,
                 &function_key,
             ) {
-                return payment_customization_payload(
-                    None,
+                return payment_customization_error_payload(
                     &field.selection,
                     vec![payment_customization_immutable_function_error(
                         "functionHandle",
                     )],
-                    None,
-                    None,
                 );
             }
         }
@@ -2020,24 +1979,15 @@ impl DraftProxy {
                 &existing,
                 &function_key,
             ) {
-                return payment_customization_payload(
-                    None,
+                return payment_customization_error_payload(
                     &field.selection,
                     vec![payment_customization_immutable_function_error("functionId")],
-                    None,
-                    None,
                 );
             }
         }
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
-            return payment_customization_payload(
-                None,
-                &field.selection,
-                metafield_errors,
-                None,
-                None,
-            );
+            return payment_customization_error_payload(&field.selection, metafield_errors);
         }
 
         let mut updated = existing;
@@ -2055,7 +2005,7 @@ impl DraftProxy {
             .staged
             .payment_customizations
             .insert(id.clone(), updated.clone());
-        payment_customization_payload(Some(&updated), &field.selection, Vec::new(), None, None)
+        payment_customization_record_payload(&updated, &field.selection)
     }
 
     pub(in crate::proxy) fn payment_customization_activation_payload(
