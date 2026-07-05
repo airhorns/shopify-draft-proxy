@@ -1,0 +1,41 @@
+{
+  "scenarioId": "segment-staged-catalog-roots",
+  "operationNames": [
+    "segmentCreate",
+    "segments",
+    "segmentFilters",
+    "segmentFilterSuggestions",
+    "segmentValueSuggestions",
+    "segmentMigrations"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "suggestion-shape", "search-filter"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-staged-catalog-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-staged-catalog-create.graphql",
+    "variablesCapturePath": "$.operations.create.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged-read-preserves-catalog-roots",
+        "capturePath": "$.operations.read.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-staged-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.read.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.filters", "$.filterSuggestions", "$.valueSuggestions", "$.migrations"]
+      }
+    ]
+  },
+  "notes": "Creates a disposable segment through the public segmentCreate mutation, then reads segment catalog roots in the same operation as the staged segments connection. The comparison intentionally targets only the catalog roots because Shopify and the proxy allocate different Segment IDs/timestamps for the staged segment itself."
+}

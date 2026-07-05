@@ -3,6 +3,7 @@ query CustomerDeleteOrderPreconditionRead($id: ID!) {
     id
     email
     displayName
+    canDelete
     orders(first: 5) {
       nodes {
         id

@@ -1,0 +1,76 @@
+{
+  "scenarioId": "product-category-validation",
+  "operationNames": ["productCreate", "productUpdate", "productSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "top-level-error-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-category-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCategoryValidation-productCreate.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 validation evidence for Product category taxonomy IDs. The setup creates a local product; the strict targets prove that unknown taxonomy category IDs return top-level INVALID_PRODUCT_TAXONOMY_NODE_ID for productCreate, productUpdate, and productSet without staging a product-category object with null fullName.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify and the local staging registry allocate setup product ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "setup-product-create-data",
+        "capturePath": "$.setup.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "product-create-unknown-category-error",
+        "capturePath": "$.captures.productCreateUnknownCategory.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCategoryValidation-productCreate.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.captures.productCreateUnknownCategory.variables"
+        }
+      },
+      {
+        "name": "product-update-unknown-category-error",
+        "capturePath": "$.captures.productUpdateUnknownCategory.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCategoryValidation-productUpdate.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "category": {
+                "fromCapturePath": "$.captures.productUpdateUnknownCategory.variables.product.category"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "product-set-unknown-category-error",
+        "capturePath": "$.captures.productSetUnknownCategory.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCategoryValidation-productSet.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.captures.productSetUnknownCategory.variables"
+        }
+      }
+    ]
+  }
+}

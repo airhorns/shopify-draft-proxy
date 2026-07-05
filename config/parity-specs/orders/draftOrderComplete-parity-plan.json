@@ -9,10 +9,13 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.variables.json",
-    "variablesCapturePath": "$.variables"
+    "variablesCapturePath": "$.variables",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The live capture completes a disposable draft (harry-test-heelo), verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The proxy resolves the precondition draft via a real cold OrdersDraftOrderHydrate forward (the fixture's single upstreamCall) rather than a setup-block seed, then replays completion locally. Expected differences are limited to Shopify-generated completion/order identity values.",
+  "notes": "The live capture completes a disposable draft (harry-test-heelo), verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The selected mutation/downstream draft-order targets include DraftOrder line-item subtotal/tax rollups and the completed Order subtotal/total/tax/received money bags. The proxy resolves the precondition draft via a real cold OrdersDraftOrderHydrate forward (the fixture's single upstreamCall) rather than a setup-block seed, then replays completion locally. Expected differences are limited to Shopify-generated completion/order identity values.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

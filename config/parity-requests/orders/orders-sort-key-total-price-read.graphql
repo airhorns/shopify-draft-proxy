@@ -1,0 +1,28 @@
+query OrdersSortKeyTotalPriceRead($query: String!) {
+    totalPriceOrder: orders(first: 10, query: $query, sortKey: TOTAL_PRICE) {
+      nodes {
+        email
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    reverseWindow: orders(first: 1, query: $query, sortKey: TOTAL_PRICE, reverse: true) {
+      nodes {
+        email
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }

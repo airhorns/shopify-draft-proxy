@@ -1,0 +1,25 @@
+mutation OrdersSortKeyTotalPriceDraftComplete($id: ID!, $paymentPending: Boolean!) {
+    draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+      draftOrder {
+        id
+        email
+        tags
+        status
+        order {
+          id
+          email
+          tags
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

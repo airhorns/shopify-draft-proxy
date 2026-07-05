@@ -29,6 +29,7 @@ Implemented read roots:
 - `marketsResolvedValues`
 - `marketLocalizableResource`
 - `marketLocalizableResources`
+- `marketLocalizableResourcesByIds`
 
 Implemented mutation roots:
 
@@ -176,7 +177,13 @@ stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 `marketLocalizableResource` resolves only resource IDs observed in staged
 market-localizable resource state or staged market-scoped translations; unknown
-IDs return `null`.
+IDs return `null`. `marketLocalizableResources` lists observed localizable
+resources with selected `nodes`, `edges`, stable ID cursors, selected
+`pageInfo`, and standard cursor windows. `marketLocalizableResourcesByIds`
+projects only the observed requested `resourceIds` and omits unresolved IDs.
+In LiveHybrid mode, plural and ByIds reads forward upstream until a localizable
+resource has been observed; unrelated staged market, catalog, price-list, or
+web-presence state does not force a local empty resource connection.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value
