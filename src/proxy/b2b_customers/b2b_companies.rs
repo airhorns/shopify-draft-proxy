@@ -1019,7 +1019,7 @@ impl DraftProxy {
                     None,
                     vec![b2b_company_user_error(
                         vec!["input", "name"],
-                        "Name can't be blank",
+                        &blank_message("Name"),
                         BLANK_USER_ERROR_CODE,
                         None,
                     )],
@@ -3613,8 +3613,8 @@ fn b2b_location_input_errors(
             field.push("name");
             errors.push(b2b_company_user_error(
                 field,
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Name", 255),
+                TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
         }
@@ -4002,7 +4002,7 @@ fn b2b_contact_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             let mut field = prefix.to_vec();
             field.push("email");
             errors.push(b2b_company_user_error(
@@ -4248,7 +4248,7 @@ fn b2b_contact_create_input_errors(
         return errors;
     }
     if let Some(email) = resolved_string_field(input, "email") {
-        if !is_valid_customer_email(&email) {
+        if !shopify_email_is_valid(&email, EmailValidationMode::Basic) {
             errors.push(user_error(
                 json!(field_path("email")),
                 "Email is invalid",

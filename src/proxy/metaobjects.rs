@@ -484,22 +484,22 @@ fn metaobject_definition_create_validation_errors(
     if name.trim().is_empty() {
         errors.push(metaobject_field_error(
             vec!["definition", "name"],
-            "Name can't be blank",
-            "BLANK",
+            &blank_message("Name"),
+            BLANK_USER_ERROR_CODE,
         ));
     } else if name.chars().count() > 255 {
         errors.push(metaobject_field_error(
             vec!["definition", "name"],
-            "Name is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Name", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     }
 
-    if meta_type.is_empty() {
+    if meta_type.trim().is_empty() {
         errors.push(metaobject_field_error(
             vec!["definition", "type"],
-            "Type can't be blank",
-            "BLANK",
+            &blank_message("Type"),
+            BLANK_USER_ERROR_CODE,
         ));
     } else if meta_type.chars().count() < 3 {
         errors.push(metaobject_field_error(
@@ -510,8 +510,8 @@ fn metaobject_definition_create_validation_errors(
     } else if meta_type.chars().count() > 255 {
         errors.push(metaobject_field_error(
             vec!["definition", "type"],
-            "Type is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Type", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     } else if !token_chars_valid(meta_type) {
         errors.push(metaobject_field_error(
@@ -525,8 +525,8 @@ fn metaobject_definition_create_validation_errors(
         if description.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "description"],
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Description", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -655,8 +655,8 @@ fn push_metaobject_field_key_errors(
         // Blank keys surface Shopify's presence, length, and format errors in order.
         errors.push(metaobject_user_error(
             path.clone(),
-            "Key can't be blank",
-            "BLANK",
+            &blank_message("Key"),
+            BLANK_USER_ERROR_CODE,
             json!(key),
             Value::Null,
         ));
@@ -689,8 +689,8 @@ fn push_metaobject_field_key_errors(
     if key.chars().count() > MAX_FIELD_KEY_LENGTH {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
-            &format!("Key is too long (maximum is {MAX_FIELD_KEY_LENGTH} characters)"),
-            "TOO_LONG",
+            &too_long_message("Key", MAX_FIELD_KEY_LENGTH),
+            TOO_LONG_USER_ERROR_CODE,
             json!(key),
             Value::Null,
         ));
@@ -777,14 +777,14 @@ fn metaobject_definition_update_validation_errors(
         if name.trim().is_empty() {
             errors.push(metaobject_field_error(
                 vec!["definition", "name"],
-                "Name can't be blank",
-                "BLANK",
+                &blank_message("Name"),
+                BLANK_USER_ERROR_CODE,
             ));
         } else if name.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "name"],
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Name", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -792,8 +792,8 @@ fn metaobject_definition_update_validation_errors(
         if description.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "description"],
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Description", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -2011,15 +2011,15 @@ fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Va
     if handle.is_empty() {
         errors.push(metaobject_field_error(
             field.clone(),
-            "Handle can't be blank",
-            "BLANK",
+            &blank_message("Handle"),
+            BLANK_USER_ERROR_CODE,
         ));
     }
     if handle.len() > 255 {
         errors.push(metaobject_field_error(
             field.clone(),
-            "Handle is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Handle", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     }
     if handle.is_empty()

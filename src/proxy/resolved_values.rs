@@ -126,6 +126,13 @@ pub(in crate::proxy) fn resolved_string_field(
     }
 }
 
+pub(in crate::proxy) fn resolved_non_blank_string_field(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Option<String> {
+    resolved_string_field(arguments, name).filter(|value| !value.trim().is_empty())
+}
+
 pub(in crate::proxy) fn resolved_nullable_string_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,

@@ -310,13 +310,13 @@ pub(in crate::proxy) fn length_user_error(
     field_name: &str,
     bound: LengthUserErrorBound,
 ) -> Value {
-    let (message, code) = match bound {
-        LengthUserErrorBound::TooLong { maximum } => (
-            too_long_message(field_name, maximum),
-            TOO_LONG_USER_ERROR_CODE,
+    match bound {
+        LengthUserErrorBound::TooLong { maximum } => user_error(
+            field,
+            &too_long_message(field_name, maximum),
+            Some(TOO_LONG_USER_ERROR_CODE),
         ),
-    };
-    user_error(field, &message, Some(code))
+    }
 }
 
 pub(in crate::proxy) fn max_input_size_exceeded_error(

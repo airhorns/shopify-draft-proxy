@@ -3778,13 +3778,6 @@ fn discount_matches_query_with_status(record: &Value, query: &str, status: &str)
     true
 }
 
-fn resolved_non_blank_string_field(
-    input: &BTreeMap<String, ResolvedValue>,
-    field: &str,
-) -> Option<String> {
-    resolved_string_field(input, field).filter(|value| !value.trim().is_empty())
-}
-
 fn resolved_decimal_path_at_or_above(
     input: &BTreeMap<String, ResolvedValue>,
     path: &[&str],

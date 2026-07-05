@@ -1883,23 +1883,27 @@ impl DraftProxy {
     ) -> Option<Response> {
         let mut errors = Vec::new();
         match resolved_string_field(input, "title") {
-            Some(title) if title.chars().count() > 255 => errors.push(collection_user_error(
+            Some(title) if title.chars().count() > 255 => errors.push(user_error_omit_code(
                 ["title"],
-                "Title is too long (maximum is 255 characters)",
+                &too_long_message("Title", 255),
+                None,
             )),
-            Some(title) if title_required && title.trim().is_empty() => {
-                errors.push(collection_user_error(["title"], "Title can't be blank"))
-            }
-            None if title_required => {
-                errors.push(collection_user_error(["title"], "Title can't be blank"))
-            }
+            Some(title) if title_required && title.trim().is_empty() => errors.push(
+                user_error_omit_code(["title"], &blank_message("Title"), None),
+            ),
+            None if title_required => errors.push(user_error_omit_code(
+                ["title"],
+                &blank_message("Title"),
+                None,
+            )),
             _ => {}
         }
         if let Some(handle) = resolved_string_field(input, "handle") {
             if handle.chars().count() > 255 {
-                errors.push(collection_user_error(
+                errors.push(user_error_omit_code(
                     ["handle"],
-                    "Handle is too long (maximum is 255 characters)",
+                    &too_long_message("Handle", 255),
+                    None,
                 ));
             }
         }

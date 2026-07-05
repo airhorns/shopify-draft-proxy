@@ -1957,14 +1957,14 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         if b2b_strip_html_tags(&name).trim().is_empty() {
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "name"],
-                "Name can't be blank",
+                &blank_message("Name"),
                 BLANK_USER_ERROR_CODE,
                 None,
             ));
         } else if name.chars().count() > 255 {
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "name"],
-                "Name is too long (maximum is 255 characters)",
+                &too_long_message("Name", 255),
                 TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
@@ -1982,7 +1982,7 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
+                &too_long_message("Notes", 5000),
                 TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
@@ -2009,14 +2009,14 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         if b2b_strip_html_tags(&name).trim().is_empty() {
             errors.push(b2b_company_user_error(
                 vec!["input", "name"],
-                "Name can't be blank",
+                &blank_message("Name"),
                 BLANK_USER_ERROR_CODE,
                 None,
             ));
         } else if name.chars().count() > 255 {
             errors.push(b2b_company_user_error(
                 vec!["input", "name"],
-                "Name is too long (maximum is 255 characters)",
+                &too_long_message("Name", 255),
                 TOO_LONG_USER_ERROR_CODE,
                 None,
             ));
@@ -2034,7 +2034,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
+                &too_long_message("Notes", 5000),
                 TOO_LONG_USER_ERROR_CODE,
                 None,
             ));

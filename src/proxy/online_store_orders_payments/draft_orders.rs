@@ -1003,7 +1003,9 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
                 None,
             )]);
         }
-        if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+        if resolved_string_field(input, "email")
+            .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+        {
             return Some(vec![user_error_omit_code(
                 ["email"],
                 "Email is invalid",
@@ -1099,7 +1101,9 @@ pub(in crate::proxy) fn draft_order_calculate_user_errors(
             None,
         )]);
     }
-    if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+    if resolved_string_field(input, "email")
+        .is_some_and(|email| !shopify_email_is_valid(&email, EmailValidationMode::AtSign))
+    {
         return Some(vec![user_error_omit_code(
             ["email"],
             "Email is invalid",

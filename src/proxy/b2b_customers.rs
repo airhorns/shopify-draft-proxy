@@ -2227,10 +2227,11 @@ impl DraftProxy {
                     .count()
                     > 255
                 {
-                    errors.push(user_error_omit_code(
-                        customer_field_path(customer_set, "email"),
-                        "Email is too long (maximum is 255 characters)",
-                        None,
+                    errors.push(customer_length_user_error(
+                        customer_set,
+                        "email",
+                        "Email",
+                        255,
                     ));
                 }
                 errors.push(user_error_omit_code(
@@ -2260,10 +2261,11 @@ impl DraftProxy {
                 normalized.phone = Some(Some(phone));
             } else {
                 if raw_phone.trim().chars().count() > 255 {
-                    errors.push(user_error_omit_code(
-                        customer_field_path(customer_set, "phone"),
-                        "Phone is too long (maximum is 255 characters)",
-                        None,
+                    errors.push(customer_length_user_error(
+                        customer_set,
+                        "phone",
+                        "Phone",
+                        255,
                     ));
                 }
                 errors.push(user_error_omit_code(
@@ -2295,15 +2297,16 @@ impl DraftProxy {
         for field in ["firstName", "lastName"] {
             if let Some(value) = resolved_string_field(input, field) {
                 if value.chars().count() > 255 {
-                    let message = if field == "firstName" {
-                        "First name is too long (maximum is 255 characters)"
+                    let field_name = if field == "firstName" {
+                        "First name"
                     } else {
-                        "Last name is too long (maximum is 255 characters)"
+                        "Last name"
                     };
-                    errors.push(user_error_omit_code(
-                        customer_field_path(customer_set, field),
-                        message,
-                        None,
+                    errors.push(customer_length_user_error(
+                        customer_set,
+                        field,
+                        field_name,
+                        255,
                     ));
                 }
                 let normalized_value = blank_string_to_option(value.trim().to_string());
@@ -2323,10 +2326,11 @@ impl DraftProxy {
 
         if let Some(note) = resolved_string_field(input, "note") {
             if note.chars().count() > 5000 {
-                errors.push(user_error_omit_code(
-                    customer_field_path(customer_set, "note"),
-                    "Note is too long (maximum is 5000 characters)",
-                    None,
+                errors.push(customer_length_user_error(
+                    customer_set,
+                    "note",
+                    "Note",
+                    5000,
                 ));
             }
             normalized.note = Some(Some(note));
@@ -2337,10 +2341,11 @@ impl DraftProxy {
         if input.contains_key("tags") {
             let tags = raw_taggable_tags_argument(input.get("tags"));
             if tags.iter().any(|tag| tag.chars().count() > 255) {
-                errors.push(user_error_omit_code(
-                    customer_field_path(customer_set, "tags"),
-                    "Tags is too long (maximum is 255 characters)",
-                    None,
+                errors.push(customer_length_user_error(
+                    customer_set,
+                    "tags",
+                    "Tags",
+                    255,
                 ));
             }
             let normalized_tags = normalize_taggable_tags(tags);
@@ -3132,19 +3137,25 @@ fn customer_field_path(customer_set: bool, field: &str) -> Value {
     }
 }
 
+fn customer_length_user_error(
+    customer_set: bool,
+    field: &str,
+    field_name: &str,
+    maximum: usize,
+) -> Value {
+    user_error_omit_code(
+        customer_field_path(customer_set, field),
+        &too_long_message(field_name, maximum),
+        None,
+    )
+}
+
 fn normalize_customer_email(raw: &str) -> Option<String> {
     let email = raw.split_whitespace().collect::<String>().to_lowercase();
     if email.len() > 255 || email.is_empty() {
         return None;
     }
-    let (local, domain) = email.split_once('@')?;
-    if local.is_empty() || domain.is_empty() || domain.contains('@') {
-        return None;
-    }
-    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
-        return None;
-    }
-    Some(email)
+    shopify_email_is_valid(&email, EmailValidationMode::Basic).then_some(email)
 }
 
 fn customer_email_key(email: &str) -> String {
@@ -5846,28 +5857,4 @@ fn normalize_merged_customer_defaults(customer: &mut Value) {
     if customer["metafields"].is_null() {
         customer["metafields"] = nodes_connection(Vec::new());
     }
-}
-
-/// Basic email format validation matching Shopify's rules:
-/// must contain exactly one @, with non-empty local and domain parts,
-/// domain must contain a dot.
-pub(in crate::proxy) fn is_valid_customer_email(email: &str) -> bool {
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    let local = parts[0];
-    let domain = parts[1];
-    if local.is_empty() || domain.is_empty() {
-        return false;
-    }
-    // Domain must contain a dot and not start/end with a dot
-    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
-        return false;
-    }
-    // No spaces allowed
-    if email.contains(' ') {
-        return false;
-    }
-    true
 }
