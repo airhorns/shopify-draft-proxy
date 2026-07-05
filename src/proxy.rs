@@ -2019,6 +2019,7 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod schema_validation;
+mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;

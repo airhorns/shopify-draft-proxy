@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::split_search_query_terms;
 
 pub(in crate::proxy) fn saved_search_connection_json(
     records: &[SavedSearchRecord],
@@ -861,25 +862,7 @@ pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(St
 }
 
 pub(in crate::proxy) fn saved_search_query_tokens(query: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    for ch in query.chars() {
-        if ch == '"' {
-            in_quotes = !in_quotes;
-            current.push(ch);
-        } else if ch.is_whitespace() && !in_quotes {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
-            }
-        } else {
-            current.push(ch);
-        }
-    }
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-    tokens
+    split_search_query_terms(query, '"')
 }
 
 impl DraftProxy {

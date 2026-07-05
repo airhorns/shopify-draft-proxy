@@ -1921,7 +1921,7 @@ fn sorted_product_media_nodes_for_connection(
     let sort_key_name = resolved_string_field(arguments, "sortKey");
     sorted_indexed_records(
         media,
-        resolved_bool_field(arguments, "reverse").unwrap_or(false),
+        false,
         |media, index| product_media_sort_key(media, sort_key_name.as_deref(), index),
         value_id_cursor,
     )
