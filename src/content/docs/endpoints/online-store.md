@@ -14,10 +14,6 @@ Content roots:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
-URL redirect read roots from the metaobject redirect-new-handle slice:
-
-- Reads: `urlRedirect`, `urlRedirects`
-
 Presentation and integration roots:
 
 - Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
@@ -31,7 +27,7 @@ Supported lifecycle mutations are staged locally and logged with the original ra
 
 Effective `Article`, `Blog`, `Comment`, and `Page` records are exposed through generic `node(id:)` / `nodes(ids:)` dispatch. Those reads use the same local content serializers as the dedicated content roots, so staged page/article/blog create and update flows are visible through the Admin `Node` interface without runtime Shopify writes.
 
-URL redirect reads are local overlays for redirect rows staged by supported domain behavior, currently `metaobjectUpdate(..., metaobject: { handle, redirectNewHandle: true })` on online-store-renderable metaobjects. Snapshot mode returns local state only. Live-hybrid mode forwards cold `urlRedirect`/`urlRedirects` reads upstream when no local redirect state or requested local ID is present; once local redirect state exists, `urlRedirects` filters with the shared Admin search-query parser and supports `id:`, `path:`, `target:`, and default text terms. URL redirect create/update/delete/import/bulk-delete mutations remain unsupported and must not be treated as locally modeled lifecycle roots.
+URL redirect mutation/import/bulk-delete roots are registry-tracked but unimplemented in the local runtime. Cold LiveHybrid reads for `urlRedirect`, `urlRedirects`, and `urlRedirectsCount` forward upstream, and cold snapshot reads fail closed instead of emitting local placeholder data. The local runtime does expose staged URL redirects created by supported metaobject online-store handle changes: those staged reads support `urlRedirect(id:)`, `urlRedirects(query:)`, `urlRedirectsCount(query:)`, `path:` and `target:` filters, `ID`/`PATH`/`TARGET` sort keys, `reverse`, and cursor windows for the staged redirect slice. This staged readback does not make URL redirect create/update/delete/import roots supported; those mutations still passthrough or reject according to unsupported-mutation mode.
 
 ### Content read behavior
 

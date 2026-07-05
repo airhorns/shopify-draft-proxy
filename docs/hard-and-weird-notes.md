@@ -3483,7 +3483,7 @@ Practical rule:
 
 Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
 
-The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. A structurally invalid Customer GID such as `gid://shopify/Customer/no-contact-recipient` does not enter the recipient userError path at all; Admin GraphQL returns a top-level `RESOURCE_NOT_FOUND` error with message `Invalid id: <gid>` and a null root payload. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
 
 Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 

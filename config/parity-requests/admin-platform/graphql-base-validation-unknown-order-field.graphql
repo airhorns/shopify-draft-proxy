@@ -1,0 +1,8 @@
+query GraphqlBaseValidationUnknownOrderField {
+  orders(first: 1) {
+    nodes {
+      id
+      definitelyNotAnOrderField
+    }
+  }
+}

@@ -48,7 +48,7 @@ impl DraftProxy {
                                 .unwrap_or(Value::Null)
                         }
                     }
-                    "urlRedirects" => self
+                    "urlRedirects" | "urlRedirectsCount" => self
                         .url_redirect_query_data(std::slice::from_ref(field))
                         .get(&field.response_key)
                         .cloned()
@@ -246,6 +246,11 @@ impl DraftProxy {
             "mobilePlatformApplications" => {
                 !self.any_sales_channel_record(is_mobile_platform_application_record)
             }
+            "urlRedirect" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty() || !self.store.staged.url_redirects.contains_key(&id)
+            }
+            "urlRedirects" | "urlRedirectsCount" => !self.has_staged_url_redirects(),
             _ => false,
         }
     }
@@ -1446,6 +1451,9 @@ fn is_online_store_sales_channel_query_root(root: &str) -> bool {
             | "serverPixel"
             | "theme"
             | "themes"
+            | "urlRedirect"
+            | "urlRedirects"
+            | "urlRedirectsCount"
             | "webPixel"
     )
 }

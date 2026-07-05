@@ -1,0 +1,211 @@
+{
+  "scenarioId": "metafield-definition-validation-option-names",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-03T11:27:26.615Z",
+  "variables": {
+    "namespace": "validation_options_mr4umpah"
+  },
+  "primary": {
+    "request": {
+      "query": "mutation MetafieldDefinitionInvalidValidationOptions($namespace: String!) {\n  unsupportedNotRealOption: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unsupported validation option\"\n      namespace: $namespace\n      key: \"not_real_option\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"not_a_real_option\", value: \"x\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  unsupportedPattern: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unsupported pattern option\"\n      namespace: $namespace\n      key: \"pattern_option\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"pattern\", value: \".*\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  decimalBadMin: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid decimal min\"\n      namespace: $namespace\n      key: \"decimal_bad_min\"\n      ownerType: PRODUCT\n      type: \"number_decimal\"\n      validations: [{ name: \"min\", value: \"not-a-number\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  decimalValidRange: metafieldDefinitionCreate(\n    definition: {\n      name: \"Valid decimal range\"\n      namespace: $namespace\n      key: \"decimal_valid_range\"\n      ownerType: PRODUCT\n      type: \"number_decimal\"\n      validations: [{ name: \"min\", value: \"1.5\" }, { name: \"max\", value: \"9.9\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateUnsupportedSetup: metafieldDefinitionCreate(\n    definition: {\n      name: \"Update unsupported target\"\n      namespace: $namespace\n      key: \"update_unsupported\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateUnsupportedOption: metafieldDefinitionUpdate(\n    definition: {\n      namespace: $namespace\n      key: \"update_unsupported\"\n      ownerType: PRODUCT\n      validations: [{ name: \"not_a_real_option\", value: \"x\" }]\n    }\n  ) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n  updateDecimalSetup: metafieldDefinitionCreate(\n    definition: {\n      name: \"Update decimal target\"\n      namespace: $namespace\n      key: \"update_decimal\"\n      ownerType: PRODUCT\n      type: \"number_decimal\"\n      validations: [{ name: \"min\", value: \"1.5\" }, { name: \"max\", value: \"9.9\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateDecimalBadMin: metafieldDefinitionUpdate(\n    definition: {\n      namespace: $namespace\n      key: \"update_decimal\"\n      ownerType: PRODUCT\n      validations: [{ name: \"min\", value: \"not-a-number\" }]\n    }\n  ) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "namespace": "validation_options_mr4umpah"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "unsupportedNotRealOption": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option not_a_real_option contains an invalid value: 'not_a_real_option' isn't supported for single_line_text_field.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "unsupportedPattern": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option pattern contains an invalid value: 'pattern' isn't supported for single_line_text_field.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "decimalBadMin": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option min must be a decimal.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "decimalValidRange": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/222951735602",
+            "namespace": "validation_options_mr4umpah",
+            "key": "decimal_valid_range",
+            "type": {
+              "name": "number_decimal",
+              "category": "NUMBER"
+            },
+            "validations": [
+              {
+                "name": "min",
+                "value": "1.5"
+              },
+              {
+                "name": "max",
+                "value": "9.9"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "updateUnsupportedSetup": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/222951768370",
+            "namespace": "validation_options_mr4umpah",
+            "key": "update_unsupported"
+          },
+          "userErrors": []
+        },
+        "updateUnsupportedOption": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option not_a_real_option contains an invalid value: 'not_a_real_option' isn't supported for single_line_text_field.",
+              "code": "INVALID_OPTION"
+            }
+          ],
+          "validationJob": null
+        },
+        "updateDecimalSetup": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/222951801138",
+            "namespace": "validation_options_mr4umpah",
+            "key": "update_decimal"
+          },
+          "userErrors": []
+        },
+        "updateDecimalBadMin": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option min must be a decimal.",
+              "code": "INVALID_OPTION"
+            }
+          ],
+          "validationJob": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 90,
+          "actualQueryCost": 82,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1918,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n      mutation CleanupMetafieldDefinitionValidationOptionNames($id: ID!) {\n        metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n          deletedDefinitionId\n          userErrors {\n            field\n            message\n            code\n          }\n        }\n      }\n    ",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/222951735602"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/222951735602",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1942,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n      mutation CleanupMetafieldDefinitionValidationOptionNames($id: ID!) {\n        metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n          deletedDefinitionId\n          userErrors {\n            field\n            message\n            code\n          }\n        }\n      }\n    ",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/222951768370"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/222951768370",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1947,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n      mutation CleanupMetafieldDefinitionValidationOptionNames($id: ID!) {\n        metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n          deletedDefinitionId\n          userErrors {\n            field\n            message\n            code\n          }\n        }\n      }\n    ",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/222951801138"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/222951801138",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1950,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Live Shopify Admin API metafieldDefinitionCreate/metafieldDefinitionUpdate validation-option capture. It records unsupported option names on single_line_text_field, invalid number_decimal min coercion, and a valid number_decimal min/max control."
+}

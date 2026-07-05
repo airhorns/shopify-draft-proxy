@@ -75,6 +75,19 @@ pub(super) fn state_snapshot(proxy: &DraftProxy) -> Value {
     meta_snapshot(proxy, "/__meta/state")
 }
 
+pub(super) fn restore_state_with(proxy: &mut DraftProxy, mutate: impl FnOnce(&mut Value)) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    mutate(&mut restored["state"]);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
 fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
     let mut proxy = proxy.clone();
     let response = proxy.process_request(request_with_body("GET", path, ""));
@@ -89,17 +102,70 @@ pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) ->
     )
 }
 
+pub(super) fn omit_user_error_code_selection(query: &str) -> String {
+    let query = query
+        .replace("field message code", "field message")
+        .replace("field code message", "field message")
+        .replace("code field message", "field message");
+    let mut output = String::new();
+    let mut in_plain_user_errors = false;
+    for line in query.lines() {
+        let trimmed = line.trim();
+        if in_plain_user_errors && trimmed == "code" {
+            continue;
+        }
+        output.push_str(line);
+        output.push('\n');
+        if trimmed.starts_with("userErrors") && trimmed.ends_with('{') {
+            in_plain_user_errors = true;
+        } else if in_plain_user_errors && trimmed == "}" {
+            in_plain_user_errors = false;
+        }
+    }
+    output
+}
+
+pub(super) fn strip_user_error_codes(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(items.iter().map(strip_user_error_codes).collect()),
+        Value::Object(object) => {
+            let mut stripped = serde_json::Map::new();
+            for (key, child) in object {
+                if key == "userErrors" {
+                    stripped.insert(key.clone(), strip_code_from_user_errors(child));
+                } else {
+                    stripped.insert(key.clone(), strip_user_error_codes(child));
+                }
+            }
+            Value::Object(stripped)
+        }
+        _ => value.clone(),
+    }
+}
+
+fn strip_code_from_user_errors(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| match item {
+                    Value::Object(object) => {
+                        let mut stripped = object.clone();
+                        stripped.remove("code");
+                        Value::Object(stripped)
+                    }
+                    _ => item.clone(),
+                })
+                .collect(),
+        ),
+        _ => strip_user_error_codes(value),
+    }
+}
+
 pub(super) fn restore_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
-    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
-    assert_eq!(dump.status, 200);
-    let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
-    let restore = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &restored.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
+    restore_state_with(proxy, |state| {
+        state["baseState"]["shop"]["currencyCode"] = json!(currency_code);
+    });
 }
 
 pub(super) fn product_fixture(path: &str) -> Value {

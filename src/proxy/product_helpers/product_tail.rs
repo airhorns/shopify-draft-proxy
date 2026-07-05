@@ -31,9 +31,6 @@ impl DraftProxy {
         _parsed_root_fields: &[String],
     ) -> Option<Response> {
         let fields = root_fields(query, variables)?;
-        if let Some(response) = product_tail_invalid_enum_response(query, operation_type, &fields) {
-            return Some(response);
-        }
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {
                 matches!(
@@ -1566,52 +1563,6 @@ fn product_variant_component_rows(variant: &ProductVariantRecord) -> Vec<Value> 
         .unwrap_or_default()
 }
 
-fn product_tail_invalid_enum_response(
-    query: &str,
-    operation_type: OperationType,
-    fields: &[RootFieldSelection],
-) -> Option<Response> {
-    if operation_type != OperationType::Mutation || fields.len() != 1 {
-        return None;
-    }
-    let field = fields.first()?;
-    match field.name.as_str() {
-        "publicationCreate" => publication_default_state_invalid_variable(field).map(
-            |(variable_name, provided, state)| {
-                publication_default_state_invalid_response(query, &variable_name, &provided, &state)
-            },
-        ),
-        "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
-            Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "state"
-                    }
-                }]
-            })))
-        }
-        "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
-            Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "state"
-                    }
-                }]
-            })))
-        }
-        _ => None,
-    }
-}
-
-/// Valid values for `PublicationDefaultState` (the enum behind
-/// `PublicationCreateInput.defaultState`).
-const PUBLICATION_DEFAULT_STATE_VALUES: &[&str] = &["EMPTY", "ALL_PRODUCTS"];
 const PUBLICATION_UPDATE_LIMIT: usize = 50;
 
 fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
@@ -1667,58 +1618,6 @@ fn publication_update_limit_field(
     vec!["input", field_name, "51"]
 }
 
-/// When `publicationCreate`'s `$input.defaultState` is not a valid
-/// `PublicationDefaultState`, returns the `(variable_name, provided_input,
-/// invalid_value)` needed to build the `INVALID_VARIABLE` coercion error.
-fn publication_default_state_invalid_variable(
-    field: &RootFieldSelection,
-) -> Option<(String, Value, String)> {
-    let Some(RawArgumentValue::Variable {
-        name,
-        value: Some(ResolvedValue::Object(input)),
-    }) = field.raw_arguments.get("input")
-    else {
-        return None;
-    };
-    let state = resolved_string_field(input, "defaultState")?;
-    if PUBLICATION_DEFAULT_STATE_VALUES.contains(&state.as_str()) {
-        return None;
-    }
-    Some((
-        name.clone(),
-        resolved_value_json(&ResolvedValue::Object(input.clone())),
-        state,
-    ))
-}
-
-/// Builds the GraphQL `INVALID_VARIABLE` coercion error Shopify returns for an
-/// out-of-range `publicationCreate` `defaultState`, anchored to the `$input`
-/// variable definition.
-fn publication_default_state_invalid_response(
-    query: &str,
-    variable_name: &str,
-    provided: &Value,
-    state: &str,
-) -> Response {
-    let one_of = PUBLICATION_DEFAULT_STATE_VALUES.join(", ");
-    let message = format!(
-        "Variable ${variable_name} of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"{state}\" to be one of: {one_of})"
-    );
-    let (line, column) =
-        graphql_variable_definition_location(query, variable_name).unwrap_or((1, 1));
-    ok_json(json!({
-        "errors": [invalid_variable_error_envelope(
-            message,
-            SourceLocation { line, column },
-            provided.clone(),
-            json!([{
-                "path": ["defaultState"],
-                "explanation": format!("Expected \"{state}\" to be one of: {one_of}"),
-            }]),
-        )]
-    }))
-}
-
 fn product_full_sync_updated_at_range_invalid(
     before_updated_at: Option<&str>,
     updated_at_since: Option<&str>,
@@ -1753,29 +1652,4 @@ fn is_valid_product_feed_language(code: &str) -> bool {
         (Some(language), Some(region), None) => valid_segment(language) && valid_segment(region),
         _ => false,
     }
-}
-
-fn product_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
-    let Some(RawArgumentValue::List(inputs)) = field.raw_arguments.get("feedbackInput") else {
-        return false;
-    };
-    inputs.iter().any(|input| match input {
-        RawArgumentValue::Object(input) => input
-            .get("state")
-            .is_some_and(raw_resource_feedback_state_invalid_literal),
-        _ => false,
-    })
-}
-
-fn shop_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
-    let Some(RawArgumentValue::Object(input)) = field.raw_arguments.get("input") else {
-        return false;
-    };
-    input
-        .get("state")
-        .is_some_and(raw_resource_feedback_state_invalid_literal)
-}
-
-fn raw_resource_feedback_state_invalid_literal(value: &RawArgumentValue) -> bool {
-    matches!(value, RawArgumentValue::Enum(value) if !matches!(value.as_str(), "ACCEPTED" | "REQUIRES_ACTION"))
 }

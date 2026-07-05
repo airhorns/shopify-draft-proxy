@@ -393,7 +393,13 @@ impl DraftProxy {
                     self.inventory_transfer_by_id_selected_json(&id, &field.selection)
                 }
                 "inventoryTransfers" => self.inventory_transfers_connection_selected_json(
-                    self.store.staged.inventory_transfers.values().collect(),
+                    self.store
+                        .staged
+                        .inventory_transfers
+                        .values()
+                        .cloned()
+                        .collect(),
+                    &field.arguments,
                     &field.selection,
                 ),
                 "inventoryShipment" => {
@@ -417,11 +423,15 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let item_ids = self.inventory_item_ids_for_connection(arguments);
-        selected_typed_connection_with_args(
-            &item_ids,
+        let item_ids = self.inventory_item_ids_for_connection();
+        selected_staged_connection_with_args(
+            item_ids,
             arguments,
             selections,
+            |inventory_item_id, query| {
+                self.inventory_item_search_decision(inventory_item_id, query)
+            },
+            |inventory_item_id, sort_key| inventory_item_sort_key(inventory_item_id, sort_key),
             |inventory_item_id, node_selection| {
                 self.inventory_item_selected_json(inventory_item_id, variables, node_selection)
             },
@@ -429,11 +439,7 @@ impl DraftProxy {
         )
     }
 
-    fn inventory_item_ids_for_connection(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<String> {
-        let query = resolved_string_field(arguments, "query").unwrap_or_default();
+    fn inventory_item_ids_for_connection(&self) -> Vec<String> {
         let mut seen = BTreeSet::new();
         let mut item_ids = Vec::new();
 
@@ -442,24 +448,18 @@ impl DraftProxy {
             &self.store.staged.product_variants,
         ) {
             let inventory_item_id = variant.inventory_item.id;
-            if seen.insert(inventory_item_id.clone())
-                && self.inventory_item_matches_query(&inventory_item_id, &query)
-            {
+            if seen.insert(inventory_item_id.clone()) {
                 item_ids.push(inventory_item_id);
             }
         }
 
         for (inventory_item_id, _) in &self.store.staged.inventory_level_order {
-            if seen.insert(inventory_item_id.clone())
-                && self.inventory_item_matches_query(inventory_item_id, &query)
-            {
+            if seen.insert(inventory_item_id.clone()) {
                 item_ids.push(inventory_item_id.clone());
             }
         }
         for (inventory_item_id, _) in self.store.staged.inventory_levels.keys() {
-            if seen.insert(inventory_item_id.clone())
-                && self.inventory_item_matches_query(inventory_item_id, &query)
-            {
+            if seen.insert(inventory_item_id.clone()) {
                 item_ids.push(inventory_item_id.clone());
             }
         }
@@ -467,35 +467,111 @@ impl DraftProxy {
         item_ids
     }
 
-    fn inventory_item_matches_query(&self, inventory_item_id: &str, query: &str) -> bool {
-        let query = query.trim();
-        if query.is_empty() {
-            return true;
-        }
-        query.split_whitespace().all(|term| {
-            let term = term.trim();
-            let Some((field, raw_value)) = term.split_once(':') else {
-                return true;
-            };
-            let value = raw_value.trim_matches('"');
-            match field {
-                "id" => {
-                    inventory_item_id == value
-                        || resource_id_tail(inventory_item_id).eq_ignore_ascii_case(value)
-                }
-                "sku" => self
-                    .store
-                    .product_variant_by_inventory_item_id(inventory_item_id)
-                    .map(|variant| variant.sku.eq_ignore_ascii_case(value))
-                    .unwrap_or(false),
-                "tracked" => match value {
-                    "true" => self.inventory_item_tracked(inventory_item_id),
-                    "false" => !self.inventory_item_tracked(inventory_item_id),
-                    _ => true,
-                },
-                _ => true,
+    fn inventory_item_search_decision(
+        &self,
+        inventory_item_id: &str,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        let mut saw_supported_term = false;
+        for term in inventory_search_terms(query) {
+            match self.inventory_item_matches_search_term(inventory_item_id, &term) {
+                Some(true) => saw_supported_term = true,
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
             }
-        })
+        }
+        StagedSearchDecision::from_bool(saw_supported_term)
+    }
+
+    fn inventory_item_matches_search_term(
+        &self,
+        inventory_item_id: &str,
+        term: &str,
+    ) -> Option<bool> {
+        let term = term.trim();
+        if term.is_empty() {
+            return Some(true);
+        }
+        let Some((field, raw_value)) = term.split_once(':') else {
+            return Some(self.inventory_item_matches_default_query(inventory_item_id, term));
+        };
+        let field = field.trim().to_ascii_lowercase();
+        match field.as_str() {
+            "id" => Some(inventory_id_matches_query(inventory_item_id, raw_value)),
+            "sku" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(
+                    self.store
+                        .product_variant_by_inventory_item_id(inventory_item_id)
+                        .map(|variant| variant.sku.eq_ignore_ascii_case(&value))
+                        .unwrap_or(false),
+                )
+            }
+            "tracked" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                match value.to_ascii_lowercase().as_str() {
+                    "true" => Some(self.inventory_item_tracked(inventory_item_id)),
+                    "false" => Some(!self.inventory_item_tracked(inventory_item_id)),
+                    _ => None,
+                }
+            }
+            "created_at" => Some(inventory_datetime_matches_query(
+                self.inventory_item_query_timestamp(inventory_item_id, "createdAt")
+                    .as_deref(),
+                raw_value,
+            )),
+            "updated_at" => Some(inventory_datetime_matches_query(
+                self.inventory_item_query_timestamp(inventory_item_id, "updatedAt")
+                    .as_deref(),
+                raw_value,
+            )),
+            _ => None,
+        }
+    }
+
+    fn inventory_item_matches_default_query(&self, inventory_item_id: &str, term: &str) -> bool {
+        let value = inventory_unquoted_query_value(term);
+        if value.is_empty() {
+            return false;
+        }
+        inventory_item_id.eq_ignore_ascii_case(&value)
+            || resource_id_tail(inventory_item_id).eq_ignore_ascii_case(&value)
+            || self
+                .store
+                .product_variant_by_inventory_item_id(inventory_item_id)
+                .map(|variant| inventory_search_string_matches(&variant.sku, &value))
+                .unwrap_or(false)
+    }
+
+    fn inventory_item_query_timestamp(
+        &self,
+        inventory_item_id: &str,
+        graph_key: &str,
+    ) -> Option<String> {
+        let variant = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)?;
+        variant
+            .inventory_item
+            .extra_fields
+            .get(graph_key)
+            .and_then(Value::as_str)
+            .or_else(|| variant.extra_fields.get(graph_key).and_then(Value::as_str))
+            .map(str::to_string)
+            .or_else(|| {
+                self.store
+                    .product_by_id(&variant.product_id)
+                    .map(|product| {
+                        if graph_key == "createdAt" {
+                            product.created_at.clone()
+                        } else {
+                            product.updated_at.clone()
+                        }
+                    })
+            })
     }
 
     fn inventory_item_tracked(&self, inventory_item_id: &str) -> bool {
@@ -953,7 +1029,11 @@ impl DraftProxy {
         );
     }
 
-    fn merge_staged_location(&mut self, location: &Value, defaults: &[(&str, Value)]) {
+    pub(in crate::proxy) fn merge_staged_location(
+        &mut self,
+        location: &Value,
+        defaults: &[(&str, Value)],
+    ) {
         let Some(id) = location.get("id").and_then(Value::as_str) else {
             return;
         };
@@ -3759,6 +3839,9 @@ impl DraftProxy {
         let record = InventoryTransferRecord {
             id: id.clone(),
             name,
+            created_at: resolved_string_field(&input, "dateCreated").unwrap_or_else(|| {
+                inventory_transfer_default_created_at(self.store.staged.inventory_transfers.len())
+            }),
             status: if ready_to_ship {
                 "READY_TO_SHIP".to_string()
             } else {
@@ -3766,6 +3849,7 @@ impl DraftProxy {
             },
             origin_location_id,
             destination_location_id,
+            tags: list_string_field(&input, "tags"),
             line_items,
         };
         self.ensure_transfer_inventory_levels(&record);
@@ -3940,6 +4024,12 @@ impl DraftProxy {
         let mut record = existing;
         record.origin_location_id = origin_location_id;
         record.destination_location_id = destination_location_id;
+        if let Some(date_created) = resolved_string_field(&input, "dateCreated") {
+            record.created_at = date_created;
+        }
+        if input.contains_key("tags") {
+            record.tags = list_string_field(&input, "tags");
+        }
         self.ensure_transfer_inventory_levels(&record);
         if was_ready {
             self.apply_transfer_reservations(&record, 1);
@@ -4009,9 +4099,13 @@ impl DraftProxy {
         let record = InventoryTransferRecord {
             id: new_id.clone(),
             name,
+            created_at: inventory_transfer_default_created_at(
+                self.store.staged.inventory_transfers.len(),
+            ),
             status: "DRAFT".to_string(),
             origin_location_id: existing.origin_location_id,
             destination_location_id: existing.destination_location_id,
+            tags: existing.tags,
             line_items: existing
                 .line_items
                 .into_iter()
@@ -4207,19 +4301,20 @@ impl DraftProxy {
 
     fn inventory_transfers_connection_selected_json(
         &self,
-        transfers: Vec<&InventoryTransferRecord>,
+        transfers: Vec<InventoryTransferRecord>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) -> Value {
-        let nodes = transfers
-            .into_iter()
-            .map(|record| self.inventory_transfer_full_json(record))
-            .collect::<Vec<_>>();
-        selected_json(
-            &json!({
-                "nodes": nodes,
-                "pageInfo": empty_page_info()
-            }),
+        selected_staged_connection_with_args(
+            transfers,
+            arguments,
             selection,
+            |record, query| self.inventory_transfer_search_decision(record, query),
+            |record, sort_key| self.inventory_transfer_sort_key(record, sort_key),
+            |record, node_selection| {
+                selected_json(&self.inventory_transfer_full_json(record), node_selection)
+            },
+            |record| record.id.clone(),
         )
     }
 
@@ -4247,13 +4342,165 @@ impl DraftProxy {
         json!({
             "id": record.id,
             "name": record.name,
+            "dateCreated": record.created_at,
             "status": record.status,
+            "origin": {
+                "id": record.origin_location_id,
+                "name": self.inventory_location_display_name(&record.origin_location_id)
+            },
+            "destination": {
+                "id": record.destination_location_id,
+                "name": self.inventory_location_display_name(&record.destination_location_id)
+            },
+            "tags": record.tags,
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
+            "lineItemsCount": count_object(record.line_items.len()),
             "lineItems": {
                 "nodes": nodes,
                 "pageInfo": empty_page_info()
             }
         })
+    }
+
+    fn inventory_transfer_search_decision(
+        &self,
+        record: &InventoryTransferRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        let mut saw_supported_term = false;
+        for term in inventory_search_terms(query) {
+            match self.inventory_transfer_matches_search_term(record, &term) {
+                Some(true) => saw_supported_term = true,
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
+            }
+        }
+        StagedSearchDecision::from_bool(saw_supported_term)
+    }
+
+    fn inventory_transfer_matches_search_term(
+        &self,
+        record: &InventoryTransferRecord,
+        term: &str,
+    ) -> Option<bool> {
+        let term = term.trim();
+        if term.is_empty() {
+            return Some(true);
+        }
+        let Some((field, raw_value)) = term.split_once(':') else {
+            let value = inventory_unquoted_query_value(term);
+            return Some(
+                inventory_id_matches_query(&record.id, &value)
+                    || inventory_search_string_matches(&record.name, &value)
+                    || inventory_search_string_matches(&record.status, &value)
+                    || record
+                        .tags
+                        .iter()
+                        .any(|tag| inventory_search_string_matches(tag, &value)),
+            );
+        };
+        let field = field.trim().to_ascii_lowercase();
+        match field.as_str() {
+            "id" => Some(inventory_id_matches_query(&record.id, raw_value)),
+            "name" | "reference_name" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(inventory_search_string_matches(&record.name, &value))
+            }
+            "status" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(record.status.eq_ignore_ascii_case(&value))
+            }
+            "tag" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(
+                    record
+                        .tags
+                        .iter()
+                        .any(|tag| tag.eq_ignore_ascii_case(&value)),
+                )
+            }
+            "tag_not" => {
+                let value = inventory_unquoted_query_value(raw_value);
+                Some(
+                    !record
+                        .tags
+                        .iter()
+                        .any(|tag| tag.eq_ignore_ascii_case(&value)),
+                )
+            }
+            "created_at" | "date_created" => Some(inventory_datetime_matches_query(
+                Some(record.created_at.as_str()),
+                raw_value,
+            )),
+            "origin_id" | "source_id" => Some(inventory_id_matches_query(
+                &record.origin_location_id,
+                raw_value,
+            )),
+            "destination_id" => Some(inventory_id_matches_query(
+                &record.destination_location_id,
+                raw_value,
+            )),
+            "product_id" => Some(self.inventory_transfer_has_product(record, raw_value)),
+            "product_variant_id" => Some(self.inventory_transfer_has_variant(record, raw_value)),
+            "inventory_item_id" => Some(record.line_items.iter().any(|line_item| {
+                inventory_id_matches_query(&line_item.inventory_item_id, raw_value)
+            })),
+            _ => None,
+        }
+    }
+
+    fn inventory_transfer_has_product(
+        &self,
+        record: &InventoryTransferRecord,
+        product_id: &str,
+    ) -> bool {
+        record.line_items.iter().any(|line_item| {
+            self.store
+                .product_variant_by_inventory_item_id(&line_item.inventory_item_id)
+                .is_some_and(|variant| inventory_id_matches_query(&variant.product_id, product_id))
+        })
+    }
+
+    fn inventory_transfer_has_variant(
+        &self,
+        record: &InventoryTransferRecord,
+        variant_id: &str,
+    ) -> bool {
+        record.line_items.iter().any(|line_item| {
+            self.store
+                .product_variant_by_inventory_item_id(&line_item.inventory_item_id)
+                .is_some_and(|variant| inventory_id_matches_query(&variant.id, variant_id))
+        })
+    }
+
+    fn inventory_transfer_sort_key(
+        &self,
+        record: &InventoryTransferRecord,
+        sort_key: Option<&str>,
+    ) -> StagedSortKey {
+        match sort_key.unwrap_or("ID") {
+            "CREATED_AT" | "DATE_CREATED" => {
+                vec![StagedSortValue::String(record.created_at.clone())]
+            }
+            "DESTINATION_NAME" => vec![StagedSortValue::String(
+                self.inventory_location_display_name(&record.destination_location_id)
+                    .to_ascii_lowercase(),
+            )],
+            "ID" => inventory_gid_sort_key(&record.id),
+            "NAME" | "REFERENCE_NAME" => {
+                vec![StagedSortValue::String(record.name.to_ascii_lowercase())]
+            }
+            "ORIGIN_NAME" | "SOURCE_NAME" => vec![StagedSortValue::String(
+                self.inventory_location_display_name(&record.origin_location_id)
+                    .to_ascii_lowercase(),
+            )],
+            "STATUS" => vec![StagedSortValue::String(record.status.to_ascii_lowercase())],
+            "RELEVANCE" => vec![StagedSortValue::Null],
+            _ => inventory_gid_sort_key(&record.id),
+        }
     }
 
     fn ensure_transfer_inventory_levels(&mut self, record: &InventoryTransferRecord) {
@@ -5174,6 +5421,124 @@ fn inventory_existence_error_payload(
     user_errors: Vec<Value>,
 ) -> Option<Value> {
     (!user_errors.is_empty()).then(|| inventory_invalid_adjustment_payload(field, user_errors))
+}
+
+fn inventory_search_terms(query: &str) -> Vec<String> {
+    query
+        .split_whitespace()
+        .map(str::trim)
+        .filter(|term| !term.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn inventory_unquoted_query_value(raw: &str) -> String {
+    let value = raw.trim();
+    if let Some(inner) = value
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+    {
+        return inner.to_string();
+    }
+    if let Some(inner) = value
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+    {
+        return inner.to_string();
+    }
+    value.to_string()
+}
+
+fn inventory_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.trim().strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value.trim())
+}
+
+fn inventory_search_string_matches(actual: &str, expected: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let expected = expected.to_ascii_lowercase();
+    !expected.is_empty() && actual.contains(&expected)
+}
+
+fn inventory_id_matches_query(id: &str, raw_value: &str) -> bool {
+    let (operator, expected) = inventory_search_comparator(raw_value);
+    let expected = inventory_unquoted_query_value(expected);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual_tail = resource_id_tail(id);
+    let expected_tail = if expected.starts_with("gid://shopify/") {
+        resource_id_tail(&expected).to_string()
+    } else {
+        expected.clone()
+    };
+    if operator == "=" {
+        return id.eq_ignore_ascii_case(&expected)
+            || actual_tail.eq_ignore_ascii_case(&expected_tail);
+    }
+    match (actual_tail.parse::<i64>(), expected_tail.parse::<i64>()) {
+        (Ok(actual), Ok(expected)) => inventory_compare_ordering(actual.cmp(&expected), operator),
+        _ => inventory_compare_ordering(
+            actual_tail
+                .to_ascii_lowercase()
+                .cmp(&expected_tail.to_ascii_lowercase()),
+            operator,
+        ),
+    }
+}
+
+fn inventory_compare_ordering(ordering: std::cmp::Ordering, operator: &str) -> bool {
+    match operator {
+        "<" => ordering.is_lt(),
+        "<=" => ordering.is_lt() || ordering.is_eq(),
+        ">" => ordering.is_gt(),
+        ">=" => ordering.is_gt() || ordering.is_eq(),
+        _ => ordering.is_eq(),
+    }
+}
+
+fn inventory_datetime_matches_query(actual: Option<&str>, raw_value: &str) -> bool {
+    let Some(actual) = actual.filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let (operator, expected) = inventory_search_comparator(raw_value);
+    let expected = inventory_unquoted_query_value(expected);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    };
+    inventory_compare_ordering(actual.cmp(expected.as_str()), operator)
+        || (operator == "=" && actual.starts_with(&expected))
+}
+
+fn inventory_gid_sort_key(id: &str) -> StagedSortKey {
+    let tail = resource_id_tail(id);
+    match tail.parse::<i64>() {
+        Ok(value) => vec![StagedSortValue::I64(value)],
+        Err(_) => vec![StagedSortValue::String(tail.to_ascii_lowercase())],
+    }
+}
+
+fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> StagedSortKey {
+    inventory_gid_sort_key(inventory_item_id)
+}
+
+fn inventory_transfer_default_created_at(existing_count: usize) -> String {
+    format!(
+        "2024-01-01T00:00:{:02}.000Z",
+        existing_count.saturating_add(1) % 60
+    )
 }
 
 fn inventory_input_path(list_key: &str, index: usize, field_path: &[&str]) -> Vec<String> {

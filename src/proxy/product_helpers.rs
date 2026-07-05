@@ -594,6 +594,7 @@ impl DraftProxy {
         let mut source_errors = Vec::new();
         let mut created = Vec::new();
         let mut staged = Vec::new();
+        let mut ready_on_read_ids = Vec::new();
         for (index, item) in media_inputs.iter().enumerate() {
             let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
             if !media_source_is_valid(&original_source) {
@@ -620,7 +621,7 @@ impl DraftProxy {
                 None,
                 Some(&original_source),
             ));
-            staged.push(product_media_node_with_type(
+            let staged_node = product_media_node_with_type(
                 &id,
                 &alt,
                 &media_content_type,
@@ -631,7 +632,9 @@ impl DraftProxy {
                 },
                 None,
                 Some(&original_source),
-            ));
+            );
+            staged.push(staged_node);
+            ready_on_read_ids.push(id);
         }
 
         if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
@@ -647,6 +650,10 @@ impl DraftProxy {
         product_media_nodes.extend(created.clone());
         if !staged.is_empty() {
             self.append_product_media_nodes(&product_id, staged);
+            self.store
+                .staged
+                .media_ready_on_read
+                .extend(ready_on_read_ids);
         }
 
         Some(json!({
@@ -721,6 +728,7 @@ impl DraftProxy {
                     }
                 }
                 updated.push(node.clone());
+                self.store.staged.media_ready_on_read.remove(&id);
             }
         }
 
@@ -791,6 +799,9 @@ impl DraftProxy {
                 !media_ids.iter().any(|deleted| deleted == id)
             })
             .collect();
+        for id in &media_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
         self.stage_product_media_nodes(&product_id, remaining.clone());
 
         Some(json!({
@@ -829,10 +840,16 @@ impl DraftProxy {
                 .and_then(|position| position.parse::<usize>().ok())
                 .unwrap_or(usize::MAX)
         });
-        let media = moves
+        let move_ids = moves
             .iter()
             .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .map(|id| self.product_reorder_media_node(&product_id, &id))
+            .collect::<Vec<_>>();
+        for id in &move_ids {
+            self.store.staged.media_ready_on_read.remove(id);
+        }
+        let media = move_ids
+            .iter()
+            .map(|id| self.product_reorder_media_node(&product_id, id))
             .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
@@ -874,6 +891,48 @@ impl DraftProxy {
             .product_staged_or_base(product_id)
             .map(|product| product.media)
             .unwrap_or_default()
+    }
+
+    pub(in crate::proxy) fn promote_product_media_ready_on_read(
+        &mut self,
+        root_fields: &[RootFieldSelection],
+    ) {
+        if !root_fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "product" | "products" | "productByIdentifier" | "node" | "nodes"
+            )
+        }) {
+            return;
+        }
+
+        let ready_on_read_ids = self.store.staged.media_ready_on_read.clone();
+        let product_ids = self
+            .store
+            .staged
+            .products
+            .iter()
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for product_id in product_ids {
+            let Some(product) = self.store.staged.products.get_mut(&product_id) else {
+                continue;
+            };
+            let mut promoted = Vec::new();
+            for node in &mut product.media {
+                let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                    continue;
+                };
+                if !ready_on_read_ids.contains(&id) {
+                    continue;
+                }
+                promote_product_media_node_to_ready(node);
+                promoted.push(id);
+            }
+            for id in promoted {
+                self.store.staged.media_ready_on_read.remove(&id);
+            }
+        }
     }
 
     /// Confirm a product exists, hydrating it from upstream when it has no
@@ -983,6 +1042,18 @@ fn product_media_ready_url(node: &Value) -> String {
     product_media_image_url(node)
         .map(str::to_string)
         .unwrap_or_else(|| product_media_local_ready_url(node))
+}
+
+fn promote_product_media_node_to_ready(node: &mut Value) {
+    let ready_url = product_media_ready_url(node);
+    node["status"] = json!("READY");
+    node["preview"] = json!({ "image": { "url": ready_url.clone() } });
+    if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
+        match node.get("image").and_then(|image| image.get("id")).cloned() {
+            Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
+            None => node["image"] = json!({ "url": ready_url }),
+        }
+    }
 }
 
 fn product_media_image_url(node: &Value) -> Option<&str> {

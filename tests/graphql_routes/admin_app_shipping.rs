@@ -1227,7 +1227,14 @@ fn bulk_operation_run_mutation_nested_connection_returns_count_error_without_sta
 #[test]
 fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "one-shallow-connection.jsonl", "42");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "one-shallow-connection.jsonl",
+        &format!(
+            "{}\n",
+            json!({"product": {"title": "One shallow connection"}})
+        ),
+    );
     let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let response = proxy.process_request(json_graphql_request(
@@ -1303,9 +1310,20 @@ fn staged_bulk_mutation_upload_path(
         .to_string()
 }
 
+fn staged_bulk_mutation_upload_path_with_body(
+    proxy: &mut DraftProxy,
+    filename: &str,
+    body: &str,
+) -> String {
+    let path = staged_bulk_mutation_upload_path(proxy, filename, &body.len().to_string());
+    proxy.record_bulk_operation_staged_upload_body(&path, body.to_string());
+    path
+}
+
 #[test]
 fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     let mut proxy = snapshot_proxy();
+    let upload_body = format!("{}\n", json!({"product": {"title": "Ordinary import"}}));
     let staged = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
@@ -1324,7 +1342,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
                 "filename": "ordinary-import.jsonl",
                 "mimeType": "text/jsonl",
                 "httpMethod": "POST",
-                "fileSize": "42"
+                "fileSize": upload_body.len().to_string()
             }]
         }),
     ));
@@ -1337,6 +1355,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         .and_then(|parameter| parameter["value"].as_str())
         .unwrap()
         .to_string();
+    proxy.record_bulk_operation_staged_upload_body(&path, upload_body);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1361,7 +1380,7 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         }
         "#,
         json!({
-            "mutation": "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { id email } userErrors { field message } } }",
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
             "path": path
         }),
     ));
@@ -1423,13 +1442,25 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     );
     assert_eq!(
         read.body["data"]["bulkOperation"]["objectCount"],
-        json!("0")
+        json!("1")
     );
     assert_eq!(
         read.body["data"]["bulkOperation"]["rootObjectCount"],
-        json!("0")
+        json!("1")
     );
-    assert_eq!(read.body["data"]["bulkOperation"]["fileSize"], json!("0"));
+    let artifact = proxy.process_request(request_with_body(
+        "GET",
+        &format!(
+            "/__meta/bulk-operations/{}/result.jsonl",
+            operation_id.rsplit('/').next().unwrap()
+        ),
+        "",
+    ));
+    assert_eq!(artifact.status, 200);
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["fileSize"],
+        json!(artifact.body.as_str().unwrap().len().to_string())
+    );
 }
 
 #[test]
@@ -1607,7 +1638,11 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "1");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "exact-limit-import.jsonl",
+        &format!("{}\n", json!({"product": {"title": "Exact limit import"}})),
+    );
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1942,7 +1977,11 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "1");
+    let path = staged_bulk_mutation_upload_path_with_body(
+        &mut proxy,
+        "throttled-import.jsonl",
+        &format!("{}\n", json!({"product": {"title": "Throttled import"}})),
+    );
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -2017,10 +2056,13 @@ fn live_hybrid_proxy_with_bulk_operation_hydration(
 }
 
 fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
-    let path = staged_bulk_mutation_upload_path(
+    let path = staged_bulk_mutation_upload_path_with_body(
         proxy,
         &format!("mutation-import-{api_version}.jsonl"),
-        "1",
+        &format!(
+            "{}\n",
+            json!({"product": {"title": format!("Mutation import {api_version}")}})
+        ),
     );
     let mut request = json_graphql_request(
         r#"
@@ -4115,6 +4157,11 @@ fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes
 #[test]
 fn customer_update_and_delete_stage_known_fixture_customer_reads() {
     let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/customer-delete-real-shop"
+        });
+    });
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
@@ -4177,7 +4224,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         delete.body["data"]["customerDelete"],
         json!({
             "deletedCustomerId": id,
-            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "shop": { "id": "gid://shopify/Shop/customer-delete-real-shop" },
             "userErrors": []
         })
     );
@@ -8056,6 +8103,10 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         profile["profileItems"]["nodes"][0]["variants"]["nodes"][0]["id"],
         json!("gid://shopify/ProductVariant/51098706739506")
     );
+    assert_eq!(
+        profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"][0]["name"],
+        json!("Profile source")
+    );
 
     let read = proxy.process_request(json_graphql_request(
         read_query,
@@ -8308,6 +8359,94 @@ fn delivery_profiles_connection_windows_and_computes_page_info() {
                 "endCursor": beta_id
             }
         })
+    );
+}
+
+#[test]
+fn delivery_profile_create_uses_observed_location_name() {
+    let location_id = "gid://shopify/Location/observed-delivery";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("locationsAvailableForDeliveryProfilesConnection"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Observed Delivery Warehouse",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let locations = proxy.process_request(json_graphql_request(
+        r#"
+        query AvailableDeliveryLocations {
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]["id"],
+        json!(location_id)
+    );
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["name"],
+        json!("Observed Delivery Warehouse")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileObservedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup {
+                  locations(first: 5) { nodes { id name } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Observed locations",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"][0],
+        json!({ "id": location_id, "name": "Observed Delivery Warehouse" })
     );
 }
 
@@ -8888,7 +9027,7 @@ fn shipping_package_live_hybrid_hydrates_non_fixture_ids_and_clears_all_defaults
 
     let update_query = r#"
         mutation ShippingPackageUpdateHydratedRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
         }
     "#;
 
@@ -9385,7 +9524,7 @@ fn shipping_package_update_rejects_observed_flat_rate_packages_without_overwriti
     );
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message  } }
         }
     "#;
 

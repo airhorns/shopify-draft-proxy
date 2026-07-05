@@ -107,14 +107,14 @@ fn unsupported_mutation_mode_from_env() -> UnsupportedMutationMode {
 
 fn handle_connection(mut stream: TcpStream, proxy: &mut DraftProxy) -> std::io::Result<()> {
     let request = read_http_request(&mut stream)?;
-    let response = match staged_upload_response(&request) {
+    let response = match staged_upload_response(&request, proxy) {
         Some(response) => response,
         None => proxy.process_request(request),
     };
     write_http_response(&mut stream, response)
 }
 
-fn staged_upload_response(request: &Request) -> Option<Response> {
+fn staged_upload_response(request: &Request, proxy: &mut DraftProxy) -> Option<Response> {
     let rest = request.path.strip_prefix("/staged-uploads/")?;
     let (encoded_target_id, encoded_filename) = rest.split_once('/')?;
     let method = request.method.to_ascii_uppercase();
@@ -127,6 +127,10 @@ fn staged_upload_response(request: &Request) -> Option<Response> {
     }
     let target_id = percent_decode(encoded_target_id);
     let filename = percent_decode(encoded_filename);
+    let body = staged_upload_body(request);
+    for path in staged_upload_candidate_paths(&request.path, &target_id, &filename) {
+        proxy.record_bulk_operation_staged_upload_body(&path, body.clone());
+    }
     Some(Response {
         status: 201,
         headers: BTreeMap::new(),
@@ -135,6 +139,56 @@ fn staged_upload_response(request: &Request) -> Option<Response> {
             "key": format!("shopify-draft-proxy/{target_id}/{filename}")
         }),
     })
+}
+
+fn staged_upload_candidate_paths(
+    request_path: &str,
+    target_id: &str,
+    filename: &str,
+) -> Vec<String> {
+    let object_path = request_path.trim_start_matches('/').to_string();
+    let decoded_object_path = format!("staged-uploads/{target_id}/{filename}");
+    let mut paths = vec![
+        object_path.clone(),
+        decoded_object_path.clone(),
+        format!("https://shopify-draft-proxy.local/{object_path}"),
+        format!("https://shopify-draft-proxy.local/{decoded_object_path}"),
+        format!("shopify-draft-proxy/{target_id}/{filename}"),
+    ];
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn staged_upload_body(request: &Request) -> String {
+    let Some(content_type) = request.headers.get("content-type") else {
+        return request.body.clone();
+    };
+    let Some(boundary) = multipart_boundary(content_type) else {
+        return request.body.clone();
+    };
+    multipart_file_body(&request.body, boundary).unwrap_or_else(|| request.body.clone())
+}
+
+fn multipart_boundary(content_type: &str) -> Option<&str> {
+    content_type.split(';').find_map(|part| {
+        let trimmed = part.trim();
+        trimmed
+            .strip_prefix("boundary=")
+            .map(|value| value.trim_matches('"'))
+    })
+}
+
+fn multipart_file_body(body: &str, boundary: &str) -> Option<String> {
+    let marker = format!("--{boundary}");
+    for part in body.split(&marker) {
+        if !part.contains("name=\"file\"") {
+            continue;
+        }
+        let (_, content) = part.split_once("\r\n\r\n")?;
+        return Some(content.trim_end_matches("\r\n").to_string());
+    }
+    None
 }
 
 fn percent_decode(value: &str) -> String {
