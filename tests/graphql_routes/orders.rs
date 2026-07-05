@@ -10364,6 +10364,190 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
 }
 
 #[test]
+fn order_edit_commit_recomputes_derived_statuses_and_totals_after_added_item() {
+    let mut proxy = snapshot_proxy();
+    let create_document = r#"
+        mutation CreatePaidFulfilledOrderForEdit($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              displayFulfillmentStatus
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let paid_fulfilled_order = |title: &str, email: &str| {
+        json!({
+            "email": email,
+            "currency": "USD",
+            "fulfillmentStatus": "FULFILLED",
+            "lineItems": [{
+                "title": title,
+                "quantity": 1,
+                "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+            }],
+            "transactions": [{
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+            }]
+        })
+    };
+    let edited_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "order": paid_fulfilled_order("Original edited line", "edited-order@example.test") }),
+    ));
+    let unrelated_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "order": paid_fulfilled_order("Unrelated line", "unrelated-order@example.test") }),
+    ));
+    assert_eq!(
+        edited_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        unrelated_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let edited_order_id = edited_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let unrelated_order_id = unrelated_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginOrderEditForDerivedStatus($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": edited_order_id.clone() }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddCustomItemForDerivedStatus($id: ID!, $price: MoneyInput!) {
+          orderEditAddCustomItem(
+            id: $id
+            title: "Added unpaid item"
+            quantity: 1
+            price: $price
+          ) {
+            calculatedLineItem { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id.clone(),
+            "price": { "amount": "5.00", "currencyCode": "USD" }
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["orderEditAddCustomItem"]["userErrors"],
+        json!([])
+    );
+
+    let commit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitOrderEditForDerivedStatus($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              displayFinancialStatus
+              displayFulfillmentStatus
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": calculated_order_id }),
+    ));
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    let committed = &commit.body["data"]["orderEditCommit"]["order"];
+    assert_eq!(committed["displayFinancialStatus"], json!("PARTIALLY_PAID"));
+    assert_eq!(
+        committed["displayFulfillmentStatus"],
+        json!("PARTIALLY_FULFILLED")
+    );
+    assert_eq!(
+        committed["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "5.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "USD" })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadEditedAndUnrelatedOrders($editedId: ID!, $unrelatedId: ID!) {
+          edited: order(id: $editedId) {
+            id
+            displayFinancialStatus
+            displayFulfillmentStatus
+            totalOutstandingSet { shopMoney { amount currencyCode } }
+            totalPriceSet { shopMoney { amount currencyCode } }
+          }
+          unrelated: order(id: $unrelatedId) {
+            id
+            displayFinancialStatus
+            displayFulfillmentStatus
+            totalOutstandingSet { shopMoney { amount currencyCode } }
+            totalPriceSet { shopMoney { amount currencyCode } }
+          }
+        }
+        "#,
+        json!({ "editedId": edited_order_id, "unrelatedId": unrelated_order_id }),
+    ));
+    let edited = &downstream.body["data"]["edited"];
+    let unrelated = &downstream.body["data"]["unrelated"];
+    assert_eq!(edited["displayFinancialStatus"], json!("PARTIALLY_PAID"));
+    assert_eq!(
+        edited["displayFulfillmentStatus"],
+        json!("PARTIALLY_FULFILLED")
+    );
+    assert_eq!(
+        edited["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "5.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        edited["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "USD" })
+    );
+    assert_eq!(unrelated["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(unrelated["displayFulfillmentStatus"], json!("FULFILLED"));
+    assert_eq!(
+        unrelated["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        unrelated["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "USD" })
+    );
+}
+
+#[test]
 fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
