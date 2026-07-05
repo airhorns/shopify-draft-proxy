@@ -7539,6 +7539,429 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
 }
 
 #[test]
+fn market_localizable_resource_connections_cold_read_ignores_market_overlay_state() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *upstream_calls_for_proxy.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResources"),
+                "unexpected upstream query: {query}"
+            );
+            let resource = json!({
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let connection = json!({
+                "nodes": [resource.clone()],
+                "edges": [{"cursor": resource_id, "node": resource}],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": resource_id,
+                    "endCursor": resource_id
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResources": connection.clone(),
+                        "marketLocalizableResourcesByIds": connection
+                    }
+                }),
+            }
+        });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableColdGateCreateMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Cold Gate", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableColdGateRead($resourceIds: [ID!]!) {
+          marketLocalizableResources(first: 5, resourceType: METAFIELD) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+          marketLocalizableResourcesByIds(first: 5, resourceIds: $resourceIds) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+        }
+        "#,
+        json!({"resourceIds": [resource_id]}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "unrelated staged market state must not force local-empty resource reads"
+    );
+    assert_eq!(
+        read.body["data"]["marketLocalizableResources"]["nodes"][0]["resourceId"],
+        json!(resource_id)
+    );
+    assert_eq!(
+        read.body["data"]["marketLocalizableResourcesByIds"]["nodes"][0]["resourceId"],
+        json!(resource_id)
+    );
+}
+
+#[test]
+fn market_localizable_resource_connections_survive_singular_observation_restore() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let missing_resource_id = "gid://shopify/Metafield/999";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *upstream_calls_for_proxy.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResource")
+                    && !query.contains("marketLocalizableResourcesByIds"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResource": {
+                            "resourceId": resource_id,
+                            "marketLocalizableContent": [
+                                {"key": "value", "value": "5.99", "digest": "digest-value"}
+                            ],
+                            "marketLocalizations": []
+                        }
+                    }
+                }),
+            }
+        });
+
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableRestoreObservation($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            resourceId
+            marketLocalizableContent { key value digest }
+            marketLocalizations { key value outdated }
+          }
+        }
+        "#,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(singular.status, 200);
+    assert_eq!(
+        singular.body["data"]["marketLocalizableResource"]["resourceId"],
+        json!(resource_id)
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let connections = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableRestoreConnections($resourceIds: [ID!]!) {
+          marketLocalizableResources(first: 5, resourceType: METAFIELD) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+          marketLocalizableResourcesByIds(first: 5, resourceIds: $resourceIds) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+        }
+        "#,
+        json!({"resourceIds": [missing_resource_id, resource_id]}),
+    ));
+    assert_eq!(connections.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "restored observed localizable resources should serve plural/byIds locally"
+    );
+    assert_eq!(
+        connections.body["data"]["marketLocalizableResources"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "value", "value": "5.99", "digest": "digest-value"}
+            ]
+        }])
+    );
+    assert_eq!(
+        connections.body["data"]["marketLocalizableResourcesByIds"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "value", "value": "5.99", "digest": "digest-value"}
+            ]
+        }])
+    );
+}
+
+#[test]
+fn market_localizable_resource_connections_project() {
+    let resource_id = "gid://shopify/Metafield/100";
+    let other_resource_id = "gid://shopify/Metafield/200";
+    let missing_resource_id = "gid://shopify/Metafield/999";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let mut calls = upstream_calls_for_proxy.lock().unwrap();
+            *calls += 1;
+            assert_eq!(
+                *calls, 1,
+                "only the cold plural/byIds localization-resource read should reach upstream"
+            );
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResources")
+                    && query.contains("marketLocalizableResourcesByIds"),
+                "unexpected upstream query: {query}"
+            );
+            let first = body["variables"]["first"].as_i64().unwrap_or(10);
+            assert_eq!(first, 10);
+            let resource = json!({
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let other_resource = json!({
+                "resourceId": other_resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Other title", "digest": "digest-other-title"}
+                ],
+                "marketLocalizations": []
+            });
+            let nodes = vec![resource, other_resource];
+            let edges = nodes
+                .iter()
+                .map(|node| {
+                    json!({
+                        "cursor": node["resourceId"],
+                        "node": node
+                    })
+                })
+                .collect::<Vec<_>>();
+            let connection = json!({
+                "nodes": nodes,
+                "edges": edges,
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": resource_id,
+                    "endCursor": other_resource_id
+                }
+            });
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResources": connection.clone(),
+                        "marketLocalizableResourcesByIds": connection
+                    }
+                }),
+            }
+        });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableConnectionsCreateMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Canada", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("marketCreate returns an id")
+        .to_string();
+
+    let cold_connection_query = r#"
+        query RustMarketLocalizableConnectionsColdRead($first: Int!, $resourceIds: [ID!]!) {
+          marketLocalizableResources(first: $first, resourceType: METAFIELD) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+    "#;
+    let cold = proxy.process_request(json_graphql_request(
+        cold_connection_query,
+        json!({
+            "first": 10,
+            "resourceIds": [resource_id, missing_resource_id, other_resource_id]
+        }),
+    ));
+    assert_eq!(cold.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(
+        cold.body["data"]["marketLocalizableResources"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let register = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizableConnectionsRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value outdated market { id name } }
+            userErrors { field code }
+          }
+        }
+        "#,
+        json!({
+            "resourceId": resource_id,
+            "marketLocalizations": [{
+                "marketId": market_id,
+                "key": "title",
+                "value": "Titre",
+                "marketLocalizableContentDigest": "digest-title"
+            }]
+        }),
+    ));
+    assert_eq!(
+        register.body["data"]["marketLocalizationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let local_query = r#"
+        query RustMarketLocalizableConnectionsLocalRead($resourceId: ID!, $resourceIds: [ID!]!, $marketId: ID!) {
+          singular: marketLocalizableResource(resourceId: $resourceId) {
+            resourceId
+            marketLocalizableContent { key value digest }
+            marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+          }
+          plural: marketLocalizableResources(first: 1, resourceType: METAFIELD) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+              marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+            }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byIds: marketLocalizableResourcesByIds(first: 10, resourceIds: $resourceIds) {
+            nodes {
+              resourceId
+              marketLocalizableContent { key value digest }
+              marketLocalizations(marketId: $marketId) { key value outdated market { id name } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+    "#;
+    let local = proxy.process_request(json_graphql_request(
+        local_query,
+        json!({
+            "resourceId": resource_id,
+            "resourceIds": [other_resource_id, missing_resource_id, resource_id],
+            "marketId": market_id
+        }),
+    ));
+    assert_eq!(local.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "observed resource reads should serve locally after the cold fetch"
+    );
+
+    let expected_localization = json!({
+        "key": "title",
+        "value": "Titre",
+        "outdated": false,
+        "market": {"id": market_id, "name": "Canada"}
+    });
+    assert_eq!(
+        local.body["data"]["singular"]["marketLocalizations"],
+        json!([expected_localization.clone()])
+    );
+    assert_eq!(
+        local.body["data"]["plural"]["nodes"],
+        json!([{
+            "resourceId": resource_id,
+            "marketLocalizableContent": [
+                {"key": "title", "value": "Title", "digest": "digest-title"}
+            ],
+            "marketLocalizations": [expected_localization.clone()]
+        }])
+    );
+    assert_eq!(
+        local.body["data"]["plural"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": resource_id,
+            "endCursor": resource_id
+        })
+    );
+    assert_eq!(
+        local.body["data"]["byIds"]["nodes"],
+        json!([
+            {
+                "resourceId": other_resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Other title", "digest": "digest-other-title"}
+                ],
+                "marketLocalizations": []
+            },
+            {
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ],
+                "marketLocalizations": [expected_localization]
+            }
+        ])
+    );
+}
+
+#[test]
 fn product_helper_and_variant_reads_return_no_data_without_staged_products() {
     let mut proxy = snapshot_proxy();
     let helper_query =

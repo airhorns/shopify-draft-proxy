@@ -696,7 +696,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("marketsResolvedValues", Query, Markets, true, []),
         entry!("marketLocalizableResource", Query, Markets, true, []),
         entry!("marketLocalizableResources", Query, Markets, true, []),
-        entry!("marketLocalizableResourcesByIds", Query, Markets, false, []),
+        entry!("marketLocalizableResourcesByIds", Query, Markets, true, []),
         entry!("marketCreate", Mutation, Markets, true, []),
         entry!("marketUpdate", Mutation, Markets, true, []),
         entry!("marketDelete", Mutation, Markets, true, []),
