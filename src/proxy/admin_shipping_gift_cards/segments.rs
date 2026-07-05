@@ -945,17 +945,12 @@ fn segment_required_argument_error(
         .collect();
     if !missing.is_empty() {
         let arguments = missing.join(", ");
-        return Some(json!({
-            "message": format!("Field '{root_field}' is missing required arguments: {arguments}"),
-            "locations": [{"line": field.location.line, "column": field.location.column}],
-            "path": [operation_path, root_field],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": root_field,
-                "arguments": arguments
-            }
-        }));
+        return Some(missing_required_arguments_error(
+            root_field,
+            &arguments,
+            field.location,
+            vec![json!(operation_path), json!(root_field)],
+        ));
     }
     for (name, argument_type) in required {
         if field
@@ -963,16 +958,13 @@ fn segment_required_argument_error(
             .get(*name)
             .is_some_and(RawArgumentValue::is_literal_null)
         {
-            return Some(json!({
-                "message": format!("Argument '{name}' on Field '{root_field}' has an invalid value (null). Expected type '{argument_type}'."),
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "path": [operation_path, root_field, *name],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": *name
-                }
-            }));
+            return Some(required_argument_null_error(
+                root_field,
+                name,
+                argument_type,
+                field.location,
+                vec![json!(operation_path), json!(root_field), json!(name)],
+            ));
         }
     }
     None

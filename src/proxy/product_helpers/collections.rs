@@ -2511,12 +2511,12 @@ fn collection_is_smart(collection: &Value) -> bool {
 
 fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": format!("The input array size of {len} is greater than the maximum allowed of 250."),
-            "locations": [{"line": 2, "column": 3}],
-            "path": [root_field, "productIds"],
-            "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-        }]
+        "errors": [max_input_size_exceeded_error(
+            vec![root_field.to_string(), "productIds".to_string()],
+            len,
+            250,
+            Some(json!([{ "line": 2, "column": 3 }])),
+        )]
     }))
 }
 
