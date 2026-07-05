@@ -1470,7 +1470,7 @@ impl Store {
             .or_insert_with(|| connection_json(product_nodes));
         collection_record.insert(
             "productsCount".to_string(),
-            json!({"count": normalized_products.len(), "precision": "EXACT"}),
+            count_object(normalized_products.len()),
         );
         self.staged
             .collections

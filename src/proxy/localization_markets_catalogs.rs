@@ -4356,7 +4356,12 @@ impl DraftProxy {
         // Catalogs: top-level plus nested under each market.
         let mut catalog_records = markets_collect_records(data, "catalogs", "catalog");
         for market in &market_records {
-            catalog_records.extend(markets_connection_nodes(market.get("catalogs")));
+            catalog_records.extend(
+                market
+                    .get("catalogs")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
@@ -4378,7 +4383,12 @@ impl DraftProxy {
         // Web presences: top-level plus nested under each market.
         let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
         for market in &market_records {
-            web_presence_records.extend(markets_connection_nodes(market.get("webPresences")));
+            web_presence_records.extend(
+                market
+                    .get("webPresences")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
         }
         web_presence_records.extend(
             hydrate_nodes
@@ -4429,9 +4439,11 @@ impl DraftProxy {
             "marketLocalizableResources",
             "marketLocalizableResource",
         );
-        localizable_records.extend(markets_connection_nodes(
-            data.get("marketLocalizableResourcesByIds"),
-        ));
+        localizable_records.extend(
+            data.get("marketLocalizableResourcesByIds")
+                .map(connection_nodes)
+                .unwrap_or_default(),
+        );
         for record in &localizable_records {
             self.stage_observed_market_localizable_resource(record);
         }
@@ -5102,30 +5114,11 @@ fn markets_variables_have_local_id(
     })
 }
 
-fn markets_connection_nodes(value: Option<&Value>) -> Vec<Value> {
-    let Some(value) = value else {
-        return Vec::new();
-    };
-    let mut nodes = value
-        .get("nodes")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if nodes.is_empty() {
-        nodes = value
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| edge.get("node").cloned())
-            .filter(|node| node.is_object())
-            .collect();
-    }
-    nodes
-}
-
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
-    let mut records = markets_connection_nodes(data.get(connection_key));
+    let mut records = data
+        .get(connection_key)
+        .map(connection_nodes)
+        .unwrap_or_default();
     if let Some(record) = data.get(singular_key).filter(|value| value.is_object()) {
         records.push(record.clone());
     }
