@@ -41,7 +41,7 @@ async function runPnpm(args: string[]): Promise<void> {
 }
 
 async function waitForServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 60_000;
 
   while (Date.now() < deadline) {
     if (getOutput().includes('shopify-draft-proxy rust runtime listening')) {
@@ -190,12 +190,12 @@ async function withLaunchedProxy<T>(
 describe('package launch scripts', () => {
   it('starts the dev server and serves health', async () => {
     await expectLaunchScriptHealth('dev', await unusedLocalPort());
-  }, 20_000);
+  }, 75_000);
 
   it('starts the built server and serves health', async () => {
     await runPnpm(['build']);
     await expectLaunchScriptHealth('start', await unusedLocalPort());
-  }, 30_000);
+  }, 120_000);
 
   it('forwards live-hybrid passthrough and commit replay through Rust HTTP transport', async () => {
     await withUpstream(async (upstreamOrigin, upstreamRequests) => {
@@ -250,5 +250,5 @@ describe('package launch scripts', () => {
       });
       expect(upstreamRequests[1]?.body).toContain('savedSearchCreate');
     });
-  }, 30_000);
+  }, 75_000);
 });

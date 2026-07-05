@@ -1,18 +1,18 @@
 {
   "variables": {
-    "eventId": "gid://shopify/BasicEvent/181928760017202",
+    "eventId": "gid://shopify/BasicEvent/181970768855346",
     "first": 3
   },
   "response": {
     "data": {
       "event": {
         "__typename": "BasicEvent",
-        "id": "gid://shopify/BasicEvent/181928760017202",
+        "id": "gid://shopify/BasicEvent/181970768855346",
         "action": "destroy",
         "appTitle": "hermes-conformance-products",
-        "attributeToApp": true,
+        "attributeToApp": false,
         "attributeToUser": false,
-        "createdAt": "2026-07-04T09:25:25Z",
+        "createdAt": "2026-07-04T23:31:02Z",
         "criticalAlert": false,
         "message": "",
         "additionalContent": "null",
@@ -21,82 +21,82 @@
         "author": "hermes-conformance-products",
         "hasAdditionalContent": false,
         "secondaryMessage": null,
-        "subjectId": "gid://shopify/DraftOrder/1275457044786",
-        "subjectType": "DRAFT_ORDER"
+        "subjectId": "gid://shopify/ProductVariant/51424241025330",
+        "subjectType": "PRODUCT_VARIANT"
       },
       "events": {
         "nodes": [
           {
             "__typename": "BasicEvent",
-            "id": "gid://shopify/BasicEvent/181928760017202",
+            "id": "gid://shopify/BasicEvent/181970768855346",
             "action": "destroy",
             "message": "",
-            "createdAt": "2026-07-04T09:25:25Z",
-            "subjectId": "gid://shopify/DraftOrder/1275457044786",
-            "subjectType": "DRAFT_ORDER"
+            "createdAt": "2026-07-04T23:31:02Z",
+            "subjectId": "gid://shopify/ProductVariant/51424241025330",
+            "subjectType": "PRODUCT_VARIANT"
           },
           {
             "__typename": "BasicEvent",
-            "id": "gid://shopify/BasicEvent/181928759984434",
+            "id": "gid://shopify/BasicEvent/181970768822578",
             "action": "destroy",
             "message": "",
-            "createdAt": "2026-07-04T09:25:25Z",
-            "subjectId": "gid://shopify/DraftOrder/1275457208626",
-            "subjectType": "DRAFT_ORDER"
+            "createdAt": "2026-07-04T23:31:02Z",
+            "subjectId": "gid://shopify/ProductVariant/51424240992562",
+            "subjectType": "PRODUCT_VARIANT"
           },
           {
             "__typename": "BasicEvent",
-            "id": "gid://shopify/BasicEvent/181928758182194",
-            "action": "create",
+            "id": "gid://shopify/BasicEvent/181970768724274",
+            "action": "destroy",
             "message": "",
-            "createdAt": "2026-07-04T09:25:19Z",
-            "subjectId": "gid://shopify/DraftOrder/1275457208626",
-            "subjectType": "DRAFT_ORDER"
+            "createdAt": "2026-07-04T23:31:02Z",
+            "subjectId": "gid://shopify/ProductVariant/51424241090866",
+            "subjectType": "PRODUCT_VARIANT"
           }
         ],
         "edges": [
           {
-            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+            "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4NTUzNDYsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4NTUzNDYifQ==",
             "node": {
               "__typename": "BasicEvent",
-              "id": "gid://shopify/BasicEvent/181928760017202",
+              "id": "gid://shopify/BasicEvent/181970768855346",
               "action": "destroy",
               "message": "",
-              "createdAt": "2026-07-04T09:25:25Z",
-              "subjectId": "gid://shopify/DraftOrder/1275457044786",
-              "subjectType": "DRAFT_ORDER"
+              "createdAt": "2026-07-04T23:31:02Z",
+              "subjectId": "gid://shopify/ProductVariant/51424241025330",
+              "subjectType": "PRODUCT_VARIANT"
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTk5ODQ0MzQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTk5ODQ0MzQifQ==",
+            "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4MjI1NzgsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4MjI1NzgifQ==",
             "node": {
               "__typename": "BasicEvent",
-              "id": "gid://shopify/BasicEvent/181928759984434",
+              "id": "gid://shopify/BasicEvent/181970768822578",
               "action": "destroy",
               "message": "",
-              "createdAt": "2026-07-04T09:25:25Z",
-              "subjectId": "gid://shopify/DraftOrder/1275457208626",
-              "subjectType": "DRAFT_ORDER"
+              "createdAt": "2026-07-04T23:31:02Z",
+              "subjectId": "gid://shopify/ProductVariant/51424240992562",
+              "subjectType": "PRODUCT_VARIANT"
             }
           },
           {
-            "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ==",
+            "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg3MjQyNzQsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg3MjQyNzQifQ==",
             "node": {
               "__typename": "BasicEvent",
-              "id": "gid://shopify/BasicEvent/181928758182194",
-              "action": "create",
+              "id": "gid://shopify/BasicEvent/181970768724274",
+              "action": "destroy",
               "message": "",
-              "createdAt": "2026-07-04T09:25:19Z",
-              "subjectId": "gid://shopify/DraftOrder/1275457208626",
-              "subjectType": "DRAFT_ORDER"
+              "createdAt": "2026-07-04T23:31:02Z",
+              "subjectId": "gid://shopify/ProductVariant/51424241090866",
+              "subjectType": "PRODUCT_VARIANT"
             }
           }
         ],
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
-          "endCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ=="
+          "startCursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4NTUzNDYsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4NTUzNDYifQ==",
+          "endCursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg3MjQyNzQsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg3MjQyNzQifQ=="
         }
       },
       "eventsCount": {
@@ -120,7 +120,7 @@
     {
       "operationName": "EventNonEmptyRead",
       "variables": {
-        "eventId": "gid://shopify/BasicEvent/181928760017202",
+        "eventId": "gid://shopify/BasicEvent/181970768855346",
         "first": 3
       },
       "query": "query EventNonEmptyRead($eventId: ID!, $first: Int!) {\n  event(id: $eventId) {\n    __typename\n    id\n    action\n    appTitle\n    attributeToApp\n    attributeToUser\n    createdAt\n    criticalAlert\n    message\n    ... on BasicEvent {\n      additionalContent\n      additionalData\n      arguments\n      author\n      hasAdditionalContent\n      secondaryMessage\n      subjectId\n      subjectType\n    }\n  }\n  events(first: $first, sortKey: ID, reverse: true) {\n    nodes {\n      __typename\n      id\n      action\n      message\n      createdAt\n      ... on BasicEvent {\n        subjectId\n        subjectType\n      }\n    }\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        action\n        message\n        createdAt\n        ... on BasicEvent {\n          subjectId\n          subjectType\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  eventsCount {\n    count\n    precision\n  }\n}\n",
@@ -130,12 +130,12 @@
           "data": {
             "event": {
               "__typename": "BasicEvent",
-              "id": "gid://shopify/BasicEvent/181928760017202",
+              "id": "gid://shopify/BasicEvent/181970768855346",
               "action": "destroy",
               "appTitle": "hermes-conformance-products",
-              "attributeToApp": true,
+              "attributeToApp": false,
               "attributeToUser": false,
-              "createdAt": "2026-07-04T09:25:25Z",
+              "createdAt": "2026-07-04T23:31:02Z",
               "criticalAlert": false,
               "message": "",
               "additionalContent": "null",
@@ -144,82 +144,82 @@
               "author": "hermes-conformance-products",
               "hasAdditionalContent": false,
               "secondaryMessage": null,
-              "subjectId": "gid://shopify/DraftOrder/1275457044786",
-              "subjectType": "DRAFT_ORDER"
+              "subjectId": "gid://shopify/ProductVariant/51424241025330",
+              "subjectType": "PRODUCT_VARIANT"
             },
             "events": {
               "nodes": [
                 {
                   "__typename": "BasicEvent",
-                  "id": "gid://shopify/BasicEvent/181928760017202",
+                  "id": "gid://shopify/BasicEvent/181970768855346",
                   "action": "destroy",
                   "message": "",
-                  "createdAt": "2026-07-04T09:25:25Z",
-                  "subjectId": "gid://shopify/DraftOrder/1275457044786",
-                  "subjectType": "DRAFT_ORDER"
+                  "createdAt": "2026-07-04T23:31:02Z",
+                  "subjectId": "gid://shopify/ProductVariant/51424241025330",
+                  "subjectType": "PRODUCT_VARIANT"
                 },
                 {
                   "__typename": "BasicEvent",
-                  "id": "gid://shopify/BasicEvent/181928759984434",
+                  "id": "gid://shopify/BasicEvent/181970768822578",
                   "action": "destroy",
                   "message": "",
-                  "createdAt": "2026-07-04T09:25:25Z",
-                  "subjectId": "gid://shopify/DraftOrder/1275457208626",
-                  "subjectType": "DRAFT_ORDER"
+                  "createdAt": "2026-07-04T23:31:02Z",
+                  "subjectId": "gid://shopify/ProductVariant/51424240992562",
+                  "subjectType": "PRODUCT_VARIANT"
                 },
                 {
                   "__typename": "BasicEvent",
-                  "id": "gid://shopify/BasicEvent/181928758182194",
-                  "action": "create",
+                  "id": "gid://shopify/BasicEvent/181970768724274",
+                  "action": "destroy",
                   "message": "",
-                  "createdAt": "2026-07-04T09:25:19Z",
-                  "subjectId": "gid://shopify/DraftOrder/1275457208626",
-                  "subjectType": "DRAFT_ORDER"
+                  "createdAt": "2026-07-04T23:31:02Z",
+                  "subjectId": "gid://shopify/ProductVariant/51424241090866",
+                  "subjectType": "PRODUCT_VARIANT"
                 }
               ],
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4NTUzNDYsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4NTUzNDYifQ==",
                   "node": {
                     "__typename": "BasicEvent",
-                    "id": "gid://shopify/BasicEvent/181928760017202",
+                    "id": "gid://shopify/BasicEvent/181970768855346",
                     "action": "destroy",
                     "message": "",
-                    "createdAt": "2026-07-04T09:25:25Z",
-                    "subjectId": "gid://shopify/DraftOrder/1275457044786",
-                    "subjectType": "DRAFT_ORDER"
+                    "createdAt": "2026-07-04T23:31:02Z",
+                    "subjectId": "gid://shopify/ProductVariant/51424241025330",
+                    "subjectType": "PRODUCT_VARIANT"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTk5ODQ0MzQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTk5ODQ0MzQifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4MjI1NzgsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4MjI1NzgifQ==",
                   "node": {
                     "__typename": "BasicEvent",
-                    "id": "gid://shopify/BasicEvent/181928759984434",
+                    "id": "gid://shopify/BasicEvent/181970768822578",
                     "action": "destroy",
                     "message": "",
-                    "createdAt": "2026-07-04T09:25:25Z",
-                    "subjectId": "gid://shopify/DraftOrder/1275457208626",
-                    "subjectType": "DRAFT_ORDER"
+                    "createdAt": "2026-07-04T23:31:02Z",
+                    "subjectId": "gid://shopify/ProductVariant/51424240992562",
+                    "subjectType": "PRODUCT_VARIANT"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ==",
+                  "cursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg3MjQyNzQsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg3MjQyNzQifQ==",
                   "node": {
                     "__typename": "BasicEvent",
-                    "id": "gid://shopify/BasicEvent/181928758182194",
-                    "action": "create",
+                    "id": "gid://shopify/BasicEvent/181970768724274",
+                    "action": "destroy",
                     "message": "",
-                    "createdAt": "2026-07-04T09:25:19Z",
-                    "subjectId": "gid://shopify/DraftOrder/1275457208626",
-                    "subjectType": "DRAFT_ORDER"
+                    "createdAt": "2026-07-04T23:31:02Z",
+                    "subjectId": "gid://shopify/ProductVariant/51424241090866",
+                    "subjectType": "PRODUCT_VARIANT"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NjAwMTcyMDIsImxhc3RfdmFsdWUiOiIxODE5Mjg3NjAwMTcyMDIifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoxODE5Mjg3NTgxODIxOTQsImxhc3RfdmFsdWUiOiIxODE5Mjg3NTgxODIxOTQifQ=="
+                "startCursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg4NTUzNDYsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg4NTUzNDYifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxODE5NzA3Njg3MjQyNzQsImxhc3RfdmFsdWUiOiIxODE5NzA3Njg3MjQyNzQifQ=="
               }
             },
             "eventsCount": {

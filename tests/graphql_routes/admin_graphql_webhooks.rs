@@ -2,6 +2,102 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn live_hybrid_event_reads_passthrough_to_upstream_transport() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let upstream_body = json!({
+        "data": {
+            "myEvent": { "id": "gid://shopify/Event/1" },
+            "event": {
+                "id": "gid://shopify/BasicEvent/999999999999",
+                "action": "create",
+                "message": "Created from upstream"
+            },
+            "events": {
+                "nodes": [{
+                    "id": "gid://shopify/Event/123",
+                    "action": "update",
+                    "message": "Updated upstream"
+                }],
+                "edges": [{
+                    "cursor": "cursor-123",
+                    "node": {
+                        "id": "gid://shopify/Event/123",
+                        "action": "update",
+                        "message": "Updated upstream"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-123",
+                    "endCursor": "cursor-123"
+                }
+            },
+            "eventsCount": {
+                "count": 1,
+                "precision": "EXACT"
+            }
+        }
+    });
+    let expected_body = upstream_body.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 203,
+                headers: [("x-event-upstream".to_string(), "forwarded".to_string())].into(),
+                body: upstream_body.clone(),
+            }
+        });
+    let query = r#"
+        query EventPassthrough($eventId: ID!, $first: Int!, $query: String!) {
+          myEvent: event(id: "gid://shopify/Event/1") { id }
+          event(id: $eventId) { id action message }
+          events(first: $first, query: $query, sortKey: ID, reverse: true) {
+            nodes { id action message }
+            edges { cursor node { id action message } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventsCount(query: $query) { count precision }
+        }
+        "#;
+    let variables = json!({
+        "eventId": "gid://shopify/BasicEvent/999999999999",
+        "first": 2,
+        "query": "id:999999999999"
+    });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-04/graphql.json".to_string(),
+        headers: [(
+            "authorization".to_string(),
+            "Bearer event-passthrough-token".to_string(),
+        )]
+        .into(),
+        body: json!({ "query": query, "variables": variables }).to_string(),
+    });
+
+    assert_eq!(response.status, 203);
+    assert_eq!(response.body, expected_body);
+    assert_eq!(
+        response.headers.get("x-event-upstream"),
+        Some(&"forwarded".to_string())
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(
+        forwarded[0].headers.get("authorization"),
+        Some(&"Bearer event-passthrough-token".to_string())
+    );
+    let forwarded_body: Value =
+        serde_json::from_str(&forwarded[0].body).expect("forwarded body must be JSON");
+    assert_eq!(forwarded_body["query"], json!(query));
+    assert_eq!(forwarded_body["variables"], variables);
+}
+
+#[test]
 fn event_empty_read_shapes_match_current_behavior() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -55,6 +151,451 @@ fn event_empty_read_shapes_match_current_behavior() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn staged_product_lifecycle_events_support_filters_sort_pagination_and_counts() {
+    let clock = Arc::new(Mutex::new(utc_time(1_770_000_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateEventProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 1) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Event indexed snowboard"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("product id should be selected")
+        .to_string();
+    let default_variant_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .expect("default variant id should be selected")
+        .to_string();
+
+    set_clock(&clock, 1_770_000_060);
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateEventProduct($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Event indexed snowboard updated"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    set_clock(&clock, 1_770_000_120);
+    let variant_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateEventVariant($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) {
+            productVariant { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": product_id,
+                "title": "Event variant",
+                "sku": "EVENT-VARIANT",
+                "price": "10.00",
+                "selectedOptions": [{ "name": "Title", "value": "Event variant" }]
+            }
+        }),
+    ));
+    assert_eq!(variant_create.status, 200);
+    assert_eq!(
+        variant_create.body["data"]["productVariantCreate"]["userErrors"],
+        json!([])
+    );
+    let created_variant_id = variant_create.body["data"]["productVariantCreate"]["productVariant"]
+        ["id"]
+        .as_str()
+        .expect("created variant id should be selected")
+        .to_string();
+
+    let all = proxy.process_request(json_graphql_request(
+        r#"
+        query AllStagedEvents {
+          events(first: 10, sortKey: CREATED_AT) {
+            nodes {
+              __typename
+              id
+              action
+              createdAt
+              ... on BasicEvent {
+                subjectId
+                subjectType
+              }
+            }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(all.status, 200);
+    assert!(
+        all.body.get("errors").is_none(),
+        "all staged events query returned errors: {}",
+        all.body
+    );
+    let all_nodes = all.body["data"]["events"]["nodes"]
+        .as_array()
+        .expect("events nodes should be an array")
+        .clone();
+    let mut observed_event_subjects = event_action_subjects(&all_nodes);
+    observed_event_subjects.sort();
+    let mut expected_event_subjects = vec![
+        (
+            "create".to_string(),
+            "PRODUCT".to_string(),
+            product_id.clone(),
+        ),
+        (
+            "create".to_string(),
+            "PRODUCT_VARIANT".to_string(),
+            default_variant_id.clone(),
+        ),
+        (
+            "update".to_string(),
+            "PRODUCT".to_string(),
+            product_id.clone(),
+        ),
+        (
+            "create".to_string(),
+            "PRODUCT_VARIANT".to_string(),
+            created_variant_id.clone(),
+        ),
+        (
+            "destroy".to_string(),
+            "PRODUCT_VARIANT".to_string(),
+            default_variant_id.clone(),
+        ),
+    ];
+    expected_event_subjects.sort();
+    assert_eq!(observed_event_subjects, expected_event_subjects);
+    assert!(all_nodes
+        .windows(2)
+        .all(|window| event_created_at(&window[0]) <= event_created_at(&window[1])));
+    assert_eq!(
+        all.body["data"]["events"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": event_id(&all_nodes[0]),
+            "endCursor": event_id(all_nodes.last().unwrap())
+        })
+    );
+    assert_eq!(
+        all.body["data"]["events"]["edges"]
+            .as_array()
+            .expect("event edges should be present")
+            .iter()
+            .map(|edge| edge["cursor"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>(),
+        all_nodes.iter().map(event_id).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        all.body["data"]["eventsCount"],
+        json!({ "count": 5, "precision": "EXACT" })
+    );
+
+    let product_update_event_id = all_nodes
+        .iter()
+        .find(|event| {
+            event["action"].as_str() == Some("update")
+                && event["subjectType"].as_str() == Some("PRODUCT")
+                && event["subjectId"].as_str() == Some(&product_id)
+        })
+        .map(event_id)
+        .expect("product update event should be staged");
+    let detail = proxy.process_request(json_graphql_request(
+        r#"
+        query StagedEventDetail($id: ID!) {
+          event(id: $id) {
+            __typename
+            id
+            eventAction: action
+            ... on BasicEvent {
+              subjectId
+              subjectType
+            }
+          }
+          node(id: $id) {
+            __typename
+            ... on BasicEvent {
+              id
+              action
+              subjectId
+              subjectType
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_update_event_id }),
+    ));
+    assert_eq!(detail.status, 200);
+    assert_eq!(
+        detail.body["data"]["event"],
+        json!({
+            "__typename": "BasicEvent",
+            "id": product_update_event_id,
+            "eventAction": "update",
+            "subjectId": product_id,
+            "subjectType": "PRODUCT"
+        })
+    );
+    assert_eq!(
+        detail.body["data"]["node"],
+        json!({
+            "__typename": "BasicEvent",
+            "id": product_update_event_id,
+            "action": "update",
+            "subjectId": product_id,
+            "subjectType": "PRODUCT"
+        })
+    );
+
+    let first_variant_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FirstVariantEventPage($query: String!, $first: Int!, $limit: Int!) {
+          events(first: $first, query: $query, sortKey: CREATED_AT) {
+            nodes {
+              id
+              action
+              ... on BasicEvent {
+                subjectId
+                subjectType
+              }
+            }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventsCount(query: $query, limit: $limit) { count precision }
+        }
+        "#,
+        json!({
+            "query": "subject_type:PRODUCT_VARIANT",
+            "first": 2,
+            "limit": 2
+        }),
+    ));
+    assert_eq!(first_variant_page.status, 200);
+    let first_variant_nodes = first_variant_page.body["data"]["events"]["nodes"]
+        .as_array()
+        .expect("first page nodes should be present");
+    let variant_event_ids = all_nodes
+        .iter()
+        .filter(|event| event["subjectType"].as_str() == Some("PRODUCT_VARIANT"))
+        .map(event_id)
+        .collect::<Vec<_>>();
+    assert_eq!(variant_event_ids.len(), 3);
+    assert_eq!(
+        event_ids(first_variant_nodes),
+        variant_event_ids[0..2].to_vec()
+    );
+    assert_eq!(
+        first_variant_page.body["data"]["events"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": variant_event_ids[0],
+            "endCursor": variant_event_ids[1]
+        })
+    );
+    assert_eq!(
+        first_variant_page.body["data"]["eventsCount"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+
+    let second_variant_page = proxy.process_request(json_graphql_request(
+        r#"
+        query SecondVariantEventPage($query: String!, $after: String!) {
+          events(first: 2, after: $after, query: $query, sortKey: CREATED_AT) {
+            nodes {
+              id
+              action
+              ... on BasicEvent {
+                subjectId
+                subjectType
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "query": "subject_type:PRODUCT_VARIANT",
+            "after": variant_event_ids[1]
+        }),
+    ));
+    assert_eq!(second_variant_page.status, 200);
+    let second_variant_nodes = second_variant_page.body["data"]["events"]["nodes"]
+        .as_array()
+        .expect("second page nodes should be present");
+    assert_eq!(
+        event_ids(second_variant_nodes),
+        vec![variant_event_ids[2].clone()]
+    );
+    assert_eq!(
+        second_variant_page.body["data"]["events"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": variant_event_ids[2],
+            "endCursor": variant_event_ids[2]
+        })
+    );
+
+    let reverse = proxy.process_request(json_graphql_request(
+        r#"
+        query ReverseVariantEvents($query: String!) {
+          events(first: 3, query: $query, sortKey: CREATED_AT, reverse: true) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({ "query": "subject_type:PRODUCT_VARIANT" }),
+    ));
+    assert_eq!(reverse.status, 200);
+    assert_eq!(
+        event_ids(
+            reverse.body["data"]["events"]["nodes"]
+                .as_array()
+                .expect("reverse nodes should be present")
+        ),
+        variant_event_ids.iter().rev().cloned().collect::<Vec<_>>()
+    );
+
+    let product_update_filter = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductUpdateEvents($query: String!) {
+          events(first: 10, query: $query, sortKey: CREATED_AT) {
+            nodes {
+              id
+              action
+              ... on BasicEvent {
+                subjectId
+                subjectType
+              }
+            }
+          }
+          eventsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "action:update AND subject_type:PRODUCT" }),
+    ));
+    assert_eq!(product_update_filter.status, 200);
+    assert_eq!(
+        event_ids(
+            product_update_filter.body["data"]["events"]["nodes"]
+                .as_array()
+                .expect("product update nodes should be present")
+        ),
+        vec![product_update_event_id.clone()]
+    );
+    assert_eq!(
+        product_update_filter.body["data"]["eventsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let created_at_cutoff = variant_event_ids
+        .iter()
+        .filter_map(|id| all_nodes.iter().find(|event| event_id(event) == *id))
+        .map(event_created_at)
+        .max()
+        .expect("variant events should have createdAt values");
+    let recent_variants = proxy.process_request(json_graphql_request(
+        r#"
+        query RecentVariantEvents($query: String!) {
+          events(first: 10, query: $query, sortKey: CREATED_AT) {
+            nodes {
+              id
+              action
+              ... on BasicEvent {
+                subjectId
+                subjectType
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "query": format!("created_at:>={created_at_cutoff} subject_type:PRODUCT_VARIANT") }),
+    ));
+    assert_eq!(recent_variants.status, 200);
+    let expected_recent_variant_ids = all_nodes
+        .iter()
+        .filter(|event| {
+            event["subjectType"].as_str() == Some("PRODUCT_VARIANT")
+                && event_created_at(event) >= created_at_cutoff
+        })
+        .map(event_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        event_ids(
+            recent_variants.body["data"]["events"]["nodes"]
+                .as_array()
+                .expect("recent variant nodes should be present")
+        ),
+        expected_recent_variant_ids
+    );
+
+    let id_filter = proxy.process_request(json_graphql_request(
+        r#"
+        query EventIdFilter($query: String!) {
+          events(first: 10, query: $query) { nodes { id } }
+          eventsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": format!("id:{product_update_event_id}") }),
+    ));
+    assert_eq!(id_filter.status, 200);
+    assert_eq!(
+        event_ids(
+            id_filter.body["data"]["events"]["nodes"]
+                .as_array()
+                .expect("id-filter nodes should be present")
+        ),
+        vec![product_update_event_id]
+    );
+    assert_eq!(
+        id_filter.body["data"]["eventsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
     );
 }
 
@@ -188,6 +729,36 @@ fn event_reads_forward_upstream_in_live_hybrid() {
         forwarded[0].headers.get("authorization"),
         Some(&"Bearer events-read-token".to_string())
     );
+}
+
+fn event_id(event: &Value) -> String {
+    event["id"]
+        .as_str()
+        .expect("event id should be selected")
+        .to_string()
+}
+
+fn event_ids(events: &[Value]) -> Vec<String> {
+    events.iter().map(event_id).collect()
+}
+
+fn event_created_at(event: &Value) -> &str {
+    event["createdAt"]
+        .as_str()
+        .expect("event createdAt should be selected")
+}
+
+fn event_action_subjects(events: &[Value]) -> Vec<(String, String, String)> {
+    events
+        .iter()
+        .map(|event| {
+            (
+                event["action"].as_str().unwrap().to_string(),
+                event["subjectType"].as_str().unwrap().to_string(),
+                event["subjectId"].as_str().unwrap().to_string(),
+            )
+        })
+        .collect()
 }
 
 #[test]

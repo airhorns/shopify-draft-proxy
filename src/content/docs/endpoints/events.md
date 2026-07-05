@@ -7,7 +7,7 @@ This endpoint group covers the top-level Shopify Admin GraphQL Event catalog roo
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
 Read roots:
 
@@ -17,15 +17,17 @@ Read roots:
 
 Mutation roots:
 
-- None. Top-level event emission is not modeled as a mutation surface in this endpoint group.
+- None. Top-level event emission is not a standalone mutation surface in this endpoint group.
 
-### Runtime behavior
+### Local behavior
 
-In LiveHybrid mode, top-level Event reads pass through to Shopify until the proxy has a real local Event catalog model. This keeps real store timelines, non-empty event catalogs, and `eventsCount` values visible instead of asserting the checked-in no-data shape for every live store. The `event-non-empty-read` parity scenario captures a real store where `events(first: 3, sortKey: ID, reverse: true)` returns `BasicEvent` nodes and `eventsCount` returns `precision: "AT_LEAST"`.
+Cold LiveHybrid top-level Event reads forward the original GraphQL request to Shopify when the proxy has no staged Events state. Successful upstream responses hydrate observed `Event`, `BasicEvent`, and `CommentEvent` nodes into the base store, so later local Event reads can project those observed records alongside staged records.
 
-### Local snapshot behavior
+The local Event catalog supports `event(id:)`, `events(...)`, and `eventsCount(...)` from store state. Product and variant lifecycle mutations synthesize `BasicEvent` records for create, update, and destroy actions, including product default-variant replacement and product-delete variant cleanup. Generic `node(id:)` and `nodes(ids:)` resolve locally for stored Event records when they appear in an Events-dispatched document.
 
-Snapshot mode models the checked-in no-data branch only:
+`events(...)` and `eventsCount(...)` use the same underlying filtered set. The local query parser supports the documented `action`, `comments`, `created_at`, `id`, and `subject_type` search fields, plus free-text matching across Event text/id fields. Local connections support `sortKey: ID`, `sortKey: CREATED_AT`, `sortKey: RELEVANCE`, `reverse`, cursor pagination, and `pageInfo` from staged store state. Local counts return exact precision unless a `limit` argument truncates the reported count, in which case precision is `AT_LEAST`.
+
+Snapshot mode with no stored Event records models Shopify's no-data branch:
 
 - `event(id:)` returns `null` for absent Event GIDs.
 - `events(...)` returns a non-null empty connection with selected `nodes`, `edges`, and `pageInfo` fields, false page booleans, and null cursors.
@@ -33,8 +35,10 @@ Snapshot mode models the checked-in no-data branch only:
 
 The captured empty Event selection includes `id`, `action`, `appTitle`, `attributeToApp`, `attributeToUser`, `createdAt`, `criticalAlert`, and `message`, plus `BasicEvent` fields such as `additionalContent`, `additionalData`, `arguments`, `author`, `hasAdditionalContent`, `secondaryMessage`, `subjectId`, and `subjectType`. Because the evidence is empty/null, the local handler must not invent values for those fields.
 
+The `event-non-empty-read` parity scenario captures a real store where `events(first: 3, sortKey: ID, reverse: true)` returns `BasicEvent` nodes and `eventsCount` returns `precision: "AT_LEAST"`, proving the cold LiveHybrid path reads through to Shopify rather than fabricating an empty catalog.
+
 ### Boundaries
 
-- Local modeling for non-empty event catalogs, search/filter/sort behavior, count precision beyond exact zero, and pagination over real events remains unsupported outside the live-hybrid passthrough path.
-- Supported mutations in other domains do not write into a shared top-level Event catalog. Domain-owned event surfaces, such as discount detail events and fulfillment events, remain documented and modeled by their owning endpoint groups.
-- No event root is registry-only or validation-only in this group; the supported read roots are intentionally limited to the no-data shape above.
+- Event synthesis currently covers product and product-variant lifecycle side effects only. Event generation for other Admin API domains remains owned by those endpoint groups or unmodeled at the top-level Event catalog.
+- Local read-after-write projections are based on observed upstream Event records plus staged Event records. They are not a full historical scrape of the live shop unless the relevant upstream Events were already observed through the public GraphQL read path.
+- Shopify-authored Event message text and app attribution can be opaque. Locally synthesized `BasicEvent` records use deterministic proxy attribution and do not attempt to reproduce hidden Shopify rendering details.

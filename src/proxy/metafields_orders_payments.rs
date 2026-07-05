@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 mod abandonments;
 mod customer_payment_methods;
 mod delivery_settings;
-mod events;
 mod money_bag;
 mod payment_customizations;
 mod payment_reminders;
@@ -14,7 +13,6 @@ mod quantity_rules;
 mod returns;
 
 pub(in crate::proxy) use self::delivery_settings::*;
-pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_pricing::*;

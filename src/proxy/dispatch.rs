@@ -572,6 +572,17 @@ impl DraftProxy {
         {
             return Some(data);
         }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some("Event" | "BasicEvent" | "CommentEvent")
+        ) {
+            return Some(
+                self.store
+                    .event_by_id(id)
+                    .map(|event| selected_json(event, selection))
+                    .unwrap_or(Value::Null),
+            );
+        }
         if shopify_gid_resource_type(id) == Some("Product") {
             if self.store.product_is_tombstoned(id) {
                 return Some(Value::Null);
@@ -1918,11 +1929,7 @@ impl DraftProxy {
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                if self.config.read_mode == ReadMode::LiveHybrid {
-                    return (self.upstream_transport)(request.clone());
-                }
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": event_empty_read_data(&fields) }))
+                self.events_query_response(request, &query, &variables)
             }
             (CapabilityDomain::Localization, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
