@@ -411,6 +411,51 @@ impl DraftProxy {
     }
 }
 
+pub(in crate::proxy) fn segment_payload_json(
+    segment: Value,
+    deleted_segment_id: Value,
+    payload_selection: &[SelectedField],
+    segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "segment" => Some(if segment.is_null() {
+                Value::Null
+            } else {
+                selected_json(&segment, segment_selection)
+            }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn customer_segment_members_query_payload_json(
+    query_record: Value,
+    payload_selection: &[SelectedField],
+    query_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&query_record, query_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
 fn segment_user_error(field: Value, message: &str) -> Value {
     user_error_typed_omit_code("UserError", field, message, None)
 }

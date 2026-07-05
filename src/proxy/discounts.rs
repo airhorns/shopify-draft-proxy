@@ -3684,7 +3684,7 @@ fn apply_discount_activate_deactivate(
     if record
         .get("startsAt")
         .and_then(Value::as_str)
-        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .and_then(super::parse_rfc3339_epoch_seconds)
         .map(|starts_at| starts_at > now_epoch)
         .unwrap_or(true)
     {
@@ -3695,7 +3695,7 @@ fn apply_discount_activate_deactivate(
     } else if record
         .get("endsAt")
         .and_then(Value::as_str)
-        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .and_then(super::parse_rfc3339_epoch_seconds)
         .map(|ends_at| ends_at > now_epoch)
         .unwrap_or(true)
     {
@@ -3829,7 +3829,7 @@ fn decimal_string_at_or_above(raw: &str, integer_limit: &str) -> bool {
 }
 
 fn discount_status_from_dates(starts_at: &str, ends_at: &Value, now_epoch: i64) -> &'static str {
-    if super::app_shipping_helpers::parse_rfc3339_epoch_seconds(starts_at)
+    if super::parse_rfc3339_epoch_seconds(starts_at)
         .map(|starts_at| starts_at > now_epoch)
         .unwrap_or(false)
     {
@@ -3837,7 +3837,7 @@ fn discount_status_from_dates(starts_at: &str, ends_at: &Value, now_epoch: i64) 
     }
     if ends_at
         .as_str()
-        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .and_then(super::parse_rfc3339_epoch_seconds)
         .map(|ends_at| ends_at <= now_epoch)
         .unwrap_or(false)
     {

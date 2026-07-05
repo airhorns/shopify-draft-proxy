@@ -1460,6 +1460,208 @@ impl DraftProxy {
             &field.selection,
         )
     }
+    // Collect the `feedbackInput[].productId`s that reference a product the
+    // proxy can prove is unavailable to resource feedback, so
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry missing
+    // product userError. A locally tombstoned id is reported missing
+    // immediately. Known non-ACTIVE products are also unavailable. An id merely
+    // absent from the local catalog is NOT assumed missing — the proxy never
+    // seeds every real product, so absence alone is no proof. Instead we confirm
+    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
+    // (or, in Snapshot mode, no upstream to consult) means the product does not
+    // exist; a hydrated node means it does and feedback stages normally.
+    pub(in crate::proxy) fn feedback_missing_product_ids(
+        &self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> BTreeSet<String> {
+        let mut missing = BTreeSet::new();
+        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
+        // oversized batch returns TOO_LONG without ever looking up a product. Never
+        // forward an existence lookup the resolver itself would not perform.
+        if inputs.len() > 50 {
+            return missing;
+        }
+        for input in inputs.iter() {
+            // Per-entry message / generated-at / length guards run before the
+            // existence check, mirroring Shopify's resolver order: an entry that
+            // fails one of those reports only that error and never resolves (nor
+            // forwards a lookup for) its product.
+            if resource_feedback_validation_error(input, None).is_some() {
+                continue;
+            }
+            let Some(id) = resolved_string_field(input, "productId") else {
+                continue;
+            };
+            if self.store.product_is_tombstoned(&id) {
+                missing.insert(id);
+                continue;
+            }
+            if let Some(product) = self.store.product_staged_or_base(&id) {
+                if !product.status.is_empty() && product.status != "ACTIVE" {
+                    missing.insert(id);
+                }
+                continue;
+            }
+            // Only LiveHybrid can prove a product's absence by hydrating it
+            // upstream (a definitive null node). In Snapshot mode there is no
+            // upstream to consult, so an unseeded product is treated as existing
+            // (fail open) rather than fabricated-missing — absence from the local
+            // seed is not evidence the product does not exist.
+            if self.config.read_mode == ReadMode::LiveHybrid
+                && self.hydrate_product_for_tags(&id, request).is_none()
+            {
+                missing.insert(id);
+            }
+        }
+        missing
+    }
+}
+
+pub(in crate::proxy) fn product_tail_resource_feedback_payload(
+    field: &RootFieldSelection,
+    missing_product_ids: &BTreeSet<String>,
+) -> Value {
+    let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+    let payload = if inputs.len() > 50 {
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
+            }]
+        })
+    } else {
+        let mut feedback = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
+                user_errors.push(error);
+                continue;
+            }
+            // Per-entry product availability is validated only after the message /
+            // generated-at / length guards pass, mirroring Shopify's resolver
+            // order: a blank-message or future-date entry never also reports the
+            // product missing.
+            let product_id = resolved_string_field(input, "productId").unwrap_or_default();
+            if missing_product_ids.contains(&product_id) {
+                user_errors.push(resource_feedback_missing_product_error(Some(index)));
+            } else {
+                feedback.push(product_resource_feedback_json(input));
+            }
+        }
+        json!({ "feedback": feedback, "userErrors": user_errors })
+    };
+    selected_json(&payload, &field.selection)
+}
+
+pub(in crate::proxy) fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let payload = if let Some(error) = resource_feedback_validation_error(&input, None) {
+        json!({
+            "feedback": null,
+            "userErrors": [error]
+        })
+    } else {
+        json!({ "feedback": shop_resource_feedback_json(&input), "userErrors": [] })
+    };
+    selected_json(&payload, &field.selection)
+}
+
+fn product_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "productId": resolved_string_field(input, "productId").unwrap_or_default(),
+        "state": resolved_string_field(input, "state").unwrap_or_default(),
+        "messages": list_string_field(input, "messages"),
+        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default(),
+        "productUpdatedAt": resolved_string_field(input, "productUpdatedAt").unwrap_or_default()
+    })
+}
+
+fn shop_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let messages = list_string_field(input, "messages")
+        .into_iter()
+        .map(|message| json!({ "message": message }))
+        .collect::<Vec<_>>();
+    json!({
+        "state": resolved_string_field(input, "state").unwrap_or_default(),
+        "messages": messages,
+        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default()
+    })
+}
+
+fn resource_feedback_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    feedback_index: Option<usize>,
+) -> Option<Value> {
+    let messages = list_string_field(input, "messages");
+    if messages.is_empty() {
+        return Some(presence_user_error(
+            feedback_field_path(feedback_index, "messages", None),
+            "Messages",
+        ));
+    }
+
+    let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
+    if feedback_generated_at_is_future(&generated_at) {
+        return Some(resource_feedback_user_error(
+            feedback_field_path(feedback_index, "feedbackGeneratedAt", None),
+            "Feedback generated at must not be in the future",
+            "INVALID",
+        ));
+    }
+
+    messages
+        .iter()
+        .position(|message| message.chars().count() > 100)
+        .map(|message_index| {
+            length_user_error(
+                feedback_field_path(feedback_index, "messages", Some(message_index)),
+                "Message",
+                LengthUserErrorBound::TooLong { maximum: 100 },
+            )
+        })
+}
+
+fn feedback_field_path(
+    feedback_index: Option<usize>,
+    field: &str,
+    nested_index: Option<usize>,
+) -> Vec<String> {
+    let mut path = match feedback_index {
+        Some(index) => vec!["feedback".to_string(), index.to_string()],
+        None => vec!["feedback".to_string()],
+    };
+    path.push(field.to_string());
+    if let Some(index) = nested_index {
+        path.push(index.to_string());
+    }
+    path
+}
+
+fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
+    user_error(field, message, Some(code))
+}
+
+// Shopify reports referenced-but-unavailable products at the product id field,
+// distinct from the BLANK / INVALID / TOO_LONG resolver guards.
+fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
+    let field = feedback_index
+        .map(|index| json!(["feedback", index.to_string(), "productId"]))
+        .unwrap_or(Value::Null);
+    user_error(field, "Product does not exist", None)
+}
+
+fn feedback_generated_at_is_future(generated_at: &str) -> bool {
+    let Some(generated_at) = parse_rfc3339_epoch_seconds(generated_at) else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    generated_at > now.as_secs() as i64
 }
 
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {

@@ -5793,7 +5793,7 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
-    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+    super::parse_rfc3339_epoch_seconds(expires_at)
         .map(|expires_at| expires_at <= now_epoch)
         .unwrap_or(false)
 }
