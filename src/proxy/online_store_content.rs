@@ -14,13 +14,14 @@ const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;
 const ONLINE_STORE_PAGE_BODY_MAX_BYTES: usize = 524_287;
 const ONLINE_STORE_ARTICLE_BODY_MAX_BYTES: usize = 1_048_576;
 const ONLINE_STORE_COMMENT_HYDRATE_QUERY: &str = "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }";
+const ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY: &str = "query OnlineStoreCommentArticleHydrate($id: ID!) { article(id: $id) { __typename id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix author { name } blog { __typename id title handle commentPolicy createdAt updatedAt } commentsCount { count precision } } }";
 const ONLINE_STORE_PAGE_HYDRATE_QUERY: &str = "query OnlineStorePageHydrate($id: ID!) { page(id: $id) { __typename id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } }";
 const ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }";
 const ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreBlogDeleteCascadeHydrate($id: ID!) { blog(id: $id) { __typename id title handle createdAt updatedAt commentPolicy articles(first: 50) { nodes { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } } } }";
 const BLOGS_COUNT_Q: &str = "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }";
 const PAGES_COUNT_Q: &str = "query OnlineStorePagesCountHydrate { pagesCount { count precision } }";
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum OnlineStoreKind {
     Blog,
     Page,

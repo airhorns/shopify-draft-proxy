@@ -44,7 +44,11 @@ pub(super) fn online_store_search_decision(
         }
     }
 
-    StagedSearchDecision::Match
+    if online_store_search_visibility_decision(kind, record, Some(query)) {
+        StagedSearchDecision::Match
+    } else {
+        StagedSearchDecision::NoMatch
+    }
 }
 
 fn online_store_query_tokens(query: &str) -> Vec<OnlineStoreQueryToken> {

@@ -6540,6 +6540,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}online-store-content-lifecycle.json`,
       'config/parity-specs/online-store/online-store-content-lifecycle.json',
+      'config/parity-requests/admin-platform/admin-platform-online-store-content-node-read-after-update.graphql',
       'config/parity-requests/online-store/online-store-content-article-create.graphql',
       'config/parity-requests/online-store/online-store-content-comment-unknown.graphql',
       'config/parity-requests/online-store/online-store-content-create.graphql',
@@ -6729,7 +6730,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'online-store-comment-moderation-state-transitions',
     scriptPath: 'scripts/capture-online-store-comment-moderation-state-transitions-conformance.ts',
     purpose:
-      'commentApprove, commentSpam, and commentNotSpam state-machine preconditions, idempotent branches, and invalid source-state userErrors.',
+      'commentApprove, commentSpam, and commentNotSpam state-machine preconditions, idempotent branches, invalid source-state userErrors, and Comment.article parent back-reference projection.',
     requiredAuthScopes: ['read_content', 'write_content'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}comment-moderation-state-transitions.json`,

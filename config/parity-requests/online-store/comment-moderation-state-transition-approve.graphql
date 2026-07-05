@@ -5,6 +5,21 @@ mutation CommentModerationStateApprove($id: ID!) {
       status
       isPublished
       publishedAt
+      article {
+        id
+        title
+        handle
+        publishedAt
+        author {
+          name
+        }
+        blog {
+          id
+          title
+          handle
+          commentPolicy
+        }
+      }
     }
     userErrors {
       field

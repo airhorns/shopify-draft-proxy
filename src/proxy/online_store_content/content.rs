@@ -780,6 +780,22 @@ impl DraftProxy {
             self.stage_online_store_record(kind, id.clone(), comment.clone());
             staged_ids.push(id);
         }
+        let article_id = comment["articleId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        if comment_payload_selects_article(&field.selection)
+            && !article_id.is_empty()
+            && self
+                .online_store_record(OnlineStoreKind::Article, &article_id)
+                .is_none()
+        {
+            self.hydrate_online_store_content_from_upstream(
+                request,
+                &article_id,
+                ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY,
+            );
+        }
         resource_payload(
             &field.selection,
             "comment",
@@ -874,10 +890,16 @@ impl DraftProxy {
     }
 
     pub(super) fn online_store_records(&self, kind: OnlineStoreKind) -> Vec<Value> {
+        self.online_store_raw_records(kind)
+            .into_iter()
+            .map(|record| self.enriched_online_store_record(kind, &record))
+            .collect()
+    }
+
+    fn online_store_raw_records(&self, kind: OnlineStoreKind) -> Vec<Value> {
         kind.order(&self.store.staged)
             .iter()
             .filter_map(|id| self.online_store_record(kind, id))
-            .map(|record| self.enriched_online_store_record(kind, &record))
             .collect()
     }
 
@@ -891,10 +913,24 @@ impl DraftProxy {
     }
 
     fn enriched_blog_record(&self, record: &Value) -> Value {
+        let mut record = self.blog_parent_record(record);
+        let id = record["id"].as_str().unwrap_or_default();
+        let articles = self
+            .online_store_raw_records(OnlineStoreKind::Article)
+            .into_iter()
+            .filter(|article| article["blogId"].as_str() == Some(id))
+            .map(|article| self.enriched_article_record(&article))
+            .collect::<Vec<_>>();
+        record["articlesCount"] = count_object(articles.len());
+        record["articles"] = connection_json(articles);
+        record
+    }
+
+    fn blog_parent_record(&self, record: &Value) -> Value {
         let mut record = record.clone();
         let id = record["id"].as_str().unwrap_or_default();
         let articles = self
-            .online_store_records(OnlineStoreKind::Article)
+            .online_store_raw_records(OnlineStoreKind::Article)
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
@@ -909,17 +945,28 @@ impl DraftProxy {
         let blog_id = record["blogId"].as_str().unwrap_or_default().to_string();
         record["blog"] = self
             .online_store_record(OnlineStoreKind::Blog, &blog_id)
-            .map(|blog| {
-                json!({
-                    "__typename": "Blog",
-                    "id": blog["id"].clone(),
-                    "title": blog["title"].clone(),
-                    "handle": blog["handle"].clone()
-                })
-            })
+            .map(|blog| self.blog_parent_record(&blog))
             .unwrap_or(Value::Null);
         let comments = self
             .online_store_records(OnlineStoreKind::Comment)
+            .into_iter()
+            .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
+            .collect::<Vec<_>>();
+        record["commentsCount"] = count_object(comments.len());
+        record["comments"] = connection_json(comments);
+        record
+    }
+
+    fn article_parent_record(&self, record: &Value) -> Value {
+        let mut record = record.clone();
+        let article_id = record["id"].as_str().unwrap_or_default().to_string();
+        let blog_id = record["blogId"].as_str().unwrap_or_default().to_string();
+        record["blog"] = self
+            .online_store_record(OnlineStoreKind::Blog, &blog_id)
+            .map(|blog| self.blog_parent_record(&blog))
+            .unwrap_or(Value::Null);
+        let comments = self
+            .online_store_raw_records(OnlineStoreKind::Comment)
             .into_iter()
             .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
             .collect::<Vec<_>>();
@@ -933,13 +980,7 @@ impl DraftProxy {
         let article_id = record["articleId"].as_str().unwrap_or_default();
         record["article"] = self
             .online_store_record(OnlineStoreKind::Article, article_id)
-            .map(|article| {
-                json!({
-                    "__typename": "Article",
-                    "id": article["id"].clone(),
-                    "title": article["title"].clone()
-                })
-            })
+            .map(|article| self.article_parent_record(&article))
             .unwrap_or(Value::Null);
         record
     }
@@ -1043,9 +1084,6 @@ fn input_title_and_handle(input: &BTreeMap<String, ResolvedValue>) -> (String, S
 fn apply_title_and_handle(record: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
-        if !input.contains_key("handle") {
-            record["handle"] = json!(slugify_handle(record["title"].as_str().unwrap_or_default()));
-        }
     }
     if let Some(handle) = resolved_string_field(input, "handle") {
         record["handle"] = json!(handle);
