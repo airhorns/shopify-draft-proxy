@@ -512,6 +512,12 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             }
         }
     }
+    for error in product_feed_required_input_errors(&document) {
+        errors.retain(|existing| !product_feed_required_input_error_replaces(existing, &error));
+        if !errors.iter().any(|existing| existing == &error) {
+            errors.push(error);
+        }
+    }
     errors.extend(product_media_variable_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
     errors
@@ -1193,6 +1199,74 @@ fn variable_problem_path_display(path: &[Value]) -> Option<String> {
             .collect::<Vec<_>>()
             .join("."),
     )
+}
+
+fn product_feed_required_input_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if field.name != "productFeedCreate" {
+            continue;
+        }
+        if let Some(RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(input)),
+        }) = field.raw_arguments.get("input")
+        {
+            let mut problems = Vec::new();
+            for (argument_name, _) in product_feed_required_input_fields() {
+                if input
+                    .get(argument_name)
+                    .is_none_or(|value| matches!(value, ResolvedValue::Null))
+                {
+                    problems.push(variable_problem_value_path(
+                        &[json!(argument_name)],
+                        "Expected value to not be null",
+                    ));
+                }
+            }
+            if !problems.is_empty() {
+                let (variable_type, location) = resolve_variable_definition_type(
+                    document,
+                    name,
+                    "ProductFeedInput",
+                    field.location,
+                );
+                errors.push(invalid_variable_error(
+                    VariableValidationContext {
+                        variable_name: name,
+                        variable_type: &variable_type,
+                        location,
+                    },
+                    &ResolvedValue::Object(input.clone()),
+                    problems,
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn product_feed_required_input_fields() -> [(&'static str, SchemaTypeRef); 2] {
+    [
+        ("language", non_null("LanguageCode")),
+        ("country", non_null("CountryCode")),
+    ]
+}
+
+fn product_feed_required_input_error_replaces(existing: &Value, replacement: &Value) -> bool {
+    existing.pointer("/extensions/code").and_then(Value::as_str) == Some("INVALID_VARIABLE")
+        && replacement
+            .pointer("/extensions/code")
+            .and_then(Value::as_str)
+            == Some("INVALID_VARIABLE")
+        && existing
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
+        && replacement
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
 }
 
 /// The product media mutations are not modelled in the declarative input
@@ -2852,6 +2926,9 @@ fn extend_product_input_schema(schema: &mut AdminInputSchema, api_version: &str)
     let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
 
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductDeleteInput") {
+        schema.insert_strict_input_object(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductFeedInput") {
         schema.insert_strict_input_object(name, fields);
     }
     schema.mutation_fields.insert(
