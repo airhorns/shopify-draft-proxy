@@ -1,0 +1,17 @@
+query OnlineStorePixelTokenSchema {
+  serverPixelStatus: __type(name: "ServerPixelStatus") {
+    enumValues {
+      name
+    }
+  }
+  webPixel: __type(name: "WebPixel") {
+    fields {
+      name
+    }
+  }
+  serverPixel: __type(name: "ServerPixel") {
+    fields {
+      name
+    }
+  }
+}
