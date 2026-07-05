@@ -1,4 +1,361 @@
-use crate::proxy::*;
+use super::*;
+
+pub(in crate::proxy) fn b2b_company_payload(
+    company: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "company": company.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+pub(in crate::proxy) fn b2b_company_location_payload(
+    company_location: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "companyLocation": company_location.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+pub(in crate::proxy) fn b2b_company_contact_payload(
+    company_contact: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "companyContact": company_contact.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    if input.is_empty() {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration"],
+            "Invalid input.",
+            "INVALID_INPUT",
+            Some(json!("buyer_experience_configuration_empty")),
+        )];
+    }
+    let has_deposit = input.contains_key("deposit");
+    let has_payment_terms_template = input.contains_key("paymentTermsTemplateId");
+    if has_deposit && !has_payment_terms_template {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration", "deposit"],
+            "Deposit requires a payment terms template.",
+            "INVALID",
+            Some(json!("deposit_without_payment_terms")),
+        )];
+    }
+    if has_deposit
+        && has_payment_terms_template
+        && !input.contains_key("checkoutToDraft")
+        && !input.contains_key("editableShippingAddress")
+    {
+        return vec![b2b_company_user_error(
+            vec!["input", "buyerExperienceConfiguration", "deposit"],
+            "Deposits are not enabled for this shop.",
+            "INVALID",
+            Some(json!("deposit_not_enabled")),
+        )];
+    }
+    Vec::new()
+}
+
+pub(in crate::proxy) fn b2b_company_create_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    companies: &BTreeMap<String, Value>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(name) = resolved_string_field(input, "name") {
+        // Shopify strips HTML tags before validating, so a name that is only
+        // markup/whitespace (e.g. "<b>  </b>") collapses to blank and is rejected.
+        if b2b_strip_html_tags(&name).trim().is_empty() {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "name"],
+                "Name can't be blank",
+                BLANK_USER_ERROR_CODE,
+                None,
+            ));
+        } else if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "name"],
+                "Name is too long (maximum is 255 characters)",
+                TOO_LONG_USER_ERROR_CODE,
+                None,
+            ));
+        }
+    }
+    if let Some(external_id) = resolved_string_field(input, "externalId") {
+        errors.extend(b2b_external_id_errors(
+            &external_id,
+            vec!["input", "company", "externalId"],
+            companies,
+            None,
+        ));
+    }
+    if let Some(note) = resolved_string_field(input, "note") {
+        if note.chars().count() > 5000 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "notes"],
+                "Notes is too long (maximum is 5000 characters)",
+                TOO_LONG_USER_ERROR_CODE,
+                None,
+            ));
+        }
+    }
+    errors
+}
+
+pub(in crate::proxy) fn b2b_company_update_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    companies: &BTreeMap<String, Value>,
+    current_company_id: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if input.contains_key("customerSince") {
+        errors.push(b2b_company_user_error(
+            vec!["input", "customerSince"],
+            "This field may only be set on creation.",
+            "INVALID_INPUT",
+            None,
+        ));
+    }
+    if let Some(name) = resolved_string_field(input, "name") {
+        if b2b_strip_html_tags(&name).trim().is_empty() {
+            errors.push(b2b_company_user_error(
+                vec!["input", "name"],
+                "Name can't be blank",
+                BLANK_USER_ERROR_CODE,
+                None,
+            ));
+        } else if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "name"],
+                "Name is too long (maximum is 255 characters)",
+                TOO_LONG_USER_ERROR_CODE,
+                None,
+            ));
+        }
+    }
+    if let Some(external_id) = resolved_string_field(input, "externalId") {
+        errors.extend(b2b_external_id_errors(
+            &external_id,
+            vec!["input", "externalId"],
+            companies,
+            Some(current_company_id),
+        ));
+    }
+    if let Some(note) = resolved_string_field(input, "note") {
+        if note.chars().count() > 5000 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "notes"],
+                "Notes is too long (maximum is 5000 characters)",
+                TOO_LONG_USER_ERROR_CODE,
+                None,
+            ));
+        }
+    }
+    errors
+}
+
+pub(in crate::proxy) fn b2b_external_id_errors(
+    external_id: &str,
+    field: Vec<&str>,
+    records: &BTreeMap<String, Value>,
+    current_id: Option<&str>,
+) -> Vec<Value> {
+    if external_id.chars().count() > 64 {
+        return vec![b2b_company_user_error(
+            field,
+            "External Id must be 64 characters or less.",
+            TOO_LONG_USER_ERROR_CODE,
+            None,
+        )];
+    }
+    // Allowed characters mirror Shopify's externalId charset exactly.
+    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
+    if !external_id
+        .chars()
+        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
+    {
+        return vec![b2b_company_user_error(
+            field,
+            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
+            "INVALID",
+            Some(json!("external_id_contains_invalid_chars")),
+        )];
+    }
+    let duplicate = records.iter().any(|(id, record)| {
+        Some(id.as_str()) != current_id && record["externalId"].as_str() == Some(external_id)
+    });
+    if duplicate {
+        return vec![b2b_company_user_error(
+            field,
+            "External id has already been taken.",
+            "TAKEN",
+            Some(json!("duplicate_external_id")),
+        )];
+    }
+    Vec::new()
+}
+
+pub(in crate::proxy) fn b2b_company_user_error(
+    field: Vec<&str>,
+    message: &str,
+    code: &str,
+    detail: Option<Value>,
+) -> Value {
+    let mut error = user_error(field, message, Some(code));
+    error["detail"] = detail.unwrap_or(Value::Null);
+    error
+}
+
+pub(in crate::proxy) fn b2b_contains_html_tags(value: &str) -> bool {
+    value.contains('<') && value.contains('>')
+}
+
+pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
+    let mut output = String::new();
+    let mut in_tag = false;
+    for character in value.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => output.push(character),
+            _ => {}
+        }
+    }
+    output
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn b2b_tax_settings_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+            .unwrap_or_else(|| {
+                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
+            });
+        let tax_exempt_argument = field.raw_arguments.get("taxExempt");
+        let tax_exempt_is_null = matches!(
+            tax_exempt_argument,
+            Some(RawArgumentValue::Null)
+                | Some(RawArgumentValue::Variable {
+                    value: Some(ResolvedValue::Null),
+                    ..
+                })
+        );
+        let assign = list_string_field(&field.arguments, "exemptionsToAssign");
+        let remove = list_string_field(&field.arguments, "exemptionsToRemove");
+        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["companyLocationId"],
+                    "The company location doesn't exist",
+                    Some("RESOURCE_NOT_FOUND"),
+                )],
+            ));
+        }
+        if tax_exempt_is_null {
+            return failed_payload_outcome(b2b_company_location_payload(
+                None,
+                vec![user_error(
+                    ["taxExempt"],
+                    "Tax exempt must be true or false",
+                    Some("INVALID_INPUT"),
+                )],
+            ));
+        }
+
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        let mut exemptions = Vec::new();
+        if let Some(current_exemptions) = location
+            .pointer("/taxSettings/taxExemptions")
+            .and_then(Value::as_array)
+        {
+            for exemption in current_exemptions.iter().filter_map(Value::as_str) {
+                if !exemptions.iter().any(|existing| existing == exemption) {
+                    exemptions.push(exemption.to_string());
+                }
+            }
+        }
+        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
+        for assigned in assign {
+            if !exemptions.iter().any(|existing| existing == &assigned) {
+                exemptions.push(assigned);
+            }
+        }
+        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt")
+            .or_else(|| {
+                location
+                    .pointer("/taxSettings/taxExempt")
+                    .and_then(Value::as_bool)
+            })
+            .unwrap_or(false);
+        // companyLocationTaxSettingsUpdate sets taxRegistrationId when the argument is
+        // supplied, and otherwise leaves any previously staged registration id untouched.
+        let existing_registration_id = location
+            .pointer("/taxSettings/taxRegistrationId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let tax_registration_id = resolved_string_field(&field.arguments, "taxRegistrationId")
+            .or(existing_registration_id);
+        location["taxSettings"] = json!({
+            "taxRegistrationId": tax_registration_id,
+            "taxExempt": tax_exempt,
+            "taxExemptions": exemptions
+        });
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location.clone());
+        (
+            json!({
+                "companyLocation": location,
+                "userErrors": []
+            }),
+            "staged",
+            vec![location_id],
+        )
+    }
+}
+
+pub(in crate::proxy) fn b2b_company_location_exists(
+    locations: &BTreeMap<String, Value>,
+    location_id: &str,
+) -> bool {
+    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
+}
+
+pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
+    json!({
+        "id": location_id,
+        "name": "HQ",
+        "billingAddress": { "address1": "Billing HQ" },
+        "taxSettings": {
+            "taxRegistrationId": Value::Null,
+            "taxExempt": true,
+            "taxExemptions": []
+        }
+    })
+}
+
+pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+}
 
 enum B2bCompanyLocationDeleteBlocker {
     OnlyLocation,
@@ -700,6 +1057,7 @@ impl DraftProxy {
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
         let mut company = json!({
+            "__typename": "Company",
             "id": id,
             "name": name,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
@@ -2993,6 +3351,7 @@ impl DraftProxy {
         let currency =
             b2b_company_location_input_currency_code(input, &self.store.shop_currency_code());
         let location = json!({
+            "__typename": "CompanyLocation",
             "id": id,
             "name": name,
             "companyId": company_id,
