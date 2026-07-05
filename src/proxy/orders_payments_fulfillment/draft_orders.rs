@@ -1158,14 +1158,16 @@ pub(in crate::proxy) fn draft_order_max_input_error(
     count: usize,
     max: usize,
 ) -> Value {
-    json!({
-        "message": format!(
-            "The input array size of {count} is greater than the maximum allowed of {max}."
-        ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [field.response_key.clone(), "input", argument],
-        "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" }
-    })
+    max_input_size_exceeded_error(
+        vec![
+            field.response_key.clone(),
+            "input".to_string(),
+            argument.to_string(),
+        ],
+        count,
+        max,
+        Some(json!([{ "line": field.location.line, "column": field.location.column }])),
+    )
 }
 
 impl DraftProxy {

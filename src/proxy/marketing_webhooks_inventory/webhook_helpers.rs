@@ -1108,21 +1108,15 @@ fn webhook_required_argument_errors(
     if !missing.is_empty() {
         errors.insert(
             0,
-            json!({
-                "message": format!(
-                    "Field '{}' is missing required arguments: {}",
-                    field.name,
-                    missing.join(", ")
-                ),
-                "locations": [{ "line": field.location.line, "column": field.location.column }],
-                "path": [document.operation_path.clone(), field.name.clone()],
-                "extensions": {
-                    "code": "missingRequiredArguments",
-                    "className": "Field",
-                    "name": field.name.clone(),
-                    "arguments": missing.join(", ")
-                }
-            }),
+            missing_required_arguments_error(
+                &field.name,
+                &missing.join(", "),
+                field.location,
+                vec![
+                    json!(document.operation_path.clone()),
+                    json!(field.name.clone()),
+                ],
+            ),
         );
     }
     errors

@@ -2094,17 +2094,12 @@ fn input_was_variable(field: &RootFieldSelection) -> bool {
 
 fn location_add_missing_input_error(operation_path: &str, field: &RootFieldSelection) -> Value {
     json!({
-        "errors": [{
-            "message": "Field 'locationAdd' is missing required arguments: input",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "locationAdd"],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": "locationAdd",
-                "arguments": "input"
-            }
-        }]
+        "errors": [missing_required_arguments_error(
+            "locationAdd",
+            "input",
+            field.location,
+            vec![json!(operation_path), json!("locationAdd")],
+        )]
     })
 }
 

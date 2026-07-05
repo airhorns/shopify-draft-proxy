@@ -689,16 +689,9 @@ const FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD: FunctionPayloadDescriptor =
         not_found_message: FunctionNotFoundMessage::ReleasedFunction,
     };
 
-fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
-    let mut payload = serde_json::Map::new();
-    payload.insert(desc.payload_key.to_string(), Value::Null);
-    payload.insert("userErrors".to_string(), Value::Array(vec![error]));
-    Value::Object(payload)
-}
-
 fn maximum_cart_transforms_error() -> Value {
-    payload_error(
-        CART_TRANSFORM_FUNCTION_PAYLOAD,
+    payload_user_error(
+        CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
         user_error(
             ["base"],
             "The maximum number of cart transforms per shop has been reached.",
@@ -713,16 +706,16 @@ fn function_identifier_error(
     function_handle: &Option<String>,
 ) -> Option<Value> {
     match (function_id.is_some(), function_handle.is_some()) {
-        (false, false) => Some(payload_error(
-            desc,
+        (false, false) => Some(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, "functionHandle"),
                 "Either function_id or function_handle must be provided.",
                 Some("MISSING_FUNCTION_IDENTIFIER"),
             ),
         )),
-        (true, true) => Some(payload_error(
-            desc,
+        (true, true) => Some(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_multiple_identifier_field(desc),
                 "Only one of function_id or function_handle can be provided, not both.",
@@ -793,8 +786,8 @@ fn function_not_found_error(
     current_app_id: &str,
 ) -> Value {
     let message = function_not_found_message(desc, function_id, function_handle, current_app_id);
-    payload_error(
-        desc,
+    payload_user_error(
+        desc.payload_key,
         user_error(
             function_error_field(desc, field_name),
             &message,
@@ -837,8 +830,8 @@ fn function_resolution_payload(
         } else {
             desc.api_mismatch_handle_code
         };
-        return Err(payload_error(
-            desc,
+        return Err(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
                 desc.api_mismatch_message,
@@ -847,8 +840,8 @@ fn function_resolution_payload(
         ));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(payload_error(
-            desc,
+        return Err(payload_user_error(
+            desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
                 function["createGuardrailMessage"]
@@ -1198,8 +1191,8 @@ fn fulfillment_constraint_rule_delivery_method_error(
     delivery_method_types: &[String],
 ) -> Option<Value> {
     if delivery_method_types.is_empty() {
-        Some(payload_error(
-            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+        Some(payload_user_error(
+            FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
             user_error(
                 ["deliveryMethodTypes"],
                 "Delivery method types cannot be empty.",
@@ -1573,8 +1566,8 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_error(
-                    VALIDATION_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
@@ -1596,12 +1589,12 @@ impl DraftProxy {
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return json!({ "validation": Value::Null, "userErrors": errors });
+            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && active_validation_count(&self.store.staged.function_validations, None) >= 25 {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
@@ -1637,8 +1630,8 @@ impl DraftProxy {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return payload_error(
-                    VALIDATION_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    VALIDATION_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["validation"],
                         "Required input field must be present.",
@@ -1648,14 +1641,14 @@ impl DraftProxy {
             }
         };
         let Some(mut validation) = self.store.staged.function_validations.get(&id).cloned() else {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
             );
         };
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
-            return json!({ "validation": Value::Null, "userErrors": errors });
+            return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let next_enable = resolved_bool_field(input, "enable")
             .or_else(|| resolved_bool_field(input, "enabled"))
@@ -1663,8 +1656,8 @@ impl DraftProxy {
         if next_enable
             && active_validation_count(&self.store.staged.function_validations, Some(&id)) >= 25
         {
-            return payload_error(
-                VALIDATION_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     Vec::<&str>::new(),
                     "Cannot have more than 25 active validation functions.",
@@ -1700,10 +1693,10 @@ impl DraftProxy {
             Some(&mut self.store.staged.function_validation),
             &id,
             json!({ "deletedId": id, "userErrors": [] }),
-            json!({
-                "deletedId": Value::Null,
-                "userErrors": [user_error(["id"], "Extension not found.", Some("NOT_FOUND"))]
-            }),
+            payload_user_error(
+                "deletedId",
+                user_error(["id"], "Extension not found.", Some("NOT_FOUND")),
+            ),
         );
         if deleted {
             self.store.staged.functions_dirty = true;
@@ -1732,8 +1725,8 @@ impl DraftProxy {
                     function_id,
                 )
             {
-                return payload_error(
-                    CART_TRANSFORM_FUNCTION_PAYLOAD,
+                return payload_user_error(
+                    CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
                     user_error(
                         ["functionId"],
                         "Could not enable cart transform because it is already registered",
@@ -1757,7 +1750,7 @@ impl DraftProxy {
         }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
-            return json!({ "cartTransform": Value::Null, "userErrors": errors });
+            return payload_error(CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key, errors);
         }
         let id = self.next_proxy_synthetic_gid("CartTransform");
         let metafield_ids: Vec<String> = Vec::new();
@@ -1815,14 +1808,14 @@ impl DraftProxy {
             Some(&mut self.store.staged.function_cart_transform),
             &id,
             json!({ "deletedId": id, "userErrors": [] }),
-            json!({
-                "deletedId": Value::Null,
-                "userErrors": [user_error(
+            payload_user_error(
+                "deletedId",
+                user_error(
                     ["id"],
                     &format!("Could not find cart transform with id: {id}"),
-                    Some("NOT_FOUND")
-                )]
-            }),
+                    Some("NOT_FOUND"),
+                ),
+            ),
         );
         if deleted {
             self.store.staged.functions_dirty = true;
@@ -1929,8 +1922,8 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return payload_error(
-                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD,
+            return payload_user_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
                 user_error(
                     ["id"],
                     &format!("Could not find FulfillmentConstraintRule with id: {id}"),
