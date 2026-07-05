@@ -124,6 +124,197 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
+#[test]
+fn product_variant_count_and_compare_at_range_follow_effective_variants() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductForVariantCount($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Derived compare-at range product",
+                "productOptions": [
+                    { "name": "Color", "values": [{ "name": "Red" }] }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let initial_variant_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateInitialCompareAt($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            product { id totalVariants }
+            productVariants { id compareAtPrice }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": initial_variant_id, "price": "10.00", "compareAtPrice": "15.00" }]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let bulk_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMoreCompareAtVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { id totalVariants }
+            productVariants { id compareAtPrice }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                {
+                    "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                    "price": "5.00",
+                    "compareAtPrice": "9.00"
+                },
+                {
+                    "optionValues": [{ "optionName": "Color", "name": "Green" }],
+                    "price": "20.00",
+                    "compareAtPrice": "30.00"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(bulk_create.status, 200);
+    assert_eq!(
+        bulk_create.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    let blue_variant_id = bulk_create.body["data"]["productVariantsBulkCreate"]["productVariants"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantCountAndCompareAtRange($id: ID!) {
+          product(id: $id) {
+            totalVariants
+            vc: variantsCount { c: count p: precision }
+            compareRange: compareAtPriceRange {
+              min: minVariantCompareAtPrice { amt: amount cur: currencyCode }
+              max: maxVariantCompareAtPrice { amt: amount cur: currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "totalVariants": 3,
+            "vc": { "c": 3, "p": "EXACT" },
+            "compareRange": {
+                "min": { "amt": "9.0", "cur": "USD" },
+                "max": { "amt": "30.0", "cur": "USD" }
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCompareAtVariant($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product {
+              totalVariants
+              variantsCount { count precision }
+              compareAtPriceRange {
+                minVariantCompareAtPrice { amount currencyCode }
+                maxVariantCompareAtPrice { amount currencyCode }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantsIds": [blue_variant_id] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["product"],
+        json!({
+            "totalVariants": 2,
+            "variantsCount": { "count": 2, "precision": "EXACT" },
+            "compareAtPriceRange": {
+                "minVariantCompareAtPrice": { "amount": "15.0", "currencyCode": "USD" },
+                "maxVariantCompareAtPrice": { "amount": "30.0", "currencyCode": "USD" }
+            }
+        })
+    );
+}
+
+#[test]
+fn product_variant_count_and_compare_at_range_handle_products_without_variants() {
+    let product_id = "gid://shopify/Product/variant-count-empty";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductWithoutVariants($id: ID!) {
+          product(id: $id) {
+            variantsCount { count precision }
+            compareAtPriceRange {
+              minVariantCompareAtPrice { amount currencyCode }
+              maxVariantCompareAtPrice { amount currencyCode }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "variantsCount": { "count": 0, "precision": "EXACT" },
+            "compareAtPriceRange": null
+        })
+    );
+}
+
 fn create_product_for_relationship_test(
     proxy: &mut DraftProxy,
     title: &str,
