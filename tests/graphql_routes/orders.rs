@@ -10834,6 +10834,10 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
             draftOrder {
               id
               status
+              lineItemsSubtotalPrice { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              totalTax
+              totalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              subtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
               totalPriceSet { shopMoney { amount currencyCode } }
               lineItems(first: 5) {
                 nodes {
@@ -10852,6 +10856,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
         json!({
             "input": {
                 "email": "customer-completion-any-email@example.com",
+                "taxExempt": true,
                 "shippingLine": {
                     "title": "Local courier",
                     "priceWithCurrency": { "amount": "3.25", "currencyCode": "CAD" }
@@ -10861,13 +10866,15 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
                         "title": "Completion service",
                         "quantity": 2,
                         "originalUnitPrice": "12.50",
-                        "sku": "COMPLETE-A"
+                        "sku": "COMPLETE-A",
+                        "taxable": false
                     },
                     {
                         "title": "Completion add-on",
                         "quantity": 1,
                         "originalUnitPrice": "4.00",
-                        "sku": "COMPLETE-B"
+                        "sku": "COMPLETE-B",
+                        "taxable": false
                     }
                 ]
             }
@@ -10882,6 +10889,25 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(
         draft["totalPriceSet"]["shopMoney"],
         json!({ "amount": "32.25", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        draft["lineItemsSubtotalPrice"],
+        json!({
+            "shopMoney": { "amount": "29.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "29.0", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(draft["totalTax"], json!("0.00"));
+    assert_eq!(
+        draft["totalTaxSet"],
+        json!({
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(
+        draft["subtotalPriceSet"]["presentmentMoney"],
+        json!({ "amount": "29.0", "currencyCode": "CAD" })
     );
     assert_eq!(draft["lineItems"]["nodes"].as_array().unwrap().len(), 2);
     let draft_id = draft["id"].clone();
@@ -10898,6 +10924,10 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
                 sourceName
                 displayFinancialStatus
                 currentTotalPriceSet { shopMoney { amount currencyCode } }
+                totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+                subtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+                totalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+                totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
                 lineItems {
                   nodes {
                     id
@@ -10934,6 +10964,34 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(
         order["currentTotalPriceSet"]["shopMoney"],
         json!({ "amount": "32.25", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        order["totalPriceSet"],
+        json!({
+            "shopMoney": { "amount": "32.25", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "32.25", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(
+        order["subtotalPriceSet"],
+        json!({
+            "shopMoney": { "amount": "29.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "29.0", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(
+        order["totalTaxSet"],
+        json!({
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(
+        order["totalReceivedSet"],
+        json!({
+            "shopMoney": { "amount": "32.25", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "32.25", "currencyCode": "CAD" }
+        })
     );
     assert_eq!(order["lineItems"]["nodes"].as_array().unwrap().len(), 2);
     assert_ne!(
