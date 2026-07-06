@@ -11220,6 +11220,250 @@ fn order_edit_commit_recomputes_derived_statuses_and_totals_after_added_item() {
 }
 
 #[test]
+fn order_edit_commit_tax_event_regression() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let create_document = r#"
+        mutation CreateTaxableOrderForEdit($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              currentTotalTaxSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) { nodes { id taxLines { title rate priceSet { shopMoney { amount currencyCode } } } } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let taxable_order = |title: &str, quantity: i64, tax_amount: &str| {
+        json!({
+            "email": format!("{title}@example.test"),
+            "currency": "USD",
+            "financialStatus": "PENDING",
+            "lineItems": [{
+                "title": title,
+                "quantity": quantity,
+                "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } },
+                "taxLines": [{
+                    "title": "State tax",
+                    "rate": 0.10,
+                    "priceSet": { "shopMoney": { "amount": tax_amount, "currencyCode": "USD" } }
+                }]
+            }]
+        })
+    };
+    let first_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "order": taxable_order("taxed-edit-first", 2, "2.00") }),
+    ));
+    let second_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({ "order": taxable_order("taxed-edit-second", 1, "1.00") }),
+    ));
+    assert_eq!(
+        first_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let second_order_id = second_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let begin_document = r#"
+        mutation BeginTaxableOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              lineItems(first: 1) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first_begin = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": first_order_id.clone() }),
+    ));
+    assert_eq!(
+        first_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let first_calculated_id =
+        first_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let first_calculated_line_id = first_begin.body["data"]["orderEditBegin"]["calculatedOrder"]
+        ["lineItems"]["nodes"][0]["id"]
+        .clone();
+    let set_first_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReduceTaxableOrderQuantity($id: ID!, $lineItemId: ID!) {
+          orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: 1, restock: true) {
+            calculatedOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": first_calculated_id.clone(), "lineItemId": first_calculated_line_id }),
+    ));
+    assert_eq!(
+        set_first_quantity.body["data"]["orderEditSetQuantity"]["userErrors"],
+        json!([])
+    );
+
+    let commit_document = r#"
+        mutation CommitTaxableOrderEdit($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              updatedAt
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              currentTotalTaxSet { shopMoney { amount currencyCode } }
+              currentTaxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+              lineItems(first: 1) { nodes { currentQuantity taxLines { title rate priceSet { shopMoney { amount currencyCode } } } } }
+              events(first: 1, query: "action:edited") { nodes { id action createdAt } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first_commit = proxy.process_request(json_graphql_request(
+        commit_document,
+        json!({ "id": first_calculated_id }),
+    ));
+    assert_eq!(
+        first_commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+
+    let second_begin = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": second_order_id.clone() }),
+    ));
+    assert_eq!(
+        second_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let second_calculated_id =
+        second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let second_calculated_line_id = second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]
+        ["lineItems"]["nodes"][0]["id"]
+        .clone();
+    let set_second_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IncreaseTaxableOrderQuantity($id: ID!, $lineItemId: ID!) {
+          orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: 2, restock: false) {
+            calculatedOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": second_calculated_id.clone(), "lineItemId": second_calculated_line_id }),
+    ));
+    assert_eq!(
+        set_second_quantity.body["data"]["orderEditSetQuantity"]["userErrors"],
+        json!([])
+    );
+    let second_commit = proxy.process_request(json_graphql_request(
+        commit_document,
+        json!({ "id": second_calculated_id }),
+    ));
+    assert_eq!(
+        second_commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCommittedTaxableOrderEdits($firstId: ID!, $secondId: ID!) {
+          first: order(id: $firstId) {
+            currentTotalPriceSet { shopMoney { amount currencyCode } }
+            currentTotalTaxSet { shopMoney { amount currencyCode } }
+            currentTaxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+            lineItems(first: 1) { nodes { currentQuantity taxLines { priceSet { shopMoney { amount currencyCode } } } } }
+            events(first: 1, query: "action:edited") { nodes { id action createdAt } }
+          }
+          second: order(id: $secondId) {
+            currentTotalPriceSet { shopMoney { amount currencyCode } }
+            currentTotalTaxSet { shopMoney { amount currencyCode } }
+            currentTaxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+            lineItems(first: 1) { nodes { currentQuantity taxLines { priceSet { shopMoney { amount currencyCode } } } } }
+            events(first: 1, query: "action:edited") { nodes { id action createdAt } }
+          }
+        }
+        "#,
+        json!({ "firstId": first_order_id, "secondId": second_order_id }),
+    ));
+
+    let first = &read_after.body["data"]["first"];
+    let second = &read_after.body["data"]["second"];
+    assert_eq!(
+        first["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "11.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        first["currentTotalTaxSet"]["shopMoney"],
+        json!({ "amount": "1.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        first["currentTaxLines"],
+        json!([{
+            "title": "State tax",
+            "rate": 0.1,
+            "priceSet": { "shopMoney": { "amount": "1.0", "currencyCode": "USD" } }
+        }])
+    );
+    assert_eq!(first["lineItems"]["nodes"][0]["currentQuantity"], json!(1));
+    assert_eq!(
+        first["lineItems"]["nodes"][0]["taxLines"][0]["priceSet"]["shopMoney"],
+        json!({ "amount": "1.0", "currencyCode": "USD" })
+    );
+
+    assert_eq!(
+        second["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "22.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        second["currentTotalTaxSet"]["shopMoney"],
+        json!({ "amount": "2.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        second["currentTaxLines"][0]["priceSet"]["shopMoney"],
+        json!({ "amount": "2.0", "currencyCode": "USD" })
+    );
+    assert_eq!(second["lineItems"]["nodes"][0]["currentQuantity"], json!(2));
+
+    let first_event = &first["events"]["nodes"][0];
+    let second_event = &second["events"]["nodes"][0];
+    assert_eq!(first_event["action"], json!("edited"));
+    assert_eq!(second_event["action"], json!("edited"));
+    assert_ne!(first_event["id"], second_event["id"]);
+    assert_ne!(
+        first_event["id"],
+        json!("gid://shopify/BasicEvent/oe-edited")
+    );
+    assert_ne!(
+        second_event["id"],
+        json!("gid://shopify/BasicEvent/oe-edited")
+    );
+    assert!(first_event["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/BasicEvent/")));
+    assert!(second_event["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/BasicEvent/")));
+    assert_eq!(
+        first_commit.body["data"]["orderEditCommit"]["order"]["events"]["nodes"][0]["createdAt"],
+        first_commit.body["data"]["orderEditCommit"]["order"]["updatedAt"]
+    );
+    assert_eq!(
+        second_commit.body["data"]["orderEditCommit"]["order"]["events"]["nodes"][0]["createdAt"],
+        second_commit.body["data"]["orderEditCommit"]["order"]["updatedAt"]
+    );
+}
+
+#[test]
 fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

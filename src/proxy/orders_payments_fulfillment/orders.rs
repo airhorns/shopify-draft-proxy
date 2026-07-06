@@ -2639,6 +2639,7 @@ impl DraftProxy {
             "unitCents": unit,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
@@ -2805,6 +2806,7 @@ impl DraftProxy {
             "unitCents": price_cents,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
@@ -3174,7 +3176,15 @@ impl DraftProxy {
         // null); the parity spec excludes the un-reproducible message text.
         let author = self.store.staged.order_edit_author.clone();
         let order_unarchived = order_edit_order_is_closed(&base);
-        let committed = oe_commit_order(&base, &session, author.as_deref());
+        let event_id = self.next_proxy_synthetic_gid("BasicEvent");
+        let event_created_at = self.next_mutation_timestamp();
+        let committed = oe_commit_order(
+            &base,
+            &session,
+            author.as_deref(),
+            &event_id,
+            &event_created_at,
+        );
         let notify_customer =
             resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
         let success_messages =
