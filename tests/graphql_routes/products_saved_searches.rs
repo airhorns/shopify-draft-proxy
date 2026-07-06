@@ -142,6 +142,7 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
 #[test]
 fn product_variant_count_and_compare_at_range_follow_effective_variants() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateProductForVariantCount($product: ProductCreateInput!) {

@@ -3160,6 +3160,7 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
 #[test]
 fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create_company = proxy.process_request(json_graphql_request(
         r#"
