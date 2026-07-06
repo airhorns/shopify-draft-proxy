@@ -1146,21 +1146,41 @@ impl DraftProxy {
             })
             .unwrap_or_default();
         let codes_count = codes.len();
+        let metafields = node
+            .get("metafields")
+            .and_then(|metafields| metafields.get("nodes"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         Some(json!({
             "id": node_id,
             "kind": kind,
             "typename": typename,
             "title": disc.get("title").cloned().unwrap_or(Value::Null),
             "status": disc.get("status").cloned().unwrap_or(Value::Null),
+            "summary": disc.get("summary").cloned().unwrap_or(Value::Null),
             "startsAt": disc.get("startsAt").cloned().unwrap_or(Value::Null),
             "endsAt": disc.get("endsAt").cloned().unwrap_or(Value::Null),
             "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
             "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
             "asyncUsageCount": disc.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0)),
+            "usageLimit": disc.get("usageLimit").cloned().unwrap_or(Value::Null),
+            "usesPerOrderLimit": disc.get("usesPerOrderLimit").cloned().unwrap_or(Value::Null),
+            "recurringCycleLimit": disc.get("recurringCycleLimit").cloned().unwrap_or(Value::Null),
+            "discountClasses": disc.get("discountClasses").cloned().unwrap_or_else(|| json!([])),
+            "combinesWith": disc.get("combinesWith").cloned().unwrap_or(Value::Null),
+            "context": disc.get("context").cloned().unwrap_or(Value::Null),
+            "customerBuys": disc.get("customerBuys").cloned().unwrap_or(Value::Null),
+            "customerGets": disc.get("customerGets").cloned().unwrap_or(Value::Null),
+            "minimumRequirement": disc.get("minimumRequirement").cloned().unwrap_or(Value::Null),
+            "destinationSelection": disc.get("destinationSelection").cloned().unwrap_or(Value::Null),
+            "maximumShippingPrice": disc.get("maximumShippingPrice").cloned().unwrap_or(Value::Null),
+            "appliesOncePerCustomer": disc.get("appliesOncePerCustomer").cloned().unwrap_or(Value::Null),
             "appliesOnOneTimePurchase": disc.get("appliesOnOneTimePurchase").cloned().unwrap_or(Value::Null),
             "appliesOnSubscription": disc.get("appliesOnSubscription").cloned().unwrap_or(Value::Null),
             "codes": codes,
-            "codesCount": count_object(codes_count)
+            "codesCount": count_object(codes_count),
+            "metafields": metafields
         }))
     }
 
@@ -3039,6 +3059,14 @@ struct DiscountRecordBuildContext {
     now_epoch: i64,
 }
 
+fn discount_input_path_present(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> bool {
+    resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path).is_some()
+}
+
+fn existing_discount_field(existing: Option<&Value>, field: &str) -> Option<Value> {
+    existing.and_then(|record| record.get(field).cloned())
+}
+
 fn discount_record_from_input(
     id: &str,
     kind: &str,
@@ -3049,6 +3077,7 @@ fn discount_record_from_input(
 ) -> Value {
     let shop_currency_code = context.shop_currency_code.as_str();
     let timestamp = context.timestamp.as_str();
+    let has_input_path = |path: &[&str]| discount_input_path_present(input, path);
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
         .unwrap_or_else(|| "Untitled discount".to_string());
@@ -3106,6 +3135,20 @@ fn discount_record_from_input(
         .unwrap_or_else(|| json!(0));
     let customer_gets =
         discount_customer_gets_for_update(typename, input, existing, shop_currency_code);
+    let usage_limit = if input.contains_key("usageLimit") {
+        resolved_i64_path(input, &["usageLimit"])
+            .map(Value::from)
+            .unwrap_or(Value::Null)
+    } else {
+        existing_discount_field(existing, "usageLimit").unwrap_or(Value::Null)
+    };
+    let uses_per_order_limit = if input.contains_key("usesPerOrderLimit") {
+        resolved_i64_path(input, &["usesPerOrderLimit"])
+            .map(Value::from)
+            .unwrap_or(Value::Null)
+    } else {
+        existing_discount_field(existing, "usesPerOrderLimit").unwrap_or(Value::Null)
+    };
     let applies_on_one_time_purchase = resolved_bool_path(input, &["appliesOnOneTimePurchase"])
         .map(Value::from)
         .or_else(|| {
@@ -3122,6 +3165,66 @@ fn discount_record_from_input(
                 .map(Value::from)
         })
         .unwrap_or(Value::Bool(false));
+    let discount_classes =
+        if has_input_path(&["discountClasses"]) || has_input_path(&["customerGets"]) {
+            discount_classes_for_input(typename, input)
+        } else {
+            existing_discount_field(existing, "discountClasses")
+                .unwrap_or_else(|| discount_classes_for_input(typename, input))
+        };
+    let discount_context = if has_input_path(&["context"]) || has_input_path(&["customerSelection"])
+    {
+        discount_context_from_input(input)
+    } else {
+        existing_discount_field(existing, "context")
+            .unwrap_or_else(|| discount_context_from_input(input))
+    };
+    let customer_buys = if has_input_path(&["customerBuys"]) {
+        discount_customer_buys_from_input(typename, input)
+    } else {
+        existing_discount_field(existing, "customerBuys")
+            .unwrap_or_else(|| discount_customer_buys_from_input(typename, input))
+    };
+    let minimum_requirement = if has_input_path(&["minimumRequirement"]) {
+        discount_minimum_requirement_from_input(input, shop_currency_code)
+    } else {
+        existing_discount_field(existing, "minimumRequirement").unwrap_or(Value::Null)
+    };
+    let destination_selection = if has_input_path(&["destination"]) {
+        discount_destination_selection_from_input(input)
+    } else {
+        existing_discount_field(existing, "destinationSelection")
+            .unwrap_or_else(|| discount_destination_selection_from_input(input))
+    };
+    let maximum_shipping_price = if input.contains_key("maximumShippingPrice") {
+        discount_maximum_shipping_price_from_input(input, shop_currency_code)
+    } else {
+        existing_discount_field(existing, "maximumShippingPrice").unwrap_or(Value::Null)
+    };
+    let applies_once_per_customer = if input.contains_key("appliesOncePerCustomer") {
+        resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false)
+    } else {
+        existing
+            .and_then(|record| record["appliesOncePerCustomer"].as_bool())
+            .unwrap_or(false)
+    };
+    let summary = if [
+        &["customerGets"][..],
+        &["customerBuys"][..],
+        &["minimumRequirement"][..],
+        &["destination"][..],
+        &["maximumShippingPrice"][..],
+        &["appliesOncePerCustomer"][..],
+    ]
+    .iter()
+    .any(|path| has_input_path(path))
+    {
+        context.summary.clone()
+    } else {
+        existing
+            .and_then(|record| record["summary"].as_str().map(str::to_string))
+            .unwrap_or_else(|| context.summary.clone())
+    };
     json!({
         "id": id,
         "kind": kind,
@@ -3134,21 +3237,21 @@ fn discount_record_from_input(
         "createdAt": created_at,
         "updatedAt": timestamp,
         "asyncUsageCount": async_usage_count,
-        "usageLimit": resolved_i64_path(input, &["usageLimit"]).map(Value::from).unwrap_or(Value::Null),
-        "usesPerOrderLimit": resolved_i64_path(input, &["usesPerOrderLimit"]).map(Value::from).unwrap_or(Value::Null),
+        "usageLimit": usage_limit,
+        "usesPerOrderLimit": uses_per_order_limit,
         "recurringCycleLimit": resolved_i64_path(input, &["recurringCycleLimit"])
             .map(Value::from)
             .or_else(|| existing.map(|record| record["recurringCycleLimit"].clone()))
             .unwrap_or(Value::Null),
-        "discountClasses": discount_classes_for_input(typename, input),
+        "discountClasses": discount_classes,
         "combinesWith": combines_with,
-        "context": discount_context_from_input(input),
-        "customerBuys": discount_customer_buys_from_input(typename, input),
+        "context": discount_context,
+        "customerBuys": customer_buys,
         "customerGets": customer_gets,
-        "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
-        "destinationSelection": discount_destination_selection_from_input(input),
-        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
-        "appliesOncePerCustomer": resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false),
+        "minimumRequirement": minimum_requirement,
+        "destinationSelection": destination_selection,
+        "maximumShippingPrice": maximum_shipping_price,
+        "appliesOncePerCustomer": applies_once_per_customer,
         "appliesOnOneTimePurchase": applies_on_one_time_purchase,
         "appliesOnSubscription": applies_on_subscription,
         "codes": codes,
@@ -3156,7 +3259,7 @@ fn discount_record_from_input(
         "metafields": discount_metafields_from_input(input, timestamp)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
-        "summary": context.summary
+        "summary": summary
     })
 }
 
@@ -3208,12 +3311,14 @@ fn discount_node_for_record(record: &Value) -> Value {
 }
 
 fn discount_node_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {
+    let metafields = discount_metafields_connection_for_record(record);
     if discount_kind(record) == "automatic" {
         let discount_selection =
             selected_child_selection(selection, "automaticDiscount").unwrap_or_default();
         json!({
             "id": discount_id(record),
             "automaticDiscount": discount_body_for_record_with_selection(record, &discount_selection),
+            "metafields": metafields,
             "__typename": "DiscountAutomaticNode"
         })
     } else {
@@ -3222,6 +3327,7 @@ fn discount_node_for_record_with_selection(record: &Value, selection: &[Selected
         json!({
             "id": discount_id(record),
             "codeDiscount": discount_body_for_record_with_selection(record, &discount_selection),
+            "metafields": metafields,
             "__typename": "DiscountCodeNode"
         })
     }
@@ -3232,9 +3338,11 @@ fn discount_admin_node_for_record_with_selection(
     selection: &[SelectedField],
 ) -> Value {
     let discount_selection = selected_child_selection(selection, "discount").unwrap_or_default();
+    let metafields = discount_metafields_connection_for_record(record);
     json!({
         "id": discount_id(record),
         "discount": discount_body_for_record_with_selection(record, &discount_selection),
+        "metafields": metafields,
         "__typename": if discount_kind(record) == "automatic" {
             "DiscountAutomaticNode"
         } else {
@@ -3248,10 +3356,6 @@ fn discount_body_for_record(record: &Value) -> Value {
 }
 
 fn discount_body_for_record_with_selection(record: &Value, selection: &[SelectedField]) -> Value {
-    let metafields = record
-        .get("metafields")
-        .cloned()
-        .unwrap_or_else(|| json!([]));
     json!({
         "__typename": record["typename"],
         "discountId": record["id"],
@@ -3280,10 +3384,18 @@ fn discount_body_for_record_with_selection(record: &Value, selection: &[Selected
         "appliesOnSubscription": record["appliesOnSubscription"],
         "recurringCycleLimit": record.get("recurringCycleLimit").cloned().unwrap_or(Value::Null),
         "appDiscountType": record.get("appDiscountType").cloned().unwrap_or(Value::Null),
-        "metafields": {
-            "nodes": metafields,
-            "pageInfo": empty_page_info()
-        }
+        "metafields": discount_metafields_connection_for_record(record)
+    })
+}
+
+fn discount_metafields_connection_for_record(record: &Value) -> Value {
+    let metafields = record
+        .get("metafields")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    json!({
+        "nodes": metafields,
+        "pageInfo": empty_page_info()
     })
 }
 
@@ -3782,7 +3894,7 @@ fn discount_customer_gets_from_input(
     ) {
         amount
     } else {
-        json!({ "__typename": "DiscountPercentage", "percentage": 0.1 })
+        Value::Null
     };
     json!({
         "value": value,

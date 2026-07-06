@@ -1,20 +1,20 @@
 {
   "variables": {
-    "codeDiscountId": "gid://shopify/DiscountCodeNode/1657990381874",
-    "codeOmittedFieldsDiscountId": "gid://shopify/DiscountCodeNode/1657990414642",
-    "automaticDiscountId": "gid://shopify/DiscountAutomaticNode/1657990447410",
-    "initialCode": "HAR196FREE1783087568651",
-    "updatedCode": "HAR196SHIP1783087568651",
-    "omittedFieldsCode": "HAR196OMIT1783087568651"
+    "codeDiscountId": "gid://shopify/DiscountCodeNode/1658450542898",
+    "codeOmittedFieldsDiscountId": "gid://shopify/DiscountCodeNode/1658450575666",
+    "automaticDiscountId": "gid://shopify/DiscountAutomaticNode/1658450608434",
+    "initialCode": "HAR196FREE1783294307258",
+    "updatedCode": "HAR196SHIP1783294307258",
+    "omittedFieldsCode": "HAR196OMIT1783294307258"
   },
   "requests": {
     "codeCreate": {
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleCreate($input: DiscountCodeFreeShippingInput!) {\n    discountCodeFreeShippingCreate(freeShippingCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOncePerCustomer\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n        usageLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-196 code free shipping 1783087568651",
-          "code": "HAR196FREE1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 code free shipping 1783294307258",
+          "code": "HAR196FREE1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "combinesWith": {
             "productDiscounts": true,
             "orderDiscounts": false,
@@ -44,9 +44,9 @@
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleCreate($input: DiscountCodeFreeShippingInput!) {\n    discountCodeFreeShippingCreate(freeShippingCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOncePerCustomer\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n        usageLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-196 code free shipping omitted fields 1783087568651",
-          "code": "HAR196OMIT1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 code free shipping omitted fields 1783294307258",
+          "code": "HAR196OMIT1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "endsAt": null,
           "combinesWith": {
             "productDiscounts": true,
@@ -76,10 +76,10 @@
     "codeOmittedFieldsUpdate": {
       "query": "mutation DiscountCodeFreeShippingOmittedFieldsUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) {\n  discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          asyncUsageCount\n          codes(first: 2) {\n            nodes {\n              code\n              asyncUsageCount\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990414642",
+        "id": "gid://shopify/DiscountCodeNode/1658450575666",
         "input": {
-          "title": "HAR-196 code free shipping omitted fields 1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 code free shipping omitted fields 1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "combinesWith": {
             "productDiscounts": true,
             "orderDiscounts": false,
@@ -106,11 +106,11 @@
     "codeUpdate": {
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) {\n    discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOncePerCustomer\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n        usageLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990381874",
+        "id": "gid://shopify/DiscountCodeNode/1658450542898",
         "input": {
-          "title": "HAR-196 code free shipping updated 1783087568651",
-          "code": "HAR196SHIP1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 code free shipping updated 1783294307258",
+          "code": "HAR196SHIP1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -142,27 +142,27 @@
     "codeDeactivate": {
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleDeactivate($id: ID!) {\n    discountCodeDeactivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOncePerCustomer\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n        usageLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990381874"
+        "id": "gid://shopify/DiscountCodeNode/1658450542898"
       }
     },
     "codeActivate": {
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleActivate($id: ID!) {\n    discountCodeActivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOncePerCustomer\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n        usageLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990381874"
+        "id": "gid://shopify/DiscountCodeNode/1658450542898"
       }
     },
     "codeDelete": {
       "query": "#graphql\n  mutation DiscountCodeFreeShippingLifecycleDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990381874"
+        "id": "gid://shopify/DiscountCodeNode/1658450542898"
       }
     },
     "automaticCreate": {
       "query": "#graphql\n  mutation DiscountAutomaticFreeShippingLifecycleCreate($input: DiscountAutomaticFreeShippingInput!) {\n    discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $input) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-196 automatic free shipping 1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 automatic free shipping 1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "endsAt": null,
           "combinesWith": {
             "productDiscounts": false,
@@ -190,10 +190,10 @@
     "automaticUpdate": {
       "query": "#graphql\n  mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) {\n    discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+        "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
         "input": {
-          "title": "HAR-196 automatic free shipping updated 1783087568651",
-          "startsAt": "2026-07-03T14:05:08.651Z",
+          "title": "HAR-196 automatic free shipping updated 1783294307258",
+          "startsAt": "2026-07-05T23:30:47.258Z",
           "endsAt": null,
           "combinesWith": {
             "productDiscounts": true,
@@ -224,19 +224,19 @@
     "automaticDeactivate": {
       "query": "#graphql\n  mutation DiscountAutomaticFreeShippingLifecycleDeactivate($id: ID!) {\n    discountAutomaticDeactivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657990447410"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450608434"
       }
     },
     "automaticActivate": {
       "query": "#graphql\n  mutation DiscountAutomaticFreeShippingLifecycleActivate($id: ID!) {\n    discountAutomaticActivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticFreeShipping {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        destinationSelection {\n          __typename\n          ... on DiscountCountryAll {\n            allCountries\n          }\n          ... on DiscountCountries {\n            countries\n            includeRestOfWorld\n          }\n        }\n        maximumShippingPrice {\n          amount\n          currencyCode\n        }\n        appliesOnOneTimePurchase\n        appliesOnSubscription\n        recurringCycleLimit\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657990447410"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450608434"
       }
     },
     "automaticDelete": {
       "query": "#graphql\n  mutation DiscountAutomaticFreeShippingLifecycleDelete($id: ID!) {\n    discountAutomaticDelete(id: $id) {\n      deletedAutomaticDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657990447410"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450608434"
       }
     },
     "read": {
@@ -375,16 +375,16 @@
       "data": {
         "discountCodeFreeShippingCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990381874",
+            "id": "gid://shopify/DiscountCodeNode/1658450542898",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping 1783087568651",
+              "title": "HAR-196 code free shipping 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on one-time purchase products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:08Z",
-              "updatedAt": "2026-07-03T14:06:08Z",
+              "createdAt": "2026-07-05T23:31:47Z",
+              "updatedAt": "2026-07-05T23:31:47Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -395,16 +395,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22243343761714",
-                    "code": "HAR196FREE1783087568651",
+                    "id": "gid://shopify/DiscountRedeemCode/22250018341170",
+                    "code": "HAR196FREE1783294307258",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0="
                 }
               },
               "context": {
@@ -455,16 +455,16 @@
       "data": {
         "discountCodeFreeShippingCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990414642",
+            "id": "gid://shopify/DiscountCodeNode/1658450575666",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping omitted fields 1783087568651",
+              "title": "HAR-196 code free shipping omitted fields 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on subscription products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:09Z",
-              "updatedAt": "2026-07-03T14:06:09Z",
+              "createdAt": "2026-07-05T23:31:47Z",
+              "updatedAt": "2026-07-05T23:31:47Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -475,16 +475,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22243343794482",
-                    "code": "HAR196OMIT1783087568651",
+                    "id": "gid://shopify/DiscountRedeemCode/22250018373938",
+                    "code": "HAR196OMIT1783294307258",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc5NDQ4MiwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzk0NDgyIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc5NDQ4MiwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzk0NDgyIn0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM3MzkzOCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzczOTM4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM3MzkzOCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzczOTM4In0="
                 }
               },
               "context": {
@@ -535,16 +535,16 @@
       "data": {
         "discountCodeFreeShippingUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990414642",
+            "id": "gid://shopify/DiscountCodeNode/1658450575666",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping omitted fields 1783087568651",
+              "title": "HAR-196 code free shipping omitted fields 1783294307258",
               "status": "ACTIVE",
               "asyncUsageCount": 0,
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR196OMIT1783087568651",
+                    "code": "HAR196OMIT1783294307258",
                     "asyncUsageCount": 0
                   }
                 ]
@@ -562,7 +562,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1972,
             "restoreRate": 100
           }
         }
@@ -574,7 +574,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657990414642",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1658450575666",
           "userErrors": []
         }
       },
@@ -584,7 +584,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -597,16 +597,16 @@
       "data": {
         "discountCodeFreeShippingUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990381874",
+            "id": "gid://shopify/DiscountCodeNode/1658450542898",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping updated 1783087568651",
+              "title": "HAR-196 code free shipping updated 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:08Z",
-              "updatedAt": "2026-07-03T14:06:09Z",
+              "createdAt": "2026-07-05T23:31:47Z",
+              "updatedAt": "2026-07-05T23:31:48Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -617,16 +617,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22243343761714",
-                    "code": "HAR196SHIP1783087568651",
+                    "id": "gid://shopify/DiscountRedeemCode/22250018341170",
+                    "code": "HAR196SHIP1783294307258",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0="
                 }
               },
               "context": {
@@ -665,7 +665,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -678,16 +678,16 @@
       "data": {
         "discountAutomaticFreeShippingCreate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticFreeShipping",
-              "title": "HAR-196 automatic free shipping 1783087568651",
+              "title": "HAR-196 automatic free shipping 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on all products • Minimum purchase of $15.00 • For all countries • Applies to shipping rates under $20.00",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:09Z",
-              "updatedAt": "2026-07-03T14:06:09Z",
+              "createdAt": "2026-07-05T23:31:48Z",
+              "updatedAt": "2026-07-05T23:31:48Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -728,7 +728,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1975,
             "restoreRate": 100
           }
         }
@@ -741,16 +741,16 @@
       "data": {
         "discountAutomaticFreeShippingUpdate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticFreeShipping",
-              "title": "HAR-196 automatic free shipping updated 1783087568651",
+              "title": "HAR-196 automatic free shipping updated 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $22.00",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:09Z",
-              "updatedAt": "2026-07-03T14:06:10Z",
+              "createdAt": "2026-07-05T23:31:48Z",
+              "updatedAt": "2026-07-05T23:31:48Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -804,21 +804,21 @@
     "payload": {
       "data": {
         "discountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1657990381874",
+          "id": "gid://shopify/DiscountCodeNode/1658450542898",
           "discount": {
             "__typename": "DiscountCodeFreeShipping",
-            "title": "HAR-196 code free shipping updated 1783087568651",
+            "title": "HAR-196 code free shipping updated 1783294307258",
             "status": "ACTIVE"
           }
         },
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1657990381874"
+          "id": "gid://shopify/DiscountCodeNode/1658450542898"
         },
         "automaticDiscountNode": {
-          "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+          "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
           "automaticDiscount": {
             "__typename": "DiscountAutomaticFreeShipping",
-            "title": "HAR-196 automatic free shipping updated 1783087568651",
+            "title": "HAR-196 automatic free shipping updated 1783294307258",
             "status": "ACTIVE"
           }
         },
@@ -849,16 +849,16 @@
       "data": {
         "discountCodeDeactivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990381874",
+            "id": "gid://shopify/DiscountCodeNode/1658450542898",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping updated 1783087568651",
+              "title": "HAR-196 code free shipping updated 1783294307258",
               "status": "EXPIRED",
               "summary": "Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00",
-              "startsAt": "2026-07-03T14:05:08Z",
-              "endsAt": "2026-07-03T14:06:10Z",
-              "createdAt": "2026-07-03T14:06:08Z",
-              "updatedAt": "2026-07-03T14:06:10Z",
+              "startsAt": "2026-07-05T23:30:47Z",
+              "endsAt": "2026-07-05T23:31:49Z",
+              "createdAt": "2026-07-05T23:31:47Z",
+              "updatedAt": "2026-07-05T23:31:49Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -869,16 +869,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22243343761714",
-                    "code": "HAR196SHIP1783087568651",
+                    "id": "gid://shopify/DiscountRedeemCode/22250018341170",
+                    "code": "HAR196SHIP1783294307258",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0="
                 }
               },
               "context": {
@@ -917,7 +917,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1974,
+            "currentlyAvailable": 1975,
             "restoreRate": 100
           }
         }
@@ -930,16 +930,16 @@
       "data": {
         "discountAutomaticDeactivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticFreeShipping",
-              "title": "HAR-196 automatic free shipping updated 1783087568651",
+              "title": "HAR-196 automatic free shipping updated 1783294307258",
               "status": "EXPIRED",
               "summary": "Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $22.00",
-              "startsAt": "2026-07-03T14:05:08Z",
-              "endsAt": "2026-07-03T14:06:10Z",
-              "createdAt": "2026-07-03T14:06:09Z",
-              "updatedAt": "2026-07-03T14:06:10Z",
+              "startsAt": "2026-07-05T23:30:47Z",
+              "endsAt": "2026-07-05T23:31:49Z",
+              "createdAt": "2026-07-05T23:31:48Z",
+              "updatedAt": "2026-07-05T23:31:49Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -981,7 +981,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -994,16 +994,16 @@
       "data": {
         "discountCodeActivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657990381874",
+            "id": "gid://shopify/DiscountCodeNode/1658450542898",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR-196 code free shipping updated 1783087568651",
+              "title": "HAR-196 code free shipping updated 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:08Z",
-              "updatedAt": "2026-07-03T14:06:10Z",
+              "createdAt": "2026-07-05T23:31:47Z",
+              "updatedAt": "2026-07-05T23:31:49Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -1014,16 +1014,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/22243343761714",
-                    "code": "HAR196SHIP1783087568651",
+                    "id": "gid://shopify/DiscountRedeemCode/22250018341170",
+                    "code": "HAR196SHIP1783294307258",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMjI0MzM0Mzc2MTcxNCwibGFzdF92YWx1ZSI6IjIyMjQzMzQzNzYxNzE0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI1MDAxODM0MTE3MCwibGFzdF92YWx1ZSI6IjIyMjUwMDE4MzQxMTcwIn0="
                 }
               },
               "context": {
@@ -1062,7 +1062,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1977,
+            "currentlyAvailable": 1967,
             "restoreRate": 100
           }
         }
@@ -1075,16 +1075,16 @@
       "data": {
         "discountAutomaticActivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657990447410",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450608434",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticFreeShipping",
-              "title": "HAR-196 automatic free shipping updated 1783087568651",
+              "title": "HAR-196 automatic free shipping updated 1783294307258",
               "status": "ACTIVE",
               "summary": "Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $22.00",
-              "startsAt": "2026-07-03T14:05:08Z",
+              "startsAt": "2026-07-05T23:30:47Z",
               "endsAt": null,
-              "createdAt": "2026-07-03T14:06:09Z",
-              "updatedAt": "2026-07-03T14:06:11Z",
+              "createdAt": "2026-07-05T23:31:48Z",
+              "updatedAt": "2026-07-05T23:31:49Z",
               "asyncUsageCount": 0,
               "discountClasses": ["SHIPPING"],
               "combinesWith": {
@@ -1126,7 +1126,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1933,
             "restoreRate": 100
           }
         }
@@ -1138,7 +1138,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657990381874",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1658450542898",
           "userErrors": []
         }
       },
@@ -1148,7 +1148,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1944,
             "restoreRate": 100
           }
         }
@@ -1160,7 +1160,7 @@
     "payload": {
       "data": {
         "discountAutomaticDelete": {
-          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1657990447410",
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1658450608434",
           "userErrors": []
         }
       },
@@ -1170,7 +1170,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1941,
             "restoreRate": 100
           }
         }
@@ -1198,7 +1198,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1917,
             "restoreRate": 100
           }
         }
@@ -1237,18 +1237,18 @@
     {
       "operationName": "DiscountHydrate",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657990414642"
+        "id": "gid://shopify/DiscountCodeNode/1658450575666"
       },
-      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
-              "message": "Invalid id: gid://shopify/DiscountCodeNode/1657990414642",
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1658450575666",
               "locations": [
                 {
-                  "line": 57,
+                  "line": 347,
                   "column": 5
                 }
               ],
@@ -1260,37 +1260,70 @@
           ],
           "data": {
             "codeNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657990414642",
+              "id": "gid://shopify/DiscountCodeNode/1658450575666",
+              "metafields": {
+                "nodes": []
+              },
               "codeDiscount": {
                 "__typename": "DiscountCodeFreeShipping",
-                "title": "HAR-196 code free shipping omitted fields 1783087568651",
+                "title": "HAR-196 code free shipping omitted fields 1783294307258",
                 "status": "ACTIVE",
-                "startsAt": "2026-07-03T14:05:08Z",
+                "summary": "Free shipping on subscription products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer",
+                "startsAt": "2026-07-05T23:30:47Z",
                 "endsAt": null,
-                "updatedAt": "2026-07-03T14:06:09Z",
+                "createdAt": "2026-07-05T23:31:47Z",
+                "updatedAt": "2026-07-05T23:31:47Z",
                 "asyncUsageCount": 0,
+                "usageLimit": 5,
+                "appliesOncePerCustomer": true,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["SHIPPING"],
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "destinationSelection": {
+                  "__typename": "DiscountCountryAll",
+                  "allCountries": true
+                },
+                "maximumShippingPrice": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "appliesOnOneTimePurchase": false,
+                "appliesOnSubscription": true,
                 "codes": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/DiscountRedeemCode/22243343794482",
-                      "code": "HAR196OMIT1783087568651",
+                      "id": "gid://shopify/DiscountRedeemCode/22250018373938",
+                      "code": "HAR196OMIT1783294307258",
                       "asyncUsageCount": 0
                     }
                   ]
-                },
-                "appliesOnOneTimePurchase": false,
-                "appliesOnSubscription": true
+                }
               }
             },
             "automaticNode": null
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 6,
+              "requestedQueryCost": 169,
+              "actualQueryCost": 26,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
