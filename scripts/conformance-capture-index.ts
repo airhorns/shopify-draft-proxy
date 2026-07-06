@@ -8924,6 +8924,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-created-no-recipient',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-created-no-recipient-conformance.ts',
+    purpose:
+      'Public draftOrderCreate followed by no-recipient draftOrderInvoiceSend, proving the rejected send payload projects the created draft lines, name, and totals from real draft state rather than fixture-title sentinels.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-created-no-recipient.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-created-no-recipient.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-send.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable no-recipient draft order, records the rejected invoice-send payload, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-invoice-errors-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-invoice-errors-local-runtime.ts',
@@ -9096,6 +9114,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable active and expired code/automatic basic discounts, captures no-op transitions, records hydrate cassette entries, and deletes all created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-upstream-fixed-amount-activate',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-upstream-fixed-amount-activate-conformance.ts',
+    purpose:
+      'Upstream-only fixed-amount code basic discount activate plus readback preserving customerGets, minimum requirement, usage limit, applies-once, and related hydrated config.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-upstream-fixed-amount-activate.json`,
+      'config/parity-specs/discounts/discount-upstream-fixed-amount-activate.json',
+      'config/parity-requests/discounts/discount-upstream-fixed-amount-activate.graphql',
+      'config/parity-requests/discounts/discount-upstream-fixed-amount-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active code basic fixed-amount discount, records hydrate/activate/read behavior, then deletes the discount with finally-block cleanup on failure.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -13069,6 +13105,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customer-mutation-hydrate.graphql',
       'config/parity-requests/customers/customer-count-hydrate.graphql',
       'config/parity-requests/customers/customer-duplicate-hydrate.graphql',
+      'config/parity-requests/customers/customer-delete-shop-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers and deletes them in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

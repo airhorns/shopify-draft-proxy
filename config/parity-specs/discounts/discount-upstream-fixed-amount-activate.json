@@ -1,0 +1,86 @@
+{
+  "scenarioId": "discount-upstream-fixed-amount-activate",
+  "operationNames": ["discountCodeActivate", "codeDiscountNode"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "selected-fields"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-upstream-fixed-amount-activate.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-upstream-fixed-amount-activate.graphql",
+    "variablesCapturePath": "$.requests.activate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "upstream-fixed-amount-activate-preserves-config",
+        "capturePath": "$.activate.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "selectedPaths": [
+          "$.discountCodeActivate.codeDiscountNode.metafields.nodes",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.status",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.summary",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.asyncUsageCount",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.usageLimit",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.appliesOncePerCustomer",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.recurringCycleLimit",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.discountClasses",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.combinesWith",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.context",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.value.__typename",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.value.amount",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.value.appliesOnEachItem",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.items",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.appliesOnOneTimePurchase",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.customerGets.appliesOnSubscription",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.minimumRequirement",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.discountCodeActivate.codeDiscountNode.codeDiscount.codes.nodes[0].asyncUsageCount",
+          "$.discountCodeActivate.userErrors"
+        ]
+      },
+      {
+        "name": "upstream-fixed-amount-read-after-activate-preserves-config",
+        "capturePath": "$.readAfterActivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.codeDiscountNode.metafields.nodes",
+          "$.codeDiscountNode.codeDiscount.__typename",
+          "$.codeDiscountNode.codeDiscount.title",
+          "$.codeDiscountNode.codeDiscount.status",
+          "$.codeDiscountNode.codeDiscount.summary",
+          "$.codeDiscountNode.codeDiscount.asyncUsageCount",
+          "$.codeDiscountNode.codeDiscount.usageLimit",
+          "$.codeDiscountNode.codeDiscount.appliesOncePerCustomer",
+          "$.codeDiscountNode.codeDiscount.recurringCycleLimit",
+          "$.codeDiscountNode.codeDiscount.discountClasses",
+          "$.codeDiscountNode.codeDiscount.combinesWith",
+          "$.codeDiscountNode.codeDiscount.context",
+          "$.codeDiscountNode.codeDiscount.customerGets.value.__typename",
+          "$.codeDiscountNode.codeDiscount.customerGets.value.amount",
+          "$.codeDiscountNode.codeDiscount.customerGets.value.appliesOnEachItem",
+          "$.codeDiscountNode.codeDiscount.customerGets.items",
+          "$.codeDiscountNode.codeDiscount.customerGets.appliesOnOneTimePurchase",
+          "$.codeDiscountNode.codeDiscount.customerGets.appliesOnSubscription",
+          "$.codeDiscountNode.codeDiscount.minimumRequirement",
+          "$.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.codeDiscountNode.codeDiscount.codes.nodes[0].asyncUsageCount"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-upstream-fixed-amount-read.graphql",
+          "variablesCapturePath": "$.requests.readAfterActivate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture for activating an already-active upstream-only DiscountCodeBasic with a fixed $5 amount, subtotal minimum, usage limit, and applies-once-per-customer flag. The proxy replay starts with only the captured upstream hydrate cassette, then verifies the activate payload and codeDiscountNode readback preserve the real fixed amount and related configuration instead of materializing a default percentage discount."
+}

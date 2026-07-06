@@ -1,0 +1,14 @@
+query CustomerDeleteShopHydrate {
+  shop {
+    id
+    name
+    myshopifyDomain
+    currencyCode
+    primaryDomain {
+      id
+      host
+      url
+      sslEnabled
+    }
+  }
+}

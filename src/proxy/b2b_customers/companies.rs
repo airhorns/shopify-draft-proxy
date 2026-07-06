@@ -216,10 +216,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
-            .unwrap_or_else(|| {
-                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-            });
+        let location_id =
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let tax_exempt_argument = field.raw_arguments.get("taxExempt");
         let tax_exempt_is_null = matches!(
             tax_exempt_argument,
@@ -231,7 +229,7 @@ impl DraftProxy {
         );
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
+        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return failed_payload_outcome(b2b_company_location_payload(
                 None,
                 vec![user_error(
@@ -240,7 +238,7 @@ impl DraftProxy {
                     Some("RESOURCE_NOT_FOUND"),
                 )],
             ));
-        }
+        };
         if tax_exempt_is_null {
             return failed_payload_outcome(b2b_company_location_payload(
                 None,
@@ -252,13 +250,6 @@ impl DraftProxy {
             ));
         }
 
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
         let mut exemptions = Vec::new();
         if let Some(current_exemptions) = location
             .pointer("/taxSettings/taxExemptions")
@@ -315,24 +306,7 @@ pub(in crate::proxy) fn b2b_company_location_exists(
     locations: &BTreeMap<String, Value>,
     location_id: &str,
 ) -> bool {
-    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
-    json!({
-        "id": location_id,
-        "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" },
-        "taxSettings": {
-            "taxRegistrationId": Value::Null,
-            "taxExempt": true,
-            "taxExemptions": []
-        }
-    })
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
-    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+    locations.contains_key(location_id)
 }
 
 enum B2bCompanyLocationDeleteBlocker {
@@ -1353,19 +1327,6 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
             Some(location) => location,
-            // Shopify always provisions a default, tax-exempt company location on
-            // the shop. An update targeting the synthetic seed location resolves
-            // against that default (so input validation runs) rather than failing
-            // not-found, mirroring real Shopify where the location already exists.
-            None if location_id == b2b_synthetic_seed_company_location_id() => json!({
-                "id": location_id,
-                "name": "HQ",
-                "taxSettings": { "taxExempt": true, "taxExemptions": [] },
-                "buyerExperienceConfiguration":
-                    b2b_buyer_experience_configuration_json(&BTreeMap::new()),
-                "roleAssignmentIds": [],
-                "staffAssignmentIds": []
-            }),
             None => {
                 return failed_payload_outcome(b2b_company_location_payload(
                     None,

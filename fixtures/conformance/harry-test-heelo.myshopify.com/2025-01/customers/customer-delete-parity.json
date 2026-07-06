@@ -2,13 +2,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Customer/10820208558386"
+        "id": "gid://shopify/Customer/10899685933362"
       }
     },
     "response": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10820208558386",
+          "deletedCustomerId": "gid://shopify/Customer/10899685933362",
           "shop": {
             "id": "gid://shopify/Shop/92891250994"
           },
@@ -39,7 +39,7 @@
         }
       },
       "customersCount": {
-        "count": 948,
+        "count": 1296,
         "precision": "EXACT"
       }
     },
@@ -82,7 +82,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1985,
             "restoreRate": 100
           }
         }
@@ -93,7 +93,7 @@
     {
       "operationName": "CustomerHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10820208558386"
+        "id": "gid://shopify/Customer/10899685933362"
       },
       "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
       "response": {
@@ -101,12 +101,12 @@
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10820208558386",
+              "id": "gid://shopify/Customer/10899685933362",
               "firstName": "Hermes",
               "lastName": "Updated",
               "displayName": "Hermes Updated",
-              "email": "hermes-customer-create-1782104718715@example.com",
-              "phone": "+14155558715",
+              "email": "hermes-customer-create-1783208238744@example.com",
+              "phone": "+14155558744",
               "locale": "en",
               "note": "customer update parity probe",
               "canDelete": true,
@@ -116,13 +116,13 @@
               "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
               "state": "DISABLED",
               "tags": ["parity", "updated"],
-              "createdAt": "2026-06-22T05:05:19Z",
-              "updatedAt": "2026-06-22T05:05:20Z",
+              "createdAt": "2026-07-04T23:37:19Z",
+              "updatedAt": "2026-07-04T23:37:19Z",
               "defaultEmailAddress": {
-                "emailAddress": "hermes-customer-create-1782104718715@example.com"
+                "emailAddress": "hermes-customer-create-1783208238744@example.com"
               },
               "defaultPhoneNumber": {
-                "phoneNumber": "+14155558715"
+                "phoneNumber": "+14155558744"
               },
               "defaultAddress": null,
               "addressesV2": {
@@ -136,7 +136,42 @@
               "actualQueryCost": 16,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1984,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDeleteShopHydrate",
+      "variables": {},
+      "query": "query CustomerDeleteShopHydrate {\n  shop {\n    id\n    name\n    myshopifyDomain\n    currencyCode\n    primaryDomain {\n      id\n      host\n      url\n      sslEnabled\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -153,7 +188,7 @@
         "body": {
           "data": {
             "customersCount": {
-              "count": 949,
+              "count": 1297,
               "precision": "EXACT"
             }
           }
@@ -178,7 +213,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
