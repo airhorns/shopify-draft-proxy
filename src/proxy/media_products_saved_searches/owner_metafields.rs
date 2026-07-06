@@ -1360,7 +1360,7 @@ impl DraftProxy {
         }
     }
 
-    fn owner_metafields(
+    pub(super) fn owner_metafields(
         &self,
         owner_id: &str,
         namespace: Option<&str>,
@@ -1577,7 +1577,7 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
     })
 }
 
-fn owner_metafields_connection_keys(
+pub(super) fn owner_metafields_connection_keys(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Vec<(String, String)>> {
     match arguments.get("keys") {
@@ -1597,7 +1597,7 @@ fn owner_metafields_connection_keys(
     }
 }
 
-fn owner_metafield_key_position(metafield: &Value, keys: &[(String, String)]) -> usize {
+pub(super) fn owner_metafield_key_position(metafield: &Value, keys: &[(String, String)]) -> usize {
     let namespace = metafield.get("namespace").and_then(Value::as_str);
     let key = metafield.get("key").and_then(Value::as_str);
     keys.iter()
@@ -1607,7 +1607,7 @@ fn owner_metafield_key_position(metafield: &Value, keys: &[(String, String)]) ->
         .unwrap_or(usize::MAX)
 }
 
-fn owner_metafield_with_connection_key(mut metafield: Value) -> Value {
+pub(super) fn owner_metafield_with_connection_key(mut metafield: Value) -> Value {
     if let (Some(namespace), Some(key)) = (
         metafield
             .get("namespace")
@@ -1747,7 +1747,7 @@ fn shopify_cursor_resource_tail(cursor: &str) -> Option<String> {
         .filter(|tail| !tail.is_empty())
 }
 
-fn metafield_cursor(metafield: &Value) -> Option<String> {
+pub(super) fn metafield_cursor(metafield: &Value) -> Option<String> {
     // Prefer a cursor captured from an upstream connection's pageInfo; otherwise
     // synthesize Shopify's id-ordered metafield cursor — base64 of
     // `{"last_id":<numeric>,"last_value":"<numeric>"}` — from the record id so

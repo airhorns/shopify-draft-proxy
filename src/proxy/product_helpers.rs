@@ -2044,7 +2044,7 @@ fn product_featured_media_json(product: &ProductRecord, selections: &[SelectedFi
         .unwrap_or(Value::Null)
 }
 
-fn product_image_json_from_media(media: &Value) -> Option<Value> {
+pub(in crate::proxy) fn product_image_json_from_media(media: &Value) -> Option<Value> {
     if !product_media_is_image(media) {
         return None;
     }
