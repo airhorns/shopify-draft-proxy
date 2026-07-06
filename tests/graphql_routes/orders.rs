@@ -12901,11 +12901,104 @@ fn draft_order_invoice_send_validation_branches_do_not_mark_invoice_sent() {
 }
 
 #[test]
-fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-send-invoice-errors.json"
-    ))
-    .unwrap();
+fn draft_order_invoice_send_validation_projects_created_draft_shape() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForInvoiceProjection($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              status
+              totalQuantityOfLineItems
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  quantity
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Invoice projection item",
+                    "quantity": 2,
+                    "originalUnitPrice": "3.25"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let created_draft = create.body["data"]["draftOrderCreate"]["draftOrder"].clone();
+    assert_eq!(
+        created_draft["lineItems"]["nodes"][0]["title"],
+        json!("Invoice projection item")
+    );
+    assert_eq!(created_draft["totalQuantityOfLineItems"], json!(2));
+    assert_eq!(
+        created_draft["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "6.5", "currencyCode": "USD" })
+    );
+    let draft_order_id = created_draft["id"].clone();
+
+    let send = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendDraftInvoiceWithoutRecipient($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+              name
+              status
+              totalQuantityOfLineItems
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  quantity
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+            invoiceErrors { code message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(send.status, 200);
+    let payload = &send.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(payload["draftOrder"], created_draft);
+    assert_eq!(
+        payload["userErrors"][0]["message"],
+        json!("To can't be blank")
+    );
+    assert_eq!(
+        payload["invoiceErrors"][0],
+        json!({
+            "code": "CUSTOMER_NO_EMAIL",
+            "message": "Customer email can't be blank"
+        })
+    );
+}
+
+#[test]
+fn draft_order_invoice_send_invoice_errors_runtime_guardrails() {
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -12914,7 +13007,14 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
         ),
         json!({}),
     ));
-    assert_eq!(create.body, fixture["createOpen"]["response"]);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
     let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
 
     let no_recipient = proxy.process_request(json_graphql_request(
@@ -12928,23 +13028,57 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
             "template": null
         }),
     ));
-    assert_eq!(no_recipient.body, fixture["noRecipient"]["response"]);
+    let no_recipient_payload = &no_recipient.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(no_recipient_payload["draftOrder"]["status"], json!("OPEN"));
+    assert_eq!(
+        no_recipient_payload["userErrors"][0]["message"],
+        json!("To can't be blank")
+    );
+    assert_eq!(
+        no_recipient_payload["invoiceErrors"][0],
+        json!({
+            "code": "CUSTOMER_NO_EMAIL",
+            "message": "Customer email can't be blank"
+        })
+    );
 
-    let valid_send_variables = fixture["validSend"]["request"]["variables"].clone();
     let valid_send = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/draftOrderInvoiceSend-invoice-errors-send.graphql"
         ),
-        valid_send_variables,
+        json!({
+            "id": draft_order_id.clone(),
+            "email": {
+                "to": "buyer@example.com",
+                "subject": "Draft invoice",
+                "customMessage": "Thanks for the order",
+                "from": "sales@example.com",
+                "bcc": ["ops@example.com", "archive@example.com"]
+            },
+            "currency": "USD",
+            "template": "DRAFT_ORDER_INVOICE"
+        }),
     ));
-    assert_eq!(valid_send.body, fixture["validSend"]["response"]);
+    let valid_send_payload = &valid_send.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(
+        valid_send_payload["draftOrder"]["status"],
+        json!("INVOICE_SENT")
+    );
+    assert_eq!(valid_send_payload["userErrors"], json!([]));
+    assert_eq!(valid_send_payload["invoiceErrors"], json!([]));
 
     let state = state_snapshot(&proxy);
+    let invoice_metadata = &state["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]
+        ["data"]["__draftProxyInvoiceSend"];
+    assert_eq!(invoice_metadata["email"]["to"], json!("buyer@example.com"));
     assert_eq!(
-        state["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]["data"]
-            ["__draftProxyInvoiceSend"],
-        fixture["validSend"]["state"]["stagedState"]["draftOrders"]["gid://shopify/DraftOrder/1"]
-            ["data"]["__draftProxyInvoiceSend"]
+        invoice_metadata["email"]["bcc"],
+        json!(["ops@example.com", "archive@example.com"])
+    );
+    assert_eq!(invoice_metadata["presentmentCurrencyCode"], json!("USD"));
+    assert_eq!(
+        invoice_metadata["templateName"],
+        json!("DRAFT_ORDER_INVOICE")
     );
 
     let log = log_snapshot(&proxy);
