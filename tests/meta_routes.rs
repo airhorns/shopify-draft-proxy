@@ -2261,6 +2261,114 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
 }
 
 #[test]
+fn staging_records_service_app_flag_and_commit_re_credentials_flagged_replays() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        ok_transport_response(json!({ "data": { "ok": true } }))
+    });
+
+    let definition_query = r#"
+        mutation CreateDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let mut service_app_request = graphql_request(
+        &json!({
+            "query": definition_query,
+            "variables": {
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": "$app:settings",
+                    "key": "config",
+                    "name": "App config",
+                    "type": "single_line_text_field"
+                }
+            }
+        })
+        .to_string(),
+    );
+    service_app_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let service_app_stage = proxy.process_request(service_app_request);
+    assert_eq!(service_app_stage.status, 200);
+    assert_eq!(
+        service_app_stage.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let staff_stage = proxy.process_request(graphql_request(
+        &json!({
+            "query": definition_query,
+            "variables": {
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": "custom",
+                    "key": "notes",
+                    "name": "Notes",
+                    "type": "single_line_text_field"
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(staff_stage.status, 200);
+    assert_eq!(
+        staff_stage.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"][0]["serviceApp"],
+        json!(true),
+        "an op carrying the api-client-id header is flagged as staged by a service-app caller"
+    );
+    assert_eq!(
+        log["entries"][1]["serviceApp"],
+        json!(false),
+        "an op without the header is not flagged"
+    );
+
+    let commit = proxy.process_request(request_with_headers(
+        "POST",
+        "/__meta/commit",
+        [("authorization", "Bearer commit-token")],
+    ));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(2));
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    assert_eq!(
+        replayed[0]
+            .headers
+            .get("x-shopify-draft-proxy-op-credential"),
+        Some(&"service-app".to_string()),
+        "the flagged replay carries the op-credential header so the transport re-credentials it"
+    );
+    assert_eq!(
+        replayed[0].headers.get("authorization"),
+        Some(&"Bearer commit-token".to_string()),
+        "the commit caller's own headers are still forwarded on the flagged replay"
+    );
+    assert_eq!(
+        replayed[1]
+            .headers
+            .get("x-shopify-draft-proxy-op-credential"),
+        None,
+        "an unflagged replay carries no op-credential header"
+    );
+}
+
+#[test]
 fn commit_rewrites_later_replay_bodies_with_authoritative_ids() {
     let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
     let replayed_for_transport = Arc::clone(&replayed);

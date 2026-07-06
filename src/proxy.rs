@@ -20,6 +20,11 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
+// Set by `commit_staged_mutations` on a replay whose staged entry was recorded as
+// `serviceApp` (staged by a service-app caller). The transport reads it to replay that op
+// under the app's own credential rather than the commit caller's, then strips it before Core.
+pub(in crate::proxy) const OP_CREDENTIAL_HEADER: &str = "x-shopify-draft-proxy-op-credential";
+pub(in crate::proxy) const OP_CREDENTIAL_SERVICE_APP: &str = "service-app";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
