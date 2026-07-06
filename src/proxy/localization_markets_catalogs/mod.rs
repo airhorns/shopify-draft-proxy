@@ -788,6 +788,58 @@ fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
     fallback
 }
 
+fn web_presence_targets_shop_primary_host(store: &Store, record: &Value) -> bool {
+    let Some(target_host) = record
+        .get("domain")
+        .and_then(web_presence_domain_normalized_host)
+    else {
+        return false;
+    };
+    web_presence_primary_domain_host(store).as_deref() == Some(target_host.as_str())
+}
+
+fn web_presence_primary_domain_host(store: &Store) -> Option<String> {
+    let shop = store.effective_shop();
+    shop.get("primaryDomain")
+        .and_then(web_presence_domain_normalized_host)
+        .or_else(|| {
+            shop.get("myshopifyDomain")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_domain_normalized_host(domain: &Value) -> Option<String> {
+    domain
+        .get("host")
+        .and_then(Value::as_str)
+        .and_then(web_presence_normalized_host)
+        .or_else(|| {
+            domain
+                .get("url")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_normalized_host(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed);
+    without_scheme
+        .split('/')
+        .next()
+        .map(str::trim)
+        .map(|host| host.trim_end_matches('.'))
+        .filter(|host| !host.is_empty())
+        .map(str::to_ascii_lowercase)
+}
+
 fn web_presence_host(url: &str) -> Option<String> {
     web_presence_scheme_host(url).map(|(_, host)| host.to_string())
 }
