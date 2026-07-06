@@ -12940,6 +12940,7 @@ fn discount_status_time_window_derives_create_and_read_filters() {
 #[test]
 fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
     let create_query = r#"
         mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
           discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
@@ -13805,6 +13806,7 @@ fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions(
 #[test]
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let code_create_query = r#"
         mutation DiscountAmountEachCodeCreate($input: DiscountCodeBasicInput!) {

@@ -2156,8 +2156,37 @@ pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static 
     }
 }
 
-fn money_bag_currency(money_set: &Value) -> String {
-    money_set_shop_currency(money_set).unwrap_or_else(|| "USD".to_string())
+fn money_bag_currency(money_set: &Value) -> Option<String> {
+    money_set_shop_currency(money_set)
+}
+
+fn order_create_input_needs_shop_currency_default(
+    order_input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if resolved_string_field(order_input, "currency")
+        .or_else(|| resolved_string_field(order_input, "currencyCode"))
+        .is_some()
+    {
+        return false;
+    }
+    let line_has_money_currency = resolved_object_list_field(order_input, "lineItems")
+        .into_iter()
+        .any(|line_item| {
+            resolved_object_field(&line_item, "priceSet")
+                .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        });
+    if line_has_money_currency {
+        return false;
+    }
+    !resolved_object_list_field(order_input, "shippingLines")
+        .into_iter()
+        .any(|shipping_line| {
+            resolved_object_field(&shipping_line, "priceSet")
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        })
 }
 
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {

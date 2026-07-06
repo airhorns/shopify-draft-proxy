@@ -618,6 +618,7 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
             )
         }
     });
+    restore_shop_currency(&mut proxy, "USD");
     let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
 
     let returnables = proxy.process_request(json_graphql_request(
@@ -3938,6 +3939,7 @@ fn order_create_line_item_fields_and_currency_defaults_are_staged() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCreate-line-item-fields.graphql"),
@@ -5325,6 +5327,7 @@ fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
 #[test]
 fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -10868,6 +10871,137 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
             "presentmentMoney": { "amount": "5.0", "currencyCode": "USD" }
         })
     );
+}
+
+#[test]
+fn money_bag_order_create_uses_hydrated_shop_currency_without_input_currency() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop pricing hydrate parses");
+            assert_eq!(
+                body["query"],
+                json!("query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }")
+            );
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoneyBagCreateHydratesShopCurrency($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) {
+                nodes {
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "quantity": 1
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]
+            ["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn payment_terms_order_create_uses_hydrated_shop_currency_without_input_currency() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop pricing hydrate parses");
+            assert_eq!(
+                body["query"],
+                json!("query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }")
+            );
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentTermsCreateHydratesShopCurrency($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              paymentTerms { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "quantity": 1
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
