@@ -98,9 +98,10 @@ fn merge_staged_product_connection(
     }
 }
 
-/// Adds `added` staged matches to an upstream `productsCount` value, honoring an
-/// aliased `count` sub-field and leaving `precision` as upstream reported it.
-fn bump_product_count(count: &mut Value, field: &RootFieldSelection, added: usize) {
+/// Applies a signed `delta` (staged creates added, deleted live products removed)
+/// to an upstream `productsCount` value, honoring an aliased `count` sub-field,
+/// clamping at zero, and leaving `precision` as upstream reported it.
+fn bump_product_count(count: &mut Value, field: &RootFieldSelection, delta: i64) {
     let Some(object) = count.as_object_mut() else {
         return;
     };
@@ -112,7 +113,7 @@ fn bump_product_count(count: &mut Value, field: &RootFieldSelection, added: usiz
         if let Some(current) = object.get(key).and_then(Value::as_i64) {
             object.insert(
                 selection.response_key.clone(),
-                json!(current + added as i64),
+                json!((current + delta).max(0)),
             );
         }
     }
@@ -251,34 +252,44 @@ impl DraftProxy {
         false
     }
 
-    /// Overlays this session's staged product creates/deletes onto an upstream
-    /// live catalog response so a read-after-write sees them. The live backend is
-    /// authoritative for the full catalog (which is why the read forwarded
-    /// upstream), but a `productCreate` synthetic product has no live row yet and
-    /// a staged delete's row is still live upstream — so for each `products` /
-    /// `productsCount` root that is not a store-wide aggregate search, staged
-    /// creates matching the field's `query:` are spliced into the connection and
-    /// tombstoned ids are dropped. A no-op when the session staged no product
-    /// create/delete, when the upstream call did not return 200, or for aggregate
-    /// predicates the partial overlay cannot evaluate — in every such case the
-    /// upstream body passes through byte-for-byte.
+    /// Overlays this session's staged product creates, updates, and deletes onto
+    /// an upstream live catalog response so a read-after-write sees them. The live
+    /// backend is authoritative for the full catalog (which is why the read
+    /// forwarded upstream), but a `productCreate` synthetic product has no live row
+    /// yet, a staged *update* leaves the upstream page carrying the product's stale
+    /// pre-edit fields, and a staged delete's row is still live upstream. So for
+    /// each `products` / `productsCount` root that is not a store-wide aggregate
+    /// search: staged creates matching the field's `query:` are spliced into the
+    /// connection, an updated live product's upstream node is replaced in place
+    /// with its staged render, and tombstoned ids are dropped. A no-op when the
+    /// session staged no product write, when the upstream call did not return 200,
+    /// or for aggregate predicates the partial overlay cannot evaluate — in every
+    /// such case the upstream body passes through byte-for-byte.
     ///
-    /// Scope (deliberate): only creates and deletes are overlaid. A staged
-    /// *update* to an already-live product still appears in the upstream page, so
-    /// it is not re-injected; its edited fields are not yet reflected in list
-    /// reads. Pagination is best-effort: staged nodes are prepended and the page
-    /// is re-truncated to `first`, but `pageInfo` cursors remain the upstream
-    /// page's, so deep cursor paging across a mixed page is not exact.
+    /// Scope (deliberate): an update only re-renders a product the upstream page
+    /// already returned (its edited fields show), and never re-evaluates `query:`
+    /// membership — an edit that would move a product into or out of a filtered
+    /// page is not reflected. `productsCount` reflects creates and (query-less)
+    /// deletes but not membership shifts from updates. Pagination is best-effort:
+    /// staged nodes are prepended and the page is re-truncated to `first`, but
+    /// `pageInfo` cursors remain the upstream page's, so deep cursor paging across
+    /// a mixed page is not exact.
     fn overlay_staged_writes_onto_product_catalog(
         &self,
         mut upstream: Response,
         fields: &[RootFieldSelection],
     ) -> Response {
-        if upstream.status != 200 || !self.store.has_staged_product_catalog_writes() {
+        let updated_live = self.written_live_product_records();
+        if upstream.status != 200
+            || (!self.store.has_staged_product_catalog_writes() && updated_live.is_empty())
+        {
             return upstream;
         }
         let staged_created = self.store.staged_created_products();
         let tombstones = self.store.staged_product_tombstones().clone();
+        // A live product deleted this session was counted in the upstream
+        // `productsCount`; a created-then-deleted synthetic never was.
+        let removed_live = tombstones.iter().filter(|id| !is_synthetic_gid(id)).count();
         let Some(data) = upstream.body.get_mut("data").and_then(Value::as_object_mut) else {
             return upstream;
         };
@@ -301,14 +312,28 @@ impl DraftProxy {
                             field,
                             &tombstones,
                         );
+                        self.overlay_updated_products_onto_connection(
+                            connection,
+                            field,
+                            &updated_live,
+                        );
                     }
                 }
                 "productsCount" => {
                     let added =
                         self.staged_products_overlay_match_count(field, staged_created.clone());
-                    if added > 0 {
+                    // A `query:` count cannot subtract deletes: we cannot tell which
+                    // deleted live products matched the predicate upstream, so only a
+                    // query-less count (every live product) reflects them.
+                    let removed = if field.arguments.contains_key("query") {
+                        0
+                    } else {
+                        removed_live
+                    };
+                    let delta = added as i64 - removed as i64;
+                    if delta != 0 {
                         if let Some(count) = data.get_mut(&key) {
-                            bump_product_count(count, field, added);
+                            bump_product_count(count, field, delta);
                         }
                     }
                 }
@@ -316,6 +341,37 @@ impl DraftProxy {
             }
         }
         upstream
+    }
+
+    /// Products this session *updated* in place: real (non-synthetic) product gids
+    /// that appear in a staged mutation's `stagedResourceIds`, still have a staged
+    /// record, and are not tombstoned. Derived from the mutation log — which grows
+    /// only on a genuine staged write, never on a passive observation mirror — so a
+    /// live product merely read this session (mirrored with its real gid but never
+    /// edited) is excluded, leaving exactly the live rows whose upstream fields are
+    /// now stale. Creates (synthetic gids) are handled by `staged_created_products`;
+    /// deletes by the tombstone set.
+    fn written_live_product_records(&self) -> Vec<ProductRecord> {
+        let mut ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for entry in &self.log_entries {
+            if entry.get("status") != Some(&json!("staged")) {
+                continue;
+            }
+            let Some(resource_ids) = entry.get("stagedResourceIds").and_then(Value::as_array)
+            else {
+                continue;
+            };
+            for id in resource_ids.iter().filter_map(Value::as_str) {
+                if id.starts_with("gid://shopify/Product/") && !is_synthetic_gid(id) {
+                    ids.insert(id.to_string());
+                }
+            }
+        }
+        let tombstones = self.store.staged_product_tombstones();
+        ids.iter()
+            .filter(|id| !tombstones.contains(*id))
+            .filter_map(|id| self.store.product_record(id))
+            .collect()
     }
 
     fn should_route_owner_metafields_read(

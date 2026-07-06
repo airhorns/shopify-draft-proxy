@@ -9513,6 +9513,132 @@ fn live_hybrid_catalog_read_drops_staged_deleted_products() {
     );
 }
 
+// A product updated in this session is still returned by the live catalog page,
+// but carrying its stale pre-edit fields; a live-hybrid read must re-render that
+// upstream row from the staged update so the edited fields show.
+#[test]
+fn live_hybrid_catalog_read_overlays_staged_updated_products() {
+    let upstream = json!({
+        "data": {
+            "products": {
+                "nodes": [
+                    { "id": "gid://shopify/Product/live-1", "title": "Stale Title" },
+                    { "id": "gid://shopify/Product/live-2", "title": "Untouched Widget" }
+                ]
+            }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/live-1")])
+        .with_upstream_transport({
+            let upstream = upstream.clone();
+            move |_request| Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream.clone(),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateStagedCatalogProduct($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "id": "gid://shopify/Product/live-1", "title": "Fresh Title" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogAfterUpdate {
+          products(first: 50) { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+    let titles = product_node_titles(&list.body["data"]["products"]);
+    assert!(
+        titles.contains(&"Fresh Title".to_string()),
+        "the updated product's edited fields are re-rendered onto the live page: {titles:?}"
+    );
+    assert!(
+        !titles.contains(&"Stale Title".to_string()),
+        "the stale upstream fields are replaced, not kept: {titles:?}"
+    );
+    assert!(
+        titles.contains(&"Untouched Widget".to_string()),
+        "other live products pass through unchanged: {titles:?}"
+    );
+}
+
+// A live product deleted this session was counted in the upstream productsCount,
+// so a query-less count must subtract it — mirroring the connection overlay that
+// drops the tombstoned row.
+#[test]
+fn live_hybrid_catalog_count_subtracts_staged_deletes() {
+    let upstream = json!({
+        "data": {
+            "productsCount": { "count": 3, "precision": "EXACT" }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/live-1")])
+        .with_upstream_transport({
+            let upstream = upstream.clone();
+            move |_request| Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream.clone(),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStagedCatalogProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/live-1" } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        r#"
+        query CountAfterDelete {
+          productsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["productsCount"]["count"],
+        json!(2),
+        "a query-less count subtracts the deleted live product"
+    );
+    assert_eq!(
+        count.body["data"]["productsCount"]["precision"],
+        json!("EXACT"),
+        "upstream precision is preserved"
+    );
+}
+
 fn product_node_titles(connection: &Value) -> Vec<String> {
     connection["nodes"]
         .as_array()

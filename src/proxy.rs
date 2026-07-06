@@ -1233,6 +1233,13 @@ impl Store {
         &self.staged.products.tombstones
     }
 
+    /// The staged record for a product id, if this session has one (a create, an
+    /// observed mirror, or an update). Used to re-render an updated live product
+    /// onto a live-hybrid catalog page.
+    fn product_record(&self, id: &str) -> Option<ProductRecord> {
+        self.staged.products.records.get(id).cloned()
+    }
+
     /// Whether the session staged a product create or a delete of a live product
     /// that a live catalog read must reflect. A create is a synthetic staged record;
     /// a meaningful delete is a tombstone of a *real* (non-synthetic) gid — the
