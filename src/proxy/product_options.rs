@@ -666,6 +666,10 @@ impl DraftProxy {
             variants,
             &self.store.shop_currency_code(),
             &user_errors,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
         );
         ok_json(json!({ "data": { response_key: payload } }))
     }
@@ -696,6 +700,10 @@ impl DraftProxy {
                     variants.clone(),
                     &product_selection,
                     &self.store.shop_currency_code(),
+                    product.map(|product| {
+                        self.store
+                            .product_is_published_on_current_publication(product)
+                    }),
                 )),
                 "userErrors" => Some(Value::Array(
                     user_errors
@@ -1338,6 +1346,7 @@ fn product_option_payload_json(
     variants: Vec<ProductVariantRecord>,
     currency_code: &str,
     user_errors: &[ProductOptionUserError],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
@@ -1347,6 +1356,7 @@ fn product_option_payload_json(
                 variants.clone(),
                 &selection.selection,
                 currency_code,
+                published_on_current_publication,
             )),
             "userErrors" => Some(Value::Array(
                 user_errors
@@ -1365,6 +1375,7 @@ fn product_option_product_json(
     variants: Vec<ProductVariantRecord>,
     selections: &[SelectedField],
     currency_code: &str,
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     let Some(product) = product else {
         return Value::Null;
@@ -1372,7 +1383,13 @@ fn product_option_product_json(
     let record = graph
         .map(|graph| product_with_option_graph(product.clone(), graph))
         .unwrap_or_else(|| product.clone());
-    product_json_with_variants_and_currency(&record, &variants, selections, currency_code)
+    product_json_with_variants_and_currency_and_publication_context(
+        &record,
+        &variants,
+        selections,
+        currency_code,
+        published_on_current_publication,
+    )
 }
 
 fn product_option_json(option: &ProductOptionNode) -> Value {
