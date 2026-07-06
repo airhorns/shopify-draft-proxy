@@ -9672,14 +9672,224 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
         auth_only_payload["order"]["displayFinancialStatus"],
         json!("AUTHORIZED")
     );
+    let auth_only_transactions = auth_only_payload["order"]["transactions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(auth_only_transactions.len(), 2);
+    assert_eq!(auth_only_transactions[0]["id"], first_transaction_id);
+    assert_eq!(auth_only_transactions[1]["kind"], json!("AUTHORIZATION"));
+    assert_ne!(auth_only_transactions[1]["id"], first_transaction_id);
+}
+
+#[test]
+fn order_create_mandate_payment_preserves_existing_staged_order() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMandatePaymentOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              name
+              customer { id }
+              billingAddress { address1 city countryCodeV2 }
+              shippingAddress { address1 city countryCodeV2 }
+              lineItems(first: 10) { nodes { id title quantity } }
+              paymentGatewayNames
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              transactions {
+                id
+                kind
+                status
+                gateway
+                paymentReferenceId
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "mandate-preserve@example.test",
+                "customerId": "gid://shopify/Customer/424242",
+                "billingAddress": {
+                    "address1": "1 Billing Street",
+                    "city": "Toronto",
+                    "countryCode": "CA"
+                },
+                "shippingAddress": {
+                    "address1": "2 Shipping Street",
+                    "city": "Montreal",
+                    "countryCode": "CA"
+                },
+                "lineItems": [{
+                    "title": "Preserved mandate line",
+                    "quantity": 2,
+                    "priceSet": {
+                        "shopMoney": { "amount": "12.50", "currencyCode": "CAD" }
+                    }
+                }],
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "shopify_payments",
+                    "amountSet": {
+                        "shopMoney": { "amount": "25.00", "currencyCode": "CAD" }
+                    }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let created_order = &create.body["data"]["orderCreate"]["order"];
+    let order_id = created_order["id"].clone();
+    let authorization_transaction = created_order["transactions"][0].clone();
+    assert_eq!(created_order["name"], json!("#1"));
     assert_eq!(
-        auth_only_payload["order"]["transactions"][0]["kind"],
-        json!("AUTHORIZATION")
+        created_order["paymentGatewayNames"],
+        json!(["shopify_payments"])
     );
+
+    let mandate_query = r#"
+        mutation ChargeExistingMandateOrder(
+          $id: ID!
+          $mandateId: ID!
+          $idempotencyKey: String
+          $amount: MoneyInput
+        ) {
+          orderCreateMandatePayment(
+            id: $id
+            mandateId: $mandateId
+            idempotencyKey: $idempotencyKey
+            amount: $amount
+          ) {
+            job { id done }
+            paymentReferenceId
+            order {
+              id
+              name
+              displayFinancialStatus
+              customer { id }
+              billingAddress { address1 city countryCodeV2 }
+              shippingAddress { address1 city countryCodeV2 }
+              lineItems(first: 10) { nodes { id title quantity } }
+              paymentGatewayNames
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              transactions {
+                id
+                kind
+                status
+                gateway
+                paymentReferenceId
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mandate_variables = json!({
+        "id": order_id,
+        "mandateId": "gid://shopify/PaymentMandate/preserve-existing-order",
+        "idempotencyKey": "preserve-existing-order-key",
+        "amount": { "amount": "25.00", "currencyCode": "CAD" }
+    });
+    let mandate = proxy.process_request(json_graphql_request(
+        mandate_query,
+        mandate_variables.clone(),
+    ));
+    assert_eq!(mandate.status, 200);
+    let mandate_payload = &mandate.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(mandate_payload["userErrors"], json!([]));
+    assert_eq!(
+        mandate_payload["paymentReferenceId"],
+        json!("gid://shopify/Order/1/preserve-existing-order-key")
+    );
+    assert_eq!(mandate_payload["job"]["done"], json!(true));
+    let paid_order = &mandate_payload["order"];
+
+    assert_eq!(paid_order["name"], created_order["name"]);
+    assert_eq!(paid_order["customer"], created_order["customer"]);
+    assert_eq!(
+        paid_order["billingAddress"],
+        created_order["billingAddress"]
+    );
+    assert_eq!(
+        paid_order["shippingAddress"],
+        created_order["shippingAddress"]
+    );
+    assert_eq!(paid_order["lineItems"], created_order["lineItems"]);
+    assert_eq!(
+        paid_order["paymentGatewayNames"],
+        json!(["shopify_payments"])
+    );
+    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        paid_order["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        paid_order["totalReceivedSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(paid_order["transactions"].as_array().unwrap().len(), 2);
+    assert_eq!(paid_order["transactions"][0], authorization_transaction);
     assert_ne!(
-        auth_only_payload["order"]["transactions"][0]["id"],
-        first_transaction_id
+        paid_order["transactions"][1]["id"],
+        authorization_transaction["id"]
     );
+    assert_eq!(paid_order["transactions"][1]["kind"], json!("SALE"));
+    assert_eq!(
+        paid_order["transactions"][1]["gateway"],
+        json!("shopify_payments")
+    );
+    assert_eq!(
+        paid_order["transactions"][1]["paymentReferenceId"],
+        json!("gid://shopify/Order/1/preserve-existing-order-key")
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(mandate_query, mandate_variables));
+    let repeat_payload = &repeat.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(repeat.status, 200);
+    assert_eq!(repeat_payload["userErrors"], json!([]));
+    assert_eq!(repeat_payload["job"]["id"], mandate_payload["job"]["id"]);
+    assert_eq!(repeat_payload["order"], mandate_payload["order"]);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMandatePaidOrder($id: ID!) {
+          order(id: $id) {
+            id
+            name
+            displayFinancialStatus
+            customer { id }
+            billingAddress { address1 city countryCodeV2 }
+            shippingAddress { address1 city countryCodeV2 }
+            lineItems(first: 10) { nodes { id title quantity } }
+            paymentGatewayNames
+            totalOutstandingSet { shopMoney { amount currencyCode } }
+            totalReceivedSet { shopMoney { amount currencyCode } }
+            transactions {
+              id
+              kind
+              status
+              gateway
+              paymentReferenceId
+              amountSet { shopMoney { amount currencyCode } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(readback.body["data"]["order"], mandate_payload["order"]);
 }
 
 #[test]
