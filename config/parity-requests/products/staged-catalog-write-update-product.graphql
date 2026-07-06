@@ -1,0 +1,14 @@
+mutation StagedCatalogWriteUpdateProduct($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

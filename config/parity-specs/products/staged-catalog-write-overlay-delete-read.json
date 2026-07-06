@@ -1,0 +1,40 @@
+{
+  "scenarioId": "staged-catalog-write-overlay-delete-read",
+  "operationNames": ["productDelete", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/staged-catalog-write-overlay-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/staged-catalog-write-delete-product.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.del.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Proves a live-hybrid products/productsCount read drops a session-staged productDelete from the authoritative upstream catalog page. Without the overlay, a read-after-delete would still return the tombstoned product (the live page has not propagated the deletion yet) and the count would be stale. The capture deletes a disposable product on Shopify, records the catalog with the product still present as the upstream cassette, and records the catalog without the product as the comparison target. The proxy hydrates the product from the cassette, stages the delete locally (tombstone), forwards the catalog read upstream (cassette returns the pre-delete catalog), then overlays the delete — the tombstoned row must be dropped and the count must subtract it.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.del.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "catalog-count-after-delete",
+        "capturePath": "$.catalogAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/staged-catalog-write-catalog-read-after-delete.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.catalogAfterDelete.variables"
+        },
+        "selectedPaths": ["$.productsCount"],
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

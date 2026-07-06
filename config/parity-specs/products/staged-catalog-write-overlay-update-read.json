@@ -1,0 +1,46 @@
+{
+  "scenarioId": "staged-catalog-write-overlay-update-read",
+  "operationNames": ["productUpdate", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/staged-catalog-write-overlay-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/staged-catalog-write-update-product.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.update.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Proves a live-hybrid products read re-renders a session-staged productUpdate onto the upstream catalog page so the edited fields show. Without the overlay, a read-after-update would return the stale upstream fields (the live page still carries the product's pre-edit title). The capture updates a disposable product's title on Shopify, records the catalog with the original title as the upstream cassette, and records the catalog with the updated title as the comparison target. The proxy hydrates the product from the cassette, stages the update locally, forwards the catalog read upstream (cassette returns the pre-update catalog), then overlays the staged update — the node's title must reflect the edit.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productUpdate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy hydrates the real product GID from upstream, then stages the update on it."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "catalog-after-update",
+        "capturePath": "$.catalogAfterUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/staged-catalog-write-catalog-read-after-update.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.catalogAfterUpdate.variables"
+        },
+        "selectedPaths": ["$.products.nodes[*].title", "$.productsCount"],
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

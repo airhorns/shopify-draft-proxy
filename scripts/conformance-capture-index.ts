@@ -1022,6 +1022,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'staged-catalog-write-overlay-read',
+    scriptPath: 'scripts/capture-staged-catalog-write-overlay-read-conformance.ts',
+    purpose:
+      'Products/productsCount read parity after a session-staged productCreate, productUpdate, or productDelete — proves the live-hybrid catalog read overlays staged writes onto the authoritative upstream page.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}staged-catalog-write-overlay-read.json`,
+      'config/parity-specs/products/staged-catalog-write-overlay-create-read.json',
+      'config/parity-specs/products/staged-catalog-write-overlay-update-read.json',
+      'config/parity-specs/products/staged-catalog-write-overlay-delete-read.json',
+      'config/parity-requests/products/staged-catalog-write-create-product.graphql',
+      'config/parity-requests/products/staged-catalog-write-update-product.graphql',
+      'config/parity-requests/products/staged-catalog-write-delete-product.graphql',
+      'config/parity-requests/products/staged-catalog-write-catalog-read.graphql',
+      'config/parity-requests/products/staged-catalog-write-catalog-read-after-delete.graphql',
+      'config/parity-requests/products/staged-catalog-write-catalog-read-after-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active product, updates its title, then deletes it; best-effort cleanup deletes the product if it still exists after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The parity specs replay productCreate/productUpdate/productDelete through the proxy (staged locally), then forward the catalog read upstream (cassette returns the pre-write catalog) and verify the overlay adds/edits/drops the staged product so a read-after-write matches the captured Shopify catalog.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
