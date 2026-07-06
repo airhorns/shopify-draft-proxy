@@ -324,6 +324,28 @@ async function captureCreateUpdateGrammarScenario(marker: string): Promise<void>
       },
       (result) => assertUserErrors(result, 'segmentCreate', 'segmentCreate malformed query'),
     );
+
+    await captureCase(
+      cases,
+      'segmentCreateDifferentMalformedRejected',
+      createMutation,
+      {
+        name: `Query grammar different malformed ${marker}`,
+        query: 'not another valid segment query ???',
+      },
+      (result) => assertUserErrors(result, 'segmentCreate', 'segmentCreate different malformed query'),
+    );
+
+    await captureCase(
+      cases,
+      'segmentUpdateDifferentMalformedRejected',
+      updateMutation,
+      {
+        id: updateSegmentId,
+        query: 'not another valid segment query ???',
+      },
+      (result) => assertUserErrors(result, 'segmentUpdate', 'segmentUpdate different malformed query'),
+    );
   } finally {
     await cleanupSegments(createdSegmentIds, cases, 'segmentDeleteCreateUpdateGrammar');
   }
@@ -335,7 +357,7 @@ async function captureCreateUpdateGrammarScenario(marker: string): Promise<void>
     cases,
     notes: [
       'Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate.',
-      'Accepted branches cover customer country, decimal amount spent, abandoned checkout date, IS NULL, AND, parenthesized OR, and relative date predicates. The malformed branch captures Shopify query userErrors.',
+      'Accepted branches cover customer country, decimal amount spent, abandoned checkout date, IS NULL, AND, parenthesized OR, and relative date predicates. Malformed branches capture Shopify query userErrors for two different invalid query strings across segmentCreate and segmentUpdate.',
       'The public Admin API versions tested during capture reject the `country` and `total_spent` aliases, while the proxy still accepts them optimistically for callers that follow those aliases.',
       'Disposable segments created for this capture are deleted in cleanup cases.',
     ],
