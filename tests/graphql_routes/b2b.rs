@@ -3799,6 +3799,121 @@ fn b2b_company_nested_connections_sort_reverse_and_window() {
 }
 
 #[test]
+fn b2b_company_location_addresses_accept_shared_country_catalog() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "International Address Co");
+
+    let create_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCreateGbLocation($companyId: ID!) {
+          companyLocationCreate(
+            companyId: $companyId,
+            input: {
+              name: "London HQ"
+              shippingAddress: {
+                address1: "10 Downing Street"
+                city: "London"
+                countryCode: "GB"
+                zoneCode: "LND"
+                zip: "SW1A 2AA"
+              }
+            }
+          ) {
+            companyLocation {
+              id
+              currency
+              shippingAddress { address1 city countryCode zip }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(create_location.status, 200);
+    assert_eq!(
+        create_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let location = &create_location.body["data"]["companyLocationCreate"]["companyLocation"];
+    let location_id = location["id"].as_str().expect("location id").to_string();
+    assert_eq!(location["currency"], json!("GBP"));
+    assert_eq!(
+        location["shippingAddress"],
+        json!({
+            "address1": "10 Downing Street",
+            "city": "London",
+            "countryCode": "GB",
+            "zip": "SW1A 2AA"
+        })
+    );
+
+    let assign_de_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignDeAddress($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: {
+              address1: "Unter den Linden 1"
+              city: "Berlin"
+              countryCode: "DE"
+              zoneCode: "BE"
+              zip: "10117"
+            },
+            addressTypes: [BILLING]
+          ) {
+            addresses { address1 city countryCode zip }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(assign_de_address.status, 200);
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["addresses"],
+        json!([{
+            "address1": "Unter den Linden 1",
+            "city": "Berlin",
+            "countryCode": "DE",
+            "zip": "10117"
+        }])
+    );
+
+    let invalid_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignInvalidCountry($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: { address1: "Unknown", countryCode: ZZ },
+            addressTypes: [SHIPPING]
+          ) {
+            addresses { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(invalid_country.status, 200);
+    assert_eq!(
+        invalid_country.body["data"]["companyLocationAssignAddress"],
+        json!({
+            "addresses": Value::Null,
+            "userErrors": [{
+                "field": ["address", "countryCode"],
+                "message": "Country code is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
+}
+
+#[test]
 fn b2b_company_location_create_address_only_returns_no_input_without_staging() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company(&mut proxy, "Address Only Co");

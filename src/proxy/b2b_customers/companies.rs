@@ -3958,11 +3958,7 @@ impl DraftProxy {
         existing: Option<&Value>,
     ) -> Option<String> {
         b2b_location_input_country_code(input)
-            .or_else(|| {
-                existing
-                    .and_then(b2b_location_record_country_code)
-                    .map(str::to_string)
-            })
+            .or_else(|| existing.and_then(b2b_location_record_country_code))
             .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
     }
 
@@ -4096,7 +4092,7 @@ fn b2b_address_input_errors(
         None => None,
     };
 
-    if let Some(country_code) = country {
+    if let Some(country_code) = country.as_deref() {
         // Zone: only validated when the country publishes subdivisions (e.g. SG
         // has none) and a zoneCode was supplied.
         if let Some(zone_code) = resolved_string_field(address, "zoneCode") {
@@ -4159,17 +4155,15 @@ fn b2b_address_input_errors(
     errors
 }
 
-/// B2B address validation currently accepts the captured live-Admin country
-/// boundary while sourcing known display names from the shared location module.
-fn b2b_country_catalog_by_code(code: &str) -> Option<&'static str> {
-    let country_code = match code.to_ascii_uppercase().as_str() {
-        "CA" => "CA",
-        "US" => "US",
-        "SG" => "SG",
-        _ => return None,
-    };
-    country_name_for_code(country_code)?;
-    Some(country_code)
+/// B2B address validation uses the same accepted country-code catalog as other
+/// Admin address helpers, while preserving canonical uppercase ISO codes in
+/// staged state.
+fn b2b_country_catalog_by_code(code: &str) -> Option<String> {
+    let country_code = code.to_ascii_uppercase();
+    if country_code == "ZZ" {
+        return None;
+    }
+    location_country_code_is_valid(&country_code).then_some(country_code)
 }
 
 fn b2b_country_has_zone_catalog(country_code: &str) -> bool {
@@ -4364,28 +4358,50 @@ fn b2b_company_location_input_currency_code(
 fn b2b_address_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(input, "countryCode")
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
-        .and_then(|code| b2b_country_catalog_by_code(&code).map(str::to_string))
+        .and_then(|code| b2b_country_catalog_by_code(&code))
 }
 
 fn b2b_company_location_currency_code(location: &Value, default_currency_code: &str) -> String {
     location
         .get("currency")
         .and_then(Value::as_str)
-        .or_else(|| b2b_location_record_country_code(location).and_then(b2b_country_currency_code))
+        .or_else(|| {
+            b2b_location_record_country_code(location)
+                .as_deref()
+                .and_then(b2b_country_currency_code)
+        })
         .unwrap_or(default_currency_code)
         .to_string()
 }
 
 fn b2b_country_currency_code(country_code: &str) -> Option<&'static str> {
-    match b2b_country_catalog_by_code(country_code)? {
+    match b2b_country_catalog_by_code(country_code)?.as_str() {
+        "AE" => Some("AED"),
+        "AR" => Some("ARS"),
+        "AT" | "BE" | "DE" | "ES" | "FI" | "FR" | "IE" | "IT" | "NL" | "PT" => Some("EUR"),
+        "AU" => Some("AUD"),
+        "BR" => Some("BRL"),
         "CA" => Some("CAD"),
+        "CH" => Some("CHF"),
+        "CN" => Some("CNY"),
+        "DK" => Some("DKK"),
+        "GB" => Some("GBP"),
+        "HK" => Some("HKD"),
+        "IN" => Some("INR"),
+        "JP" => Some("JPY"),
+        "MX" => Some("MXN"),
+        "NO" => Some("NOK"),
+        "NZ" => Some("NZD"),
+        "PL" => Some("PLN"),
+        "SE" => Some("SEK"),
         "SG" => Some("SGD"),
         "US" => Some("USD"),
+        "ZA" => Some("ZAR"),
         _ => None,
     }
 }
 
-fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
+fn b2b_location_record_country_code(location: &Value) -> Option<String> {
     location
         .get("shippingAddress")
         .and_then(b2b_address_record_country_code)
@@ -4396,7 +4412,7 @@ fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
         })
 }
 
-fn b2b_address_record_country_code(address: &Value) -> Option<&str> {
+fn b2b_address_record_country_code(address: &Value) -> Option<String> {
     value_country_code(address).and_then(b2b_country_catalog_by_code)
 }
 
