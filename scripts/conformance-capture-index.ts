@@ -7047,6 +7047,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The local-runtime fixture outputs remain listed only so protected-evidence deletion checks can audit their removal. Restored parity specs point at the live salvage fixture, not at the deleted synthetic files.',
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-pixel-token-state',
+    scriptPath: 'scripts/capture-online-store-pixel-token-state-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL schema and current-app grant evidence for online-store pixel status and storefront access-token accessScopes parity.',
+    requiredAuthScopes: ['authenticated_admin_graphql'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-pixel-token-state.json`,
+      'config/parity-specs/online-store/online-store-pixel-token-state.json',
+      'config/parity-requests/online-store/web-pixel-status-is-not-a-field.graphql',
+      'config/parity-requests/online-store/online-store-pixel-token-schema.graphql',
+    ],
+    cleanupBehavior:
+      'Does not create disposable resources. Captures schema validation and current app access-scope observations only.',
+    expectedStatusChecks: ['manual-capture-review', 'targeted-runtime-test', 'conformance:check', 'rust:test'],
+    notes:
+      'The current conformance app still lacks pixel and storefront access-token write scopes, so successful live serverPixelCreate/storefrontAccessTokenCreate captures are not available from this credential; local success payloads remain Rust-test-backed.',
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',

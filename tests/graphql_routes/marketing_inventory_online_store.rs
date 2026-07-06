@@ -7735,9 +7735,9 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntime {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
@@ -7931,9 +7931,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
                         "webPixel": {
                             "__typename": "WebPixel",
                             "id": web_pixel_id,
-                            "status": "CONNECTED",
-                            "settings": {"accountID": "upstream"},
-                            "webhookEndpointAddress": null
+                            "settings": {"accountID": "upstream"}
                         },
                         "serverPixel": {
                             "__typename": "ServerPixel",
@@ -7967,7 +7965,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
           themes(first: 10) { nodes { id name role } }
           scriptTag(id: $scriptTagId) { id src displayScope event cache }
           scriptTags(first: 10) { nodes { id src displayScope event cache } }
-          webPixel(id: $webPixelId) { id status settings webhookEndpointAddress }
+          webPixel(id: $webPixelId) { id settings }
           serverPixel(id: $serverPixelId) { id status webhookEndpointAddress }
           mobilePlatformApplication(id: $mobileAppId) { __typename ... on AppleApplication { id appId universalLinksEnabled } }
           mobilePlatformApplications(first: 10) { nodes { __typename ... on AppleApplication { id appId universalLinksEnabled } } }
@@ -8009,7 +8007,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     );
     assert_eq!(
         hydrated_read.body["data"]["webPixel"],
-        json!({"id": web_pixel_id, "status": "CONNECTED", "settings": {"accountID": "upstream"}, "webhookEndpointAddress": null})
+        json!({"id": web_pixel_id, "settings": {"accountID": "upstream"}})
     );
     assert_eq!(
         hydrated_read.body["data"]["serverPixel"],
@@ -8079,10 +8077,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
                 "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
                 "title": "Hydrogen",
                 "accessToken": first_token,
-                "accessScopes": [
-                    {"handle": "unauthenticated_read_product_listings"},
-                    {"handle": "unauthenticated_read_product_inventory"}
-                ]
+                "accessScopes": []
             },
             "shop": {},
             "userErrors": []
@@ -8213,13 +8208,13 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
 }
 
 #[test]
-fn web_pixel_create_success_returns_connected_with_non_null_settings() {
+fn web_pixel_create_success_returns_non_null_settings() {
     let mut omitted_proxy = snapshot_proxy();
     let omitted = omitted_proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeOmittedSettings {
           webPixelCreate(webPixel: {}) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -8231,7 +8226,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -8243,7 +8237,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeEmptyJsonSettings {
           webPixelCreate(webPixel: { settings: "{}" }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -8255,7 +8249,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -8267,7 +8260,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeObjectSettings {
           webPixelCreate(webPixel: { settings: { accountID: "abc" } }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -8279,7 +8272,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {"accountID": "abc"}
             },
             "userErrors": []
@@ -8291,21 +8283,55 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
 fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
+    let web_pixel_status = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreWebPixelStatusIsNotAField($webPixel: WebPixelInput!) {
+          webPixelCreate(webPixel: $webPixel) {
+            webPixel { id status }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({"webPixel": {"settings": "{}"}}),
+    ));
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["message"],
+        json!("Field 'status' doesn't exist on type 'WebPixel'")
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["path"],
+        json!([
+            "mutation RustOnlineStoreWebPixelStatusIsNotAField",
+            "webPixelCreate",
+            "webPixel",
+            "status"
+        ])
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "WebPixel",
+            "fieldName": "status"
+        })
+    );
+    assert!(web_pixel_status.body.get("data").is_none());
+
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStorePixelLocalRuntimeEdges {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings webhookEndpointAddress } userErrors { __typename code field message } }
-          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id } userErrors { __typename code field message } }
           missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status webhookEndpointAddress } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         web_pixel.body["data"]["create"],
-        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "CONNECTED", "settings": {}, "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {}}, "userErrors": []})
     );
     assert_eq!(
         web_pixel.body["data"]["duplicate"],
@@ -8321,7 +8347,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     );
     assert_eq!(
         web_pixel.body["data"]["validUpdate"]["webPixel"],
-        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}, "status": "CONNECTED", "webhookEndpointAddress": null})
+        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}})
     );
 
     let missing_server = proxy.process_request(json_graphql_request(
@@ -8348,19 +8374,27 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
         r#"
         mutation RustOnlineStoreServerPixelEndpointLocalRuntimeEdges {
           create: serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
-          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
-          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
+          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         server_pixel.body["data"]["create"],
-        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "CONNECTED", "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "DISCONNECTED_UNCONFIGURED", "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        server_pixel.body["data"]["eventBridge"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["eventBridge"]["serverPixel"]["webhookEndpointAddress"],
         json!("arn:aws:events:us-east-1:123456789012:event-bus/local")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["pubsub"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],
