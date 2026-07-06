@@ -2,12 +2,16 @@ PATH
   remote: .
   specs:
     shopify-draft-proxy (0.1.0)
+      rb_sys (~> 0.9.123)
 
 GEM
   remote: https://rubygems.org/
   specs:
     minitest (5.27.0)
     rake (13.4.2)
+    rake-compiler-dock (1.12.0)
+    rb_sys (0.9.128)
+      rake-compiler-dock (= 1.12.0)
 
 PLATFORMS
   ruby
