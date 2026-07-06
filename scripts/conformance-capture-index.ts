@@ -11120,7 +11120,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-query-roots-conformance.mts',
     purpose:
-      'returnableFulfillments and returnCalculate query-root behavior for a fulfilled order, replayed against locally staged order and fulfillment state.',
+      'returnableFulfillments and returnCalculate query-root behavior for a fulfilled taxed order with a return-line restocking fee, replayed against locally staged order and fulfillment state.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}return-query-roots-recorded.json`,

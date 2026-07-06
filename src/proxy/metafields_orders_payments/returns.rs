@@ -209,6 +209,16 @@ fn return_line_items_array(return_value: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn order_line_items_array(order: &Value) -> Vec<Value> {
+    if let Some(array) = order["lineItems"].as_array() {
+        return array.clone();
+    }
+    order["lineItems"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// Fulfillments embedded in an order, accepting both the locally-staged array
 /// shape and the Admin connection shape returned by live hydration.
 fn order_fulfillments_array(order: &Value) -> Vec<Value> {
@@ -332,15 +342,146 @@ fn calculated_line_money_set(order: &Value, fulfillment_line_item: &Value, quant
     )
 }
 
+fn order_line_item_for_fulfillment_line_item(
+    order: &Value,
+    fulfillment_line_item: &Value,
+) -> Option<Value> {
+    let embedded_line_item = fulfillment_line_item
+        .get("lineItem")
+        .filter(|line_item| line_item.is_object());
+    let line_item_id = embedded_line_item.and_then(|line_item| line_item["id"].as_str());
+    if let Some(line_item) = embedded_line_item {
+        if line_item.get("taxLines").is_some() {
+            return Some(line_item.clone());
+        }
+    }
+    let order_line_item = order_line_items_array(order)
+        .into_iter()
+        .find(|line| line["id"].as_str() == line_item_id);
+    order_line_item.or_else(|| embedded_line_item.cloned())
+}
+
+fn line_item_quantity(line_item: &Value, fulfillment_line_item: &Value) -> i64 {
+    line_item["quantity"]
+        .as_i64()
+        .or_else(|| fulfillment_line_item["quantity"].as_i64())
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn tax_line_price_set(tax_line: &Value) -> &Value {
+    if tax_line["priceSet"].is_object() {
+        &tax_line["priceSet"]
+    } else {
+        &tax_line["price"]
+    }
+}
+
+fn money_set_presentment_amount(value: &Value) -> Option<f64> {
+    value["presentmentMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+}
+
+fn calculated_line_tax_set(order: &Value, fulfillment_line_item: &Value, quantity: i64) -> Value {
+    let Some(line_item) = order_line_item_for_fulfillment_line_item(order, fulfillment_line_item)
+    else {
+        return money_set_pair(
+            "0.0",
+            &order_currency(order),
+            "0.0",
+            &order_presentment_currency(order),
+        );
+    };
+    let line_quantity = line_item_quantity(&line_item, fulfillment_line_item);
+    if line_quantity <= 0 {
+        return money_set_pair(
+            "0.0",
+            &order_currency(order),
+            "0.0",
+            &order_presentment_currency(order),
+        );
+    }
+    let tax_lines = line_item["taxLines"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let shop_currency = tax_lines
+        .iter()
+        .find_map(|tax_line| money_set_shop_currency(tax_line_price_set(tax_line)))
+        .unwrap_or_else(|| order_currency(order));
+    let presentment_currency = tax_lines
+        .iter()
+        .find_map(|tax_line| money_set_presentment_currency(tax_line_price_set(tax_line)))
+        .unwrap_or_else(|| order_presentment_currency(order));
+    let shop_total = tax_lines
+        .iter()
+        .filter_map(|tax_line| money_set_amount(tax_line_price_set(tax_line)))
+        .sum::<f64>();
+    let presentment_total = tax_lines
+        .iter()
+        .map(|tax_line| {
+            let price_set = tax_line_price_set(tax_line);
+            money_set_presentment_amount(price_set)
+                .unwrap_or_else(|| money_set_amount(price_set).unwrap_or(0.0))
+        })
+        .sum::<f64>();
+    let ratio = quantity.max(0) as f64 / line_quantity as f64;
+    money_set_pair(
+        &format_money_amount(-(shop_total * ratio)),
+        &shop_currency,
+        &format_money_amount(-(presentment_total * ratio)),
+        &presentment_currency,
+    )
+}
+
+fn calculated_restocking_fee(
+    order: &Value,
+    fulfillment_line_item_id: &str,
+    subtotal: &Value,
+    line_input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let Some(fee_input) = resolved_object_field(line_input, "restockingFee") else {
+        return Value::Null;
+    };
+    let Some(percentage) = resolved_number_field(&fee_input, "percentage") else {
+        return Value::Null;
+    };
+    let shop_subtotal = money_set_amount(subtotal).unwrap_or(0.0).abs();
+    let presentment_subtotal = money_set_presentment_amount(subtotal)
+        .or_else(|| money_set_amount(subtotal))
+        .unwrap_or(0.0)
+        .abs();
+    let shop_currency = money_set_shop_currency(subtotal).unwrap_or_else(|| order_currency(order));
+    let presentment_currency = money_set_presentment_currency(subtotal)
+        .unwrap_or_else(|| order_presentment_currency(order));
+    json!({
+        "id": shopify_gid(
+            "CalculatedRestockingFee",
+            resource_id_tail(fulfillment_line_item_id)
+        ),
+        "percentage": percentage,
+        "amountSet": money_set_pair(
+            &format_money_amount(shop_subtotal * percentage / 100.0),
+            &shop_currency,
+            &format_money_amount(presentment_subtotal * percentage / 100.0),
+            &presentment_currency
+        )
+    })
+}
+
+fn return_calculation_line_item_has_price_and_tax_data(line: &Value) -> bool {
+    fulfillment_line_item_price_set(line)
+        .get("shopMoney")
+        .is_some_and(Value::is_object)
+        && line["lineItem"].get("taxLines").is_some()
+}
+
 fn order_has_return_calculation_prices(order: &Value) -> bool {
     order_fulfillments_array(order).iter().any(|fulfillment| {
         fulfillment_line_items_array(fulfillment)
             .iter()
-            .any(|line| {
-                fulfillment_line_item_price_set(line)
-                    .get("shopMoney")
-                    .is_some_and(Value::is_object)
-            })
+            .any(return_calculation_line_item_has_price_and_tax_data)
     })
 }
 
@@ -601,6 +742,13 @@ impl DraftProxy {
                 let fulfillment_line_item =
                     find_order_fulfillment_line_item(&order, &fulfillment_line_item_id)?;
                 let subtotal = calculated_line_money_set(&order, &fulfillment_line_item, quantity);
+                let total_tax = calculated_line_tax_set(&order, &fulfillment_line_item, quantity);
+                let restocking_fee = calculated_restocking_fee(
+                    &order,
+                    &fulfillment_line_item_id,
+                    &subtotal,
+                    &line_input,
+                );
                 Some(json!({
                     "id": shopify_gid(
                         "CalculatedReturnLineItem",
@@ -608,15 +756,10 @@ impl DraftProxy {
                     ),
                     "fulfillmentLineItem": fulfillment_line_item,
                     "quantity": quantity,
-                    "restockingFee": Value::Null,
+                    "restockingFee": restocking_fee,
                     "subtotalBeforeOrderDiscountsSet": subtotal.clone(),
                     "subtotalSet": subtotal,
-                    "totalTaxSet": money_set_pair(
-                        "0.0",
-                        &order_currency(&order),
-                        "0.0",
-                        &order_presentment_currency(&order)
-                    )
+                    "totalTaxSet": total_tax
                 }))
             })
             .collect::<Vec<_>>();

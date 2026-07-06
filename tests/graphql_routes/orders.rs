@@ -422,7 +422,12 @@ fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
                 "lineItems": [{
                     "title": "Return removal status line",
                     "quantity": 2,
-                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } },
+                    "taxLines": [{
+                        "title": "State tax",
+                        "rate": 0.1,
+                        "priceSet": { "shopMoney": { "amount": "2.00", "currencyCode": "USD" } }
+                    }]
                 }]
             }
         }),
@@ -659,11 +664,17 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
             returnLineItems: [{
               fulfillmentLineItemId: $fulfillmentLineItemId
               quantity: 1
+              restockingFee: { percentage: 10.0 }
             }]
           }) {
             returnLineItems {
               fulfillmentLineItem { id }
               quantity
+              restockingFee {
+                id
+                percentage
+                amountSet { shopMoney { amount currencyCode } }
+              }
               subtotalBeforeOrderDiscountsSet { shopMoney { amount currencyCode } }
               subtotalSet { shopMoney { amount currencyCode } }
               totalTaxSet { shopMoney { amount currencyCode } }
@@ -683,6 +694,13 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
         json!([{
             "fulfillmentLineItem": { "id": fulfillment_line_item_id.clone() },
             "quantity": 1,
+            "restockingFee": {
+                "id": "gid://shopify/CalculatedRestockingFee/1",
+                "percentage": 10.0,
+                "amountSet": {
+                    "shopMoney": { "amount": "1.0", "currencyCode": "USD" }
+                }
+            },
             "subtotalBeforeOrderDiscountsSet": {
                 "shopMoney": { "amount": "-10.0", "currencyCode": "USD" }
             },
@@ -690,7 +708,7 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
                 "shopMoney": { "amount": "-10.0", "currencyCode": "USD" }
             },
             "totalTaxSet": {
-                "shopMoney": { "amount": "0.0", "currencyCode": "USD" }
+                "shopMoney": { "amount": "-1.0", "currencyCode": "USD" }
             }
         }])
     );

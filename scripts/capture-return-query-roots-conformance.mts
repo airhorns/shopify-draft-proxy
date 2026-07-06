@@ -145,6 +145,24 @@ function requireCalculatedLine(captureResult: GraphqlCapture, fulfillmentLineIte
       )}`,
     );
   }
+  const restockingFee = readRecord(match['restockingFee']);
+  if (restockingFee === null || restockingFee['percentage'] !== 10) {
+    throw new Error(
+      `returnCalculate did not expose the 10% restocking fee: ${JSON.stringify(captureResult.response.payload)}`,
+    );
+  }
+  const restockingFeeAmount = readRecord(readRecord(restockingFee['amountSet'])?.['shopMoney'])?.['amount'];
+  if (typeof restockingFeeAmount !== 'string' || restockingFeeAmount === '0.0') {
+    throw new Error(
+      `returnCalculate did not compute a restocking fee amount: ${JSON.stringify(captureResult.response.payload)}`,
+    );
+  }
+  const taxAmount = readRecord(readRecord(match['totalTaxSet'])?.['shopMoney'])?.['amount'];
+  if (typeof taxAmount !== 'string' || taxAmount === '0.0') {
+    throw new Error(
+      `returnCalculate did not expose proportional line tax: ${JSON.stringify(captureResult.response.payload)}`,
+    );
+  }
 }
 
 const orderFields = `#graphql
@@ -193,6 +211,20 @@ const orderFields = `#graphql
             currencyCode
           }
         }
+        taxLines {
+          title
+          rate
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
       }
     }
     fulfillments(first: 5) {
@@ -216,6 +248,20 @@ const orderFields = `#graphql
               presentmentMoney {
                 amount
                 currencyCode
+              }
+            }
+            taxLines {
+              title
+              rate
+              priceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
               }
             }
             variant {
@@ -377,7 +423,19 @@ const orderVariables = {
           },
         },
         requiresShipping: true,
-        taxable: false,
+        taxable: true,
+        taxLines: [
+          {
+            title: 'Return query roots line tax',
+            rate: 0.05,
+            priceSet: {
+              shopMoney: {
+                amount: '2.00',
+                currencyCode: 'USD',
+              },
+            },
+          },
+        ],
       },
     ],
   },
@@ -471,6 +529,9 @@ try {
         {
           fulfillmentLineItemId,
           quantity: 1,
+          restockingFee: {
+            percentage: 10.0,
+          },
         },
       ],
     },
@@ -486,7 +547,7 @@ try {
     storeDomain,
     source: 'live-shopify-admin-graphql',
     notes:
-      'Live public Admin GraphQL capture for returnableFulfillments and returnCalculate on a disposable fulfilled order. The parity replay creates and fulfills a local staged order through public GraphQL mutations before exercising the query roots.',
+      'Live public Admin GraphQL capture for returnableFulfillments and returnCalculate on a disposable fulfilled taxed order with a return-line restocking fee. The parity replay creates and fulfills a local staged order through public GraphQL mutations before exercising the query roots.',
     setup: {
       orderCreate,
       fulfillmentCreate,
@@ -530,7 +591,7 @@ try {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'Live 2026-04 return query-root evidence for a fulfilled order. Replay stages the order and fulfillment locally, then verifies returnableFulfillments and returnCalculate derive quantities, line-item identity, and money from the staged order graph instead of passing the reads through to Shopify.',
+      'Live 2026-04 return query-root evidence for a fulfilled taxed order with a return-line restocking fee. Replay stages the order and fulfillment locally, then verifies returnableFulfillments and returnCalculate derive quantities, line-item identity, tax, restocking fee, and money from the staged order graph instead of passing the reads through to Shopify.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [],
@@ -627,7 +688,7 @@ try {
           ],
         },
         {
-          name: 'return-calculate-staged-fulfilled-line',
+          name: 'return-calculate-staged-fulfilled-line-tax-and-restocking-fee',
           capturePath: '$.returnCalculate.response.payload.data.returnCalculate',
           proxyPath: '$.data.returnCalculate',
           proxyRequest: {
@@ -646,6 +707,12 @@ try {
                     quantity: {
                       fromCapturePath: '$.returnCalculate.variables.input.returnLineItems[0].quantity',
                     },
+                    restockingFee: {
+                      percentage: {
+                        fromCapturePath:
+                          '$.returnCalculate.variables.input.returnLineItems[0].restockingFee.percentage',
+                      },
+                    },
                   },
                 ],
               },
@@ -662,6 +729,12 @@ try {
               path: '$.returnLineItems[0].fulfillmentLineItem.lineItem.id',
               matcher: 'exact-string:gid://shopify/LineItem/1',
               reason: 'The calculation must preserve the staged line item identity.',
+            },
+            {
+              path: '$.returnLineItems[0].restockingFee.id',
+              matcher: 'exact-string:gid://shopify/CalculatedRestockingFee/1',
+              reason:
+                'The calculation must use the locally staged fulfillment line item when deriving restocking fee identity.',
             },
           ],
         },
