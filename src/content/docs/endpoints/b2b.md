@@ -88,6 +88,9 @@ empty staged connection rather than matching all staged records. `companies`,
 for the modeled staged fields, defaulting to ID order when a sort key has no
 modeled field in local state. `companiesCount` returns the staged company count
 selected through the Shopify `Count` object shape.
+`Company.lifetimeDuration` is derived from staged `customerSince`, falling back
+to the staged `createdAt` timestamp from company creation, and is returned even
+when the staged company has no orders.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
