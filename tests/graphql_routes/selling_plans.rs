@@ -1373,6 +1373,7 @@ fn selling_plan_group_create_stages_and_reads_back_fixed_and_recurring_pricing_p
 #[test]
 fn selling_plan_group_summary_matches_shopify_count_pluralization_and_discount_ranges() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let single_percentage = create_selling_plan_group_with_summary(
         &mut proxy,

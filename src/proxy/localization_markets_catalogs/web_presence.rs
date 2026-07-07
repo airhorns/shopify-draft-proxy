@@ -131,8 +131,7 @@ impl DraftProxy {
 
     /// Stage a `webPresenceDelete`. Shopify rejects deleting a presence that does
     /// not exist (`WEB_PRESENCE_NOT_FOUND`) and refuses to delete the presence that
-    /// serves the shop's primary domain (`SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE`);
-    /// only subfolder presences (which carry a null `domain`) can be removed.
+    /// serves the shop's primary domain (`SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE`).
     pub(in crate::proxy) fn web_presence_delete_payload(&mut self, id: &str) -> Value {
         let Some(record) = self.store.staged.web_presences.get(id) else {
             return market_id_payload_error(
@@ -141,7 +140,7 @@ impl DraftProxy {
                 "WEB_PRESENCE_NOT_FOUND",
             );
         };
-        if record.get("domain").is_some_and(|domain| !domain.is_null()) {
+        if web_presence_targets_shop_primary_host(&self.store, record) {
             return market_id_payload_error(
                 "deletedId",
                 "The shop must have a web presence that uses the primary domain.",

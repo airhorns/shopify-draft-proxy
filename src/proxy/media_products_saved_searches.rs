@@ -288,9 +288,11 @@ impl DraftProxy {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
             let variant = self.variant_with_inventory_levels(variant);
             let product = self.store.product_by_id(&variant.product_id);
-            return Some(product_variant_inventory_item_json(
-                &variant, product, selection,
-            ));
+            return Some(
+                self.product_variant_inventory_item_json_with_current_publication_context(
+                    &variant, product, selection,
+                ),
+            );
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {
@@ -299,7 +301,17 @@ impl DraftProxy {
                     .and_then(|inventory_item| inventory_item.get("id"))
                     .and_then(Value::as_str)
                     == Some(id))
-                .then(|| observed_product_variant_inventory_item_json(product, variant, selection))
+                .then(|| {
+                    observed_product_variant_inventory_item_json_with_publication_context(
+                        product,
+                        variant,
+                        selection,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(product),
+                        ),
+                    )
+                })
                 .flatten()
             })
         })
@@ -323,7 +335,7 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        product_json_with_variants_and_currency(
+        self.product_json_with_variants_and_currency_context(
             product,
             variants,
             selections,
@@ -702,6 +714,10 @@ impl DraftProxy {
                         &product_selection,
                         &shop_currency_code,
                         Some(&shop),
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -1009,6 +1025,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -1376,7 +1396,7 @@ impl DraftProxy {
                             .iter()
                             .filter_map(|variant_id| self.store.product_variant_by_id(variant_id))
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2269,7 +2289,7 @@ impl DraftProxy {
                         variants
                             .iter()
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2401,7 +2421,7 @@ impl DraftProxy {
                     None => Value::Null,
                 }),
                 "productVariant" => Some(match variant {
-                    Some(variant) => product_variant_json(
+                    Some(variant) => self.product_variant_json_with_current_publication_context(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         &variant_selection,
@@ -2900,6 +2920,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),

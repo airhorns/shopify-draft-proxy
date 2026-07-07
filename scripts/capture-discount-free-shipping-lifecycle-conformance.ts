@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { readDiscountHydrateDocument } from './discount-hydrate-query.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -318,104 +319,7 @@ const readDocument = `#graphql
   }
 `;
 
-const discountHydrateDocument = `#graphql
-  query DiscountHydrate($id: ID!) {
-    codeNode: codeDiscountNode(id: $id) {
-      id
-      codeDiscount {
-        __typename
-        ... on DiscountCodeBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          codes(first: 250) {
-            nodes {
-              id
-              code
-              asyncUsageCount
-            }
-          }
-        }
-        ... on DiscountCodeApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountCodeFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          codes(first: 250) {
-            nodes {
-              id
-              code
-              asyncUsageCount
-            }
-          }
-          appliesOnOneTimePurchase
-          appliesOnSubscription
-        }
-      }
-    }
-    automaticNode: automaticDiscountNode(id: $id) {
-      id
-      automaticDiscount {
-        __typename
-        ... on DiscountAutomaticBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-        }
-        ... on DiscountAutomaticFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          asyncUsageCount
-          appliesOnOneTimePurchase
-          appliesOnSubscription
-        }
-      }
-    }
-  }
-`;
+const discountHydrateDocument = await readDiscountHydrateDocument();
 
 const codeCreateVariables = {
   input: {

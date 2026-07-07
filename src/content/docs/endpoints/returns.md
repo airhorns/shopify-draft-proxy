@@ -41,12 +41,13 @@ Local staged mutations:
   live-hybrid mode; for cold live-hybrid orders the return hydrator may fetch the order fulfillment graph before
   projecting the returnable lines. The current supported slice covers fulfilled line items and quantity reduction after
   staged returns; broader Shopify eligibility rules remain a fidelity boundary.
-- `returnCalculate(input:)` derives calculated return line items from the order's fulfilled line item prices and requested
-  quantities. Captured 2026-04 evidence shows refund subtotals as negative money amounts and `returnShippingFee: null`
-  when no return shipping fee is submitted. The proxy mirrors that shape for staged fulfilled orders, includes zero tax
-  sets, and uses a narrow live-hybrid order hydrate only when the local order graph lacks the price fields needed for
-  calculation. Restocking fees, exchange lines, shipping-fee calculations, discounts, tax recomputation, and error
-  branches remain explicit partial-fidelity boundaries.
+- `returnCalculate(input:)` derives calculated return line items from the order's fulfilled line item prices, per-line tax
+  lines, requested quantities, and submitted restocking-fee percentages. Captured 2026-04 evidence shows refund
+  subtotals and proportional line tax as negative money amounts, percentage restocking fees as calculated positive fee
+  amounts, and `returnShippingFee: null` when no return shipping fee is submitted. The proxy mirrors that shape for
+  staged fulfilled orders and uses a narrow live-hybrid order hydrate only when the local order graph lacks the price or
+  tax fields needed for calculation. Exchange lines, shipping-fee calculations, discounts, and error branches remain
+  explicit partial-fidelity boundaries.
 - `returnCreate` stages a local `OPEN` return for the submitted order and fulfillment line items. The local return stores
   a stable synthetic Return ID, ReturnLineItem IDs, status, name, quantity, reason, reason note, order linkage, return
   shipping fee, and reverse-fulfillment-order references for returned quantities. The original raw mutation is retained
@@ -155,8 +156,8 @@ Local staged mutations:
 ### Unsupported, registry-only, and validation-only coverage
 
 - The singular `returnableFulfillment` root remains registry-only/unsupported.
-- Broader `returnCalculate` fidelity for restocking fees, exchange lines, return shipping fees, taxes, discounts, and
-  error behavior remains unsupported beyond the captured fulfilled-line subtotal slice.
+- Broader `returnCalculate` fidelity for exchange lines, return shipping fee calculations, discounts, and error behavior
+  remains unsupported beyond the captured fulfilled-line subtotal, tax, and percentage-restocking-fee slice.
 - Exchange-line removal/processing is blocked on captured exchange item semantics and downstream order/return effects.
 - Refund duties, refund shipping, financial transfers, notification sends, carrier labels, and inventory/location movement
   remain local-only boundaries until live success-path captures prove the side effects and cleanup path.

@@ -9,8 +9,14 @@ Gem::Specification.new do |spec|
   spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 3.1"
 
-  spec.files = Dir["lib/**/*.rb"] + Dir["native/**/*.{rs,toml}"] + ["README.md", "Rakefile"]
+  spec.files = Dir["lib/**/*.rb"] + Dir["native/**/*.{rs,toml,rb}"] + ["README.md", "Rakefile"]
   spec.require_paths = ["lib"]
+
+  # Bundler/RubyGems runs this at install for git and rubygems sources (never
+  # for `path:`), compiling the magnus cdylib in native/ via rb_sys.
+  spec.extensions = ["native/extconf.rb"]
+
+  spec.add_dependency "rb_sys", "~> 0.9.123"
 
   spec.add_development_dependency "minitest", "~> 5.0"
   spec.add_development_dependency "rake", "~> 13.0"

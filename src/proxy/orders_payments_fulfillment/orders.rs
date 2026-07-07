@@ -42,6 +42,35 @@ pub(in crate::proxy) fn order_create_inventory_behaviour(field: &RootFieldSelect
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
 }
 
+fn order_create_input_needs_shop_currency_default(
+    order_input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if resolved_string_field(order_input, "currency")
+        .or_else(|| resolved_string_field(order_input, "currencyCode"))
+        .is_some()
+    {
+        return false;
+    }
+    let line_has_money_currency = resolved_object_list_field(order_input, "lineItems")
+        .into_iter()
+        .any(|line_item| {
+            resolved_object_field(&line_item, "priceSet")
+                .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        });
+    if line_has_money_currency {
+        return false;
+    }
+    !resolved_object_list_field(order_input, "shippingLines")
+        .into_iter()
+        .any(|shipping_line| {
+            resolved_object_field(&shipping_line, "priceSet")
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        })
+}
+
 pub(in crate::proxy) fn order_lifecycle_input_id(field: &RootFieldSelection) -> Option<String> {
     resolved_object_field(&field.arguments, "input")
         .and_then(|input| resolved_string_field(&input, "id"))
@@ -1574,6 +1603,9 @@ impl DraftProxy {
                 &json!({ "order": Value::Null, "userErrors": [error] }),
                 &field.selection,
             );
+        }
+        if order_create_input_needs_shop_currency_default(&order_input) {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {

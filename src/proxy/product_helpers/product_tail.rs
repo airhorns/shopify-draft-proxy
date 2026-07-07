@@ -1408,7 +1408,7 @@ impl DraftProxy {
                 parent_variants
                     .iter()
                     .map(|variant| {
-                        product_variant_json(
+                        self.product_variant_json_with_current_publication_context(
                             variant,
                             self.store.product_by_id(&variant.product_id),
                             selected_child_selection(&field.selection, "parentProductVariants")

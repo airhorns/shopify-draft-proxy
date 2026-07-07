@@ -735,44 +735,120 @@ pub(in crate::proxy) fn normalized_order_payment_amount(value: Option<String>) -
     }
 }
 
-pub(in crate::proxy) fn mandate_payment_order_record(
-    order_id: &str,
-    idempotency_key: &str,
-    transaction_id: &str,
-    amount: &str,
-    currency_code: &str,
+struct MandatePaymentTransactionInput<'a> {
+    order_id: &'a str,
+    idempotency_key: &'a str,
+    transaction_id: &'a str,
+    amount: &'a str,
+    currency_code: &'a str,
     auto_capture: bool,
-) -> Value {
-    let payment_reference_id = format!("{order_id}/{idempotency_key}");
-    let transaction_kind = if auto_capture {
+    gateway: &'a str,
+}
+
+fn mandate_payment_order_record(input: &MandatePaymentTransactionInput<'_>) -> Value {
+    let display_financial_status = if input.auto_capture {
+        "PAID"
+    } else {
+        "AUTHORIZED"
+    };
+    let total_capturable = if input.auto_capture {
+        "0.0"
+    } else {
+        input.amount
+    };
+    let outstanding_amount = if input.auto_capture {
+        "0.0"
+    } else {
+        input.amount
+    };
+    let received_amount = if input.auto_capture {
+        input.amount
+    } else {
+        "0.0"
+    };
+    let transaction = mandate_payment_transaction_record(input);
+    json!({
+        "id": input.order_id,
+        "displayFinancialStatus": display_financial_status,
+        "capturable": !input.auto_capture,
+        "totalCapturable": total_capturable,
+        "totalCapturableSet": money_set(total_capturable, input.currency_code),
+        "totalOutstandingSet": money_set(outstanding_amount, input.currency_code),
+        "totalReceivedSet": money_set(received_amount, input.currency_code),
+        "netPaymentSet": money_set(received_amount, input.currency_code),
+        "paymentGatewayNames": payment_gateway_names_from_transactions(std::slice::from_ref(&transaction)),
+        "transactions": [transaction]
+    })
+}
+
+fn mandate_payment_transaction_record(input: &MandatePaymentTransactionInput<'_>) -> Value {
+    let payment_reference_id = format!("{}/{}", input.order_id, input.idempotency_key);
+    let transaction_kind = if input.auto_capture {
         "SALE"
     } else {
         "AUTHORIZATION"
     };
-    let display_financial_status = if auto_capture { "PAID" } else { "AUTHORIZED" };
-    let total_capturable = if auto_capture { "0.0" } else { amount };
-    let outstanding_amount = if auto_capture { "0.0" } else { amount };
-    let received_amount = if auto_capture { amount } else { "0.0" };
-    let transaction = json!({
-        "id": transaction_id,
+    json!({
+        "id": input.transaction_id,
         "kind": transaction_kind,
         "status": "SUCCESS",
-        "gateway": "mandate",
+        "gateway": if input.gateway.is_empty() { "manual" } else { input.gateway },
         "paymentReferenceId": payment_reference_id,
-        "amountSet": money_set(amount, currency_code)
-    });
-    json!({
-        "id": order_id,
-        "displayFinancialStatus": display_financial_status,
-        "capturable": !auto_capture,
-        "totalCapturable": total_capturable,
-        "totalCapturableSet": money_set(total_capturable, currency_code),
-        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": money_set(received_amount, currency_code),
-        "netPaymentSet": money_set(received_amount, currency_code),
-        "paymentGatewayNames": ["mandate"],
-        "transactions": [transaction]
+        "amountSet": money_set(input.amount, input.currency_code)
     })
+}
+
+fn append_mandate_payment_to_order(
+    order: &mut Value,
+    input: &MandatePaymentTransactionInput<'_>,
+    shop_currency_code: &str,
+) {
+    let transaction = mandate_payment_transaction_record(input);
+    let mut transactions = order_transactions(order);
+    transactions.push(transaction);
+    order["transactions"] = Value::Array(transactions.clone());
+
+    let order_currency_code = order["currencyCode"]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| order_currency(order, shop_currency_code));
+    let presentment_currency_code = order["presentmentCurrencyCode"]
+        .as_str()
+        .filter(|currency| !currency.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| order_presentment_currency(order, &order_currency_code));
+    let fallback_total = input.amount.parse::<f64>().unwrap_or(0.0);
+    let total = money_set_amount(&order["totalPriceSet"])
+        .or_else(|| money_set_amount(&order["currentTotalPriceSet"]))
+        .unwrap_or(fallback_total);
+    order_create_payment_fields(
+        order,
+        &transactions,
+        total,
+        &order_currency_code,
+        &presentment_currency_code,
+    );
+    order["paymentGatewayNames"] =
+        Value::Array(payment_gateway_names_from_transactions(&transactions));
+
+    if input.auto_capture {
+        let received = transactions
+            .iter()
+            .filter(|transaction| {
+                matches!(transaction["kind"].as_str(), Some("SALE" | "CAPTURE"))
+                    && transaction["status"].as_str() == Some("SUCCESS")
+            })
+            .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
+            .sum::<f64>();
+        order["displayFinancialStatus"] =
+            if received > 0.0 && (total <= 0.0 || received + 0.005 >= total) {
+                json!("PAID")
+            } else {
+                json!("PARTIALLY_PAID")
+            };
+    } else {
+        order["displayFinancialStatus"] = json!("AUTHORIZED");
+    }
 }
 
 impl DraftProxy {
@@ -1179,7 +1255,7 @@ impl DraftProxy {
                             .as_ref()
                             .and_then(money_set_presentment_or_shop_currency)
                     })
-                    .unwrap_or(shop_currency_code);
+                    .unwrap_or_else(|| shop_currency_code.clone());
                 let auto_capture =
                     resolved_bool_field(&field.arguments, "autoCapture").unwrap_or(true);
                 let key = format!("{order_id}:{idempotency_key}");
@@ -1196,23 +1272,63 @@ impl DraftProxy {
                     let transaction_id = self.next_order_transaction_id();
                     let allocated_job_id =
                         job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-                    let mut order = mandate_payment_order_record(
-                        &order_id,
-                        &idempotency_key,
-                        &transaction_id,
-                        &amount,
-                        &currency,
+                    let gateway = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&order_id)
+                        .map(order_payment_gateway)
+                        .unwrap_or_else(|| "manual".to_string());
+                    let mandate_input = MandatePaymentTransactionInput {
+                        order_id: &order_id,
+                        idempotency_key: &idempotency_key,
+                        transaction_id: &transaction_id,
+                        amount: &amount,
+                        currency_code: &currency,
                         auto_capture,
-                    );
-                    if let Some(order_object) = order.as_object_mut() {
-                        let mut jobs = serde_json::Map::new();
-                        jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                        order_object.insert(
-                            "__draftProxyMandatePaymentJobs".to_string(),
-                            Value::Object(jobs),
-                        );
+                        gateway: &gateway,
+                    };
+                    let updated_order = if let Some(order) =
+                        self.store.staged.orders.get_mut(&order_id)
+                    {
+                        append_mandate_payment_to_order(order, &mandate_input, &shop_currency_code);
+                        if order
+                            .get("__draftProxyMandatePaymentJobs")
+                            .is_none_or(|jobs| !jobs.is_object())
+                        {
+                            order["__draftProxyMandatePaymentJobs"] = json!({});
+                        }
+                        if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut()
+                        {
+                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                        }
+                        Some(order.clone())
+                    } else {
+                        let mut order = mandate_payment_order_record(&mandate_input);
+                        if let Some(order_object) = order.as_object_mut() {
+                            let mut jobs = serde_json::Map::new();
+                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                            order_object.insert(
+                                "__draftProxyMandatePaymentJobs".to_string(),
+                                Value::Object(jobs),
+                            );
+                        }
+                        self.store.staged.orders.insert(order_id.clone(), order);
+                        None
+                    };
+                    if let Some(order) = updated_order {
+                        if let Some(customer_id) = order_customer_id(&order) {
+                            if let Some(customer_orders) =
+                                self.store.staged.customer_orders.get_mut(&customer_id)
+                            {
+                                for customer_order in customer_orders {
+                                    if customer_order["id"].as_str() == Some(&order_id) {
+                                        *customer_order = order.clone();
+                                    }
+                                }
+                            }
+                        }
                     }
-                    self.store.staged.orders.insert(order_id.clone(), order);
                     self.store.staged.mandate_payment_keys.insert(key);
                     job_id = Some(allocated_job_id);
                 } else if job_id.is_none() {

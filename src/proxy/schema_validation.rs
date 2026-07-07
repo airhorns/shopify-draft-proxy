@@ -143,8 +143,6 @@ impl AdminOutputSchema {
         self.insert_local_scalar_field("TaxAppConfiguration", "id", "ID");
         self.insert_local_scalar_field("TaxAppConfiguration", "ready", "Boolean");
         self.insert_local_scalar_field("TaxAppConfiguration", "updatedAt", "DateTime");
-        self.insert_local_scalar_field("WebPixel", "status", "String");
-        self.insert_local_scalar_field("WebPixel", "webhookEndpointAddress", "String");
     }
 }
 
@@ -825,7 +823,9 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
         };
         let mode = match document.operation_type {
             OperationType::Query => UndefinedSelectionMode::AllFields,
-            OperationType::Mutation => UndefinedSelectionMode::PlainUserErrorCodeOnly,
+            OperationType::Mutation => {
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents
+            }
             OperationType::Subscription => continue,
         };
         collect_undefined_selection_field_errors(
@@ -844,8 +844,10 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
 #[derive(Clone, Copy)]
 enum UndefinedSelectionMode {
     AllFields,
-    PlainUserErrorCodeOnly,
+    PlainUserErrorCodeOnlyAndStrictParents,
 }
+
+const STRICT_MUTATION_SELECTION_PARENT_TYPES: &[&str] = &["WebPixel"];
 
 fn collect_undefined_selection_field_errors(
     document: &ParsedDocument,
@@ -881,9 +883,14 @@ fn collect_undefined_selection_field_errors(
                 errors,
             );
         } else if schema_fields.is_some() {
-            if matches!(mode, UndefinedSelectionMode::PlainUserErrorCodeOnly)
-                && !(selected_parent_type == "UserError" && selection.name == "code")
-            {
+            let should_report = match mode {
+                UndefinedSelectionMode::AllFields => true,
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents => {
+                    (selected_parent_type == "UserError" && selection.name == "code")
+                        || STRICT_MUTATION_SELECTION_PARENT_TYPES.contains(&selected_parent_type)
+                }
+            };
+            if !should_report {
                 continue;
             }
             errors.push(undefined_field_error(

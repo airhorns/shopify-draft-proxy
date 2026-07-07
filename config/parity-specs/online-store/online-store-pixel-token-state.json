@@ -1,0 +1,49 @@
+{
+  "scenarioId": "online-store-pixel-token-state",
+  "operationNames": ["webPixelCreate", "storefrontAccessTokenCreate", "currentAppInstallation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-validation",
+    "payload-shape",
+    "runtime-staging",
+    "live-shopify-recording",
+    "runtime-test-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-pixel-token-state.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/web-pixel-status-is-not-a-field.graphql",
+    "variablesCapturePath": "$.captures.webPixelStatusUndefinedField.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "web-pixel-status-is-undefined-field",
+        "capturePath": "$.captures.webPixelStatusUndefinedField.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.errors[0].locations"]
+      },
+      {
+        "name": "storefront-token-access-scopes-match-observed-unauthenticated-grants",
+        "capturePath": "$.evidence.observedUnauthenticatedAccessScopes",
+        "proxyPath": "$.data.storefrontAccessTokenCreate.storefrontAccessToken.accessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-create.graphql",
+          "variables": {
+            "input": {
+              "title": "Observed grants parity"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 evidence records that WebPixel has no status field while ServerPixelStatus exposes the real enum values. Proxy replay also compares StorefrontAccessToken.accessScopes against the active app installation's observed unauthenticated grants; this conformance app currently has none, so the local create response must return an empty array rather than a canned grant pair. Direct successful serverPixelCreate and storefrontAccessTokenCreate captures remain unavailable with the current app grant and are covered by focused Rust runtime tests."
+}

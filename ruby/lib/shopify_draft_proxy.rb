@@ -5,7 +5,16 @@ require "net/http"
 require "uri"
 
 require_relative "shopify_draft_proxy/version"
-require_relative "shopify_draft_proxy/shopify_draft_proxy_native"
+
+# Install-time-compiled extensions (git/rubygems sources) land in RubyGems' own
+# per-gem extension dir on $LOAD_PATH, not in this gem's lib/. Prefer a plain
+# load-path require so consumers find it, and fall back to require_relative for
+# local `rake native:build` copies that sit next to this file.
+begin
+  require "shopify_draft_proxy/shopify_draft_proxy_native"
+rescue LoadError
+  require_relative "shopify_draft_proxy/shopify_draft_proxy_native"
+end
 
 module ShopifyDraftProxy
   class Error < StandardError; end

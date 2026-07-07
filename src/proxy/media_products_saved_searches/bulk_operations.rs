@@ -120,7 +120,11 @@ impl DraftProxy {
             if !nested_variant_selection.is_empty() {
                 for variant in &variants {
                     rows.push(bulk_jsonl_child_node(
-                        product_variant_json(variant, Some(&product), &nested_variant_selection),
+                        self.product_variant_json_with_current_publication_context(
+                            variant,
+                            Some(&product),
+                            &nested_variant_selection,
+                        ),
                         &product.id,
                     ));
                 }
@@ -143,7 +147,7 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
-                rows.push(product_variant_json(
+                rows.push(self.product_variant_json_with_current_publication_context(
                     &variant,
                     Some(&product),
                     &variant_selection,

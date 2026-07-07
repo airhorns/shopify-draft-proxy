@@ -3,32 +3,6 @@ use super::*;
 mod helpers;
 pub(in crate::proxy) use self::helpers::*;
 
-pub(in crate::proxy) fn draft_order_create_first_line_title(
-    field: &RootFieldSelection,
-) -> Option<String> {
-    resolved_object_field(&field.arguments, "input")
-        .and_then(|input| {
-            let line_items = resolved_object_list_field(&input, "lineItems");
-            let first_line = line_items.first()?;
-            resolved_string_field(first_line, "title")
-        })
-        .or_else(|| {
-            let RawArgumentValue::Object(input) = field.raw_arguments.get("input")? else {
-                return None;
-            };
-            let RawArgumentValue::List(line_items) = input.get("lineItems")? else {
-                return None;
-            };
-            let Some(RawArgumentValue::Object(first_line)) = line_items.first() else {
-                return None;
-            };
-            match first_line.get("title") {
-                Some(RawArgumentValue::String(title)) => Some(title.clone()),
-                _ => None,
-            }
-        })
-}
-
 fn merge_draft_order_string_field(
     draft_order: &mut Value,
     input: &BTreeMap<String, ResolvedValue>,
@@ -54,7 +28,6 @@ fn draft_order_complete_payload(
         selection,
     )
 }
-
 pub(in crate::proxy) fn draft_order_input_custom_attributes(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -2359,12 +2332,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
         let fields = root_fields(query, variables)?;
-        if !fields.iter().any(|field| {
-            field.name == "draftOrderInvoiceSend"
-                || (field.name == "draftOrderCreate"
-                    && draft_order_create_first_line_title(field).as_deref()
-                        == Some("Invoice error parity item"))
-        }) {
+        if !fields
+            .iter()
+            .any(|field| field.name == "draftOrderInvoiceSend")
+        {
             return None;
         }
 
@@ -2397,12 +2368,6 @@ impl DraftProxy {
                 return None;
             }
             let value = match field.name.as_str() {
-                "draftOrderCreate"
-                    if draft_order_create_first_line_title(field).as_deref()
-                        == Some("Invoice error parity item") =>
-                {
-                    Some(self.draft_order_invoice_errors_create(field, request, query, variables))
-                }
                 "draftOrderInvoiceSend" => {
                     Some(self.draft_order_invoice_errors_send(field, request, query, variables))
                 }
@@ -2418,57 +2383,6 @@ impl DraftProxy {
             return None;
         }
         Some(ok_json(json!({ "data": data })))
-    }
-
-    pub(in crate::proxy) fn draft_order_invoice_errors_create(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
-        self.store.staged.next_draft_order_id += 1;
-        let email = resolved_string_field(&input, "email")
-            .filter(|email| !email.trim().is_empty())
-            .map(Value::String)
-            .unwrap_or(Value::Null);
-        let shop_currency_code = self.store.shop_currency_code();
-        let invoice_line_item = draft_order_invoice_line_item();
-        let mut record = draft_order_record_skeleton(&id, "#D1", vec![invoice_line_item.clone()]);
-        record["email"] = email;
-        record["invoiceUrl"] = json!(format!(
-            "https://shopify-draft-proxy.local/draft_orders/{id}/invoice"
-        ));
-        record["subtotalPriceSet"] =
-            money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code);
-        record["totalDiscountsSet"] =
-            money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code);
-        record["totalShippingPriceSet"] =
-            money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code);
-        record["totalPriceSet"] =
-            money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code);
-        record["totalQuantityOfLineItems"] = json!(1);
-        record["lineItems"] = json!({ "nodes": [invoice_line_item] });
-        self.store
-            .staged
-            .draft_orders
-            .insert(id.clone(), record.clone());
-        self.record_staged_orders_log_entry(
-            request,
-            query,
-            variables,
-            "draftOrderCreate",
-            vec![id],
-        );
-        selected_json(
-            &json!({
-                "draftOrder": record,
-                "userErrors": []
-            }),
-            &field.selection,
-        )
     }
 
     pub(in crate::proxy) fn draft_order_invoice_errors_send(
