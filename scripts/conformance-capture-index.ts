@@ -334,6 +334,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-cold-company-location-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-cold-company-location-hydration-conformance.mts',
+    purpose:
+      'Cold B2B companies passthrough plus real non-synthetic CompanyLocation hydration for companyLocationUpdate and companyLocationTaxSettingsUpdate.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-cold-company-location-hydration.json`,
+      'config/parity-specs/b2b/b2b-cold-company-location-hydration.json',
+      'config/parity-requests/b2b/b2b-cold-companies-read.graphql',
+      'config/parity-requests/b2b/b2b-cold-company-location-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company/location, captures a cold companies read and hydrate-backed mutations, then deletes the company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-buyer-experience-configuration',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-buyer-experience-configuration-conformance.mts',
@@ -8921,6 +8939,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Uses safety-first validation branches; review manually before any customer-visible send path.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-magic-title-not-canned',
+    scriptPath: 'scripts/capture-draft-order-magic-title-conformance.ts',
+    purpose:
+      'draftOrderCreate treats the formerly magic invoice-error line title as ordinary submitted input instead of returning a canned draft.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-create-magic-title-not-canned.json`,
+      'config/parity-specs/orders/draftOrderCreate-magic-title-not-canned.json',
+      'config/parity-requests/orders/draftOrderCreate-magic-title-create.graphql',
+      'config/parity-requests/orders/draftOrderCreate-magic-title-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order whose first line title is the formerly magic audit value, records create/read payloads, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'draft-orders',

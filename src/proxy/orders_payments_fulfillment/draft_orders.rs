@@ -28,6 +28,20 @@ fn draft_order_complete_payload(
         selection,
     )
 }
+
+fn draft_order_invoice_template_argument(field: &RootFieldSelection) -> Option<String> {
+    resolved_string_field(&field.arguments, "templateName").or_else(|| {
+        match field.raw_arguments.get("templateName")? {
+            RawArgumentValue::String(value) | RawArgumentValue::Enum(value) => Some(value.clone()),
+            RawArgumentValue::Variable {
+                value: Some(ResolvedValue::String(value)),
+                ..
+            } => Some(value.clone()),
+            _ => None,
+        }
+    })
+}
+
 pub(in crate::proxy) fn draft_order_input_custom_attributes(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -2343,13 +2357,7 @@ impl DraftProxy {
             if field.name != "draftOrderInvoiceSend" {
                 continue;
             }
-            // Forward a hydrate + observe for a draft not created locally this
-            // scenario so the invoice send operates on the real draft instead of a
-            // precondition seed.
-            if let Some(id) = resolved_string_field(&field.arguments, "id") {
-                self.ensure_draft_order_hydrated(request, &id);
-            }
-            if let Some(template) = resolved_string_field(&field.arguments, "templateName") {
+            if let Some(template) = draft_order_invoice_template_argument(field) {
                 if !is_valid_draft_order_invoice_template(&template) {
                     return Some(ok_json(json!({
                         "errors": [{
@@ -2359,6 +2367,17 @@ impl DraftProxy {
                         }]
                     })));
                 }
+            }
+        }
+        for field in &fields {
+            if field.name != "draftOrderInvoiceSend" {
+                continue;
+            }
+            // Forward a hydrate + observe for a draft not created locally this
+            // scenario so the invoice send operates on the real draft instead of a
+            // precondition seed.
+            if let Some(id) = resolved_string_field(&field.arguments, "id") {
+                self.ensure_draft_order_hydrated(request, &id);
             }
         }
 

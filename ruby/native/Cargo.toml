@@ -11,7 +11,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 magnus = { version = "0.8", features = ["rb-sys"] }
-rb-sys = "*"
+# magnus 0.8 does not wrap rb_ext_ractor_safe, so we call it through the raw
+# rb-sys FFI in init. rb-sys is already resolved transitively via magnus; the
+# `0.9.113` requirement keeps the bindings on magnus's compatible 0.9 line.
+rb-sys = "0.9.113"
 serde_json = "1"
 shopify-draft-proxy = { path = "../.." }
 

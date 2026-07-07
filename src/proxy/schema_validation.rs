@@ -3787,6 +3787,10 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    schema.enum_values.insert(
+        "DraftOrderEmailTemplate".to_string(),
+        vec!["DRAFT_ORDER_INVOICE".to_string()],
+    );
     // This local-runtime abandonment helper models the internal delivery activity
     // state map exposed by captured fixtures, whose transition values include
     // states not present in the public introspected AbandonmentDeliveryState enum.
@@ -3820,7 +3824,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
                 "presentmentCurrencyCode".to_string(),
                 mutation_arg(named("CurrencyCode")),
             ),
-            ("templateName".to_string(), mutation_arg(named("String"))),
+            (
+                "templateName".to_string(),
+                mutation_arg(named("DraftOrderEmailTemplate")),
+            ),
         ]),
     );
     schema.insert_strict_input_object(
