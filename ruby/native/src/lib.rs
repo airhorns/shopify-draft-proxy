@@ -483,6 +483,14 @@ fn native_json_round_trip(value: Value) -> Result<Value, Error> {
 
 #[magnus::init(name = "shopify_draft_proxy_native")]
 fn init(ruby: &Ruby) -> Result<(), Error> {
+    // Mark this extension Ractor-safe so a DraftProxy can be constructed and driven
+    // from a non-main Ractor: each proxy instance owns its state (RefCell<DraftProxy>)
+    // and lives entirely within one Ractor, so there is no shared mutable state to
+    // guard. Without this, magnus defines its C methods Ractor-unsafe and any native
+    // call from a worker Ractor raises Ractor::UnsafeError. magnus 0.8 does not wrap
+    // rb_ext_ractor_safe, so call the raw C API via rb-sys. It must run before any
+    // define_method below, since the flag applies to methods defined afterward.
+    unsafe { rb_sys::rb_ext_ractor_safe(true) };
     let module = ruby.define_module("ShopifyDraftProxy")?;
     let class = module.define_class("DraftProxy", ruby.class_object())?;
     class.define_singleton_method("new", function!(NativeDraftProxy::new, 1))?;
