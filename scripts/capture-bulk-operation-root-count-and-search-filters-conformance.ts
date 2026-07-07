@@ -70,6 +70,14 @@ const productCreateMutation = `mutation BulkOperationRootCountProductCreate($pro
       id
       title
       tags
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          value
+        }
+      }
       variants(first: 5) {
         nodes {
           id
@@ -85,12 +93,47 @@ const productCreateMutation = `mutation BulkOperationRootCountProductCreate($pro
   }
 }`;
 
+const productCreateMediaMutation = `mutation BulkOperationRootCountProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+  }
+}`;
+
 const productDeleteMutation = `mutation BulkOperationRootCountProductDelete($input: ProductDeleteInput!) {
   productDelete(input: $input) {
     deletedProductId
     userErrors {
       field
       message
+    }
+  }
+}`;
+
+const productChildConnectionsQuery = `query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {
+  product(id: $id) {
+    id
+    media(first: 5) {
+      nodes {
+        id
+        alt
+        mediaContentType
+      }
+    }
+    metafields(first: 5, namespace: $namespace) {
+      nodes {
+        id
+        namespace
+        key
+        value
+      }
     }
   }
 }`;
@@ -203,7 +246,8 @@ function readData(interaction: CapturedInteraction): Record<string, unknown> | n
 function readPayloadUserErrors(interaction: CapturedInteraction, payloadFieldName: string): unknown[] {
   const data = readData(interaction);
   const payload = asRecord(data?.[payloadFieldName]);
-  const userErrors = payload?.['userErrors'];
+  const errorFieldName = payloadFieldName === 'productCreateMedia' ? 'mediaUserErrors' : 'userErrors';
+  const userErrors = payload?.[errorFieldName];
   return Array.isArray(userErrors) ? userErrors : [];
 }
 
@@ -280,6 +324,35 @@ async function waitForProductSearch(tag: string, productId: string): Promise<Cap
   throw new Error(`Created product ${productId} was not visible via products(query: ${query}).`);
 }
 
+async function waitForProductChildConnections(
+  productId: string,
+  namespace: string,
+  mediaAlt: string,
+  metafieldKey: string,
+): Promise<CapturedInteraction[]> {
+  const probes: CapturedInteraction[] = [];
+  for (let index = 0; index < maxPolls; index += 1) {
+    if (index > 0) {
+      await sleep(pollIntervalMs);
+    }
+    const probe = await capture('BulkOperationRootCountProductChildrenVisible', productChildConnectionsQuery, {
+      id: productId,
+      namespace,
+    });
+    probes.push(probe);
+    const product = asRecord(readData(probe)?.['product']);
+    const mediaNodes = asRecord(product?.['media'])?.['nodes'];
+    const metafieldNodes = asRecord(product?.['metafields'])?.['nodes'];
+    const mediaVisible = Array.isArray(mediaNodes) && mediaNodes.some((node) => asRecord(node)?.['alt'] === mediaAlt);
+    const metafieldVisible =
+      Array.isArray(metafieldNodes) && metafieldNodes.some((node) => asRecord(node)?.['key'] === metafieldKey);
+    if (mediaVisible && metafieldVisible) {
+      return probes;
+    }
+  }
+  throw new Error(`Product ${productId} did not expose expected media/metafield child connections.`);
+}
+
 async function pollBulkOperationToTerminal(id: string): Promise<CapturedInteraction[]> {
   const polls: CapturedInteraction[] = [];
   for (let index = 0; index < maxPolls; index += 1) {
@@ -319,16 +392,29 @@ async function captureBulkOperationResult(url: string): Promise<Record<string, u
     status: response.status,
     contentType: response.headers.get('content-type'),
     byteLength: Buffer.byteLength(text, 'utf8'),
+    body: text,
     records,
   };
 }
 
 const runId = `bulk-root-${Date.now().toString(36)}-${process.pid.toString(36)}`;
 const tag = `conformance-${runId}`;
+const metafieldNamespace = 'custom';
+const metafieldKey = `bulk_child_${Date.now().toString(36)}_${process.pid.toString(36)}`;
+const metafieldValue = `bulk child ${runId}`;
+const mediaAlt = `Bulk child media ${runId}`;
 const productVariables = {
   product: {
     title: `Bulk root count ${runId}`,
     tags: ['conformance', 'bulk-root-count', tag],
+    metafields: [
+      {
+        namespace: metafieldNamespace,
+        key: metafieldKey,
+        type: 'single_line_text_field',
+        value: metafieldValue,
+      },
+    ],
   },
 };
 const bulkQuery = `#graphql
@@ -347,6 +433,25 @@ const bulkQuery = `#graphql
             }
           }
         }
+        media {
+          edges {
+            node {
+              id
+              alt
+              mediaContentType
+            }
+          }
+        }
+        metafields(namespace: "${metafieldNamespace}") {
+          edges {
+            node {
+              id
+              namespace
+              key
+              value
+            }
+          }
+        }
       }
     }
   }
@@ -360,7 +465,25 @@ try {
   assertNoUserErrors(productCreate, 'productCreate');
   createdProductId = readCreatedProductId(productCreate);
 
+  const productCreateMedia = await capture('BulkOperationRootCountProductCreateMedia', productCreateMediaMutation, {
+    productId: createdProductId,
+    media: [
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: `https://placehold.co/640x480/png?text=bulk-child-${runId}`,
+        alt: mediaAlt,
+      },
+    ],
+  });
+  assertNoUserErrors(productCreateMedia, 'productCreateMedia');
+
   const productSearchProbes = await waitForProductSearch(tag, createdProductId);
+  const productChildProbes = await waitForProductChildConnections(
+    createdProductId,
+    metafieldNamespace,
+    mediaAlt,
+    metafieldKey,
+  );
 
   const run = await capture('BulkOperationRootCountRunQuery', bulkOperationRunQueryMutation, { query: bulkQuery });
   assertNoUserErrors(run, 'bulkOperationRunQuery');
@@ -401,7 +524,9 @@ try {
     },
     setup: {
       productCreate,
+      productCreateMedia,
       productSearchProbes,
+      productChildProbes,
     },
     run: {
       variables: { query: bulkQuery },

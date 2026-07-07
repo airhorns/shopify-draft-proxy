@@ -1,6 +1,6 @@
 {
   "scenarioId": "bulk-operation-root-count-and-search-filters",
-  "capturedAt": "2026-07-05T06:42:59.885Z",
+  "capturedAt": "2026-07-07T03:23:02.198Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "pollConfig": {
@@ -10,11 +10,19 @@
   "setup": {
     "productCreate": {
       "operationName": "BulkOperationRootCountProductCreate",
-      "query": "mutation BulkOperationRootCountProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      tags\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "query": "mutation BulkOperationRootCountProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      tags\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          value\n        }\n      }\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "product": {
-          "title": "Bulk root count bulk-root-mr7fccvr-27kcq",
-          "tags": ["conformance", "bulk-root-count", "conformance-bulk-root-mr7fccvr-27kcq"]
+          "title": "Bulk root count bulk-root-mra32usw-1bl48",
+          "tags": ["conformance", "bulk-root-count", "conformance-bulk-root-mra32usw-1bl48"],
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "bulk_child_mra32usw_1bl48",
+              "type": "single_line_text_field",
+              "value": "bulk child bulk-root-mra32usw-1bl48"
+            }
+          ]
         }
       },
       "status": 200,
@@ -22,13 +30,23 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10232100684082",
-              "title": "Bulk root count bulk-root-mr7fccvr-27kcq",
-              "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mr7fccvr-27kcq"],
+              "id": "gid://shopify/Product/10233286951218",
+              "title": "Bulk root count bulk-root-mra32usw-1bl48",
+              "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mra32usw-1bl48"],
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44718487535922",
+                    "namespace": "custom",
+                    "key": "bulk_child_mra32usw_1bl48",
+                    "value": "bulk child bulk-root-mra32usw-1bl48"
+                  }
+                ]
+              },
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51425112326450",
+                    "id": "gid://shopify/ProductVariant/51432078672178",
                     "title": "Default Title",
                     "sku": null
                   }
@@ -40,11 +58,51 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 15,
-            "actualQueryCost": 13,
+            "requestedQueryCost": 20,
+            "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "operationName": "BulkOperationRootCountProductCreateMedia",
+      "query": "mutation BulkOperationRootCountProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {\n  productCreateMedia(productId: $productId, media: $media) {\n    media {\n      id\n      alt\n      mediaContentType\n    }\n    mediaUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "productId": "gid://shopify/Product/10233286951218",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=bulk-child-bulk-root-mra32usw-1bl48",
+            "alt": "Bulk child media bulk-root-mra32usw-1bl48"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/44004399481138",
+                "alt": "Bulk child media bulk-root-mra32usw-1bl48",
+                "mediaContentType": "IMAGE"
+              }
+            ],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -56,7 +114,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -82,7 +140,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -108,7 +166,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -134,7 +192,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -160,7 +218,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -186,7 +244,7 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -212,7 +270,33 @@
         "operationName": "BulkOperationRootCountProductVisible",
         "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
         "variables": {
-          "query": "tag:conformance-bulk-root-mr7fccvr-27kcq"
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mra32usw-1bl48"
         },
         "status": 200,
         "response": {
@@ -220,9 +304,9 @@
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10232100684082",
-                  "title": "Bulk root count bulk-root-mr7fccvr-27kcq",
-                  "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mr7fccvr-27kcq"]
+                  "id": "gid://shopify/Product/10233286951218",
+                  "title": "Bulk root count bulk-root-mra32usw-1bl48",
+                  "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mra32usw-1bl48"]
                 }
               ]
             }
@@ -240,28 +324,76 @@
           }
         }
       }
+    ],
+    "productChildProbes": [
+      {
+        "operationName": "BulkOperationRootCountProductChildrenVisible",
+        "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Product/10233286951218",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10233286951218",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44004399481138",
+                    "alt": "Bulk child media bulk-root-mra32usw-1bl48",
+                    "mediaContentType": "IMAGE"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44718487535922",
+                    "namespace": "custom",
+                    "key": "bulk_child_mra32usw_1bl48",
+                    "value": "bulk child bulk-root-mra32usw-1bl48"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     ]
   },
   "run": {
     "variables": {
-      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
     },
     "response": {
       "data": {
         "bulkOperationRunQuery": {
           "bulkOperation": {
-            "id": "gid://shopify/BulkOperation/8009731211570",
+            "id": "gid://shopify/BulkOperation/8015927968050",
             "status": "CREATED",
             "type": "QUERY",
             "errorCode": null,
-            "createdAt": "2026-07-05T06:42:57Z",
+            "createdAt": "2026-07-07T03:22:59Z",
             "completedAt": null,
             "objectCount": "0",
             "rootObjectCount": "0",
             "fileSize": null,
             "url": null,
             "partialDataUrl": null,
-            "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
           },
           "userErrors": []
         }
@@ -282,25 +414,25 @@
       "operationName": "BulkOperationRootCountRunQuery",
       "query": "mutation BulkOperationRootCountRunQuery($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
-        "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+        "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
       },
       "status": 200,
       "response": {
         "data": {
           "bulkOperationRunQuery": {
             "bulkOperation": {
-              "id": "gid://shopify/BulkOperation/8009731211570",
+              "id": "gid://shopify/BulkOperation/8015927968050",
               "status": "CREATED",
               "type": "QUERY",
               "errorCode": null,
-              "createdAt": "2026-07-05T06:42:57Z",
+              "createdAt": "2026-07-07T03:22:59Z",
               "completedAt": null,
               "objectCount": "0",
               "rootObjectCount": "0",
               "fileSize": null,
               "url": null,
               "partialDataUrl": null,
-              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
             },
             "userErrors": []
           }
@@ -323,24 +455,24 @@
         "operationName": "BulkOperationRootCountStatusPoll1",
         "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
         "variables": {
-          "id": "gid://shopify/BulkOperation/8009731211570"
+          "id": "gid://shopify/BulkOperation/8015927968050"
         },
         "status": 200,
         "response": {
           "data": {
             "bulkOperation": {
-              "id": "gid://shopify/BulkOperation/8009731211570",
+              "id": "gid://shopify/BulkOperation/8015927968050",
               "status": "CREATED",
               "type": "QUERY",
               "errorCode": null,
-              "createdAt": "2026-07-05T06:42:57Z",
+              "createdAt": "2026-07-07T03:22:59Z",
               "completedAt": null,
               "objectCount": "0",
               "rootObjectCount": "0",
               "fileSize": null,
               "url": null,
               "partialDataUrl": null,
-              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
             }
           },
           "extensions": {
@@ -360,24 +492,24 @@
         "operationName": "BulkOperationRootCountStatusPoll2",
         "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
         "variables": {
-          "id": "gid://shopify/BulkOperation/8009731211570"
+          "id": "gid://shopify/BulkOperation/8015927968050"
         },
         "status": 200,
         "response": {
           "data": {
             "bulkOperation": {
-              "id": "gid://shopify/BulkOperation/8009731211570",
+              "id": "gid://shopify/BulkOperation/8015927968050",
               "status": "COMPLETED",
               "type": "QUERY",
               "errorCode": null,
-              "createdAt": "2026-07-05T06:42:57Z",
-              "completedAt": "2026-07-05T06:42:58Z",
-              "objectCount": "2",
+              "createdAt": "2026-07-07T03:22:59Z",
+              "completedAt": "2026-07-07T03:23:00Z",
+              "objectCount": "4",
               "rootObjectCount": "1",
-              "fileSize": "249",
-              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/eaf822c70be9da2bb04f79743acc?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783838578&Signature=puTo6KhcIe7TIZlaDZOSnXqNpQeJn3jzc3j1pvtFBryj%2FIAGMW3CDlQMcqMvPoAtq%2BNEh%2BOwwjaqk8O47gf4u8201MepMkVRjJJuDc2g9DcOVqxDG4OVZVjzfgXqKyVC9q0NCiGBcSvhjNzWpw7DrANAShgJWsjDkJBDAQoyc6XRRiawAv%2BrfLCWYQLhem9rT3S3tiNEF02%2Fd0ZHZ%2FTwN%2Fri4HdjhiWD%2BkEAkUf3GkRox4%2Fo%2Felh3bRDNj%2F1ieQLqtYvthSBiQ4ptk5zfmAg5Fj6qlE8%2Bo57kXiUDsSGTZLQvQN6z67LJGWCzoBANGcucXymm35u2p9f14%2BUPUUDyg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8009731211570.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8009731211570.jsonl&response-content-type=application%2Fjsonl",
+              "fileSize": "644",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/3f6ba8d73640c50195ba81476f3a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783999380&Signature=XC5tY4Xanm%2FJ5mN5BXlutV%2B%2BfPymuraCc4mU9Uk5DEhLzXq2aTpwYgqFiV5Ff2isxNTGoqjRT%2Fcgi%2BeiowqTXQYX2zXBxMEWiy2zKUUz0oEiGAjEY%2B1LW2bbE5YDXVO3smyO7G5NozrsCIKO8uNZU0lOTrfdImHsKO7EzobE6L%2Fg%2FJPPpiwnWybbti6btPz0XwiQSUMwGzTGaiPNtxEdLxoy3%2BkomtEYOxSv5GSxasSdqiThbYptQ3jwhOaQPHEqZa1iryaSkm6G3gUW%2ByoNiWvoZ0J7WmGa8EuWRnQJL4LN%2Ba3M3OVD8%2BTmCSRmyUNxGXtmHLXAlTWrhQ3O%2FtCvvg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8015927968050.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8015927968050.jsonl&response-content-type=application%2Fjsonl",
               "partialDataUrl": null,
-              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
             }
           },
           "extensions": {
@@ -395,33 +527,47 @@
       }
     ],
     "terminalOperation": {
-      "id": "gid://shopify/BulkOperation/8009731211570",
+      "id": "gid://shopify/BulkOperation/8015927968050",
       "status": "COMPLETED",
       "type": "QUERY",
       "errorCode": null,
-      "createdAt": "2026-07-05T06:42:57Z",
-      "completedAt": "2026-07-05T06:42:58Z",
-      "objectCount": "2",
+      "createdAt": "2026-07-07T03:22:59Z",
+      "completedAt": "2026-07-07T03:23:00Z",
+      "objectCount": "4",
       "rootObjectCount": "1",
-      "fileSize": "249",
-      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/eaf822c70be9da2bb04f79743acc?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783838578&Signature=puTo6KhcIe7TIZlaDZOSnXqNpQeJn3jzc3j1pvtFBryj%2FIAGMW3CDlQMcqMvPoAtq%2BNEh%2BOwwjaqk8O47gf4u8201MepMkVRjJJuDc2g9DcOVqxDG4OVZVjzfgXqKyVC9q0NCiGBcSvhjNzWpw7DrANAShgJWsjDkJBDAQoyc6XRRiawAv%2BrfLCWYQLhem9rT3S3tiNEF02%2Fd0ZHZ%2FTwN%2Fri4HdjhiWD%2BkEAkUf3GkRox4%2Fo%2Felh3bRDNj%2F1ieQLqtYvthSBiQ4ptk5zfmAg5Fj6qlE8%2Bo57kXiUDsSGTZLQvQN6z67LJGWCzoBANGcucXymm35u2p9f14%2BUPUUDyg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8009731211570.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8009731211570.jsonl&response-content-type=application%2Fjsonl",
+      "fileSize": "644",
+      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/3f6ba8d73640c50195ba81476f3a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1783999380&Signature=XC5tY4Xanm%2FJ5mN5BXlutV%2B%2BfPymuraCc4mU9Uk5DEhLzXq2aTpwYgqFiV5Ff2isxNTGoqjRT%2Fcgi%2BeiowqTXQYX2zXBxMEWiy2zKUUz0oEiGAjEY%2B1LW2bbE5YDXVO3smyO7G5NozrsCIKO8uNZU0lOTrfdImHsKO7EzobE6L%2Fg%2FJPPpiwnWybbti6btPz0XwiQSUMwGzTGaiPNtxEdLxoy3%2BkomtEYOxSv5GSxasSdqiThbYptQ3jwhOaQPHEqZa1iryaSkm6G3gUW%2ByoNiWvoZ0J7WmGa8EuWRnQJL4LN%2Ba3M3OVD8%2BTmCSRmyUNxGXtmHLXAlTWrhQ3O%2FtCvvg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8015927968050.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8015927968050.jsonl&response-content-type=application%2Fjsonl",
       "partialDataUrl": null,
-      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mr7fccvr-27kcq\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mra32usw-1bl48\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
     },
     "result": {
       "status": 200,
       "contentType": "application/jsonl",
-      "byteLength": 249,
+      "byteLength": 644,
+      "body": "{\"id\":\"gid:\\/\\/shopify\\/Product\\/10233286951218\",\"title\":\"Bulk root count bulk-root-mra32usw-1bl48\"}\n{\"id\":\"gid:\\/\\/shopify\\/ProductVariant\\/51432078672178\",\"title\":\"Default Title\",\"sku\":null,\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10233286951218\"}\n{\"id\":\"gid:\\/\\/shopify\\/MediaImage\\/44004399481138\",\"alt\":\"Bulk child media bulk-root-mra32usw-1bl48\",\"mediaContentType\":\"IMAGE\",\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10233286951218\"}\n{\"id\":\"gid:\\/\\/shopify\\/Metafield\\/44718487535922\",\"namespace\":\"custom\",\"key\":\"bulk_child_mra32usw_1bl48\",\"value\":\"bulk child bulk-root-mra32usw-1bl48\",\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10233286951218\"}\n",
       "records": [
         {
-          "id": "gid://shopify/Product/10232100684082",
-          "title": "Bulk root count bulk-root-mr7fccvr-27kcq"
+          "id": "gid://shopify/Product/10233286951218",
+          "title": "Bulk root count bulk-root-mra32usw-1bl48"
         },
         {
-          "id": "gid://shopify/ProductVariant/51425112326450",
+          "id": "gid://shopify/ProductVariant/51432078672178",
           "title": "Default Title",
           "sku": null,
-          "__parentId": "gid://shopify/Product/10232100684082"
+          "__parentId": "gid://shopify/Product/10233286951218"
+        },
+        {
+          "id": "gid://shopify/MediaImage/44004399481138",
+          "alt": "Bulk child media bulk-root-mra32usw-1bl48",
+          "mediaContentType": "IMAGE",
+          "__parentId": "gid://shopify/Product/10233286951218"
+        },
+        {
+          "id": "gid://shopify/Metafield/44718487535922",
+          "namespace": "custom",
+          "key": "bulk_child_mra32usw_1bl48",
+          "value": "bulk child bulk-root-mra32usw-1bl48",
+          "__parentId": "gid://shopify/Product/10233286951218"
         }
       ]
     }
@@ -437,10 +583,10 @@
           "bulkOperations": {
             "nodes": [
               {
-                "id": "gid://shopify/BulkOperation/8009731211570",
+                "id": "gid://shopify/BulkOperation/8015927968050",
                 "status": "COMPLETED",
                 "type": "QUERY",
-                "createdAt": "2026-07-05T06:42:57Z"
+                "createdAt": "2026-07-07T03:22:59Z"
               }
             ]
           }
@@ -492,7 +638,7 @@
           "bulkOperations": {
             "nodes": [
               {
-                "id": "gid://shopify/BulkOperation/8009731211570"
+                "id": "gid://shopify/BulkOperation/8015927968050"
               }
             ]
           }
@@ -533,14 +679,14 @@
     "query": "mutation BulkOperationRootCountProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
       "input": {
-        "id": "gid://shopify/Product/10232100684082"
+        "id": "gid://shopify/Product/10233286951218"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10232100684082",
+          "deletedProductId": "gid://shopify/Product/10233286951218",
           "userErrors": []
         }
       },

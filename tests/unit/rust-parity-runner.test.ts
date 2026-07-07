@@ -3,7 +3,7 @@ import { readdirSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import { diffValues, selectPaths } from '../../scripts/parity-run.js';
+import { diffValues, parseJsonlRecordsForParity, selectPaths } from '../../scripts/parity-run.js';
 import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
 
 const repoRoot = new URL('../..', import.meta.url);
@@ -62,6 +62,28 @@ describe('parity runner selected path projection', () => {
         { field: ['type'], code: 'INVALID' },
       ],
     });
+  });
+});
+
+describe('parity runner JSONL targets', () => {
+  it('parses JSONL response bodies before selected-path comparison', () => {
+    const capture = '{"title":"Product"}\n{"alt":"Front","__parentId":"gid://shopify/Product/1"}\n';
+    const proxy = '{"title":"Product"}\n{"alt":"Front","__parentId":"gid://shopify/Product/2"}\n';
+    const selectedPaths = ['$[*].title', '$[*].alt', '$[*].__parentId'];
+
+    const diffs = diffValues(
+      selectPaths(parseJsonlRecordsForParity(capture), selectedPaths),
+      selectPaths(parseJsonlRecordsForParity(proxy), selectedPaths),
+      [
+        {
+          path: '$[1].__parentId',
+          matcher: 'shopify-gid:Product',
+          reason: 'Shopify and the proxy allocate different product ids.',
+        },
+      ],
+    );
+
+    expect(diffs).toEqual([]);
   });
 });
 
