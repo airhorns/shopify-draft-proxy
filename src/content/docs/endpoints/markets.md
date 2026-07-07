@@ -72,6 +72,11 @@ presence relations; rejects captured status/enabled mismatches, incompatible
 price inclusions, invalid or unsupported country regions, duplicate region
 codes, invalid names, duplicate names, and generated-handle collisions; and
 retains original raw mutations for commit replay on successful staging.
+Generated market handles normalize ASCII letters and digits to lowercase
+dash-separated handles. When a name or explicit handle contains no ASCII
+alphanumerics after normalization, the local fallback is a deterministic
+`localized-<hash>` handle derived from the original value rather than a
+fixture-specific slug.
 Staged country-region nodes are stored as `MarketRegionCountry` records with a
 stable synthesized `id`, deterministic ISO country `name`, `code`, and
 `__typename`, so mutation payloads and downstream `market` / `markets` overlay
