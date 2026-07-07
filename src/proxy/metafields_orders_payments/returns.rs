@@ -1010,7 +1010,7 @@ impl DraftProxy {
         let order_updated_at = order["updatedAt"]
             .as_str()
             .map(str::to_string)
-            .unwrap_or_else(|| "2024-01-01T00:00:03.000Z".to_string());
+            .unwrap_or_else(|| self.next_mutation_timestamp());
         let mut return_record = json!({
             "id": return_id,
             "name": name,
@@ -1111,8 +1111,13 @@ impl DraftProxy {
         let updated_at = order
             .as_ref()
             .and_then(|order| order["updatedAt"].as_str())
-            .unwrap_or("2024-01-01T00:00:03.000Z")
-            .to_string();
+            .map(str::to_string)
+            .or_else(|| {
+                returns
+                    .iter()
+                    .find_map(|record| record["order"]["updatedAt"].as_str().map(str::to_string))
+            })
+            .unwrap_or_default();
         let order = json!({
             "id": order_id,
             "name": name,
@@ -1230,7 +1235,7 @@ impl DraftProxy {
         if current != target_status {
             record["status"] = json!(target_status);
             record["closedAt"] = if target_status == "CLOSED" {
-                json!("2024-01-01T00:00:03.000Z")
+                json!(self.next_mutation_timestamp())
             } else {
                 Value::Null
             };
@@ -1744,7 +1749,7 @@ impl DraftProxy {
         }
         let mut stored_record = record.clone();
         stored_record["status"] = json!("CLOSED");
-        stored_record["closedAt"] = json!("2024-01-01T00:00:03.000Z");
+        stored_record["closedAt"] = json!(self.next_mutation_timestamp());
         self.store
             .staged
             .returns
