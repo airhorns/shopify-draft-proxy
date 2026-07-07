@@ -1,0 +1,445 @@
+{
+  "scenarioId": "b2b-cold-company-location-hydration",
+  "capturedAt": "2026-07-04T23:41:29.467Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable B2B company/location, capture a cold companies read, capture a pre-mutation companyLocation hydrate, run live companyLocationUpdate and companyLocationTaxSettingsUpdate against that real location id, then delete the company."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      mainContact {\n        id\n        title\n        isMainContact\n        roleAssignments(first: 5) {\n          nodes {\n            id\n            role {\n              id\n              name\n            }\n            companyLocation {\n              id\n              name\n            }\n          }\n        }\n      }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role {\n                id\n                name\n              }\n              companyLocation {\n                id\n                name\n              }\n            }\n          }\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B b2bcoldhydrate1783208483090",
+            "note": "B2B cold company-location hydration parity",
+            "externalId": "b2b-cold-hydration-1783208483090"
+          },
+          "companyContact": {
+            "firstName": "Cold",
+            "lastName": "Hydration",
+            "email": "b2b-cold-hydration-1783208483090@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "B2B b2bcoldhydrate1783208483090 Warehouse",
+            "phone": "+14165550124",
+            "billingAddress": {
+              "address1": "1 Cold Hydrate Way",
+              "city": "Toronto",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5731352882",
+            "name": "B2B b2bcoldhydrate1783208483090",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10416357682",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44923388210",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/11250565426",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8601927986",
+                      "name": "B2B b2bcoldhydrate1783208483090 Warehouse"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10416357682",
+                  "title": "Buyer",
+                  "isMainContact": true,
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44923388210",
+                        "role": {
+                          "id": "gid://shopify/CompanyContactRole/11250565426",
+                          "name": "Ordering only"
+                        },
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8601927986",
+                          "name": "B2B b2bcoldhydrate1783208483090 Warehouse"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8601927986",
+                  "name": "B2B b2bcoldhydrate1783208483090 Warehouse"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/11250532658",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/11250565426",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 70,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "coldCompaniesRead": {
+    "request": {
+      "query": "query B2BColdCompaniesRead($query: String!) {\n  companies(first: 3, query: $query) {\n    nodes {\n      id\n      name\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "query": "name:b2bcoldhydrate1783208483090"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companies": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Company/5731352882",
+              "name": "B2B b2bcoldhydrate1783208483090",
+              "locations": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyLocation/8601927986",
+                    "name": "B2B b2bcoldhydrate1783208483090 Warehouse"
+                  }
+                ]
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hydrateBeforeLocationUpdate": {
+    "request": {
+      "query": "\nquery B2BCompanyLocationHydrate($id: ID!) {\n  companyLocation(id: $id) {\n    id\n    name\n    externalId\n    note\n    locale\n    phone\n    billingAddress { id address1 }\n    shippingAddress { id address1 }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    buyerExperienceConfiguration {\n      editableShippingAddress\n      checkoutToDraft\n      paymentTermsTemplate { id }\n      deposit { __typename }\n    }\n    company {\n      id\n      name\n      locations(first: 50) { nodes { id } }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/8601927986"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8601927986",
+          "name": "B2B b2bcoldhydrate1783208483090 Warehouse",
+          "externalId": null,
+          "note": null,
+          "locale": "en",
+          "phone": "+14165550124",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9600926002",
+            "address1": "1 Cold Hydrate Way"
+          },
+          "shippingAddress": null,
+          "taxSettings": {
+            "taxRegistrationId": null,
+            "taxExempt": false,
+            "taxExemptions": []
+          },
+          "buyerExperienceConfiguration": {
+            "editableShippingAddress": false,
+            "checkoutToDraft": false,
+            "paymentTermsTemplate": null,
+            "deposit": null
+          },
+          "company": {
+            "id": "gid://shopify/Company/5731352882",
+            "name": "B2B b2bcoldhydrate1783208483090",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8601927986"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdate": {
+    "request": {
+      "query": "mutation B2BColdCompanyLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        id\n        address1\n      }\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8601927986",
+        "input": {
+          "name": "B2B b2bcoldhydrate1783208483090 Updated Warehouse"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8601927986",
+            "name": "B2B b2bcoldhydrate1783208483090 Updated Warehouse",
+            "billingAddress": {
+              "id": "gid://shopify/CompanyAddress/9600926002",
+              "address1": "1 Cold Hydrate Way"
+            },
+            "taxSettings": {
+              "taxRegistrationId": null,
+              "taxExempt": false,
+              "taxExemptions": []
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "taxUpdate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8601927986",
+        "taxRegistrationId": "B2B-COLD-1783208483090"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8601927986",
+            "taxSettings": {
+              "taxRegistrationId": "B2B-COLD-1783208483090",
+              "taxExempt": false,
+              "taxExemptions": []
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BColdCompanyLocationHydrationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5731352882"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5731352882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "B2BColdCompaniesRead",
+      "variables": {
+        "query": "name:b2bcoldhydrate1783208483090"
+      },
+      "query": "query B2BColdCompaniesRead($query: String!) {\n  companies(first: 3, query: $query) {\n    nodes {\n      id\n      name\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companies": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Company/5731352882",
+                  "name": "B2B b2bcoldhydrate1783208483090",
+                  "locations": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyLocation/8601927986",
+                        "name": "B2B b2bcoldhydrate1783208483090 Warehouse"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "B2BCompanyLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/CompanyLocation/8601927986"
+      },
+      "query": "\nquery B2BCompanyLocationHydrate($id: ID!) {\n  companyLocation(id: $id) {\n    id\n    name\n    externalId\n    note\n    locale\n    phone\n    billingAddress { id address1 }\n    shippingAddress { id address1 }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    buyerExperienceConfiguration {\n      editableShippingAddress\n      checkoutToDraft\n      paymentTermsTemplate { id }\n      deposit { __typename }\n    }\n    company {\n      id\n      name\n      locations(first: 50) { nodes { id } }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8601927986",
+              "name": "B2B b2bcoldhydrate1783208483090 Warehouse",
+              "externalId": null,
+              "note": null,
+              "locale": "en",
+              "phone": "+14165550124",
+              "billingAddress": {
+                "id": "gid://shopify/CompanyAddress/9600926002",
+                "address1": "1 Cold Hydrate Way"
+              },
+              "shippingAddress": null,
+              "taxSettings": {
+                "taxRegistrationId": null,
+                "taxExempt": false,
+                "taxExemptions": []
+              },
+              "buyerExperienceConfiguration": {
+                "editableShippingAddress": false,
+                "checkoutToDraft": false,
+                "paymentTermsTemplate": null,
+                "deposit": null
+              },
+              "company": {
+                "id": "gid://shopify/Company/5731352882",
+                "name": "B2B b2bcoldhydrate1783208483090",
+                "locations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyLocation/8601927986"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

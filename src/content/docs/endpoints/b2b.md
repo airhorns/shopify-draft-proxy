@@ -87,7 +87,11 @@ empty staged connection rather than matching all staged records. `companies`,
 `CompanyLocation.staffMemberAssignments` honor local `sortKey` and `reverse`
 for the modeled staged fields, defaulting to ID order when a sort key has no
 modeled field in local state. `companiesCount` returns the staged company count
-selected through the Shopify `Count` object shape.
+selected through the Shopify `Count` object shape. `companies(first:, query:)`
+and `companiesCount` are answered from the local B2B graph only after company
+state has been staged or hydrated in the current session. Cold LiveHybrid
+company connection/count reads forward upstream unchanged so real store
+companies are visible before local B2B writes occur.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
@@ -175,16 +179,21 @@ assignments that are missing or belong to another location.
 
 `companyLocationTaxSettingsUpdate` stages `taxExempt`, `taxRegistrationId`, and
 tax-exemption assignment/removal under `CompanyLocation.taxSettings`. Exemption
-updates apply against the current staged location set by removing
-`exemptionsToRemove` and then appending new `exemptionsToAssign` values without
-inventing defaults. Omitting `taxExempt` or `taxRegistrationId` preserves the
-current staged value; literal `taxExempt: null` and variable `taxExempt: null`
-return `INVALID_INPUT`, while an unbound optional `$taxExempt` variable is
-treated as omitted. Supplying no tax-setting knobs is a successful no-op that
-returns the unchanged company location. Invalid `TaxExemption` variables and
-inline literals are top-level GraphQL errors before staging; inline literal
-messages echo the submitted enum literal in Shopify's field-level coercion
-shape rather than a fixed fallback value or suggestion.
+updates apply against the current staged or LiveHybrid-hydrated location by
+removing `exemptionsToRemove` and then appending new `exemptionsToAssign`
+values without inventing defaults. Omitting `taxExempt` or `taxRegistrationId`
+preserves the current value; literal `taxExempt: null` and variable
+`taxExempt: null` return `INVALID_INPUT`, while an unbound optional
+`$taxExempt` variable is treated as omitted. Supplying no tax-setting knobs is a
+successful no-op that returns the unchanged company location. Invalid
+`TaxExemption` variables and inline literals are top-level GraphQL errors before
+staging; inline literal messages echo the submitted enum literal in Shopify's
+field-level coercion shape rather than a fixed fallback value or suggestion. In
+LiveHybrid mode, `companyLocationTaxSettingsUpdate`, `companyLocationUpdate`,
+and company-location store-credit ownership checks hydrate an existing upstream
+`CompanyLocation` before staging local effects when it is not already in the
+local graph; snapshot mode only accepts locations already present in local
+state.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
 `checkoutToDraft`, `paymentTermsTemplate`, and `deposit`. Deposit input is
