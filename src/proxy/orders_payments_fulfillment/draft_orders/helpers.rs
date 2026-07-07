@@ -5,7 +5,7 @@ pub(in crate::proxy) fn normalize_draft_order_tag(tag: &str) -> String {
 }
 
 pub(in crate::proxy) fn is_valid_draft_order_invoice_template(template: &str) -> bool {
-    template.starts_with("DRAFT_ORDER_") && template != "NOT_A_REAL_TEMPLATE"
+    matches!(template, "DRAFT_ORDER_INVOICE")
 }
 
 pub(in crate::proxy) fn draft_order_invoice_recipient(

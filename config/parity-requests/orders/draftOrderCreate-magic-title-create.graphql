@@ -1,0 +1,86 @@
+mutation DraftOrderCreateMagicTitle($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      name
+      status
+      ready
+      email
+      tags
+      invoiceUrl
+      customAttributes {
+        key
+        value
+      }
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalShippingPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalQuantityOfLineItems
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          name
+          quantity
+          sku
+          custom
+          requiresShipping
+          taxable
+          customAttributes {
+            key
+            value
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          originalTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
