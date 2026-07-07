@@ -1266,6 +1266,40 @@ impl DraftProxy {
             ),
         )
     }
+
+    pub(in crate::proxy) fn product_variant_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
+        )
+    }
+
+    pub(in crate::proxy) fn product_variant_inventory_item_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_inventory_item_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
+        )
+    }
 }
 
 pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
@@ -1608,29 +1642,6 @@ pub(in crate::proxy) fn product_has_out_of_stock_variants(
         .any(|variant| variant.inventory_quantity <= 0)
 }
 
-pub(in crate::proxy) fn product_json_with_variants(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-) -> Value {
-    product_json_with_variants_and_currency(product, variants, selections, "USD")
-}
-
-pub(in crate::proxy) fn product_json_with_variants_and_currency(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-    currency_code: &str,
-) -> Value {
-    product_json_with_variants_and_currency_and_publication_context(
-        product,
-        variants,
-        selections,
-        currency_code,
-        None,
-    )
-}
-
 pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
@@ -1907,6 +1918,15 @@ pub(in crate::proxy) fn product_variant_json(
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
 ) -> Value {
+    product_variant_json_with_publication_context(variant, product, selections, None)
+}
+
+pub(in crate::proxy) fn product_variant_json_with_publication_context(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
         "id" => Some(json!(variant.id)),
@@ -1941,13 +1961,22 @@ pub(in crate::proxy) fn product_variant_json(
                 })
                 .collect(),
         )),
-        "inventoryItem" => Some(product_variant_inventory_item_json(
-            variant,
-            product,
-            &selection.selection,
-        )),
+        "inventoryItem" => Some(
+            product_variant_inventory_item_json_with_publication_context(
+                variant,
+                product,
+                &selection.selection,
+                published_on_current_publication,
+            ),
+        ),
         "product" => Some(match product {
-            Some(product) => product_json_with_variants(product, &[], &selection.selection),
+            Some(product) => product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
             None => variant
                 .extra_fields
                 .get("product")
@@ -2141,10 +2170,11 @@ fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
     StagedSortValue::String(value.as_ref().to_ascii_lowercase())
 }
 
-pub(in crate::proxy) fn product_variant_inventory_item_json(
+pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_context(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("InventoryItem")),
@@ -2153,7 +2183,12 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
         "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
         // Render the inventory item's backreference variant with its owning product so
         // `inventoryItem(id:).variant.product` resolves rather than returning null.
-        "variant" => Some(product_variant_json(variant, product, &selection.selection)),
+        "variant" => Some(product_variant_json_with_publication_context(
+            variant,
+            product,
+            &selection.selection,
+            published_on_current_publication,
+        )),
         _ => variant
             .inventory_item
             .extra_fields
@@ -2162,20 +2197,22 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
     })
 }
 
-pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
+pub(in crate::proxy) fn observed_product_variant_inventory_item_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Option<Value> {
     let inventory_item = variant.get("inventoryItem")?;
     Some(selected_payload_json(
         selections,
         |selection| match selection.name.as_str() {
             "__typename" => Some(json!("InventoryItem")),
-            "variant" => Some(observed_product_variant_json(
+            "variant" => Some(observed_product_variant_json_with_publication_context(
                 product,
                 variant,
                 &selection.selection,
+                published_on_current_publication,
             )),
             _ => inventory_item
                 .get(&selection.name)
@@ -2184,18 +2221,23 @@ pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
     ))
 }
 
-fn observed_product_variant_json(
+fn observed_product_variant_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
-        "product" => Some(product_json_with_variants(
-            product,
-            &[],
-            &selection.selection,
-        )),
+        "product" => Some(
+            product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
+        ),
         _ => variant
             .get(&selection.name)
             .map(|value| product_variant_extra_field_json(value, &selection.selection)),
@@ -2677,15 +2719,19 @@ pub(in crate::proxy) fn product_mutation_payload_json(
     product_selections: &[SelectedField],
     currency_code: &str,
     shop: Option<&Value>,
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json_with_variants_and_currency(
-                product,
-                variants,
-                product_selections,
-                currency_code,
-            )),
+            "product" => Some(
+                product_json_with_variants_and_currency_and_publication_context(
+                    product,
+                    variants,
+                    product_selections,
+                    currency_code,
+                    published_on_current_publication,
+                ),
+            ),
             "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
             "userErrors" => Some(json!([])),
             _ => None,

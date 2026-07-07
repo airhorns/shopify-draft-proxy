@@ -738,7 +738,7 @@ impl DraftProxy {
                     &selection.arguments,
                     &selection.selection,
                     |variant, selections| {
-                        product_variant_json(
+                        self.product_variant_json_with_current_publication_context(
                             variant,
                             self.store.product_by_id(&variant.product_id),
                             selections,
@@ -793,7 +793,8 @@ impl DraftProxy {
         product: Option<&ProductRecord>,
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_variant_json(variant, product, selections);
+        let base = self
+            .product_variant_json_with_current_publication_context(variant, product, selections);
         let groups = self.selling_plan_groups_for_nodes_matching(|group| {
             group.product_ids.iter().any(|id| id == &variant.product_id)
                 || group.product_variant_ids.iter().any(|id| id == &variant.id)

@@ -31,6 +31,10 @@ const customerCountHydrateDocument = await readFile(
   'config/parity-requests/customers/customer-count-hydrate.graphql',
   'utf8',
 );
+const customerDeleteShopHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-delete-shop-hydrate.graphql',
+  'utf8',
+);
 // customerCreate forwards CUSTOMER_DUPLICATE_HYDRATE_QUERY once per uniqueness-bearing input
 // field (email, phone) to decide TAKEN the real way instead of from seeded state. The staged
 // create is never committed upstream, so at parity time these lookups see no match — capture
@@ -69,6 +73,21 @@ function hydrateUpstreamCall(id, payload) {
     operationName: 'CustomerHydrate',
     variables: { id },
     query: customerMutationHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+async function captureCustomerDeleteShopHydrate() {
+  const result = await runGraphql(customerDeleteShopHydrateDocument, {});
+  assertNoTopLevelErrors(result, 'customerDelete shop hydrate');
+  return result.payload;
+}
+
+function customerDeleteShopHydrateUpstreamCall(payload) {
+  return {
+    operationName: 'CustomerDeleteShopHydrate',
+    variables: {},
+    query: customerDeleteShopHydrateDocument,
     response: { status: 200, body: payload },
   };
 }
@@ -311,6 +330,7 @@ async function main() {
   // mutation hydrates the target customer and the unknown-id validation hydrates to null.
   // The count base is reconstructed from the post-delete downstream read below.
   const deleteHydratePayload = await captureMutationHydrate(createdCustomerId, 'customerDelete hydrate');
+  const deleteShopHydratePayload = await captureCustomerDeleteShopHydrate();
   const unknownHydratePayload = await captureMutationHydrate(UNKNOWN_CUSTOMER_GID, 'customerDelete unknown hydrate');
 
   const deleteVariables = {
@@ -397,6 +417,7 @@ async function main() {
     },
     upstreamCalls: [
       hydrateUpstreamCall(createdCustomerId, deleteHydratePayload),
+      customerDeleteShopHydrateUpstreamCall(deleteShopHydratePayload),
       countUpstreamCall(countBaseFromAsserted(deleteReadResult.payload?.data?.customersCount, 1)),
       hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
     ],

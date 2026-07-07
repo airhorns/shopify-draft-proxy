@@ -2,36 +2,36 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "activeCodeId": "gid://shopify/DiscountCodeNode/1657900007730",
-    "expiredCodeId": "gid://shopify/DiscountCodeNode/1657900040498",
-    "activeAutomaticId": "gid://shopify/DiscountAutomaticNode/1657900073266",
-    "expiredAutomaticId": "gid://shopify/DiscountAutomaticNode/1657900106034",
-    "activeCode": "NOOPACT1783046317011",
-    "expiredCode": "NOOPEXP1783046317011"
+    "activeCodeId": "gid://shopify/DiscountCodeNode/1658450411826",
+    "expiredCodeId": "gid://shopify/DiscountCodeNode/1658450444594",
+    "activeAutomaticId": "gid://shopify/DiscountAutomaticNode/1658450477362",
+    "expiredAutomaticId": "gid://shopify/DiscountAutomaticNode/1658450510130",
+    "activeCode": "NOOPACT1783294293570",
+    "expiredCode": "NOOPEXP1783294293570"
   },
   "requests": {
     "codeActivateNoop": {
       "query": "#graphql\n  mutation DiscountCodeActivateNoopIdempotence($id: ID!) {\n    discountCodeActivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657900007730"
+        "id": "gid://shopify/DiscountCodeNode/1658450411826"
       }
     },
     "codeDeactivateNoop": {
       "query": "#graphql\n  mutation DiscountCodeDeactivateNoopIdempotence($id: ID!) {\n    discountCodeDeactivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657900040498"
+        "id": "gid://shopify/DiscountCodeNode/1658450444594"
       }
     },
     "automaticActivateNoop": {
       "query": "#graphql\n  mutation DiscountAutomaticActivateNoopIdempotence($id: ID!) {\n    discountAutomaticActivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657900073266"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450477362"
       }
     },
     "automaticDeactivateNoop": {
       "query": "#graphql\n  mutation DiscountAutomaticDeactivateNoopIdempotence($id: ID!) {\n    discountAutomaticDeactivate(id: $id) {\n      #graphql\n  automaticDiscountNode {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        #graphql\n  __typename\n  startsAt\n  endsAt\n  status\n  updatedAt\n\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657900106034"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450510130"
       }
     }
   },
@@ -145,13 +145,13 @@
         "data": {
           "discountCodeBasicCreate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657900007730",
+              "id": "gid://shopify/DiscountCodeNode/1658450411826",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
                 "status": "ACTIVE",
-                "updatedAt": "2026-07-03T02:38:37Z"
+                "updatedAt": "2026-07-05T23:31:33Z"
               }
             },
             "userErrors": []
@@ -176,13 +176,13 @@
         "data": {
           "discountCodeBasicCreate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657900040498",
+              "id": "gid://shopify/DiscountCodeNode/1658450444594",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
                 "status": "ACTIVE",
-                "updatedAt": "2026-07-03T02:38:37Z"
+                "updatedAt": "2026-07-05T23:31:33Z"
               }
             },
             "userErrors": []
@@ -207,13 +207,13 @@
         "data": {
           "discountAutomaticBasicCreate": {
             "automaticDiscountNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1657900073266",
+              "id": "gid://shopify/DiscountAutomaticNode/1658450477362",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
                 "status": "ACTIVE",
-                "updatedAt": "2026-07-03T02:38:37Z"
+                "updatedAt": "2026-07-05T23:31:34Z"
               }
             },
             "userErrors": []
@@ -238,13 +238,13 @@
         "data": {
           "discountAutomaticBasicCreate": {
             "automaticDiscountNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1657900106034",
+              "id": "gid://shopify/DiscountAutomaticNode/1658450510130",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
                 "status": "ACTIVE",
-                "updatedAt": "2026-07-03T02:38:37Z"
+                "updatedAt": "2026-07-05T23:31:34Z"
               }
             },
             "userErrors": []
@@ -269,13 +269,13 @@
         "data": {
           "discountCodeDeactivate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657900040498",
+              "id": "gid://shopify/DiscountCodeNode/1658450444594",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
-                "endsAt": "2026-07-03T02:38:37Z",
+                "startsAt": "2026-07-05T23:29:33Z",
+                "endsAt": "2026-07-05T23:31:34Z",
                 "status": "EXPIRED",
-                "updatedAt": "2026-07-03T02:38:37Z"
+                "updatedAt": "2026-07-05T23:31:34Z"
               }
             },
             "userErrors": []
@@ -300,13 +300,13 @@
         "data": {
           "discountAutomaticDeactivate": {
             "automaticDiscountNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1657900106034",
+              "id": "gid://shopify/DiscountAutomaticNode/1658450510130",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "startsAt": "2026-07-03T02:36:37Z",
-                "endsAt": "2026-07-03T02:38:38Z",
+                "startsAt": "2026-07-05T23:29:33Z",
+                "endsAt": "2026-07-05T23:31:34Z",
                 "status": "EXPIRED",
-                "updatedAt": "2026-07-03T02:38:38Z"
+                "updatedAt": "2026-07-05T23:31:34Z"
               }
             },
             "userErrors": []
@@ -332,13 +332,13 @@
       "data": {
         "discountCodeActivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657900007730",
+            "id": "gid://shopify/DiscountCodeNode/1658450411826",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "startsAt": "2026-07-03T02:36:37Z",
+              "startsAt": "2026-07-05T23:29:33Z",
               "endsAt": null,
               "status": "ACTIVE",
-              "updatedAt": "2026-07-03T02:38:37Z"
+              "updatedAt": "2026-07-05T23:31:33Z"
             }
           },
           "userErrors": []
@@ -363,13 +363,13 @@
       "data": {
         "discountCodeDeactivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1657900040498",
+            "id": "gid://shopify/DiscountCodeNode/1658450444594",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "startsAt": "2026-07-03T02:36:37Z",
-              "endsAt": "2026-07-03T02:38:37Z",
+              "startsAt": "2026-07-05T23:29:33Z",
+              "endsAt": "2026-07-05T23:31:34Z",
               "status": "EXPIRED",
-              "updatedAt": "2026-07-03T02:38:37Z"
+              "updatedAt": "2026-07-05T23:31:34Z"
             }
           },
           "userErrors": []
@@ -381,7 +381,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -394,13 +394,13 @@
       "data": {
         "discountAutomaticActivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657900073266",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450477362",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "startsAt": "2026-07-03T02:36:37Z",
+              "startsAt": "2026-07-05T23:29:33Z",
               "endsAt": null,
               "status": "ACTIVE",
-              "updatedAt": "2026-07-03T02:38:37Z"
+              "updatedAt": "2026-07-05T23:31:34Z"
             }
           },
           "userErrors": []
@@ -412,7 +412,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1985,
             "restoreRate": 100
           }
         }
@@ -425,13 +425,13 @@
       "data": {
         "discountAutomaticDeactivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1657900106034",
+            "id": "gid://shopify/DiscountAutomaticNode/1658450510130",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "startsAt": "2026-07-03T02:36:37Z",
-              "endsAt": "2026-07-03T02:38:38Z",
+              "startsAt": "2026-07-05T23:29:33Z",
+              "endsAt": "2026-07-05T23:31:34Z",
               "status": "EXPIRED",
-              "updatedAt": "2026-07-03T02:38:38Z"
+              "updatedAt": "2026-07-05T23:31:34Z"
             }
           },
           "userErrors": []
@@ -443,7 +443,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -454,18 +454,18 @@
     {
       "operationName": "DiscountHydrate",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657900007730"
+        "id": "gid://shopify/DiscountCodeNode/1658450411826"
       },
-      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
-              "message": "Invalid id: gid://shopify/DiscountCodeNode/1657900007730",
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1658450411826",
               "locations": [
                 {
-                  "line": 48,
+                  "line": 347,
                   "column": 5
                 }
               ],
@@ -477,20 +477,57 @@
           ],
           "data": {
             "codeNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657900007730",
+              "id": "gid://shopify/DiscountCodeNode/1658450411826",
+              "metafields": {
+                "nodes": []
+              },
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "No-op active code 1783046317011",
+                "title": "No-op active code 1783294293570",
                 "status": "ACTIVE",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
-                "updatedAt": "2026-07-03T02:38:37Z",
+                "createdAt": "2026-07-05T23:31:33Z",
+                "updatedAt": "2026-07-05T23:31:33Z",
                 "asyncUsageCount": 0,
+                "usageLimit": null,
+                "appliesOncePerCustomer": false,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "1.0",
+                    "currencyCode": "CAD"
+                  }
+                },
                 "codes": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/DiscountRedeemCode/22239982715186",
-                      "code": "NOOPACT1783046317011",
+                      "id": "gid://shopify/DiscountRedeemCode/22250018275634",
+                      "code": "NOOPACT1783294293570",
                       "asyncUsageCount": 0
                     }
                   ]
@@ -501,11 +538,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 6,
+              "requestedQueryCost": 169,
+              "actualQueryCost": 29,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1991,
+                "currentlyAvailable": 1964,
                 "restoreRate": 100
               }
             }
@@ -516,18 +553,18 @@
     {
       "operationName": "DiscountHydrate",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1657900040498"
+        "id": "gid://shopify/DiscountCodeNode/1658450444594"
       },
-      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
-              "message": "Invalid id: gid://shopify/DiscountCodeNode/1657900040498",
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1658450444594",
               "locations": [
                 {
-                  "line": 48,
+                  "line": 347,
                   "column": 5
                 }
               ],
@@ -539,20 +576,57 @@
           ],
           "data": {
             "codeNode": {
-              "id": "gid://shopify/DiscountCodeNode/1657900040498",
+              "id": "gid://shopify/DiscountCodeNode/1658450444594",
+              "metafields": {
+                "nodes": []
+              },
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "No-op expired code 1783046317011",
+                "title": "No-op expired code 1783294293570",
                 "status": "EXPIRED",
-                "startsAt": "2026-07-03T02:36:37Z",
-                "endsAt": "2026-07-03T02:38:37Z",
-                "updatedAt": "2026-07-03T02:38:37Z",
+                "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+                "startsAt": "2026-07-05T23:29:33Z",
+                "endsAt": "2026-07-05T23:31:34Z",
+                "createdAt": "2026-07-05T23:31:33Z",
+                "updatedAt": "2026-07-05T23:31:34Z",
                 "asyncUsageCount": 0,
+                "usageLimit": null,
+                "appliesOncePerCustomer": false,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "1.0",
+                    "currencyCode": "CAD"
+                  }
+                },
                 "codes": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/DiscountRedeemCode/22239982747954",
-                      "code": "NOOPEXP1783046317011",
+                      "id": "gid://shopify/DiscountRedeemCode/22250018308402",
+                      "code": "NOOPEXP1783294293570",
                       "asyncUsageCount": 0
                     }
                   ]
@@ -563,11 +637,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 6,
+              "requestedQueryCost": 169,
+              "actualQueryCost": 29,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1950,
                 "restoreRate": 100
               }
             }
@@ -578,15 +652,15 @@
     {
       "operationName": "DiscountHydrate",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657900073266"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450477362"
       },
-      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
-              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1657900073266",
+              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1658450477362",
               "locations": [
                 {
                   "line": 3,
@@ -602,25 +676,60 @@
           "data": {
             "codeNode": null,
             "automaticNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1657900073266",
+              "id": "gid://shopify/DiscountAutomaticNode/1658450477362",
+              "metafields": {
+                "nodes": []
+              },
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "No-op active automatic 1783046317011",
+                "title": "No-op active automatic 1783294293570",
                 "status": "ACTIVE",
-                "startsAt": "2026-07-03T02:36:37Z",
+                "summary": "10% off entire order • Minimum purchase of $1.00",
+                "startsAt": "2026-07-05T23:29:33Z",
                 "endsAt": null,
-                "updatedAt": "2026-07-03T02:38:37Z",
-                "asyncUsageCount": 0
+                "createdAt": "2026-07-05T23:31:34Z",
+                "updatedAt": "2026-07-05T23:31:34Z",
+                "asyncUsageCount": 0,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "1.0",
+                    "currencyCode": "CAD"
+                  }
+                }
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 169,
+              "actualQueryCost": 27,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1938,
                 "restoreRate": 100
               }
             }
@@ -631,15 +740,15 @@
     {
       "operationName": "DiscountHydrate",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1657900106034"
+        "id": "gid://shopify/DiscountAutomaticNode/1658450510130"
       },
-      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          asyncUsageCount\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
-              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1657900106034",
+              "message": "Invalid id: gid://shopify/DiscountAutomaticNode/1658450510130",
               "locations": [
                 {
                   "line": 3,
@@ -655,25 +764,60 @@
           "data": {
             "codeNode": null,
             "automaticNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1657900106034",
+              "id": "gid://shopify/DiscountAutomaticNode/1658450510130",
+              "metafields": {
+                "nodes": []
+              },
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "No-op expired automatic 1783046317011",
+                "title": "No-op expired automatic 1783294293570",
                 "status": "EXPIRED",
-                "startsAt": "2026-07-03T02:36:37Z",
-                "endsAt": "2026-07-03T02:38:38Z",
-                "updatedAt": "2026-07-03T02:38:38Z",
-                "asyncUsageCount": 0
+                "summary": "10% off entire order • Minimum purchase of $1.00",
+                "startsAt": "2026-07-05T23:29:33Z",
+                "endsAt": "2026-07-05T23:31:34Z",
+                "createdAt": "2026-07-05T23:31:34Z",
+                "updatedAt": "2026-07-05T23:31:34Z",
+                "asyncUsageCount": 0,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "1.0",
+                    "currencyCode": "CAD"
+                  }
+                }
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 169,
+              "actualQueryCost": 27,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1923,
                 "restoreRate": 100
               }
             }

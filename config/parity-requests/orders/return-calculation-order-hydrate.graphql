@@ -33,6 +33,20 @@ query ReturnCalculationOrderHydrate($id: ID!) {
             currencyCode
           }
         }
+        taxLines {
+          title
+          rate
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
       }
     }
     fulfillments(first: 50) {
@@ -56,6 +70,20 @@ query ReturnCalculationOrderHydrate($id: ID!) {
               presentmentMoney {
                 amount
                 currencyCode
+              }
+            }
+            taxLines {
+              title
+              rate
+              priceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
               }
             }
             variant {

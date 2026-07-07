@@ -173,7 +173,13 @@ impl DraftProxy {
                 .collect(),
             "variants" => variants
                 .iter()
-                .map(|variant| product_variant_json(variant, Some(product), &child_node_selection))
+                .map(|variant| {
+                    self.product_variant_json_with_current_publication_context(
+                        variant,
+                        Some(product),
+                        &child_node_selection,
+                    )
+                })
                 .collect(),
             _ => Vec::new(),
         }
@@ -257,7 +263,7 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
-                rows.push(product_variant_json(
+                rows.push(self.product_variant_json_with_current_publication_context(
                     &variant,
                     Some(&product),
                     &variant_selection,

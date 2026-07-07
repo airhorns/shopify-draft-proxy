@@ -9,6 +9,16 @@ query ReturnCalculateRecorded($input: CalculateReturnInput!) {
         }
       }
       quantity
+      restockingFee {
+        id
+        percentage
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
       subtotalBeforeOrderDiscountsSet {
         shopMoney {
           amount

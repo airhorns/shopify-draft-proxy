@@ -181,6 +181,7 @@ fn metaobject_definition_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     meta_type: &str,
+    timestamp: &str,
 ) -> Value {
     let name = resolved_string_field(input, "name").unwrap_or_default();
     let display_name_key = resolved_string_field(input, "displayNameKey");
@@ -200,8 +201,8 @@ fn metaobject_definition_record(
         "fieldDefinitions": field_definitions,
         "metaobjectsCount": 0,
         "standardTemplate": Value::Null,
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "updatedAt": "2024-01-01T00:00:00.000Z"
+        "createdAt": timestamp,
+        "updatedAt": timestamp
     })
 }
 
@@ -939,6 +940,7 @@ fn metaobject_field_operation_validation(
 fn update_metaobject_definition_record(
     mut definition: Value,
     input: &BTreeMap<String, ResolvedValue>,
+    updated_at: &str,
 ) -> Value {
     if let Some(name) = resolved_string_field(input, "name") {
         definition["name"] = json!(name);
@@ -973,6 +975,7 @@ fn update_metaobject_definition_record(
     }
     apply_metaobject_definition_capability_updates(&mut definition, input);
     apply_metaobject_definition_field_operations(&mut definition, input);
+    definition["updatedAt"] = json!(updated_at);
     definition
 }
 
@@ -2475,6 +2478,7 @@ fn metaobject_required_field_errors_for_upsert(
 }
 
 struct MetaobjectRecordOptions<'a> {
+    created_at: Option<&'a str>,
     display_name: &'a str,
     publishable_status: &'a str,
     online_store_template_suffix: Value,
@@ -2527,7 +2531,7 @@ fn metaobject_record_from_definition_with_options(
                 .cloned()
         })
         .or_else(|| fields.first().cloned());
-    json!({
+    let mut record = json!({
         "id": id,
         "handle": handle,
         "type": meta_type,
@@ -2547,7 +2551,11 @@ fn metaobject_record_from_definition_with_options(
         },
         "fields": fields,
         "titleField": title_field
-    })
+    });
+    if let Some(created_at) = options.created_at {
+        record["createdAt"] = json!(created_at);
+    }
+    record
 }
 
 fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
@@ -2619,9 +2627,9 @@ fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedS
     let primary = match sort_key.as_str() {
         "display_name" | "displayname" => metaobject_normalized_sort_value(record, "displayName"),
         "type" => metaobject_normalized_sort_value(record, "type"),
-        "updated_at" | "updatedat" => StagedSortValue::String(
-            metaobject_string_value(record, "updatedAt").to_ascii_lowercase(),
-        ),
+        "updated_at" | "updatedat" => StagedSortValue::String(metaobject_sortable_datetime(
+            &metaobject_string_value(record, "updatedAt"),
+        )),
         "id" => metaobject_id_sort_value(record),
         _ => metaobject_id_sort_value(record),
     };
@@ -2699,13 +2707,56 @@ fn metaobject_id_matches(record: &Value, raw_value: &str) -> bool {
 }
 
 fn metaobject_updated_at_matches(record: &Value, raw_value: &str) -> bool {
-    let (operator, value) = metaobject_search_value(raw_value);
-    let actual = record
-        .get("updatedAt")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    metaobject_compare_order(actual, value, operator)
+    let value = raw_value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = search_comparator(value);
+    if expected.is_empty() {
+        return false;
+    }
+    let Some(actual) = record.get("updatedAt").and_then(Value::as_str) else {
+        return false;
+    };
+    let (actual, expected) = if expected.contains('T') {
+        (
+            metaobject_sortable_datetime(actual),
+            metaobject_sortable_datetime(expected),
+        )
+    } else {
+        (
+            search_datetime_value(actual, expected).to_string(),
+            expected.to_string(),
+        )
+    };
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(&expected),
+    }
+}
+
+fn metaobject_sortable_datetime(value: &str) -> String {
+    let value = value.trim();
+    let Some(without_z) = value.strip_suffix('Z').or_else(|| value.strip_suffix('z')) else {
+        return value.to_string();
+    };
+    let Some(time_start) = without_z.find('T').or_else(|| without_z.find('t')) else {
+        return format!("{without_z}.000000000Z");
+    };
+    let time_part = &without_z[time_start + 1..];
+    if let Some((base, fraction)) = without_z.rsplit_once('.') {
+        if time_part.contains('.') && fraction.chars().all(|character| character.is_ascii_digit()) {
+            let mut normalized = fraction.chars().take(9).collect::<String>();
+            while normalized.len() < 9 {
+                normalized.push('0');
+            }
+            return format!("{base}.{normalized}Z");
+        }
+    }
+    format!("{without_z}.000000000Z")
 }
 
 fn metaobject_field_search_text(field: &Value) -> Option<String> {
@@ -3027,7 +3078,7 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
+                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
                 "variables": {"id": id}
             }),
         );
@@ -3402,17 +3453,19 @@ impl DraftProxy {
         let display_name =
             metaobject_display_name(&definition, &input_values, &handle_choice.display_source);
         let publishable_status = metaobject_publishable_status(input, &definition);
+        let timestamp = self.next_mutation_timestamp();
         let record = metaobject_record_from_definition_with_options(
             &id,
             &handle_choice.handle,
             &definition,
             &input_values,
             MetaobjectRecordOptions {
+                created_at: Some(&timestamp),
                 display_name: &display_name,
                 publishable_status: &publishable_status,
                 online_store_template_suffix: metaobject_online_store_template_suffix_input(input)
                     .unwrap_or(Value::Null),
-                updated_at: "2026-01-01T00:00:00Z",
+                updated_at: &timestamp,
             },
         );
         self.store
@@ -3734,22 +3787,21 @@ impl DraftProxy {
         // `_with_options` nulls the publishable capability when the definition has it
         // disabled (e.g. after a schema change turned it off), matching how Shopify
         // reads back entries whose definition no longer exposes the capability.
-        let updated_at = existing
-            .get("updatedAt")
-            .and_then(Value::as_str)
-            .unwrap_or("2026-01-01T00:00:00Z");
+        let created_at = existing.get("createdAt").and_then(Value::as_str);
+        let updated_at = self.next_mutation_timestamp();
         let record = metaobject_record_from_definition_with_options(
             &id,
             &next_handle,
             &definition,
             &input_values,
             MetaobjectRecordOptions {
+                created_at,
                 display_name: &display_name,
                 publishable_status: &publishable_status,
                 online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
                     .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
                     .unwrap_or(Value::Null),
-                updated_at,
+                updated_at: &updated_at,
             },
         );
         self.store
@@ -4141,7 +4193,9 @@ impl DraftProxy {
             );
         }
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
-        let definition = metaobject_definition_record(&id, &definition_input, &meta_type);
+        let timestamp = self.next_mutation_timestamp();
+        let definition =
+            metaobject_definition_record(&id, &definition_input, &meta_type, &timestamp);
         self.store
             .staged
             .metaobject_definitions
@@ -4231,7 +4285,9 @@ impl DraftProxy {
         }
         let old_url_handle =
             metaobject_definition_online_store_url_handle(&definition).map(str::to_string);
-        let updated = update_metaobject_definition_record(definition, &definition_input);
+        let updated_at = self.next_mutation_timestamp();
+        let updated =
+            update_metaobject_definition_record(definition, &definition_input, &updated_at);
         let new_url_handle =
             metaobject_definition_online_store_url_handle(&updated).map(str::to_string);
         let redirect_paths = if metaobject_definition_input_create_redirects(&definition_input)

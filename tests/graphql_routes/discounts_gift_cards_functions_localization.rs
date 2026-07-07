@@ -8,6 +8,114 @@ fn json_string(value: &Value, context: &str) -> String {
         .to_string()
 }
 
+fn upstream_code_basic_fixed_amount_discount(
+    redeem_code_id: &str,
+    title: &str,
+    status: &str,
+) -> Value {
+    json!({
+        "__typename": "DiscountCodeBasic",
+        "title": title,
+        "status": status,
+        "summary": "$5.00 off entire order • Minimum purchase of $50.00",
+        "startsAt": "2026-04-27T19:31:14Z",
+        "endsAt": null,
+        "createdAt": "2026-04-20T19:31:14Z",
+        "updatedAt": "2026-05-01T00:00:00Z",
+        "asyncUsageCount": 7,
+        "usageLimit": 100,
+        "recurringCycleLimit": null,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+        },
+        "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+        },
+        "customerGets": {
+            "value": {
+                "__typename": "DiscountAmount",
+                "amount": {
+                    "amount": "5.0",
+                    "currencyCode": "USD"
+                },
+                "appliesOnEachItem": false
+            },
+            "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+        },
+        "minimumRequirement": {
+            "__typename": "DiscountMinimumSubtotal",
+            "greaterThanOrEqualToSubtotal": {
+                "amount": "50.0",
+                "currencyCode": "USD"
+            }
+        },
+        "appliesOncePerCustomer": true,
+        "codes": {
+            "nodes": [{
+                "id": redeem_code_id,
+                "code": "UPSTREAM-FIXED-5",
+                "asyncUsageCount": 3
+            }]
+        }
+    })
+}
+
+fn upstream_discount_metafields(discount_id: &str) -> Value {
+    json!({
+        "nodes": [{
+            "id": format!("{discount_id}/Metafield/1"),
+            "namespace": "custom",
+            "key": "campaign",
+            "type": "single_line_text_field",
+            "value": "summer"
+        }],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        }
+    })
+}
+
+fn assert_full_discount_config_hydrate_request(body: &str) {
+    let request_body: Value =
+        serde_json::from_str(body).expect("discount hydrate request body should parse");
+    let query = request_body["query"]
+        .as_str()
+        .expect("discount hydrate request should carry a query string");
+    for field in [
+        "customerGets",
+        "customerBuys",
+        "minimumRequirement",
+        "usageLimit",
+        "usesPerOrderLimit",
+        "recurringCycleLimit",
+        "combinesWith",
+        "discountClasses",
+        "destinationSelection",
+        "maximumShippingPrice",
+        "appliesOncePerCustomer",
+        "context",
+        "summary",
+        "metafields",
+    ] {
+        assert!(
+            query.contains(field),
+            "discount hydrate query should select {field}, got: {query}"
+        );
+    }
+}
+
 fn assert_synthetic_gid(id: &str, resource_type: &str) {
     assert!(
         id.starts_with(&format!("gid://shopify/{resource_type}/")),
@@ -12940,6 +13048,7 @@ fn discount_status_time_window_derives_create_and_read_filters() {
 #[test]
 fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
     let create_query = r#"
         mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
           discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
@@ -13390,6 +13499,285 @@ fn discount_hydrate_carries_async_usage_counts() {
 }
 
 #[test]
+fn discount_activate_hydrates_full_upstream_code_basic_config() {
+    let discount_id = "gid://shopify/DiscountCodeNode/4242101".to_string();
+    let redeem_code_id = "gid://shopify/DiscountRedeemCode/4242102".to_string();
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let expected_discount_id = discount_id.clone();
+    let expected_redeem_code_id = redeem_code_id.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert_full_discount_config_hydrate_request(&request.body);
+            let body: Value =
+                serde_json::from_str(&request.body).expect("discount hydrate body should parse");
+            assert_eq!(body["variables"]["id"], json!(expected_discount_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": {
+                            "id": expected_discount_id.clone(),
+                            "metafields": upstream_discount_metafields(&expected_discount_id),
+                            "codeDiscount": upstream_code_basic_fixed_amount_discount(
+                                &expected_redeem_code_id,
+                                "Upstream fixed amount",
+                                "ACTIVE",
+                            )
+                        },
+                        "automaticNode": null
+                    }
+                }),
+            }
+        });
+
+    let activated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateUpstreamFixedAmount($id: ID!) {
+          discountCodeActivate(id: $id) {
+            codeDiscountNode {
+              id
+              metafields(first: 2) {
+                nodes { id namespace key type value }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                  status
+                  summary
+                  usageLimit
+                  recurringCycleLimit
+                  appliesOncePerCustomer
+                  discountClasses
+                  combinesWith { productDiscounts orderDiscounts shippingDiscounts }
+                  context { __typename ... on DiscountBuyerSelectionAll { all } }
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountPercentage { percentage }
+                      ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
+                    }
+                    items { __typename ... on AllDiscountItems { allItems } }
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                  minimumRequirement {
+                    __typename
+                    ... on DiscountMinimumSubtotal {
+                      greaterThanOrEqualToSubtotal { amount currencyCode }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": discount_id.clone() }),
+    ));
+
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        activated.body["data"]["discountCodeActivate"]["userErrors"],
+        json!([])
+    );
+    let activated_discount =
+        &activated.body["data"]["discountCodeActivate"]["codeDiscountNode"]["codeDiscount"];
+    let activated_metafields =
+        &activated.body["data"]["discountCodeActivate"]["codeDiscountNode"]["metafields"];
+    assert_eq!(
+        activated_discount["customerGets"]["value"]["__typename"],
+        json!("DiscountAmount")
+    );
+    assert_eq!(
+        activated_discount["customerGets"]["value"]["amount"],
+        json!({ "amount": "5.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        activated_discount["minimumRequirement"]["greaterThanOrEqualToSubtotal"],
+        json!({ "amount": "50.0", "currencyCode": "USD" })
+    );
+    assert_eq!(activated_discount["usageLimit"], json!(100));
+    assert_eq!(activated_discount["appliesOncePerCustomer"], json!(true));
+    assert_eq!(
+        activated_discount["summary"],
+        json!("$5.00 off entire order • Minimum purchase of $50.00")
+    );
+    assert_eq!(activated_metafields["nodes"][0]["value"], json!("summer"));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadActivatedUpstreamFixedAmount($id: ID!) {
+          codeDiscountNode(id: $id) {
+            id
+            metafields(first: 2) {
+              nodes { id namespace key type value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            codeDiscount {
+              __typename
+              ... on DiscountCodeBasic {
+                title
+                status
+                summary
+                usageLimit
+                recurringCycleLimit
+                appliesOncePerCustomer
+                discountClasses
+                combinesWith { productDiscounts orderDiscounts shippingDiscounts }
+                context { __typename ... on DiscountBuyerSelectionAll { all } }
+                customerGets {
+                  value {
+                    __typename
+                    ... on DiscountPercentage { percentage }
+                    ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
+                  }
+                  items { __typename ... on AllDiscountItems { allItems } }
+                  appliesOnOneTimePurchase
+                  appliesOnSubscription
+                }
+                minimumRequirement {
+                  __typename
+                  ... on DiscountMinimumSubtotal {
+                    greaterThanOrEqualToSubtotal { amount currencyCode }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+
+    let read_discount = &read.body["data"]["codeDiscountNode"]["codeDiscount"];
+    let read_metafields = &read.body["data"]["codeDiscountNode"]["metafields"];
+    assert_eq!(
+        read_discount["customerGets"]["value"],
+        activated_discount["customerGets"]["value"]
+    );
+    assert_eq!(
+        read_discount["minimumRequirement"],
+        activated_discount["minimumRequirement"]
+    );
+    assert_eq!(read_discount["usageLimit"], json!(100));
+    assert_eq!(read_discount["appliesOncePerCustomer"], json!(true));
+    assert_eq!(read_metafields["nodes"][0]["value"], json!("summer"));
+}
+
+#[test]
+fn discount_partial_update_hydrates_full_config_without_defaulting_customer_gets() {
+    let discount_id = "gid://shopify/DiscountCodeNode/4242201".to_string();
+    let redeem_code_id = "gid://shopify/DiscountRedeemCode/4242202".to_string();
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let expected_discount_id = discount_id.clone();
+    let expected_redeem_code_id = redeem_code_id.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert_full_discount_config_hydrate_request(&request.body);
+            let body: Value =
+                serde_json::from_str(&request.body).expect("discount hydrate body should parse");
+            assert_eq!(body["variables"]["id"], json!(expected_discount_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": {
+                            "id": expected_discount_id.clone(),
+                            "metafields": upstream_discount_metafields(&expected_discount_id),
+                            "codeDiscount": upstream_code_basic_fixed_amount_discount(
+                                &expected_redeem_code_id,
+                                "Upstream fixed amount",
+                                "ACTIVE",
+                            )
+                        },
+                        "automaticNode": null
+                    }
+                }),
+            }
+        });
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateUpstreamFixedAmount($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountPercentage { percentage }
+                      ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem }
+                    }
+                    items { __typename ... on AllDiscountItems { allItems } }
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                  minimumRequirement {
+                    __typename
+                    ... on DiscountMinimumSubtotal {
+                      greaterThanOrEqualToSubtotal { amount currencyCode }
+                    }
+                  }
+                  usageLimit
+                  appliesOncePerCustomer
+                  summary
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": discount_id.clone(),
+            "input": {
+                "title": "Updated upstream title"
+            }
+        }),
+    ));
+
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        updated.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    let updated_discount =
+        &updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(updated_discount["title"], json!("Updated upstream title"));
+    assert_eq!(
+        updated_discount["customerGets"]["value"],
+        json!({
+            "__typename": "DiscountAmount",
+            "amount": { "amount": "5.0", "currencyCode": "USD" },
+            "appliesOnEachItem": false
+        })
+    );
+    assert_eq!(
+        updated_discount["minimumRequirement"]["greaterThanOrEqualToSubtotal"],
+        json!({ "amount": "50.0", "currencyCode": "USD" })
+    );
+    assert_eq!(updated_discount["usageLimit"], json!(100));
+    assert_eq!(updated_discount["appliesOncePerCustomer"], json!(true));
+    assert_eq!(
+        updated_discount["summary"],
+        json!("$5.00 off entire order • Minimum purchase of $50.00")
+    );
+}
+
+#[test]
 fn discount_update_preserves_redeemed_usage_and_scope_when_omitted() {
     let mut proxy = snapshot_proxy();
     let created = proxy.process_request(json_graphql_request(
@@ -13805,6 +14193,7 @@ fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions(
 #[test]
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let code_create_query = r#"
         mutation DiscountAmountEachCodeCreate($input: DiscountCodeBasicInput!) {

@@ -1,0 +1,650 @@
+{
+  "scenarioId": "discount-upstream-fixed-amount-activate",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "runId": 1783294281086,
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1658450346290",
+    "code": "UPFIX1783294281086"
+  },
+  "requests": {
+    "setupCreate": {
+      "query": "#graphql\n  mutation DiscountUpstreamFixedAmountSetupCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    metafields(first: 5) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        usageLimit\n        appliesOncePerCustomer\n        recurringCycleLimit\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "Upstream fixed amount 1783294281086",
+          "code": "UPFIX1783294281086",
+          "startsAt": "2026-07-05T23:29:21.086Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "5.00",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "minimumRequirement": {
+            "subtotal": {
+              "greaterThanOrEqualToSubtotal": "50.00"
+            }
+          },
+          "usageLimit": 100,
+          "appliesOncePerCustomer": true
+        }
+      }
+    },
+    "activate": {
+      "query": "mutation DiscountUpstreamFixedAmountActivate($id: ID!) {\n  discountCodeActivate(id: $id) {\n    codeDiscountNode {\n      id\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 2) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1658450346290"
+      }
+    },
+    "readAfterActivate": {
+      "query": "query DiscountUpstreamFixedAmountRead($id: ID!) {\n  codeDiscountNode(id: $id) {\n    id\n    metafields(first: 5) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        usageLimit\n        appliesOncePerCustomer\n        recurringCycleLimit\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1658450346290"
+      }
+    },
+    "cleanup": {
+      "query": "#graphql\n  mutation DiscountUpstreamFixedAmountCleanupDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1658450346290"
+      }
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "create": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "discountCodeBasicCreate": {
+              "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1658450346290",
+                "metafields": {
+                  "nodes": []
+                },
+                "codeDiscount": {
+                  "__typename": "DiscountCodeBasic",
+                  "title": "Upstream fixed amount 1783294281086",
+                  "status": "ACTIVE",
+                  "summary": "$5.00 off one-time purchase products • Minimum purchase of $50.00 • One use per customer",
+                  "startsAt": "2026-07-05T23:29:21Z",
+                  "endsAt": null,
+                  "createdAt": "2026-07-05T23:31:21Z",
+                  "updatedAt": "2026-07-05T23:31:21Z",
+                  "asyncUsageCount": 0,
+                  "usageLimit": 100,
+                  "appliesOncePerCustomer": true,
+                  "recurringCycleLimit": 1,
+                  "discountClasses": ["ORDER"],
+                  "combinesWith": {
+                    "productDiscounts": false,
+                    "orderDiscounts": true,
+                    "shippingDiscounts": false
+                  },
+                  "context": {
+                    "__typename": "DiscountBuyerSelectionAll",
+                    "all": "ALL"
+                  },
+                  "customerGets": {
+                    "value": {
+                      "__typename": "DiscountAmount",
+                      "amount": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      },
+                      "appliesOnEachItem": false
+                    },
+                    "items": {
+                      "__typename": "AllDiscountItems",
+                      "allItems": true
+                    },
+                    "appliesOnOneTimePurchase": true,
+                    "appliesOnSubscription": false
+                  },
+                  "minimumRequirement": {
+                    "__typename": "DiscountMinimumSubtotal",
+                    "greaterThanOrEqualToSubtotal": {
+                      "amount": "50.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "codes": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/DiscountRedeemCode/22250018210098",
+                        "code": "UPFIX1783294281086",
+                        "asyncUsageCount": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrateBeforeActivate": {
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1658450346290",
+              "locations": [
+                {
+                  "line": 347,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["automaticNode"]
+            }
+          ],
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/1658450346290",
+              "metafields": {
+                "nodes": []
+              },
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Upstream fixed amount 1783294281086",
+                "status": "ACTIVE",
+                "summary": "$5.00 off one-time purchase products • Minimum purchase of $50.00 • One use per customer",
+                "startsAt": "2026-07-05T23:29:21Z",
+                "endsAt": null,
+                "createdAt": "2026-07-05T23:31:21Z",
+                "updatedAt": "2026-07-05T23:31:21Z",
+                "asyncUsageCount": 0,
+                "usageLimit": 100,
+                "appliesOncePerCustomer": true,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "5.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": false
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "50.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/22250018210098",
+                      "code": "UPFIX1783294281086",
+                      "asyncUsageCount": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 169,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "activate": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeActivate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1658450346290",
+              "metafields": {
+                "nodes": []
+              },
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Upstream fixed amount 1783294281086",
+                "status": "ACTIVE",
+                "summary": "$5.00 off one-time purchase products • Minimum purchase of $50.00 • One use per customer",
+                "startsAt": "2026-07-05T23:29:21Z",
+                "endsAt": null,
+                "createdAt": "2026-07-05T23:31:21Z",
+                "updatedAt": "2026-07-05T23:31:21Z",
+                "asyncUsageCount": 0,
+                "usageLimit": 100,
+                "appliesOncePerCustomer": true,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "5.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": false
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "50.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/22250018210098",
+                      "code": "UPFIX1783294281086",
+                      "asyncUsageCount": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 25,
+            "actualQueryCost": 25,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterActivate": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1658450346290",
+            "metafields": {
+              "nodes": []
+            },
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "Upstream fixed amount 1783294281086",
+              "status": "ACTIVE",
+              "summary": "$5.00 off one-time purchase products • Minimum purchase of $50.00 • One use per customer",
+              "startsAt": "2026-07-05T23:29:21Z",
+              "endsAt": null,
+              "createdAt": "2026-07-05T23:31:21Z",
+              "updatedAt": "2026-07-05T23:31:21Z",
+              "asyncUsageCount": 0,
+              "usageLimit": 100,
+              "appliesOncePerCustomer": true,
+              "recurringCycleLimit": 1,
+              "discountClasses": ["ORDER"],
+              "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountAmount",
+                  "amount": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  },
+                  "appliesOnEachItem": false
+                },
+                "items": {
+                  "__typename": "AllDiscountItems",
+                  "allItems": true
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              },
+              "minimumRequirement": {
+                "__typename": "DiscountMinimumSubtotal",
+                "greaterThanOrEqualToSubtotal": {
+                  "amount": "50.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22250018210098",
+                    "code": "UPFIX1783294281086",
+                    "asyncUsageCount": 0
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1658450346290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1951,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1658450346290"
+      },
+      "query": "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          usesPerOrderLimit\n          appliesOncePerCustomer\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usageLimit\n          appliesOncePerCustomer\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n          codes(first: 250) {\n            nodes {\n              id\n              code\n              asyncUsageCount\n            }\n          }\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          usesPerOrderLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          customerBuys {\n            value {\n              __typename\n              ... on DiscountQuantity {\n                quantity\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountOnQuantity {\n                quantity {\n                  quantity\n                }\n                effect {\n                  __typename\n                  ... on DiscountPercentage {\n                    percentage\n                  }\n                  ... on DiscountAmount {\n                    amount {\n                      amount\n                      currencyCode\n                    }\n                    appliesOnEachItem\n                  }\n                }\n              }\n            }\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n                productVariants(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 250) {\n                  nodes {\n                    id\n                  }\n                }\n              }\n            }\n          }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          recurringCycleLimit\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          context {\n            __typename\n            ... on DiscountBuyerSelectionAll {\n              all\n            }\n            ... on DiscountCustomers {\n              customers {\n                id\n                displayName\n              }\n            }\n            ... on DiscountCustomerSegments {\n              segments {\n                id\n                name\n              }\n            }\n          }\n          destinationSelection {\n            __typename\n            ... on DiscountCountryAll {\n              allCountries\n            }\n            ... on DiscountCountries {\n              countries\n              includeRestOfWorld\n            }\n          }\n          maximumShippingPrice {\n            amount\n            currencyCode\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/DiscountCodeNode/1658450346290",
+              "locations": [
+                {
+                  "line": 347,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["automaticNode"]
+            }
+          ],
+          "data": {
+            "codeNode": {
+              "id": "gid://shopify/DiscountCodeNode/1658450346290",
+              "metafields": {
+                "nodes": []
+              },
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Upstream fixed amount 1783294281086",
+                "status": "ACTIVE",
+                "summary": "$5.00 off one-time purchase products • Minimum purchase of $50.00 • One use per customer",
+                "startsAt": "2026-07-05T23:29:21Z",
+                "endsAt": null,
+                "createdAt": "2026-07-05T23:31:21Z",
+                "updatedAt": "2026-07-05T23:31:21Z",
+                "asyncUsageCount": 0,
+                "usageLimit": 100,
+                "appliesOncePerCustomer": true,
+                "recurringCycleLimit": 1,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountAmount",
+                    "amount": {
+                      "amount": "5.0",
+                      "currencyCode": "CAD"
+                    },
+                    "appliesOnEachItem": false
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "50.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/22250018210098",
+                      "code": "UPFIX1783294281086",
+                      "asyncUsageCount": 0
+                    }
+                  ]
+                }
+              }
+            },
+            "automaticNode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 169,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -915,7 +915,7 @@ impl DraftProxy {
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
-                let base = product_variant_json(
+                let base = self.product_variant_json_with_current_publication_context(
                     variant,
                     self.store.product_by_id(&variant.product_id),
                     selections,
@@ -1086,7 +1086,7 @@ impl DraftProxy {
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
-                    let base = product_variant_json(
+                    let base = self.product_variant_json_with_current_publication_context(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         selections,

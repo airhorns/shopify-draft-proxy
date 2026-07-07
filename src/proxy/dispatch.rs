@@ -1730,6 +1730,9 @@ impl DraftProxy {
                     {
                         self.hydrate_customers_count_for_overlay_read(request);
                     }
+                    if handle_customers && self.customer_read_selects_amount_spent(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                    }
                     let data = root_payload_json(&fields, |field| {
                         if handle_customers {
                             if let Value::Object(object) =

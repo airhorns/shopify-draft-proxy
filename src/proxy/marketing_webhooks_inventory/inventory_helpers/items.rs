@@ -2479,9 +2479,13 @@ impl DraftProxy {
             "tracked" => Some(json!(variant
                 .map(|variant| variant.inventory_item.tracked)
                 .unwrap_or(true))),
-            "variant" => variant_for_payload
-                .as_ref()
-                .map(|variant| product_variant_json(variant, product, &selection.selection)),
+            "variant" => variant_for_payload.as_ref().map(|variant| {
+                self.product_variant_json_with_current_publication_context(
+                    variant,
+                    product,
+                    &selection.selection,
+                )
+            }),
             _ => None,
         })
     }

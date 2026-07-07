@@ -1,0 +1,86 @@
+query DiscountUpstreamFixedAmountRead($id: ID!) {
+  codeDiscountNode(id: $id) {
+    id
+    metafields(first: 5) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        createdAt
+        updatedAt
+      }
+    }
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        summary
+        startsAt
+        endsAt
+        createdAt
+        updatedAt
+        asyncUsageCount
+        usageLimit
+        appliesOncePerCustomer
+        recurringCycleLimit
+        discountClasses
+        combinesWith {
+          productDiscounts
+          orderDiscounts
+          shippingDiscounts
+        }
+        context {
+          __typename
+          ... on DiscountBuyerSelectionAll {
+            all
+          }
+        }
+        customerGets {
+          value {
+            __typename
+            ... on DiscountPercentage {
+              percentage
+            }
+            ... on DiscountAmount {
+              amount {
+                amount
+                currencyCode
+              }
+              appliesOnEachItem
+            }
+          }
+          items {
+            __typename
+            ... on AllDiscountItems {
+              allItems
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+        minimumRequirement {
+          __typename
+          ... on DiscountMinimumSubtotal {
+            greaterThanOrEqualToSubtotal {
+              amount
+              currencyCode
+            }
+          }
+          ... on DiscountMinimumQuantity {
+            greaterThanOrEqualToQuantity
+          }
+        }
+        codes(first: 2) {
+          nodes {
+            id
+            code
+            asyncUsageCount
+          }
+        }
+      }
+    }
+  }
+}

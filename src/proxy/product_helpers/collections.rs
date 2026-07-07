@@ -36,6 +36,7 @@ struct CollectionProductEntry {
     position: usize,
     product: ProductRecord,
     variants: Vec<ProductVariantRecord>,
+    published_on_current_publication: Option<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -129,11 +130,12 @@ fn collection_products_connection_json(
         &selection.arguments,
         &selection.selection,
         |entry, selections| {
-            product_json_with_variants_and_currency(
+            product_json_with_variants_and_currency_and_publication_context(
                 &entry.product,
                 &entry.variants,
                 selections,
                 shop_currency_code,
+                entry.published_on_current_publication,
             )
         },
         collection_product_cursor,
@@ -2054,10 +2056,15 @@ impl DraftProxy {
                     .and_then(|id| self.store.product_by_id(id).cloned())
                     .or_else(|| product_state_from_json(product))?;
                 let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
                 Some(CollectionProductEntry {
                     position,
                     product,
                     variants,
+                    published_on_current_publication,
                 })
             })
             .collect()
@@ -2073,11 +2080,16 @@ impl DraftProxy {
             .enumerate()
             .filter_map(|(position, product)| {
                 let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
                 collection_product_matches_rule_set(&product, &variants, rule_set).then_some(
                     CollectionProductEntry {
                         position,
                         product,
                         variants,
+                        published_on_current_publication,
                     },
                 )
             })

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-03T01:51:04.342Z",
+  "capturedAt": "2026-07-05T01:11:31.834Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "cases": [
@@ -8,8 +8,8 @@
       "request": {
         "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "name": "Query grammar not contains segment-query-grammar-1783043463860",
-          "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783043463860'"
+          "name": "Query grammar not contains segment-query-grammar-1783213891271",
+          "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783213891271'"
         }
       },
       "response": {
@@ -18,11 +18,11 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/652709658930",
-                "name": "Query grammar not contains segment-query-grammar-1783043463860",
-                "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783043463860'",
-                "creationDate": "2026-07-03T01:51:03Z",
-                "lastEditDate": "2026-07-03T01:51:03Z"
+                "id": "gid://shopify/Segment/652810191154",
+                "name": "Query grammar not contains segment-query-grammar-1783213891271",
+                "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783213891271'",
+                "creationDate": "2026-07-05T01:11:31Z",
+                "lastEditDate": "2026-07-05T01:11:31Z"
               },
               "userErrors": []
             }
@@ -46,7 +46,7 @@
       "request": {
         "query": "#graphql\n  query SegmentQueryGrammarRead($id: ID!) {\n    segment(id: $id) {\n      \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Segment/652709658930"
+          "id": "gid://shopify/Segment/652810191154"
         }
       },
       "response": {
@@ -54,11 +54,11 @@
         "payload": {
           "data": {
             "segment": {
-              "id": "gid://shopify/Segment/652709658930",
-              "name": "Query grammar not contains segment-query-grammar-1783043463860",
-              "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783043463860'",
-              "creationDate": "2026-07-03T01:51:03Z",
-              "lastEditDate": "2026-07-03T01:51:03Z"
+              "id": "gid://shopify/Segment/652810191154",
+              "name": "Query grammar not contains segment-query-grammar-1783213891271",
+              "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783213891271'",
+              "creationDate": "2026-07-05T01:11:31Z",
+              "lastEditDate": "2026-07-05T01:11:31Z"
             }
           },
           "extensions": {
@@ -81,7 +81,7 @@
         "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreate($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783043463860'"
+            "query": "customer_tags NOT CONTAINS 'segment-query-grammar-1783213891271'"
           }
         }
       },
@@ -91,7 +91,7 @@
           "data": {
             "customerSegmentMembersQueryCreate": {
               "customerSegmentMembersQuery": {
-                "id": "gid://shopify/CustomerSegmentMembersQuery/a68663b8-7681-11f1-bb27-520c676d5d3f",
+                "id": "gid://shopify/CustomerSegmentMembersQuery/7536f6ad-780e-11f1-9fd3-268500be1c34",
                 "currentCount": 0,
                 "done": false
               },
@@ -117,7 +117,7 @@
       "request": {
         "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Segment/652709658930"
+          "id": "gid://shopify/Segment/652810191154"
         }
       },
       "response": {
@@ -125,7 +125,7 @@
         "payload": {
           "data": {
             "segmentDelete": {
-              "deletedSegmentId": "gid://shopify/Segment/652709658930",
+              "deletedSegmentId": "gid://shopify/Segment/652810191154",
               "userErrors": []
             }
           },
