@@ -789,9 +789,10 @@ impl DraftProxy {
                 "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
                 "marketingActivitiesDeleteAllExternal" => {
                     self.store.staged.marketing_delete_all_external = true;
+                    let job_id = self.next_proxy_synthetic_gid("Job");
                     selected_json(
                         &json!({
-                            "job": { "id": "gid://shopify/Job/marketing-delete-all-local", "done": false },
+                            "job": { "id": job_id, "done": false },
                             "userErrors": []
                         }),
                         &field.selection,
