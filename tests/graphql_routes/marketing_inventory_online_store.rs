@@ -60,6 +60,297 @@ fn create_metaobject_definition_for_test(
         .to_string()
 }
 
+fn assert_timestamp_second(value: &Value, expected_prefix: &str, context: &str) -> String {
+    let timestamp = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a timestamp string"));
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|error| panic!("{context} should parse as RFC3339: {error}"));
+    assert!(
+        timestamp.starts_with(expected_prefix),
+        "{context} should start with {expected_prefix}, got {timestamp}"
+    );
+    timestamp.to_string()
+}
+
+#[test]
+fn metaobject_timestamps_follow_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_324_800)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateTimestampDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "timestamp_lifecycle_test",
+            "name": "Timestamp lifecycle test",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition =
+        &definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"];
+    let definition_id = definition["id"].as_str().unwrap().to_string();
+    let definition_created_at = assert_timestamp_second(
+        &definition["createdAt"],
+        "2026-07-06T08:00:00",
+        "definition createdAt",
+    );
+    let definition_updated_at = assert_timestamp_second(
+        &definition["updatedAt"],
+        "2026-07-06T08:00:00",
+        "definition updatedAt",
+    );
+    assert_eq!(definition_created_at, definition_updated_at);
+
+    set_clock(&clock, 1_783_324_801);
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateTimestampDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {"name": "Timestamp lifecycle updated"}
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    let updated_definition =
+        &definition_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"];
+    assert_eq!(
+        updated_definition["createdAt"],
+        json!(definition_created_at)
+    );
+    let definition_updated_again = assert_timestamp_second(
+        &updated_definition["updatedAt"],
+        "2026-07-06T08:00:01",
+        "definition updatedAt after update",
+    );
+    assert_ne!(definition_updated_again, definition_created_at);
+
+    let create_entry = |proxy: &mut DraftProxy, handle: &str, title: &str| -> Value {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateTimestampEntry($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id handle createdAt updatedAt }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"metaobject": {
+                "type": "timestamp_lifecycle_test",
+                "handle": handle,
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+    };
+
+    set_clock(&clock, 1_783_324_802);
+    let entry_a = create_entry(&mut proxy, "entry-a", "Entry A");
+    let entry_a_id = entry_a["id"].as_str().unwrap().to_string();
+    let entry_a_created_at = assert_timestamp_second(
+        &entry_a["createdAt"],
+        "2026-07-06T08:00:02",
+        "entry A createdAt",
+    );
+    let entry_a_initial_updated_at = assert_timestamp_second(
+        &entry_a["updatedAt"],
+        "2026-07-06T08:00:02",
+        "entry A updatedAt",
+    );
+    assert_eq!(entry_a_created_at, entry_a_initial_updated_at);
+
+    set_clock(&clock, 1_783_324_803);
+    let entry_b = create_entry(&mut proxy, "entry-b", "Entry B");
+    let entry_b_created_at = assert_timestamp_second(
+        &entry_b["createdAt"],
+        "2026-07-06T08:00:03",
+        "entry B createdAt",
+    );
+    let entry_b_updated_at = assert_timestamp_second(
+        &entry_b["updatedAt"],
+        "2026-07-06T08:00:03",
+        "entry B updatedAt",
+    );
+    assert_eq!(entry_b_created_at, entry_b_updated_at);
+
+    set_clock(&clock, 1_783_324_804);
+    let entry_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateTimestampEntry($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": entry_a_id,
+            "metaobject": {"fields": [{"key": "title", "value": "Entry A updated"}]}
+        }),
+    ));
+    assert_eq!(
+        entry_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let entry_a_updated = &entry_update.body["data"]["metaobjectUpdate"]["metaobject"];
+    assert_eq!(entry_a_updated["createdAt"], json!(entry_a_created_at));
+    let entry_a_updated_at = assert_timestamp_second(
+        &entry_a_updated["updatedAt"],
+        "2026-07-06T08:00:04",
+        "entry A updatedAt after update",
+    );
+    assert_ne!(entry_a_updated_at, entry_a_created_at);
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesSorted($type: String!) {
+          metaobjects(first: 10, type: $type, sortKey: UPDATED_AT, reverse: true) {
+            nodes { handle createdAt updatedAt }
+          }
+        }
+        "#,
+        json!({"type": "timestamp_lifecycle_test"}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["handle"],
+        json!("entry-a")
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][1]["handle"],
+        json!("entry-b")
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["createdAt"],
+        json!(entry_a_created_at)
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["updatedAt"],
+        json!(entry_a_updated_at)
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesFiltered($type: String!, $query: String!) {
+          metaobjects(first: 10, type: $type, query: $query) {
+            nodes { handle updatedAt }
+          }
+        }
+        "#,
+        json!({
+            "type": "timestamp_lifecycle_test",
+            "query": "updated_at:>2026-07-06T08:00:03Z"
+        }),
+    ));
+    assert_eq!(
+        filtered.body["data"]["metaobjects"]["nodes"],
+        json!([{"handle": "entry-a", "updatedAt": entry_a_updated_at}])
+    );
+
+    let date_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesDateFiltered($type: String!, $query: String!) {
+          metaobjects(first: 10, type: $type, query: $query) {
+            nodes { handle }
+          }
+        }
+        "#,
+        json!({
+            "type": "timestamp_lifecycle_test",
+            "query": "updated_at:>2026-06-01"
+        }),
+    ));
+    assert_eq!(
+        date_filtered.body["data"]["metaobjects"]["nodes"],
+        json!([{"handle": "entry-a"}, {"handle": "entry-b"}])
+    );
+
+    set_clock(&clock, 1_783_324_805);
+    let upsert_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertTimestampEntry($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "timestamp_lifecycle_test", "handle": "upserted-entry"},
+            "metaobject": {"fields": [{"key": "title", "value": "Upserted entry"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let upserted = &upsert_create.body["data"]["metaobjectUpsert"]["metaobject"];
+    let upsert_created_at = assert_timestamp_second(
+        &upserted["createdAt"],
+        "2026-07-06T08:00:05",
+        "upsert create createdAt",
+    );
+    let upsert_initial_updated_at = assert_timestamp_second(
+        &upserted["updatedAt"],
+        "2026-07-06T08:00:05",
+        "upsert create updatedAt",
+    );
+    assert_eq!(upsert_created_at, upsert_initial_updated_at);
+
+    set_clock(&clock, 1_783_324_806);
+    let upsert_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertTimestampEntryAgain($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "timestamp_lifecycle_test", "handle": "upserted-entry"},
+            "metaobject": {"fields": [{"key": "title", "value": "Upserted entry updated"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_update.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let upserted_again = &upsert_update.body["data"]["metaobjectUpsert"]["metaobject"];
+    assert_eq!(upserted_again["createdAt"], json!(upsert_created_at));
+    let upsert_updated_at = assert_timestamp_second(
+        &upserted_again["updatedAt"],
+        "2026-07-06T08:00:06",
+        "upsert update updatedAt",
+    );
+    assert_ne!(upsert_updated_at, upsert_created_at);
+}
+
 #[test]
 fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
     let mut proxy = snapshot_proxy();
@@ -1310,7 +1601,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
-fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_values() {
+fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_values() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(
         r#"
@@ -1321,7 +1612,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
             status: ACTIVE,
             tactic: AD,
             marketingChannelType: SEARCH,
-            channelHandle: "social-feed",
+            channelHandle: "email",
             remoteUrl: "https://example.com/social-launch",
             previewUrl: "https://example.com/social-preview",
             utm: { campaign: "social-campaign", source: "social", medium: "paid" }
@@ -1374,7 +1665,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
             "marketingEvent": {
                 "id": created["marketingEvent"]["id"],
                 "remoteId": "social-remote-1",
-                "channelHandle": "social-feed",
+                "channelHandle": "email",
                 "utmCampaign": "social-campaign",
                 "utmSource": "social",
                 "utmMedium": "paid"
@@ -1528,13 +1819,12 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
-fn marketing_channel_handles_accept_non_empty_values() {
+fn marketing_unknown_channel_handles_return_captured_user_errors() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingChannelHandleAcceptance(
+        mutation MarketingChannelHandleValidation(
           $createInput: MarketingActivityCreateExternalInput!
-          $upsertInput: MarketingActivityUpsertExternalInput!
           $engagement: MarketingEngagementInput!
         ) {
           customEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
@@ -1545,40 +1835,21 @@ fn marketing_channel_handles_accept_non_empty_values() {
             marketingActivity { id }
             userErrors { field message code }
           }
-          customUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
-            marketingActivity { id }
-            userErrors { field message code }
-          }
         }
         "#,
         json!({
             "createInput": {"title": "Invalid create channel", "remoteId": "invalid-create-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-create-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-create-channel", "source": "email", "medium": "newsletter"}},
-            "upsertInput": {"title": "Invalid upsert channel", "remoteId": "invalid-upsert-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-upsert-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-upsert-channel", "source": "email", "medium": "newsletter"}},
             "engagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00"}
         }),
     ));
 
     assert_eq!(
         response.body["data"]["customEngagement"],
-        json!({"marketingEngagement": {"occurredOn": "2026-04-01"}, "userErrors": []})
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
     assert_eq!(
-        response.body["data"]["customCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        response.body["data"]["customUpsert"]["userErrors"],
-        json!([])
-    );
-    assert!(
-        response.body["data"]["customCreate"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
-    );
-    assert!(
-        response.body["data"]["customUpsert"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
+        response.body["data"]["customCreate"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
 }
 
@@ -1886,6 +2157,7 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
           $validEngagement: MarketingEngagementInput!
         ) {
           activityWithoutEvent: marketingActivityUpdate(input: $activityInput) { marketingActivity { id marketingEvent { id } } userErrors { field message } }
+          unknownChannelCurrency: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           unknownRemoteCurrency: marketingEngagementCreate(remoteId: $missingRemoteId, marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingActivity: marketingEngagementCreate(marketingActivityId: $missingActivityId, marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingEvent: marketingEngagementCreate(marketingActivityId: "gid://shopify/MarketingActivity/1", marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
@@ -1900,6 +2172,10 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
         }),
     ));
 
+    assert_eq!(
+        response.body["data"]["unknownChannelCurrency"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
     assert_eq!(
         response.body["data"]["unknownRemoteCurrency"],
         json!({"marketingEngagement": null, "userErrors": [{"field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT"}]})
@@ -7459,9 +7735,9 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntime {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
@@ -7655,9 +7931,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
                         "webPixel": {
                             "__typename": "WebPixel",
                             "id": web_pixel_id,
-                            "status": "CONNECTED",
-                            "settings": {"accountID": "upstream"},
-                            "webhookEndpointAddress": null
+                            "settings": {"accountID": "upstream"}
                         },
                         "serverPixel": {
                             "__typename": "ServerPixel",
@@ -7691,7 +7965,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
           themes(first: 10) { nodes { id name role } }
           scriptTag(id: $scriptTagId) { id src displayScope event cache }
           scriptTags(first: 10) { nodes { id src displayScope event cache } }
-          webPixel(id: $webPixelId) { id status settings webhookEndpointAddress }
+          webPixel(id: $webPixelId) { id settings }
           serverPixel(id: $serverPixelId) { id status webhookEndpointAddress }
           mobilePlatformApplication(id: $mobileAppId) { __typename ... on AppleApplication { id appId universalLinksEnabled } }
           mobilePlatformApplications(first: 10) { nodes { __typename ... on AppleApplication { id appId universalLinksEnabled } } }
@@ -7733,7 +8007,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     );
     assert_eq!(
         hydrated_read.body["data"]["webPixel"],
-        json!({"id": web_pixel_id, "status": "CONNECTED", "settings": {"accountID": "upstream"}, "webhookEndpointAddress": null})
+        json!({"id": web_pixel_id, "settings": {"accountID": "upstream"}})
     );
     assert_eq!(
         hydrated_read.body["data"]["serverPixel"],
@@ -7803,10 +8077,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
                 "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
                 "title": "Hydrogen",
                 "accessToken": first_token,
-                "accessScopes": [
-                    {"handle": "unauthenticated_read_product_listings"},
-                    {"handle": "unauthenticated_read_product_inventory"}
-                ]
+                "accessScopes": []
             },
             "shop": {},
             "userErrors": []
@@ -7937,13 +8208,13 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
 }
 
 #[test]
-fn web_pixel_create_success_returns_connected_with_non_null_settings() {
+fn web_pixel_create_success_returns_non_null_settings() {
     let mut omitted_proxy = snapshot_proxy();
     let omitted = omitted_proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeOmittedSettings {
           webPixelCreate(webPixel: {}) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -7955,7 +8226,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -7967,7 +8237,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeEmptyJsonSettings {
           webPixelCreate(webPixel: { settings: "{}" }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -7979,7 +8249,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -7991,7 +8260,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeObjectSettings {
           webPixelCreate(webPixel: { settings: { accountID: "abc" } }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -8003,7 +8272,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {"accountID": "abc"}
             },
             "userErrors": []
@@ -8015,21 +8283,55 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
 fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
+    let web_pixel_status = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreWebPixelStatusIsNotAField($webPixel: WebPixelInput!) {
+          webPixelCreate(webPixel: $webPixel) {
+            webPixel { id status }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({"webPixel": {"settings": "{}"}}),
+    ));
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["message"],
+        json!("Field 'status' doesn't exist on type 'WebPixel'")
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["path"],
+        json!([
+            "mutation RustOnlineStoreWebPixelStatusIsNotAField",
+            "webPixelCreate",
+            "webPixel",
+            "status"
+        ])
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "WebPixel",
+            "fieldName": "status"
+        })
+    );
+    assert!(web_pixel_status.body.get("data").is_none());
+
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStorePixelLocalRuntimeEdges {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings webhookEndpointAddress } userErrors { __typename code field message } }
-          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id } userErrors { __typename code field message } }
           missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status webhookEndpointAddress } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         web_pixel.body["data"]["create"],
-        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "CONNECTED", "settings": {}, "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {}}, "userErrors": []})
     );
     assert_eq!(
         web_pixel.body["data"]["duplicate"],
@@ -8045,7 +8347,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     );
     assert_eq!(
         web_pixel.body["data"]["validUpdate"]["webPixel"],
-        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}, "status": "CONNECTED", "webhookEndpointAddress": null})
+        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}})
     );
 
     let missing_server = proxy.process_request(json_graphql_request(
@@ -8072,19 +8374,27 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
         r#"
         mutation RustOnlineStoreServerPixelEndpointLocalRuntimeEdges {
           create: serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
-          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
-          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
+          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         server_pixel.body["data"]["create"],
-        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "CONNECTED", "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "DISCONNECTED_UNCONFIGURED", "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        server_pixel.body["data"]["eventBridge"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["eventBridge"]["serverPixel"]["webhookEndpointAddress"],
         json!("arn:aws:events:us-east-1:123456789012:event-bus/local")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["pubsub"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],

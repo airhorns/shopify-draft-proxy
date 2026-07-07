@@ -26,6 +26,8 @@ const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
 // `CustomerMergeHydrate` cassettes byte-match what `hydrate_customer_for_merge` forwards.
 const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
+const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
 
 impl DraftProxy {
     pub(in crate::proxy) fn dispatch_unknown_passthrough_or_legacy_error(
@@ -195,6 +197,18 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn customer_read_selects_amount_spent(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "customer" | "customerByIdentifier" | "customers"
+            ) && selection_contains_any(&field.selection, &["amountSpent"])
+        })
+    }
+
     /// The store-wide total customer count: the seeded live baseline (or the
     /// legacy default) reduced by the number of customers deleted/merged-away in
     /// this scenario, so `customersCount` tracks merges generically.
@@ -329,6 +343,18 @@ impl DraftProxy {
         // that recorded page is projected verbatim instead.
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "canDelete" => Some(json!(self.customer_can_delete_value(id, customer))),
+            "amountSpent"
+                if customer.get("amountSpent").is_none_or(Value::is_null)
+                    && customer_order_count(customer) == Some(0) =>
+            {
+                let projected = json!({
+                    "amountSpent": money_value("0.0", &self.store.shop_currency_code())
+                });
+                selected_json(&projected, std::slice::from_ref(field))
+                    .as_object()
+                    .and_then(|object| object.get(&field.response_key).cloned())
+            }
             "orders" => Some(match mapped_orders {
                 Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
@@ -379,6 +405,29 @@ impl DraftProxy {
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
         })
+    }
+
+    fn customer_can_delete_value(&self, id: &str, customer: &Value) -> bool {
+        if self.customer_has_effective_orders(id, customer) {
+            return false;
+        }
+        customer
+            .get("canDelete")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+    }
+
+    fn customer_has_effective_orders(&self, id: &str, customer: &Value) -> bool {
+        self.store
+            .staged
+            .customer_orders
+            .get(id)
+            .is_some_and(|orders| !orders.is_empty())
+            || connection_has_nodes(&customer["orders"])
+            || customer_order_count(customer).is_some_and(|count| count > 0)
+            || customer
+                .get("lastOrder")
+                .is_some_and(|last_order| !last_order.is_null())
     }
 
     pub(in crate::proxy) fn store_credit_account_read_fields(
@@ -1017,6 +1066,10 @@ impl DraftProxy {
             .cloned()
             .unwrap_or(Value::Null);
         let id = self.next_proxy_synthetic_gid("Order");
+        let mut customer = customer;
+        if !customer.is_null() {
+            customer["canDelete"] = json!(false);
+        }
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
             self.store
@@ -1047,6 +1100,12 @@ impl DraftProxy {
             )
         }) {
             return json_error(400, "Unsupported mixed customer mutation selection");
+        }
+        let selects_amount_spent = fields
+            .iter()
+            .any(|field| selection_contains_any(&field.selection, &["amountSpent"]));
+        if selects_amount_spent {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
 
         let mut errors = Vec::new();
@@ -1179,9 +1238,17 @@ impl DraftProxy {
         // scenarios use the lenient `shopify-gid:Customer` matcher.
         let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
+        let default_locale = self.localization_primary_locale();
         let verified_email_default = customer_create_verified_email_default(request, &normalized);
-        let mut customer =
-            customer_record_from_parts(&id, None, &normalized, &timestamp, verified_email_default);
+        let mut customer = customer_record_from_parts(
+            &id,
+            None,
+            &normalized,
+            &timestamp,
+            &default_locale,
+            verified_email_default,
+        );
+        let shop_currency_code = self.store.observed_shop_currency_code();
         // `customerCreate` accepts inline `emailMarketingConsent` /
         // `smsMarketingConsent` and immediately reflects them on the staged
         // record's compatibility consent fields and on
@@ -1195,9 +1262,8 @@ impl DraftProxy {
         // select the order summary match without inventing order state. The
         // per-customer `orders` connection on reads is recomputed from the staged
         // `customer_orders` index, so this stored empty connection only backs the
-        // mutation payload projection. `amountSpent` needs the shop currency (not
-        // known locally) and remains the one acknowledged representation gap.
-        apply_customer_order_summary_defaults(&mut customer);
+        // mutation payload projection.
+        apply_customer_order_summary_defaults(&mut customer, shop_currency_code.as_deref());
         // A freshly created customer also has no store-credit accounts. Bake the
         // empty connection so a create payload selecting `storeCreditAccounts`
         // matches; reads recompute it from staged store-credit state via
@@ -1282,11 +1348,13 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let shop = self.customer_delete_shop_payload();
-        let mut payload = if id.is_empty() || !self.customer_exists_for_mutation(request, &id) {
+        let customer_exists = !id.is_empty() && self.customer_exists_for_mutation(request, &id);
+        self.hydrate_customer_delete_shop_if_selected(request, &field.selection);
+        let selected_shop = self.customer_delete_shop_payload(&field.selection);
+        let mut payload = if !customer_exists {
             json!({
                 "deletedCustomerId": null,
-                "shop": shop,
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
@@ -1299,7 +1367,7 @@ impl DraftProxy {
         {
             json!({
                 "deletedCustomerId": null,
-                "shop": shop,
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
@@ -1307,7 +1375,7 @@ impl DraftProxy {
             self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
-                "shop": shop,
+                "shop": selected_shop,
                 "userErrors": []
             })
         };
@@ -1326,15 +1394,68 @@ impl DraftProxy {
         (payload, staged_ids, Vec::new())
     }
 
-    fn customer_delete_shop_payload(&self) -> Value {
+    fn customer_delete_shop_payload(&self, payload_selection: &[SelectedField]) -> Value {
+        if selected_child_selection(payload_selection, "shop").is_none() {
+            return Value::Null;
+        }
+        if !self.customer_delete_shop_has_real_identity() {
+            return Value::Null;
+        }
+        self.store.effective_shop()
+    }
+
+    fn hydrate_customer_delete_shop_if_selected(
+        &mut self,
+        request: &Request,
+        payload_selection: &[SelectedField],
+    ) {
+        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
+            return;
+        };
+        if !self.customer_delete_shop_needs_hydration(&shop_selection) {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_DELETE_SHOP_HYDRATE_QUERY,
+                "operationName": "CustomerDeleteShopHydrate",
+                "variables": {},
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        }
+    }
+
+    fn customer_delete_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
+            return false;
+        }
+        let has_default_shop = self
+            .store
+            .base
+            .shop
+            .get("myshopifyDomain")
+            .and_then(Value::as_str)
+            == Some("shopify-draft-proxy.local");
+        !self.customer_delete_shop_has_real_identity()
+            || has_default_shop
+            || shop_selection
+                .iter()
+                .any(|field| self.store.base.shop.get(&field.name).is_none())
+    }
+
+    fn customer_delete_shop_has_real_identity(&self) -> bool {
         self.store
             .base
             .shop
             .get("id")
             .and_then(Value::as_str)
-            .filter(|id| !id.trim().is_empty())
-            .map(|id| json!({ "id": id }))
-            .unwrap_or(Value::Null)
+            .is_some_and(|id| {
+                let id = id.trim();
+                !id.is_empty() && !id.contains("shopify-draft-proxy=synthetic")
+            })
     }
 
     fn customer_set_payload(
@@ -1511,7 +1632,11 @@ impl DraftProxy {
         }
         let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
-        let customer = customer_record_from_parts(&id, None, &normalized, &timestamp, true);
+        let default_locale = self.localization_primary_locale();
+        let mut customer =
+            customer_record_from_parts(&id, None, &normalized, &timestamp, &default_locale, true);
+        let shop_currency_code = self.store.observed_shop_currency_code();
+        apply_customer_order_summary_defaults(&mut customer, shop_currency_code.as_deref());
         self.store
             .staged
             .customers
@@ -1575,8 +1700,15 @@ impl DraftProxy {
             );
         }
         let timestamp = self.next_product_timestamp();
-        let customer =
-            customer_record_from_parts(id, Some(&existing), &normalized, &timestamp, customer_set);
+        let default_locale = self.localization_primary_locale();
+        let customer = customer_record_from_parts(
+            id,
+            Some(&existing),
+            &normalized,
+            &timestamp,
+            &default_locale,
+            customer_set,
+        );
         if !customer_has_identity_json(&customer) {
             let field = if customer_set {
                 json!(["input"])
@@ -2325,14 +2457,21 @@ fn customer_record_from_parts(
     existing: Option<&Value>,
     input: &NormalizedCustomerInput,
     timestamp: &str,
+    default_locale: &str,
     verified_email_default: bool,
 ) -> Value {
     let first = customer_string_value(input.first_name.as_ref(), existing, "firstName");
     let last = customer_string_value(input.last_name.as_ref(), existing, "lastName");
     let email = customer_string_value(input.email.as_ref(), existing, "email");
     let phone = customer_string_value(input.phone.as_ref(), existing, "phone");
-    let locale = customer_string_value(input.locale.as_ref(), existing, "locale")
-        .or_else(|| Some("en".to_string()));
+    let locale = match input.locale.as_ref() {
+        Some(value) => value.clone(),
+        None => existing
+            .and_then(|customer| customer.get("locale"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| Some(default_locale.to_string())),
+    };
     let note = customer_string_value(input.note.as_ref(), existing, "note");
     let tags = input
         .tags
@@ -2382,7 +2521,7 @@ fn customer_record_from_parts(
     let verified_email = existing
         .and_then(|customer| customer["verifiedEmail"].as_bool())
         .unwrap_or(verified_email_default);
-    customer_record(CustomerRecordInput {
+    let mut customer = customer_record(CustomerRecordInput {
         id,
         first: first.as_deref(),
         last: last.as_deref(),
@@ -2397,7 +2536,59 @@ fn customer_record_from_parts(
         addresses,
         created_at,
         updated_at: timestamp,
-    })
+    });
+    if let Some(existing) = existing {
+        preserve_existing_customer_fields(&mut customer, existing, input);
+    }
+    customer
+}
+
+fn preserve_existing_customer_fields(
+    customer: &mut Value,
+    existing: &Value,
+    input: &NormalizedCustomerInput,
+) {
+    let (Some(customer), Some(existing)) = (customer.as_object_mut(), existing.as_object()) else {
+        return;
+    };
+
+    for (key, value) in existing {
+        if !customer.contains_key(key) {
+            customer.insert(key.clone(), value.clone());
+        }
+    }
+
+    for key in [
+        "state",
+        "canDelete",
+        "dataSaleOptOut",
+        "numberOfOrders",
+        "amountSpent",
+        "lastOrder",
+        "orders",
+        "storeCreditAccounts",
+        "metafield",
+        "metafields",
+    ] {
+        if let Some(value) = existing.get(key) {
+            customer.insert(key.to_string(), value.clone());
+        }
+    }
+
+    if input.email.is_none() {
+        for key in ["defaultEmailAddress", "emailMarketingConsent"] {
+            if let Some(value) = existing.get(key) {
+                customer.insert(key.to_string(), value.clone());
+            }
+        }
+    }
+    if input.phone.is_none() {
+        for key in ["defaultPhoneNumber", "smsMarketingConsent"] {
+            if let Some(value) = existing.get(key) {
+                customer.insert(key.to_string(), value.clone());
+            }
+        }
+    }
 }
 
 /// `customerCreate` rejects nested resource ids on creation: an `id` key inside
@@ -2640,6 +2831,7 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "taxExemptions": input.tax_exemptions,
         "tags": input.tags,
         "state": "DISABLED",
+        "dataSaleOptOut": false,
         "canDelete": true,
         "metafield": Value::Null,
         "metafields": nodes_connection(Vec::new()),
@@ -3295,14 +3487,29 @@ fn customer_number_of_orders_matches(customer: &Value, value: &str) -> bool {
     }) == Some(expected)
 }
 
+fn customer_order_count(customer: &Value) -> Option<u64> {
+    customer
+        .get("numberOfOrders")
+        .and_then(|count| match count {
+            Value::String(value) => value.parse::<u64>().ok(),
+            Value::Number(value) => value.as_u64(),
+            _ => None,
+        })
+}
+
 /// Surface Shopify's order-summary defaults on a freshly staged customer record:
 /// `numberOfOrders` is the string `"0"`, `lastOrder` is explicitly null, and
 /// `orders` is an empty connection (with the `pageInfo` shape a `first:`/`last:`
 /// page selection expects). Only fills fields that are absent/null so a record
 /// that already carries real order state (e.g. a seeded customer) is untouched.
-fn apply_customer_order_summary_defaults(customer: &mut Value) {
+fn apply_customer_order_summary_defaults(customer: &mut Value, shop_currency_code: Option<&str>) {
     if customer.get("numberOfOrders").is_none_or(Value::is_null) {
         customer["numberOfOrders"] = json!("0");
+    }
+    if let Some(shop_currency_code) = shop_currency_code {
+        if customer.get("amountSpent").is_none_or(Value::is_null) {
+            customer["amountSpent"] = money_value("0.0", shop_currency_code);
+        }
     }
     if customer.get("lastOrder").is_none() {
         customer["lastOrder"] = Value::Null;

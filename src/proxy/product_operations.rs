@@ -3,6 +3,7 @@ use super::*;
 impl DraftProxy {
     pub(in crate::proxy) fn product_set(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -110,23 +111,6 @@ impl DraftProxy {
                 .and_then(|handle| self.store.product_by_handle(&handle).cloned())
         });
         let base = existing.or(by_handle);
-        let category = if let Some(category_id) = product_category_input_id(&input) {
-            match product_category_value(&category_id) {
-                Some(category) => Some(category),
-                None => {
-                    let location = root_field
-                        .as_ref()
-                        .map(|field| field.location)
-                        .unwrap_or(SourceLocation { line: 1, column: 1 });
-                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
-                        &response_key,
-                        location,
-                    ));
-                }
-            }
-        } else {
-            None
-        };
         let product_id = base
             .as_ref()
             .map(|product| product.id.clone())
@@ -207,10 +191,24 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category) = category {
-            product
-                .extra_fields
-                .insert("category".to_string(), category);
+        if let Some(category_id) = product_category_input_id(&input) {
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    product
+                        .extra_fields
+                        .insert("category".to_string(), category);
+                }
+                None => {
+                    let location = root_field
+                        .as_ref()
+                        .map(|field| field.location)
+                        .unwrap_or(SourceLocation { line: 1, column: 1 });
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        &response_key,
+                        location,
+                    ));
+                }
+            }
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(

@@ -142,6 +142,7 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
 #[test]
 fn product_variant_count_and_compare_at_range_follow_effective_variants() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateProductForVariantCount($product: ProductCreateInput!) {
@@ -913,31 +914,25 @@ fn product_update_media_ready_image_urls_are_stable_per_media() {
     );
 }
 
-fn assert_invalid_product_taxonomy_node_id(response: &Response, root: &str) {
-    assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"][root], json!(null));
-    assert_eq!(
-        response.body["errors"][0]["message"],
-        json!("Invalid product_taxonomy_node_id")
-    );
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["code"],
-        json!("INVALID_PRODUCT_TAXONOMY_NODE_ID")
-    );
-    assert_eq!(response.body["errors"][0]["path"], json!([root]));
-}
-
 #[test]
-fn product_create_unknown_category_returns_invalid_taxonomy_error() {
+fn product_create_unknown_category_returns_derived_category_fields() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": unknown_category,
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
+    });
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation UnknownCategoryCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
-            product { id category { id fullName } }
-            userErrors { field message  }
+            product { id category { id fullName name isLeaf level parentId } }
+            userErrors { field message }
           }
         }
         "#,
@@ -948,23 +943,50 @@ fn product_create_unknown_category_returns_invalid_taxonomy_error() {
             }
         }),
     ));
-    assert_invalid_product_taxonomy_node_id(&create, "productCreate");
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["category"],
+        expected_category
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
 
-    let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCategoryCreateRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName name isLeaf level parentId }
+          }
+        }
+        "#,
+        json!({ "id": created_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
 }
 
 #[test]
-fn product_set_unknown_category_returns_invalid_taxonomy_error() {
+fn product_set_unknown_category_returns_derived_category_fields() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": unknown_category,
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
+    });
     let mut proxy = snapshot_proxy();
 
     let set = proxy.process_request(json_graphql_request(
         r#"
         mutation UnknownCategoryProductSet($input: ProductSetInput!) {
           productSet(input: $input) {
-            product { id category { id fullName } }
-            userErrors { field message code }
+            product { id category { id fullName name isLeaf level parentId } }
+            userErrors { field message }
           }
         }
         "#,
@@ -975,48 +997,64 @@ fn product_set_unknown_category_returns_invalid_taxonomy_error() {
             }
         }),
     ));
-    assert_invalid_product_taxonomy_node_id(&set, "productSet");
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["productSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["productSet"]["product"]["category"],
+        expected_category
+    );
+    let set_id = set.body["data"]["productSet"]["product"]["id"].clone();
 
-    let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCategoryProductSetRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName name isLeaf level parentId }
+          }
+        }
+        "#,
+        json!({ "id": set_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
 }
 
 #[test]
-fn product_update_category_stages_known_category() {
-    let known_category = "gid://shopify/TaxonomyCategory/aa-1-1";
+fn product_update_unknown_category_returns_derived_category_fields() {
+    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
     let expected_category = json!({
-        "id": known_category,
-        "fullName": "Apparel & Accessories > Clothing > Activewear"
+        "id": unknown_category,
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
     });
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductUpdateCategorySetup($product: ProductCreateInput!) {
+        mutation CategoryUpdateSeed($product: ProductCreateInput!) {
           productCreate(product: $product) {
-            product { id category { id fullName } }
+            product { id }
             userErrors { field message }
           }
         }
         "#,
-        json!({ "product": { "title": "Category update setup" } }),
+        json!({ "product": { "title": "Category update seed" } }),
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
         create.body["data"]["productCreate"]["userErrors"],
         json!([])
     );
-    assert_eq!(
-        create.body["data"]["productCreate"]["product"]["category"],
-        json!(null)
-    );
     let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductUpdateKnownCategory($product: ProductUpdateInput!) {
+        mutation UnknownCategoryUpdate($product: ProductUpdateInput!) {
           productUpdate(product: $product) {
-            product { id category { id fullName } }
+            product { id category { id fullName name isLeaf level parentId } }
             userErrors { field message }
           }
         }
@@ -1024,7 +1062,7 @@ fn product_update_category_stages_known_category() {
         json!({
             "product": {
                 "id": product_id,
-                "category": known_category
+                "category": unknown_category
             }
         }),
     ));
@@ -1037,84 +1075,168 @@ fn product_update_category_stages_known_category() {
         update.body["data"]["productUpdate"]["product"]["category"],
         expected_category
     );
+    let updated_id = update.body["data"]["productUpdate"]["product"]["id"].clone();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query ProductUpdateKnownCategoryRead($id: ID!) {
+        query UnknownCategoryUpdateRead($id: ID!) {
           product(id: $id) {
-            category { id fullName }
+            category { id fullName name isLeaf level parentId }
           }
         }
         "#,
-        json!({ "id": product_id }),
+        json!({ "id": updated_id }),
     ));
     assert_eq!(read.status, 200);
     assert_eq!(read.body["data"]["product"]["category"], expected_category);
 }
 
 #[test]
-fn product_update_unknown_category_returns_invalid_taxonomy_error_without_changing_product() {
-    let known_category = "gid://shopify/TaxonomyCategory/aa-1-1";
-    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
-    let expected_category = json!({
-        "id": known_category,
-        "fullName": "Apparel & Accessories > Clothing > Activewear"
-    });
+fn product_category_snapshot_fallback_has_no_former_special_cases() {
+    let cases = [
+        (
+            "gid://shopify/TaxonomyCategory/aa-1-1",
+            json!({
+                "id": "gid://shopify/TaxonomyCategory/aa-1-1",
+                "fullName": "Aa > 1 > 1",
+                "name": "1",
+                "isLeaf": true,
+                "level": 3,
+                "parentId": "gid://shopify/TaxonomyCategory/aa-1"
+            }),
+        ),
+        (
+            "gid://shopify/TaxonomyCategory/na",
+            json!({
+                "id": "gid://shopify/TaxonomyCategory/na",
+                "fullName": "Na",
+                "name": "Na",
+                "isLeaf": true,
+                "level": 1,
+                "parentId": null
+            }),
+        ),
+    ];
     let mut proxy = snapshot_proxy();
+
+    for (category, expected_category) in cases {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation FormerSpecialCategoryCreate($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id category { id fullName name isLeaf level parentId } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": format!("Former special category {category}"),
+                    "category": category
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            create.body["data"]["productCreate"]["product"]["category"],
+            expected_category
+        );
+    }
+}
+
+#[test]
+fn product_create_live_hybrid_uses_upstream_taxonomy_category_details() {
+    let category_id = "gid://shopify/TaxonomyCategory/ap-2-7";
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["operationName"],
+                json!("ProductTaxonomyCategoryHydrate")
+            );
+            assert_eq!(body["variables"]["id"], json!(category_id));
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("... on TaxonomyCategory")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "node": {
+                            "__typename": "TaxonomyCategory",
+                            "id": category_id,
+                            "name": "Pet Apparel Hangers",
+                            "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+                            "isLeaf": true,
+                            "level": 3,
+                            "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let expected_category = json!({
+        "id": category_id,
+        "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+        "name": "Pet Apparel Hangers",
+        "isLeaf": true,
+        "level": 3,
+        "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+    });
 
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductUpdateUnknownCategorySetup($product: ProductCreateInput!) {
+        mutation HydratedCategoryCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
-            product { id category { id fullName } }
+            product { id category { id fullName name isLeaf level parentId } }
             userErrors { field message }
           }
         }
         "#,
         json!({
             "product": {
-                "title": "Unknown category update setup",
-                "category": known_category
+                "title": "Hydrated category create",
+                "category": category_id
             }
         }),
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
         create.body["data"]["productCreate"]["product"]["category"],
         expected_category
     );
-    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductUpdateUnknownCategory($product: ProductUpdateInput!) {
-          productUpdate(product: $product) {
-            product { id category { id fullName } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "product": {
-                "id": product_id,
-                "category": unknown_category
-            }
-        }),
-    ));
-    assert_invalid_product_taxonomy_node_id(&update, "productUpdate");
+    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query ProductUpdateUnknownCategoryRead($id: ID!) {
+        query HydratedCategoryCreateRead($id: ID!) {
           product(id: $id) {
-            category { id fullName }
+            category { id fullName name isLeaf level parentId }
           }
         }
         "#,
-        json!({ "id": product_id }),
+        json!({ "id": created_id }),
     ));
     assert_eq!(read.status, 200);
     assert_eq!(read.body["data"]["product"]["category"], expected_category);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 fn missing_product_hydrate_response() -> Response {
@@ -7803,6 +7925,225 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     );
     assert_eq!(forwarded.lock().unwrap().len(), 1);
 
+    let create_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateVariantForCurrentPublication($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id inventoryItem { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": current_product_id,
+            "variants": [{
+                "optionValues": [{ "optionName": "Title", "name": "Variant title" }]
+            }]
+        }),
+    ));
+    assert_eq!(create_variant.status, 200);
+    assert_eq!(
+        create_variant.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    let variant_id = create_variant.body["data"]["productVariantsBulkCreate"]["productVariants"][0]
+        ["id"]
+        .as_str()
+        .expect("bulk create should return a variant id")
+        .to_string();
+    let inventory_item_id = create_variant.body["data"]["productVariantsBulkCreate"]
+        ["productVariants"][0]["inventoryItem"]["id"]
+        .as_str()
+        .expect("bulk create should return an inventory item id")
+        .to_string();
+
+    let indirect_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCurrentPublicationIndirectRead($variantId: ID!, $inventoryItemId: ID!, $defaultOnlyId: ID!) {
+          variant: productVariant(id: $variantId) {
+            product { id publishedOnCurrentPublication }
+          }
+          inventoryItem(id: $inventoryItemId) {
+            variant {
+              id
+              product { id publishedOnCurrentPublication }
+            }
+          }
+          defaultOnly: product(id: $defaultOnlyId) {
+            id
+            publishedOnCurrentPublication
+          }
+        }
+        "#,
+        json!({
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id,
+            "defaultOnlyId": default_only_product_id
+        }),
+    ));
+    assert_eq!(indirect_read.status, 200);
+    assert_eq!(
+        indirect_read.body["data"],
+        json!({
+            "variant": {
+                "product": {
+                    "id": current_product_id,
+                    "publishedOnCurrentPublication": true
+                }
+            },
+            "inventoryItem": {
+                "variant": {
+                    "id": variant_id,
+                    "product": {
+                        "id": current_product_id,
+                        "publishedOnCurrentPublication": true
+                    }
+                }
+            },
+            "defaultOnly": {
+                "id": default_only_product_id,
+                "publishedOnCurrentPublication": false
+            }
+        })
+    );
+
+    let update_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCurrentPublicationPayloadRead($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id publishedOnCurrentPublication }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": current_product_id,
+                "title": "Current channel product payload read"
+            }
+        }),
+    ));
+    assert_eq!(update_payload.status, 200);
+    assert_eq!(
+        update_payload.body["data"]["productUpdate"],
+        json!({
+            "product": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let option_payload = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCurrentPublicationOptionPayloadRead($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { id publishedOnCurrentPublication }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": current_product_id,
+            "options": [{
+                "name": "Size",
+                "values": [{ "name": "Small" }]
+            }]
+        }),
+    ));
+    assert_eq!(option_payload.status, 200);
+    assert_eq!(
+        option_payload.body["data"]["productOptionsCreate"],
+        json!({
+            "product": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let create_collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCurrentPublicationCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Current Publication Collection" } }),
+    ));
+    assert_eq!(create_collection.status, 200);
+    assert_eq!(
+        create_collection.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create_collection.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should return a collection id")
+        .to_string();
+
+    let add_collection_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddCurrentPublicationProductToCollection($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              products(first: 10, sortKey: MANUAL) {
+                nodes { id publishedOnCurrentPublication }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": [current_product_id]
+        }),
+    ));
+    assert_eq!(add_collection_product.status, 200);
+    assert_eq!(
+        add_collection_product.body["data"]["collectionAddProducts"],
+        json!({
+            "collection": {
+                "products": {
+                    "nodes": [{
+                        "id": current_product_id,
+                        "publishedOnCurrentPublication": true
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let collection_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionCurrentPublicationProductsRead($id: ID!) {
+          collection(id: $id) {
+            products(first: 10, sortKey: MANUAL) {
+              nodes { id publishedOnCurrentPublication }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+    assert_eq!(collection_read.status, 200);
+    assert_eq!(
+        collection_read.body["data"]["collection"],
+        json!({
+            "products": {
+                "nodes": [{
+                    "id": current_product_id,
+                    "publishedOnCurrentPublication": true
+                }]
+            }
+        })
+    );
+
     let fallback_product_id = "gid://shopify/Product/default-publication-fallback";
     let mut fallback_product = ProductRecord {
         id: fallback_product_id.to_string(),
@@ -9341,6 +9682,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     zulu.handle = "zulu-probe-product".to_string();
     zulu.vendor = "Beta Vendor".to_string();
     zulu.product_type = "Outerwear".to_string();
+    zulu.total_inventory = 1;
     zulu.created_at = "2024-01-03T00:00:00.000Z".to_string();
     zulu.updated_at = "2024-01-05T00:00:00.000Z".to_string();
     zulu.extra_fields
@@ -9351,6 +9693,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     alpha.handle = "alpha-probe-product".to_string();
     alpha.vendor = "Alpha Vendor".to_string();
     alpha.product_type = "Accessories".to_string();
+    alpha.total_inventory = 9;
     alpha.created_at = "2024-01-01T00:00:00.000Z".to_string();
     alpha.updated_at = "2024-01-07T00:00:00.000Z".to_string();
     alpha
@@ -9362,6 +9705,7 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
     middle.handle = "middle-probe-product".to_string();
     middle.vendor = "Gamma Vendor".to_string();
     middle.product_type = "Footwear".to_string();
+    middle.total_inventory = 4;
     middle.created_at = "2024-01-02T00:00:00.000Z".to_string();
     middle.updated_at = "2024-01-06T00:00:00.000Z".to_string();
     middle
@@ -9405,6 +9749,9 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
           }
           updatedAtReverse: products(first: 10, query: $query, sortKey: UPDATED_AT, reverse: true) {
             nodes { title updatedAt }
+          }
+          inventoryTotalOrder: products(first: 10, query: $query, sortKey: INVENTORY_TOTAL) {
+            nodes { title totalInventory }
           }
           relevanceOrder: products(first: 10, query: $query, sortKey: RELEVANCE) {
             nodes { title createdAt }
@@ -9482,6 +9829,14 @@ fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_win
             { "title": "Alpha Probe Product", "updatedAt": "2024-01-07T00:00:00.000Z" },
             { "title": "Middle Probe Product", "updatedAt": "2024-01-06T00:00:00.000Z" },
             { "title": "Zulu Probe Product", "updatedAt": "2024-01-05T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["inventoryTotalOrder"]["nodes"],
+        json!([
+            { "title": "Zulu Probe Product", "totalInventory": 1 },
+            { "title": "Middle Probe Product", "totalInventory": 4 },
+            { "title": "Alpha Probe Product", "totalInventory": 9 }
         ])
     );
     assert_eq!(
@@ -10732,6 +11087,43 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
             { "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }
         ])
     );
+
+    let differently_malformed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Different query grammar malformed segment-query-grammar-local",
+            "query": "not another valid segment query ???"
+        }),
+    ));
+    assert_eq!(
+        differently_malformed.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        differently_malformed.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 12: 'valid' is unexpected." },
+            { "field": ["query"], "message": "Query Line 1 Column 4: 'another' filter cannot be found." }
+        ])
+    );
+
+    let malformed_value = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Invalid value grammar malformed segment-query-grammar-local",
+            "query": "amount_spent > banana"
+        }),
+    ));
+    assert_eq!(
+        malformed_value.body["data"]["segmentCreate"]["segment"],
+        Value::Null
+    );
+    assert_eq!(
+        malformed_value.body["data"]["segmentCreate"]["userErrors"],
+        json!([
+            { "field": ["query"], "message": "Query Line 1 Column 16: segment query is invalid near 'banana'." }
+        ])
+    );
 }
 
 #[test]
@@ -10874,6 +11266,97 @@ fn segment_delete_stages_local_removal_and_keeps_raw_mutation_for_commit() {
 }
 
 #[test]
+fn segments_connection_honors_sort_keys_before_reverse_and_windowing() {
+    fn create_segment(proxy: &mut DraftProxy, name: &str, query: &str) -> String {
+        let created = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateSegmentForSortKeys($name: String!, $query: String!) {
+              segmentCreate(name: $name, query: $query) {
+                segment { id name query creationDate lastEditDate }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "name": name, "query": query }),
+        ));
+        assert_eq!(created.status, 200);
+        assert_eq!(
+            created.body["data"]["segmentCreate"]["userErrors"],
+            json!([])
+        );
+        created.body["data"]["segmentCreate"]["segment"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let alpha_id = create_segment(&mut proxy, "Alpha Segment Sort", "number_of_orders >= 1");
+    let beta_id = create_segment(&mut proxy, "Beta Segment Sort", "number_of_orders >= 2");
+    let gamma_id = create_segment(&mut proxy, "Gamma Segment Sort", "number_of_orders >= 3");
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSegmentForLastEditSort($id: ID!) {
+          segmentUpdate(id: $id, name: "Alpha Segment Sort Updated") {
+            segment { id name lastEditDate }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": alpha_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["segmentUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentSortKeys {
+          byLastEditReverse: segments(first: 10, sortKey: LAST_EDIT_DATE, reverse: true) {
+            nodes { id name }
+          }
+          idWindow: segments(first: 1, sortKey: ID, reverse: true) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byLastEditReverse"]["nodes"],
+        json!([
+            { "id": alpha_id, "name": "Alpha Segment Sort Updated" },
+            { "id": gamma_id.clone(), "name": "Gamma Segment Sort" },
+            { "id": beta_id, "name": "Beta Segment Sort" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["idWindow"],
+        json!({
+            "edges": [{
+                "cursor": gamma_id.clone(),
+                "node": {
+                    "id": gamma_id.clone(),
+                    "name": "Gamma Segment Sort"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": gamma_id.clone(),
+                "endCursor": gamma_id
+            }
+        })
+    );
+}
+
+#[test]
 fn segment_delete_matches_shopify_validation_shapes() {
     let mut proxy = snapshot_proxy();
     let delete_query = r#"
@@ -10928,6 +11411,38 @@ fn segment_delete_matches_shopify_validation_shapes() {
 #[test]
 fn segment_mutations_validate_inputs_without_operation_name_markers() {
     let mut proxy = snapshot_proxy();
+    let missing_create_args = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentCreateMissingNameAndQuery {
+          segmentCreate {
+            segment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_create_args.status, 200);
+    assert_eq!(missing_create_args.body.get("data"), None);
+    let missing_arg_errors = missing_create_args.body["errors"]
+        .as_array()
+        .expect("missing argument response should include top-level errors");
+    assert_eq!(missing_arg_errors.len(), 1);
+    assert_eq!(
+        missing_arg_errors[0]["message"],
+        json!("Field 'segmentCreate' is missing required arguments: name, query")
+    );
+    assert_eq!(
+        missing_arg_errors[0]["extensions"],
+        json!({
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "segmentCreate",
+            "arguments": "name, query"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
     let create_query = r#"
         mutation LocalSegmentCreate($name: String!, $query: String!) {
           segmentCreate(name: $name, query: $query) {

@@ -98,6 +98,7 @@ Owner-specific validation and storage should stay in the owning domain branch, b
 
 Search behavior is currently domain-local where Shopify semantics differ by resource, but shared patterns already exist.
 
+- `src/proxy/search.rs` owns shared search-query primitives: the boolean query grammar used by product reads, flat whitespace token splitting used by saved-search/media/metaobject filters, common text matching, and comparator parsing. Keep resource-specific predicate semantics in domain modules and adapt them through these helpers instead of adding another local lexer/parser.
 - Product search helpers live around `products_connection_value(...)`, product cursor/page-info helpers, and tag search helpers.
 - Saved-search parsing and projection helpers live around `saved_search_query_tokens(...)`, `saved_search_filters(...)`, `saved_search_query_user_errors(...)`, and `canonical_saved_search_query(...)`.
 

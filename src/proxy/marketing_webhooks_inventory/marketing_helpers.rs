@@ -159,6 +159,11 @@ fn marketing_app_json(app: Option<&Value>, fallback_app_id: &str) -> Value {
 fn non_empty_channel_handle(handle: &str) -> bool {
     !handle.trim().is_empty()
 }
+
+fn recognized_marketing_channel_handle(handle: &str) -> bool {
+    matches!(handle.trim(), "email")
+}
+
 fn old_pointer_string(old: &Value, pointer: &str) -> Option<String> {
     old.pointer(pointer)
         .and_then(Value::as_str)
@@ -1044,7 +1049,7 @@ impl DraftProxy {
         if create_if_missing
             && existing_id.is_none()
             && resolved_string_field(input, "channelHandle")
-                .is_some_and(|handle| !non_empty_channel_handle(&handle))
+                .is_some_and(|handle| !recognized_marketing_channel_handle(&handle))
         {
             return Some(marketing_input_error("The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE")));
         }
@@ -1251,7 +1256,7 @@ impl DraftProxy {
             );
         }
         if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
-            if !non_empty_channel_handle(&channel) {
+            if !recognized_marketing_channel_handle(&channel) {
                 return selected_json(
                     &marketing_engagement_payload(
                         None,

@@ -26,6 +26,17 @@ pub(in crate::proxy) fn is_server_pixel_record(record: &Value) -> bool {
     record_matches_type(record, "ServerPixel")
 }
 
+pub(in crate::proxy) fn server_pixel_status_for_endpoint(endpoint: Option<&str>) -> &'static str {
+    if endpoint
+        .map(str::trim)
+        .is_some_and(|endpoint| !endpoint.is_empty())
+    {
+        "CONNECTED"
+    } else {
+        "DISCONNECTED_UNCONFIGURED"
+    }
+}
+
 pub(in crate::proxy) fn is_mobile_platform_application_record(record: &Value) -> bool {
     matches!(
         record.get("__typename").and_then(Value::as_str),
@@ -55,7 +66,7 @@ pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
 }
 
 pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) -> Vec<Value> {
-    let scopes = request
+    request
         .headers
         .get(ACCESS_SCOPES_HEADER)
         .map(|header| {
@@ -66,14 +77,7 @@ pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) 
                 .map(|scope| json!({"handle": scope}))
                 .collect::<Vec<_>>()
         })
-        .filter(|scopes| !scopes.is_empty())
-        .unwrap_or_else(|| {
-            vec![
-                json!({"handle": "unauthenticated_read_product_listings"}),
-                json!({"handle": "unauthenticated_read_product_inventory"}),
-            ]
-        });
-    scopes
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn theme_file_nodes(theme: &Value) -> Vec<Value> {

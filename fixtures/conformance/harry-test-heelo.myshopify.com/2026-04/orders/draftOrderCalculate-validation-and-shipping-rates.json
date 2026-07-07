@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T19:47:25.775Z",
+  "capturedAt": "2026-07-05T08:11:14.270Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "document": "#graphql\n  mutation DraftOrderCalculateValidationAndShippingRates(\n    $emptyLineItems: DraftOrderInput!\n    $invalidEmail: DraftOrderInput!\n    $availableShippingRatesEmpty: DraftOrderInput!\n    $paymentTermsTemplateId: DraftOrderInput!\n  ) {\n    emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    invalidEmail: draftOrderCalculate(input: $invalidEmail) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {\n      calculatedDraftOrder {\n        availableShippingRates {\n          handle\n          title\n          price { amount currencyCode }\n        }\n      }\n      userErrors { field message }\n    }\n    paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n  }\n",
@@ -245,7 +245,7 @@
             "actualQueryCost": 3,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -293,7 +293,7 @@
           "actualQueryCost": 41,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1957,
+            "currentlyAvailable": 1959,
             "restoreRate": 100
           }
         }
@@ -322,6 +322,34 @@
               },
               "product": {
                 "title": "The Inventory Not Tracked Snowboard"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
               }
             }
           }

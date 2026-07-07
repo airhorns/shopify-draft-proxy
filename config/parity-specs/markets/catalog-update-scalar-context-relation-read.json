@@ -1,0 +1,261 @@
+{
+  "scenarioId": "catalog-update-scalar-context-relation-read",
+  "operationNames": ["catalogCreate", "catalogUpdate", "priceListCreate", "priceListUpdate", "publicationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-update-relation-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture proves catalogUpdate applies title/status/context, Catalog.priceList and PriceList.catalog nested selections resolve full records, Catalog.publication resolves non-id fields, and priceList.parent.settings.compareAtMode follows create/update input.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-setup",
+        "capturePath": "$.cases[1].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-read-catalog-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[1].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[1].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy stages a synthetic local catalog id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "publication-setup",
+        "capturePath": "$.cases[2].response.payload.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-read-publication-create.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The proxy stages a synthetic local publication id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "price-list-setup",
+        "capturePath": "$.cases[3].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-read-price-list-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.cases[3].variables.input.name"
+              },
+              "currency": {
+                "fromCapturePath": "$.cases[3].variables.input.currency"
+              },
+              "parent": {
+                "fromCapturePath": "$.cases[3].variables.input.parent"
+              },
+              "catalogId": {
+                "fromProxyResponse": "catalog-setup",
+                "path": "$.data.catalogCreate.catalog.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy links the staged price list to the synthetic local catalog id."
+          }
+        ]
+      },
+      {
+        "name": "price-list-update-settings",
+        "capturePath": "$.cases[4].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-read-price-list-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[4].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy updates the locally staged price list, whose id is synthetic."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy's full nested catalog relation uses the staged catalog id."
+          }
+        ]
+      },
+      {
+        "name": "catalog-update-scalar-context-relations",
+        "capturePath": "$.cases[5].response.payload.data.catalogUpdate",
+        "proxyPath": "$.data.catalogUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-scalar-context-relations.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[5].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[5].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[1].id"
+                  }
+                ]
+              },
+              "publicationId": {
+                "fromProxyResponse": "publication-setup",
+                "path": "$.data.publicationCreate.publication.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy updates the synthetic local catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy resolves the nested full price list from staged state."
+          },
+          {
+            "path": "$.catalog.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The nested price-list catalog relation points back to the staged catalog id."
+          },
+          {
+            "path": "$.catalog.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The proxy resolves the nested publication relation from staged state."
+          }
+        ]
+      },
+      {
+        "name": "read-after-catalog-update",
+        "capturePath": "$.cases[6].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-scalar-context-relation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.cases[6].variables.catalogQuery"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the synthetic local catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the staged price-list relation."
+          },
+          {
+            "path": "$.catalog.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The proxy reads back the staged publication relation."
+          },
+          {
+            "path": "$.catalogs.nodes[0].id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The filtered catalogs connection returns the synthetic local catalog id."
+          },
+          {
+            "path": "$.catalogs.nodes[0].priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The filtered catalogs connection resolves the full staged price-list relation."
+          },
+          {
+            "path": "$.catalogs.nodes[0].publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The filtered catalogs connection resolves the full staged publication relation."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the synthetic local price-list id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The price-list catalog relation points to the staged local catalog id."
+          }
+        ]
+      }
+    ]
+  }
+}

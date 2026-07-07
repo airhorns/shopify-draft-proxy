@@ -7,6 +7,10 @@ query ProductCreateCategoryDownstreamRead($id: ID!) {
     category {
       id
       fullName
+      name
+      isLeaf
+      level
+      parentId
     }
     requiresSellingPlan
   }

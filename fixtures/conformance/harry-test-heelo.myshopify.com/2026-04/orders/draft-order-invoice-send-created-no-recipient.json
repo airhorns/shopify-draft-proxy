@@ -1,0 +1,227 @@
+{
+  "scenarioId": "draft-order-invoice-send-created-no-recipient",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-07-04T23:40:07.308Z",
+  "source": "live-shopify-admin-graphql",
+  "safetyPolicy": "Creates a disposable draft order without a recipient, sends draftOrderInvoiceSend without an email argument so Shopify returns validation userErrors instead of sending customer-visible email, then deletes the draft order during cleanup.",
+  "create": {
+    "variables": {
+      "input": {
+        "note": "Draft order invoice created no-recipient 20260704234006",
+        "tags": ["draft-proxy-capture", "invoice-created-no-recipient", "20260704234006"],
+        "lineItems": [
+          {
+            "title": "Invoice error parity item",
+            "quantity": 2,
+            "originalUnitPriceWithCurrency": {
+              "amount": "3.25",
+              "currencyCode": "CAD"
+            },
+            "requiresShipping": false,
+            "taxable": false
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1275890237746",
+            "name": "#D307",
+            "status": "OPEN",
+            "email": null,
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d5f8fc5b419d0eb3c7050eec9890bba0",
+            "totalQuantityOfLineItems": 2,
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "6.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalShippingPriceSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "6.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "title": "Invoice error parity item",
+                  "quantity": 2,
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "3.25",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "originalTotalSet": {
+                    "shopMoney": {
+                      "amount": "6.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountedTotalSet": {
+                    "shopMoney": {
+                      "amount": "6.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalDiscountSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "send": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1275890237746"
+    },
+    "response": {
+      "data": {
+        "draftOrderInvoiceSend": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1275890237746",
+            "name": "#D307",
+            "status": "OPEN",
+            "email": null,
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d5f8fc5b419d0eb3c7050eec9890bba0",
+            "totalQuantityOfLineItems": 2,
+            "subtotalPriceSet": {
+              "shopMoney": {
+                "amount": "6.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalDiscountsSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalShippingPriceSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "6.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "title": "Invoice error parity item",
+                  "quantity": 2,
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "3.25",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "originalTotalSet": {
+                    "shopMoney": {
+                      "amount": "6.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountedTotalSet": {
+                    "shopMoney": {
+                      "amount": "6.5",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalDiscountSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "To can't be blank"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "status": 200,
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1275890237746",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

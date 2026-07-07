@@ -139,6 +139,8 @@ const draftOrderDeleteMutation = `#graphql
 
 const variantHydrateDocument =
   'query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n';
+const shopPricingHydrateDocument =
+  'query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }';
 
 const createDocument = await readRequest('draft-order-variant-custom-only-create.graphql');
 const calculateDocument = await readRequest('draft-order-variant-custom-only-calculate.graphql');
@@ -184,6 +186,7 @@ mutationPayload(productVariantUpdatePayload, 'productVariantsBulkUpdate', 'produ
 
 const variantHydrateVariables = { id: defaultVariantId };
 const variantHydratePayload = await run(variantHydrateDocument, variantHydrateVariables, 'variant hydrate');
+const shopPricingHydrate = await runRaw(shopPricingHydrateDocument, {});
 
 const lineItemInput = {
   variantId: defaultVariantId,
@@ -257,6 +260,15 @@ await writeJson(fixturePath, {
       response: {
         status: 200,
         body: variantHydratePayload,
+      },
+    },
+    {
+      operationName: 'DraftProxyShopPricingHydrate',
+      variables: {},
+      query: shopPricingHydrateDocument,
+      response: {
+        status: shopPricingHydrate.status,
+        body: shopPricingHydrate.payload,
       },
     },
   ],

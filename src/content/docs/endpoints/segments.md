@@ -33,7 +33,7 @@ Mutation roots:
 
 Segment reads are capture-driven and intentionally narrow:
 
-- `segment(id:)`, `segments`, and `segmentsCount` use normalized segment records for the selected catalog/detail/count fields in checked-in captures.
+- `segment(id:)`, `segments`, and `segmentsCount` use normalized segment records for the selected catalog/detail/count fields in checked-in captures. Locally staged `segments(sortKey:)` supports `CREATION_DATE`, `ID`, and `LAST_EDIT_DATE`, applies `reverse` and cursor windows through the shared connection helper, and uses id as the stable secondary tiebreaker. `RELEVANCE` uses deterministic id ordering for local staged segments because Shopify's search score is opaque.
 - Snapshot mode returns Shopify-like empty connections and exact zero counts when no segment data has been hydrated.
 - Unknown `segment(id:)` returns `null` with Shopify's captured `NOT_FOUND` error shape.
 - `segmentFilters`, `segmentFilterSuggestions`, `segmentValueSuggestions`, and `segmentMigrations` preserve captured metadata/suggestion payloads. They are not dynamic suggestion engines.
@@ -51,6 +51,7 @@ Segment lifecycle mutations stage locally and retain the original raw mutation f
 Segment query grammar support has two tiers:
 
 - Save-time validation for `segmentCreate`, `segmentUpdate`, and direct member query creation accepts the captured grammar for supported filter names, comparison operators, `IS NULL` / `IS NOT NULL`, `CONTAINS` / `NOT CONTAINS`, `BETWEEN`, boolean `AND` / `OR`, parentheses, escaped string literals, and relative date literals.
+- Malformed save-time segment queries return payload-level userErrors derived from the query text, including token/column messages for unexpected tokens and unknown filters, with an input-derived fallback for unsupported malformed values.
 - Member evaluation is narrower. The proxy evaluates `number_of_orders` comparisons and exact customer tag `CONTAINS` / `NOT CONTAINS` against normalized local customer state. Other save-accepted filters can be stored but do not imply local membership evaluation.
 
 Customer segment member query behavior:
@@ -63,7 +64,7 @@ Customer segment member query behavior:
 
 ### Boundaries
 
-- Search, sort, and uncaptured request arguments for segment catalog roots are not inferred beyond checked-in captures.
+- Search and uncaptured request arguments for seeded segment catalog roots are not inferred beyond checked-in captures; staged local segment catalogs only model the sort keys listed above.
 - Segment filter and value suggestion roots are static captured metadata payloads until separate executable evidence supports dynamic behavior.
 - Public Admin GraphQL Segment parity is limited to `id`, `name`, `query`, `creationDate`, and `lastEditDate`, which are the fields exposed by 2025-01 and 2026-04 conformance-shop introspection. Private Core Segment fields such as `tagMigrated`, `valid`, `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author` are covered by Rust integration tests rather than Shopify parity fixtures.
 - Accepted segment filters such as `email_subscription_status = 'SUBSCRIBED'`, `companies IS NULL`, and `customer_countries CONTAINS 'CA'` do not have local member evaluation.

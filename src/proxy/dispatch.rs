@@ -985,7 +985,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productSet" =>
             {
-                let outcome = self.product_set(query, variables);
+                let outcome = self.product_set(request, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -1729,6 +1729,9 @@ impl DraftProxy {
                     if handle_customers && fields.iter().any(|field| field.name == "customersCount")
                     {
                         self.hydrate_customers_count_for_overlay_read(request);
+                    }
+                    if handle_customers && self.customer_read_selects_amount_spent(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
                     }
                     let data = root_payload_json(&fields, |field| {
                         if handle_customers {

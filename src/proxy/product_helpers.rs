@@ -5,9 +5,11 @@ use crate::graphql::RawArgumentValue;
 mod collections;
 mod product_tail;
 mod saved_search;
+mod search;
 
 pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
+pub(in crate::proxy) use self::search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 const PRODUCT_SCALAR_MAX_LENGTH: usize = 255;
@@ -28,6 +30,8 @@ pub(in crate::proxy) fn product_option_name_has_title_delimiter(name: &str) -> b
 pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = include_str!(
     "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
 );
+
+pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
 
 pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
@@ -309,14 +313,7 @@ fn product_publication_connection_node_json(
         "__typename" => Some(json!("ProductPublication")),
         "channel" => Some(Value::Null),
         "isPublished" => Some(json!(true)),
-        "publishDate" => Some(
-            entry
-                .publish_date
-                .as_ref()
-                .or(entry.published_at.as_ref())
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
+        "publishDate" => Some(product_publication_publish_date_json(entry)),
         "product" => Some(publishable_node_json(
             &product.id,
             "Product",
@@ -340,14 +337,7 @@ fn resource_publication_connection_node_json(
             &entry.publication_id,
             &selection.selection,
         )),
-        "publishDate" => Some(
-            entry
-                .publish_date
-                .as_ref()
-                .or(entry.published_at.as_ref())
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
+        "publishDate" => Some(product_publication_publish_date_json(entry)),
         "publishable" => Some(publishable_node_json(
             &product.id,
             "Product",
@@ -372,14 +362,7 @@ fn staged_resource_publication_connection_node_json(
             &entry.publication_id,
             &selection.selection,
         )),
-        "publishDate" => Some(
-            entry
-                .publish_date
-                .as_ref()
-                .or(entry.published_at.as_ref())
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
+        "publishDate" => Some(product_publication_publish_date_json(entry)),
         "publishable" => Some(publishable_node_json(
             resource_id,
             resource_type,
@@ -387,6 +370,15 @@ fn staged_resource_publication_connection_node_json(
         )),
         _ => None,
     })
+}
+
+fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Value {
+    entry
+        .publish_date
+        .as_ref()
+        .or(entry.published_at.as_ref())
+        .map(|value| json!(value))
+        .unwrap_or(Value::Null)
 }
 
 fn product_publication_connection_json(
@@ -615,7 +607,7 @@ impl DraftProxy {
             }
             let media_content_type = resolved_string_field(item, "mediaContentType")
                 .unwrap_or_else(|| infer_product_media_content_type(&original_source).to_string());
-            let id = self.next_proxy_synthetic_gid(product_media_gid_type(&media_content_type));
+            let id = self.next_proxy_synthetic_gid(product_media_typename(&media_content_type));
             let alt = resolved_string_field(item, "alt").unwrap_or_default();
             created.push(product_media_node_with_type(
                 &id,
@@ -718,13 +710,7 @@ impl DraftProxy {
                 if let Some(alt) = &alt {
                     node["alt"] = json!(alt);
                 }
-                let ready_url = product_media_ready_url(node);
-                node["status"] = json!("READY");
-                node["preview"] =
-                    json!({ "image": product_media_preview_image_json(node, &ready_url) });
-                if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
-                    node["image"] = product_media_image_json(node, &ready_url);
-                }
+                promote_product_media_node_to_ready(node);
                 updated.push(node.clone());
                 self.store.staged.media_ready_on_read.remove(&id);
             }
@@ -1025,15 +1011,6 @@ fn product_media_typename(media_content_type: &str) -> &'static str {
     }
 }
 
-fn product_media_gid_type(media_content_type: &str) -> &'static str {
-    match media_content_type {
-        "EXTERNAL_VIDEO" => "ExternalVideo",
-        "MODEL_3D" => "Model3d",
-        "VIDEO" => "Video",
-        _ => "MediaImage",
-    }
-}
-
 fn product_media_ready_url(node: &Value) -> String {
     product_media_image_url(node)
         .map(str::to_string)
@@ -1287,6 +1264,40 @@ impl DraftProxy {
                 self.store
                     .product_is_published_on_current_publication(product),
             ),
+        )
+    }
+
+    pub(in crate::proxy) fn product_variant_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
+        )
+    }
+
+    pub(in crate::proxy) fn product_variant_inventory_item_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_inventory_item_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
         )
     }
 }
@@ -1580,20 +1591,14 @@ fn sorted_product_collection_nodes_for_connection(
     selection: &SelectedField,
 ) -> Vec<Value> {
     let sort_key_name = resolved_string_field(&selection.arguments, "sortKey");
-    let mut indexed = collections.into_iter().enumerate().collect::<Vec<_>>();
-    indexed.sort_by(|left, right| {
-        product_collection_sort_key(&left.1, sort_key_name.as_deref(), left.0)
-            .cmp(&product_collection_sort_key(
-                &right.1,
-                sort_key_name.as_deref(),
-                right.0,
-            ))
-            .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
-    });
-    indexed
-        .into_iter()
-        .map(|(_, collection)| collection)
-        .collect()
+    sorted_indexed_records(
+        collections,
+        false,
+        |collection, index| {
+            product_collection_sort_key(collection, sort_key_name.as_deref(), index)
+        },
+        value_id_cursor,
+    )
 }
 
 fn product_collection_sort_key(
@@ -1635,29 +1640,6 @@ pub(in crate::proxy) fn product_has_out_of_stock_variants(
         .iter()
         .filter(|variant| variant.inventory_item.tracked)
         .any(|variant| variant.inventory_quantity <= 0)
-}
-
-pub(in crate::proxy) fn product_json_with_variants(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-) -> Value {
-    product_json_with_variants_and_currency(product, variants, selections, "USD")
-}
-
-pub(in crate::proxy) fn product_json_with_variants_and_currency(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-    currency_code: &str,
-) -> Value {
-    product_json_with_variants_and_currency_and_publication_context(
-        product,
-        variants,
-        selections,
-        currency_code,
-        None,
-    )
 }
 
 pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
@@ -1770,7 +1752,7 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_
             product
                 .extra_fields
                 .get("category")
-                .cloned()
+                .map(|value| nullable_selected_json(value, &selection.selection))
                 .unwrap_or(Value::Null),
         ),
         "requiresSellingPlan" => Some(
@@ -1898,20 +1880,14 @@ fn sorted_product_variant_records_for_connection(
     if sort_key_name.as_deref() == Some("INVENTORY_LEVELS_AVAILABLE") {
         return Vec::new();
     }
-    let mut indexed = variants.into_iter().enumerate().collect::<Vec<_>>();
-    indexed.sort_by(|left, right| {
-        product_variant_connection_sort_key(&left.1, sort_key_name.as_deref(), left.0)
-            .cmp(&product_variant_connection_sort_key(
-                &right.1,
-                sort_key_name.as_deref(),
-                right.0,
-            ))
-            .then_with(|| left.1.id.cmp(&right.1.id))
-    });
-    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-        indexed.reverse();
-    }
-    indexed.into_iter().map(|(_, variant)| variant).collect()
+    sorted_indexed_records(
+        variants,
+        resolved_bool_field(arguments, "reverse").unwrap_or(false),
+        |variant, index| {
+            product_variant_connection_sort_key(variant, sort_key_name.as_deref(), index)
+        },
+        |variant| variant.id.clone(),
+    )
 }
 
 fn product_variant_connection_sort_key(
@@ -1941,6 +1917,15 @@ pub(in crate::proxy) fn product_variant_json(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
+) -> Value {
+    product_variant_json_with_publication_context(variant, product, selections, None)
+}
+
+pub(in crate::proxy) fn product_variant_json_with_publication_context(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
@@ -1976,13 +1961,22 @@ pub(in crate::proxy) fn product_variant_json(
                 })
                 .collect(),
         )),
-        "inventoryItem" => Some(product_variant_inventory_item_json(
-            variant,
-            product,
-            &selection.selection,
-        )),
+        "inventoryItem" => Some(
+            product_variant_inventory_item_json_with_publication_context(
+                variant,
+                product,
+                &selection.selection,
+                published_on_current_publication,
+            ),
+        ),
         "product" => Some(match product {
-            Some(product) => product_json_with_variants(product, &[], &selection.selection),
+            Some(product) => product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
             None => variant
                 .extra_fields
                 .get("product")
@@ -2042,17 +2036,12 @@ fn sorted_product_media_nodes_for_connection(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     let sort_key_name = resolved_string_field(arguments, "sortKey");
-    let mut indexed = media.into_iter().enumerate().collect::<Vec<_>>();
-    indexed.sort_by(|left, right| {
-        product_media_sort_key(&left.1, sort_key_name.as_deref(), left.0)
-            .cmp(&product_media_sort_key(
-                &right.1,
-                sort_key_name.as_deref(),
-                right.0,
-            ))
-            .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
-    });
-    indexed.into_iter().map(|(_, media)| media).collect()
+    sorted_indexed_records(
+        media,
+        false,
+        |media, index| product_media_sort_key(media, sort_key_name.as_deref(), index),
+        value_id_cursor,
+    )
 }
 
 fn product_image_connection_json(
@@ -2181,10 +2170,11 @@ fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
     StagedSortValue::String(value.as_ref().to_ascii_lowercase())
 }
 
-pub(in crate::proxy) fn product_variant_inventory_item_json(
+pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_context(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("InventoryItem")),
@@ -2193,7 +2183,12 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
         "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
         // Render the inventory item's backreference variant with its owning product so
         // `inventoryItem(id:).variant.product` resolves rather than returning null.
-        "variant" => Some(product_variant_json(variant, product, &selection.selection)),
+        "variant" => Some(product_variant_json_with_publication_context(
+            variant,
+            product,
+            &selection.selection,
+            published_on_current_publication,
+        )),
         _ => variant
             .inventory_item
             .extra_fields
@@ -2202,20 +2197,22 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
     })
 }
 
-pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
+pub(in crate::proxy) fn observed_product_variant_inventory_item_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Option<Value> {
     let inventory_item = variant.get("inventoryItem")?;
     Some(selected_payload_json(
         selections,
         |selection| match selection.name.as_str() {
             "__typename" => Some(json!("InventoryItem")),
-            "variant" => Some(observed_product_variant_json(
+            "variant" => Some(observed_product_variant_json_with_publication_context(
                 product,
                 variant,
                 &selection.selection,
+                published_on_current_publication,
             )),
             _ => inventory_item
                 .get(&selection.name)
@@ -2224,18 +2221,23 @@ pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
     ))
 }
 
-fn observed_product_variant_json(
+fn observed_product_variant_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
-        "product" => Some(product_json_with_variants(
-            product,
-            &[],
-            &selection.selection,
-        )),
+        "product" => Some(
+            product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
+        ),
         _ => variant
             .get(&selection.name)
             .map(|value| product_variant_extra_field_json(value, &selection.selection)),
@@ -2269,430 +2271,6 @@ pub(in crate::proxy) fn product_seo_json(
         "description" => Some(json!(product.seo_description)),
         _ => None,
     })
-}
-
-pub(in crate::proxy) fn product_matches_search_query(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    query: &str,
-) -> bool {
-    let query = query.trim();
-    if query.is_empty() {
-        return true;
-    }
-    let tokens = product_search_tokens(query);
-    if tokens.is_empty() {
-        return true;
-    }
-    let mut parser = ProductSearchParser::new(tokens);
-    parser
-        .parse()
-        .map(|expression| expression.matches(product, variants))
-        .unwrap_or(false)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ProductSearchToken {
-    Term { value: String, quoted: bool },
-    LParen,
-    RParen,
-    Minus,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ProductSearchExpression {
-    Term(ProductSearchTerm),
-    Not(Box<ProductSearchExpression>),
-    And(Vec<ProductSearchExpression>),
-    Or(Vec<ProductSearchExpression>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ProductSearchTerm {
-    field: Option<String>,
-    value: String,
-}
-
-struct ProductSearchParser {
-    tokens: Vec<ProductSearchToken>,
-    index: usize,
-}
-
-impl ProductSearchParser {
-    fn new(tokens: Vec<ProductSearchToken>) -> Self {
-        Self { tokens, index: 0 }
-    }
-
-    fn parse(&mut self) -> Option<ProductSearchExpression> {
-        let expression = self.parse_or()?;
-        Some(expression)
-    }
-
-    fn parse_or(&mut self) -> Option<ProductSearchExpression> {
-        let mut expressions = vec![self.parse_and()?];
-        while self.consume_operator("OR") {
-            let Some(right) = self.parse_and() else {
-                break;
-            };
-            expressions.push(right);
-        }
-        Some(if expressions.len() == 1 {
-            expressions.remove(0)
-        } else {
-            ProductSearchExpression::Or(expressions)
-        })
-    }
-
-    fn parse_and(&mut self) -> Option<ProductSearchExpression> {
-        let mut expressions = Vec::new();
-        while self.index < self.tokens.len() {
-            if self.peek_rparen() || self.peek_operator("OR") {
-                break;
-            }
-            self.consume_operator("AND");
-            if self.peek_rparen() || self.peek_operator("OR") {
-                break;
-            }
-            if let Some(expression) = self.parse_unary() {
-                expressions.push(expression);
-            } else {
-                break;
-            }
-        }
-        Some(if expressions.len() == 1 {
-            expressions.remove(0)
-        } else {
-            ProductSearchExpression::And(expressions)
-        })
-    }
-
-    fn parse_unary(&mut self) -> Option<ProductSearchExpression> {
-        if matches!(self.tokens.get(self.index), Some(ProductSearchToken::Minus)) {
-            self.index += 1;
-            return self
-                .parse_unary()
-                .map(|expression| ProductSearchExpression::Not(Box::new(expression)));
-        }
-        self.parse_primary()
-    }
-
-    fn parse_primary(&mut self) -> Option<ProductSearchExpression> {
-        match self.tokens.get(self.index).cloned()? {
-            ProductSearchToken::Term { value, quoted } => {
-                self.index += 1;
-                Some(ProductSearchExpression::Term(ProductSearchTerm::new(
-                    value, quoted,
-                )))
-            }
-            ProductSearchToken::LParen => {
-                self.index += 1;
-                let expression = self.parse_or()?;
-                if self.peek_rparen() {
-                    self.index += 1;
-                }
-                Some(expression)
-            }
-            ProductSearchToken::RParen | ProductSearchToken::Minus => None,
-        }
-    }
-
-    fn peek_rparen(&self) -> bool {
-        matches!(
-            self.tokens.get(self.index),
-            Some(ProductSearchToken::RParen)
-        )
-    }
-
-    fn peek_operator(&self, operator: &str) -> bool {
-        matches!(
-            self.tokens.get(self.index),
-            Some(ProductSearchToken::Term { value, quoted: false })
-                if value.eq_ignore_ascii_case(operator)
-        )
-    }
-
-    fn consume_operator(&mut self, operator: &str) -> bool {
-        if self.peek_operator(operator) {
-            self.index += 1;
-            true
-        } else {
-            false
-        }
-    }
-}
-
-impl ProductSearchExpression {
-    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
-        match self {
-            ProductSearchExpression::Term(term) => term.matches(product, variants),
-            ProductSearchExpression::Not(expression) => !expression.matches(product, variants),
-            ProductSearchExpression::And(expressions) => expressions
-                .iter()
-                .all(|expression| expression.matches(product, variants)),
-            ProductSearchExpression::Or(expressions) => expressions
-                .iter()
-                .any(|expression| expression.matches(product, variants)),
-        }
-    }
-}
-
-impl ProductSearchTerm {
-    fn new(value: String, quoted: bool) -> Self {
-        if !quoted {
-            if let Some((field, value)) = value.split_once(':') {
-                if !field.is_empty() && !value.is_empty() {
-                    return Self {
-                        field: Some(field.to_ascii_lowercase()),
-                        value: value.trim_matches('"').trim_matches('\'').to_string(),
-                    };
-                }
-            }
-        }
-        Self { field: None, value }
-    }
-
-    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
-        let value = self.value.trim();
-        if value.is_empty() {
-            return true;
-        }
-        match self.field.as_deref() {
-            Some("id") => product_matches_search_id(product, value),
-            Some("status") => product.status.eq_ignore_ascii_case(value),
-            Some("vendor") => product_search_string_matches(&product.vendor, value),
-            Some("product_type") => product_search_string_matches(&product.product_type, value),
-            Some("title") => product_search_string_matches(&product.title, value),
-            Some("handle") => product_search_string_matches(&product.handle, value),
-            Some("tag") => product_matches_search_tag(product, value),
-            Some("tag_not") => !product_matches_search_tag(product, value),
-            Some("sku") => product_matches_search_sku(product, variants, value),
-            Some("barcode") => product_matches_search_barcode(product, variants, value),
-            Some("gift_card") => product_matches_search_gift_card(product, value),
-            Some("collection_id") => product_matches_search_collection_id(product, value),
-            Some("published_status") => product_matches_published_status(product, value),
-            Some("published_at") => product_matches_published_at(product, value),
-            Some("created_at") => product_matches_date_query(&product.created_at, value),
-            Some("updated_at") => product_matches_date_query(&product.updated_at, value),
-            Some(_) => false,
-            None => product_matches_free_text(product, variants, value),
-        }
-    }
-}
-
-fn product_search_tokens(query: &str) -> Vec<ProductSearchToken> {
-    let mut tokens = Vec::new();
-    let chars = query.chars().collect::<Vec<_>>();
-    let mut index = 0;
-    while index < chars.len() {
-        match chars[index] {
-            ch if ch.is_whitespace() => {
-                index += 1;
-            }
-            '(' => {
-                tokens.push(ProductSearchToken::LParen);
-                index += 1;
-            }
-            ')' => {
-                tokens.push(ProductSearchToken::RParen);
-                index += 1;
-            }
-            '-' => {
-                tokens.push(ProductSearchToken::Minus);
-                index += 1;
-            }
-            '"' | '\'' => {
-                let quote = chars[index];
-                index += 1;
-                let mut value = String::new();
-                while index < chars.len() && chars[index] != quote {
-                    value.push(chars[index]);
-                    index += 1;
-                }
-                if index < chars.len() {
-                    index += 1;
-                }
-                tokens.push(ProductSearchToken::Term {
-                    value,
-                    quoted: true,
-                });
-            }
-            _ => {
-                let mut value = String::new();
-                while index < chars.len()
-                    && !chars[index].is_whitespace()
-                    && chars[index] != '('
-                    && chars[index] != ')'
-                {
-                    if chars[index] == '"' || chars[index] == '\'' {
-                        let quote = chars[index];
-                        index += 1;
-                        while index < chars.len() && chars[index] != quote {
-                            value.push(chars[index]);
-                            index += 1;
-                        }
-                        if index < chars.len() {
-                            index += 1;
-                        }
-                    } else {
-                        value.push(chars[index]);
-                        index += 1;
-                    }
-                }
-                if !value.is_empty() {
-                    tokens.push(ProductSearchToken::Term {
-                        value,
-                        quoted: false,
-                    });
-                }
-            }
-        }
-    }
-    tokens
-}
-
-fn product_matches_free_text(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    value: &str,
-) -> bool {
-    product_search_string_matches(&product.title, value)
-        || product_search_string_matches(&product.handle, value)
-        || product_search_string_matches(&product.vendor, value)
-        || product_search_string_matches(&product.product_type, value)
-        || product_matches_search_tag(product, value)
-        || product_matches_search_sku(product, variants, value)
-}
-
-fn product_matches_search_id(product: &ProductRecord, value: &str) -> bool {
-    let value = value.trim_matches('"').trim_matches('\'');
-    product.id == value || resource_id_path_tail(&product.id) == value
-}
-
-fn product_matches_search_tag(product: &ProductRecord, value: &str) -> bool {
-    product
-        .tags
-        .iter()
-        .any(|tag| product_search_string_matches(tag, value))
-}
-
-fn product_matches_search_sku(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    value: &str,
-) -> bool {
-    variants
-        .iter()
-        .any(|variant| product_search_string_matches(&variant.sku, value))
-        || product.variants.iter().any(|variant| {
-            variant
-                .get("sku")
-                .and_then(Value::as_str)
-                .is_some_and(|sku| product_search_string_matches(sku, value))
-        })
-}
-
-fn product_matches_search_barcode(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    value: &str,
-) -> bool {
-    variants.iter().any(|variant| {
-        variant
-            .barcode
-            .as_deref()
-            .is_some_and(|barcode| product_search_string_matches(barcode, value))
-    }) || product.variants.iter().any(|variant| {
-        variant
-            .get("barcode")
-            .and_then(Value::as_str)
-            .is_some_and(|barcode| product_search_string_matches(barcode, value))
-    })
-}
-
-fn product_matches_search_gift_card(product: &ProductRecord, value: &str) -> bool {
-    let actual = product
-        .extra_fields
-        .get("isGiftCard")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    match value.to_ascii_lowercase().as_str() {
-        "true" => actual,
-        "false" => !actual,
-        _ => false,
-    }
-}
-
-fn product_matches_search_collection_id(product: &ProductRecord, value: &str) -> bool {
-    let value = value.trim_matches('"').trim_matches('\'');
-    product.collections.iter().any(|collection| {
-        collection
-            .get("id")
-            .and_then(Value::as_str)
-            .is_some_and(|id| id == value || resource_id_path_tail(id) == value)
-    })
-}
-
-fn product_search_string_matches(actual: &str, query_value: &str) -> bool {
-    let actual = actual.to_ascii_lowercase();
-    let query_value = query_value
-        .trim_matches('"')
-        .trim_matches('\'')
-        .to_ascii_lowercase();
-    if query_value.is_empty() {
-        return true;
-    }
-    if let Some(prefix) = query_value.strip_suffix('*') {
-        return actual
-            .split(|ch: char| !ch.is_ascii_alphanumeric())
-            .any(|part| part.starts_with(prefix));
-    }
-    actual.contains(&query_value)
-}
-
-fn product_matches_published_status(product: &ProductRecord, value: &str) -> bool {
-    let published = product_is_published(product);
-    match value.to_ascii_lowercase().as_str() {
-        "published" => published,
-        "unpublished" => !published,
-        "any" => true,
-        _ => false,
-    }
-}
-
-fn product_matches_published_at(product: &ProductRecord, value: &str) -> bool {
-    product
-        .extra_fields
-        .get("publishedAt")
-        .and_then(Value::as_str)
-        .is_some_and(|published_at| product_matches_date_query(published_at, value))
-}
-
-fn product_is_published(product: &ProductRecord) -> bool {
-    product
-        .extra_fields
-        .get("publishedAt")
-        .is_some_and(|published_at| !published_at.is_null())
-        || !product_visible_publication_entries(product).is_empty()
-}
-
-fn product_matches_date_query(actual: &str, query_value: &str) -> bool {
-    let (operator, expected) = product_search_comparator(query_value);
-    match operator {
-        "<" => actual < expected,
-        "<=" => actual <= expected,
-        ">" => actual > expected,
-        ">=" => actual >= expected,
-        _ => actual.starts_with(expected),
-    }
-}
-
-fn product_search_comparator(value: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<", "="] {
-        if let Some(rest) = value.strip_prefix(operator) {
-            return (operator, rest);
-        }
-    }
-    ("=", value)
 }
 
 pub(in crate::proxy) fn product_variant_state_from_observed_json(
@@ -3141,15 +2719,19 @@ pub(in crate::proxy) fn product_mutation_payload_json(
     product_selections: &[SelectedField],
     currency_code: &str,
     shop: Option<&Value>,
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json_with_variants_and_currency(
-                product,
-                variants,
-                product_selections,
-                currency_code,
-            )),
+            "product" => Some(
+                product_json_with_variants_and_currency_and_publication_context(
+                    product,
+                    variants,
+                    product_selections,
+                    currency_code,
+                    published_on_current_publication,
+                ),
+            ),
             "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
             "userErrors" => Some(json!([])),
             _ => None,
@@ -3649,18 +3231,143 @@ pub(in crate::proxy) fn product_category_input_id(
         })
 }
 
-/// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
-/// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// covered by captured evidence and reject unresolved input IDs before staging.
-pub(in crate::proxy) fn product_category_value(id: &str) -> Option<Value> {
-    let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => {
-            json!("Apparel & Accessories > Clothing > Activewear")
+impl DraftProxy {
+    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
+    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
+    /// When that source is unavailable, derive a deterministic fallback from the input
+    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
+    pub(in crate::proxy) fn product_category_value_for_input(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        let tail = taxonomy_category_tail(id)?;
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
+        {
+            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
+                return Some(category);
+            }
         }
-        "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
-        _ => return None,
+
+        Some(derived_product_category_value(id, tail))
+    }
+
+    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": TAXONOMY_CATEGORY_HYDRATE_QUERY,
+                "operationName": "ProductTaxonomyCategoryHydrate",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return None;
+        }
+        let node = response.body.pointer("/data/node")?;
+        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
+            return None;
+        }
+
+        let fallback = taxonomy_category_tail(id)
+            .map(|tail| derived_product_category_value(id, tail))
+            .unwrap_or_else(|| json!({ "id": id, "fullName": null }));
+        Some(json!({
+            "id": id,
+            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
+            "name": category_field_or_fallback(node, &fallback, "name"),
+            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
+            "level": category_field_or_fallback(node, &fallback, "level"),
+            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
+        }))
+    }
+}
+
+fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
+    node.get(field)
+        .filter(|value| !value.is_null())
+        .cloned()
+        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+}
+
+fn taxonomy_category_tail(id: &str) -> Option<&str> {
+    let tail = shopify_gid_tail_for_type(id, "TaxonomyCategory")?;
+    let tail = tail.split('?').next().unwrap_or(tail);
+    if taxonomy_category_tail_is_valid(tail) {
+        Some(tail)
+    } else {
+        None
+    }
+}
+
+fn taxonomy_category_tail_is_valid(tail: &str) -> bool {
+    let segments: Vec<&str> = tail
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return false;
+    }
+    if !segments[0]
+        .chars()
+        .all(|character| character.is_ascii_lowercase())
+    {
+        return false;
+    }
+    segments[1..]
+        .iter()
+        .all(|segment| segment.chars().all(|character| character.is_ascii_digit()))
+}
+
+fn derived_product_category_value(id: &str, tail: &str) -> Value {
+    let segments: Vec<&str> = tail
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let labels = segments
+        .iter()
+        .map(|segment| taxonomy_category_tail_label(segment))
+        .collect::<Vec<_>>();
+    let name = labels.last().cloned().unwrap_or_default();
+    let full_name = labels.join(" > ");
+    let parent_id = if segments.len() > 1 {
+        let parent_tail = segments[..segments.len() - 1].join("-");
+        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
+    } else {
+        Value::Null
     };
-    Some(json!({ "id": id, "fullName": full_name }))
+
+    json!({
+        "id": id,
+        "fullName": full_name,
+        "name": name,
+        "isLeaf": true,
+        "level": segments.len(),
+        "parentId": parent_id
+    })
+}
+
+fn taxonomy_category_tail_label(segment: &str) -> String {
+    if segment.chars().all(|character| character.is_ascii_digit()) {
+        return segment.to_string();
+    }
+
+    segment
+        .split('_')
+        .flat_map(|part| part.split_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => {
+                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(

@@ -591,10 +591,13 @@ fn payment_terms_owner_not_found_payload(
     )
 }
 
-fn payment_terms_order_total_price_set(order_input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn payment_terms_order_total_price_set(
+    order_input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     let default_shop_currency = resolved_string_field(order_input, "currency")
         .or_else(|| resolved_string_field(order_input, "currencyCode"))
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let default_presentment_currency = resolved_string_field(order_input, "presentmentCurrency")
         .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
         .unwrap_or_else(|| default_shop_currency.clone());
@@ -657,6 +660,13 @@ impl DraftProxy {
             });
             if !has_terms_mutation && !has_staged_owner_read {
                 return None;
+            }
+            if fields.iter().any(|field| {
+                field.name == "orderCreate"
+                    && resolved_object_field(&field.arguments, "order")
+                        .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
+            }) {
+                self.hydrate_shop_pricing_state_if_missing(request, true, false);
             }
             let mut staged_ids = Vec::new();
             let mut logged = false;
@@ -1099,7 +1109,8 @@ impl DraftProxy {
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
         let (id, order_input, _) = self.staged_order_input_and_first_line(field);
-        let price_set = payment_terms_order_total_price_set(&order_input);
+        let shop_currency_code = self.store.shop_currency_code();
+        let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
         let order_name = self.next_order_name();
         let order = json!({
             "id": id,

@@ -507,7 +507,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let Some(customer) = customer else {
+        let Some(mut customer) = customer else {
             return selected_json(
                 &json!({
                     "order": Value::Null,
@@ -531,6 +531,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        customer["canDelete"] = json!(false);
         order["customer"] = customer;
         if from_customer_map {
             self.store

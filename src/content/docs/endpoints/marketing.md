@@ -53,7 +53,7 @@ External activity lifecycle:
 
 External activity validation:
 
-- Create and upsert-create accept any non-empty `channelHandle` when supplied, enforce budget/ad-spend currency agreement, and reject duplicate remote IDs, UTM triplets, and URL parameter values within the requesting app.
+- Create rejects unrecognized `channelHandle` values with `INVALID_CHANNEL_HANDLE` when supplied, enforces budget/ad-spend currency agreement, and rejects duplicate remote IDs, UTM triplets, and URL parameter values within the requesting app. Upsert-create covers the captured currency and duplicate branches; unknown channel-handle upsert remains outside current parity evidence.
 - Update/upsert-update reject immutable `channelHandle`, URL parameter, UTM, hierarchy, parent, currency, and tactic changes according to captured branch-specific userErrors.
 - Non-external records, missing nested marketing events, and parent changes to a different resolved event fail before staging.
 - `remoteUrl` and `remotePreviewImageUrl` accept only `http` and `https` schemes. URL scalar failures remain top-level coercion errors before mutation handling.
@@ -69,7 +69,7 @@ Native/deprecated activity behavior:
 Engagement behavior:
 
 - `marketingEngagementCreate` accepts activity-level selectors by `marketingActivityId` or external activity `remoteId`, validates selector count, and stages engagement records in meta state for supported branches.
-- Channel-handle engagement accepts any non-empty handle. Empty handles return `INVALID_CHANNEL_HANDLE`.
+- Channel-handle engagement rejects unrecognized handles with `INVALID_CHANNEL_HANDLE`; validation runs before input currency checks on channel paths.
 - Currency validation follows captured order: selector-count checks first, channel-handle checks before currency on channel paths, and input currency checks before missing activity lookup on activity/remote paths.
 - On Admin API 2026-04, `MarketingEngagementInput.occurredOn`, `utcOffset`, and `isCumulative` are required schema fields. Omitting any of them returns top-level GraphQL coercion errors before the local handler stages an engagement; successful responses echo the supplied literals without synthesized defaults.
 - Activity-level duplicate same-day writes are accepted locally with latest metric values replacing the local engagement record.

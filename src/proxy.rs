@@ -1113,8 +1113,7 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
-        self.observed_shop_currency_code()
-            .unwrap_or_else(|| "USD".to_string())
+        self.observed_shop_currency_code().unwrap_or_default()
     }
 
     pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {
@@ -1907,6 +1906,7 @@ mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
+mod markets_catalog_data;
 mod markets_catalog_helpers;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
@@ -1925,6 +1925,7 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod schema_validation;
+mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;
@@ -1940,6 +1941,7 @@ pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
+pub(in crate::proxy) use self::markets_catalog_data::*;
 pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;

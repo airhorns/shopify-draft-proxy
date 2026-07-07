@@ -143,8 +143,6 @@ impl AdminOutputSchema {
         self.insert_local_scalar_field("TaxAppConfiguration", "id", "ID");
         self.insert_local_scalar_field("TaxAppConfiguration", "ready", "Boolean");
         self.insert_local_scalar_field("TaxAppConfiguration", "updatedAt", "DateTime");
-        self.insert_local_scalar_field("WebPixel", "status", "String");
-        self.insert_local_scalar_field("WebPixel", "webhookEndpointAddress", "String");
     }
 }
 
@@ -542,18 +540,21 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
                 context,
             ));
         }
-        for (argument_name, argument_schema) in arguments {
-            if argument_schema.type_ref.non_null
-                && !argument_schema.has_default
-                && !field.raw_arguments.contains_key(argument_name)
-            {
-                errors.push(required_root_argument_error(
-                    field,
-                    argument_name,
-                    &argument_schema.type_ref,
-                    context,
-                ));
-            }
+        let missing_required_arguments = arguments
+            .iter()
+            .filter(|(argument_name, argument_schema)| {
+                argument_schema.type_ref.non_null
+                    && !argument_schema.has_default
+                    && !field.raw_arguments.contains_key(*argument_name)
+            })
+            .map(|(argument_name, _)| argument_name.as_str())
+            .collect::<Vec<_>>();
+        if !missing_required_arguments.is_empty() {
+            errors.push(required_root_arguments_error(
+                field,
+                &missing_required_arguments,
+                context,
+            ));
         }
     }
     for error in product_feed_required_input_errors(&document) {
@@ -822,7 +823,9 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
         };
         let mode = match document.operation_type {
             OperationType::Query => UndefinedSelectionMode::AllFields,
-            OperationType::Mutation => UndefinedSelectionMode::PlainUserErrorCodeOnly,
+            OperationType::Mutation => {
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents
+            }
             OperationType::Subscription => continue,
         };
         collect_undefined_selection_field_errors(
@@ -841,8 +844,10 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
 #[derive(Clone, Copy)]
 enum UndefinedSelectionMode {
     AllFields,
-    PlainUserErrorCodeOnly,
+    PlainUserErrorCodeOnlyAndStrictParents,
 }
+
+const STRICT_MUTATION_SELECTION_PARENT_TYPES: &[&str] = &["WebPixel"];
 
 fn collect_undefined_selection_field_errors(
     document: &ParsedDocument,
@@ -878,9 +883,14 @@ fn collect_undefined_selection_field_errors(
                 errors,
             );
         } else if schema_fields.is_some() {
-            if matches!(mode, UndefinedSelectionMode::PlainUserErrorCodeOnly)
-                && !(selected_parent_type == "UserError" && selection.name == "code")
-            {
+            let should_report = match mode {
+                UndefinedSelectionMode::AllFields => true,
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents => {
+                    (selected_parent_type == "UserError" && selection.name == "code")
+                        || STRICT_MUTATION_SELECTION_PARENT_TYPES.contains(&selected_parent_type)
+                }
+            };
+            if !should_report {
                 continue;
             }
             errors.push(undefined_field_error(
@@ -2221,15 +2231,15 @@ fn root_argument_not_accepted_error(
     })
 }
 
-fn required_root_argument_error(
+fn required_root_arguments_error(
     field: &RootFieldSelection,
-    argument_name: &str,
-    _type_ref: &SchemaTypeRef,
+    argument_names: &[&str],
     context: ValidationContext<'_>,
 ) -> Value {
+    let arguments = argument_names.join(", ");
     missing_required_arguments_error(
         &field.name,
-        argument_name,
+        &arguments,
         context.field_location,
         vec![json!(context.operation_path), json!(context.response_key)],
     )

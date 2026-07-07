@@ -1959,7 +1959,10 @@ pub(in crate::proxy) fn country_name_for_code(country_code: &str) -> Option<&'st
     })
 }
 
-fn province_name_for_code(country_code: &str, province_code: &str) -> Option<&'static str> {
+pub(in crate::proxy) fn province_name_for_code(
+    country_code: &str,
+    province_code: &str,
+) -> Option<&'static str> {
     Some(match (country_code, province_code) {
         ("US", "AL") => "Alabama",
         ("US", "AK") => "Alaska",

@@ -42,6 +42,35 @@ pub(in crate::proxy) fn order_create_inventory_behaviour(field: &RootFieldSelect
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
 }
 
+fn order_create_input_needs_shop_currency_default(
+    order_input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if resolved_string_field(order_input, "currency")
+        .or_else(|| resolved_string_field(order_input, "currencyCode"))
+        .is_some()
+    {
+        return false;
+    }
+    let line_has_money_currency = resolved_object_list_field(order_input, "lineItems")
+        .into_iter()
+        .any(|line_item| {
+            resolved_object_field(&line_item, "priceSet")
+                .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        });
+    if line_has_money_currency {
+        return false;
+    }
+    !resolved_object_list_field(order_input, "shippingLines")
+        .into_iter()
+        .any(|shipping_line| {
+            resolved_object_field(&shipping_line, "priceSet")
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        })
+}
+
 pub(in crate::proxy) fn order_lifecycle_input_id(field: &RootFieldSelection) -> Option<String> {
     resolved_object_field(&field.arguments, "input")
         .and_then(|input| resolved_string_field(&input, "id"))
@@ -393,31 +422,108 @@ fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
     resource_id_tail_sort_value(order.get("id").and_then(Value::as_str))
 }
 
-/// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
-/// ISO-8601 timestamps order lexicographically, so string comparison matches
-/// chronological order; the numeric id is a stable tiebreak (and the sole key
-/// when a projection omits the timestamp, e.g. a status-only node). Callers
-/// reverse the sorted vector for `reverse: true`.
+fn order_string_sort_value(order: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        order
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn order_money_sort_value(order: &Value, field: &str) -> StagedSortValue {
+    money_set_amount(&order[field])
+        .map(|amount| StagedSortValue::I64((amount * 1_000_000.0).round() as i64))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn order_customer_name_sort_value(order: &Value) -> StagedSortValue {
+    let value = order
+        .get("customer")
+        .and_then(|customer| customer.get("displayName"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            order
+                .get("customer")
+                .and_then(|customer| customer.get("email"))
+                .and_then(Value::as_str)
+        })
+        .or_else(|| order.get("email").and_then(Value::as_str))
+        .unwrap_or_default();
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn order_destination_sort_value(order: &Value) -> StagedSortValue {
+    let Some(address) = order.get("shippingAddress").and_then(Value::as_object) else {
+        return StagedSortValue::Null;
+    };
+    let value = [
+        "countryCodeV2",
+        "country",
+        "provinceCode",
+        "province",
+        "city",
+        "zip",
+        "lastName",
+    ]
+    .iter()
+    .filter_map(|field| address.get(*field).and_then(Value::as_str))
+    .collect::<Vec<_>>()
+    .join("|");
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn order_number_sort_value(order: &Value) -> StagedSortValue {
+    order
+        .get("name")
+        .and_then(Value::as_str)
+        .map(|name| name.trim_start_matches('#'))
+        .and_then(|value| value.parse::<i64>().ok())
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|| order_string_sort_value(order, "name"))
+}
+
+fn order_total_items_quantity_sort_value(order: &Value) -> StagedSortValue {
+    let total = order
+        .get("lineItems")
+        .and_then(|line_items| line_items.get("nodes"))
+        .and_then(Value::as_array)
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|line| line.get("quantity").and_then(Value::as_i64))
+                .sum::<i64>()
+        })
+        .unwrap_or_default();
+    StagedSortValue::I64(total)
+}
+
+/// Sort key for the orders connection: `(documented key, numeric id)`, both
+/// ascending. ISO-8601 timestamps order lexicographically, so string comparison
+/// matches chronological order. Callers reverse the sorted vector for
+/// `reverse: true`.
 pub(in crate::proxy) fn order_staged_sort_key(
     order: &Value,
     sort_key: Option<&str>,
 ) -> StagedSortKey {
-    let date_field = match sort_key.unwrap_or("CREATED_AT") {
-        "UPDATED_AT" => "updatedAt",
-        "PROCESSED_AT" => "processedAt",
-        // CREATED_AT (and any sort key we do not specialize) falls back to
-        // creation order, which is the catalog scenarios' sort.
-        _ => "createdAt",
+    let primary = match sort_key {
+        None | Some("CREATED_AT") => order_string_sort_value(order, "createdAt"),
+        Some("CURRENT_TOTAL_PRICE") => order_money_sort_value(order, "currentTotalPriceSet"),
+        Some("CUSTOMER_NAME") => order_customer_name_sort_value(order),
+        Some("DESTINATION") => order_destination_sort_value(order),
+        Some("FINANCIAL_STATUS") => order_string_sort_value(order, "displayFinancialStatus"),
+        Some("FULFILLMENT_STATUS") => order_string_sort_value(order, "displayFulfillmentStatus"),
+        Some("ID") | Some("RELEVANCE") => order_gid_tail_sort_value(order),
+        Some("ORDER_NUMBER") => order_number_sort_value(order),
+        Some("PO_NUMBER") => order_string_sort_value(order, "poNumber"),
+        Some("PROCESSED_AT") => order_string_sort_value(order, "processedAt"),
+        Some("TOTAL_ITEMS_QUANTITY") => order_total_items_quantity_sort_value(order),
+        Some("TOTAL_PRICE") => order_money_sort_value(order, "totalPriceSet"),
+        Some("UPDATED_AT") => order_string_sort_value(order, "updatedAt"),
+        Some(_) => order_gid_tail_sort_value(order),
     };
-    let date = order
-        .get(date_field)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    vec![
-        StagedSortValue::String(date),
-        order_gid_tail_sort_value(order),
-    ]
+    vec![primary, order_gid_tail_sort_value(order)]
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -1498,6 +1604,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        if order_create_input_needs_shop_currency_default(&order_input) {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
                 if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
@@ -2082,7 +2191,9 @@ impl DraftProxy {
                     // contact email). Mirror that record so reads of
                     // order.customer reflect the customer, not the order email.
                     if let Some(customer) = self.store.staged.customers.get(&id) {
-                        customer.clone()
+                        let mut customer = customer.clone();
+                        customer["canDelete"] = json!(false);
+                        customer
                     } else {
                         json!({
                             "id": id,
