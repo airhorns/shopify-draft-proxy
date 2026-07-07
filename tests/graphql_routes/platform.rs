@@ -3081,6 +3081,141 @@ fn generic_location_add_stages_location_and_downstream_reads() {
         })
     );
 
+    let unlisted_country_display = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddCountryDisplay($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id address { country countryCode province provinceCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Bangkok Display",
+                "address": { "countryCode": "TH" }
+            }
+        }),
+    ));
+    assert_eq!(
+        unlisted_country_display.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let thailand_id = unlisted_country_display.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        unlisted_country_display.body["data"]["locationAdd"]["location"]["address"],
+        json!({
+            "country": "Thailand",
+            "countryCode": "TH",
+            "province": null,
+            "provinceCode": null
+        })
+    );
+
+    let thailand_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationAddCountryDisplayRead($id: ID!) {
+          location(id: $id) { address { country countryCode province provinceCode } }
+        }
+        "#,
+        json!({ "id": thailand_id }),
+    ));
+    assert_eq!(
+        thailand_read.body["data"]["location"]["address"],
+        json!({
+            "country": "Thailand",
+            "countryCode": "TH",
+            "province": null,
+            "provinceCode": null
+        })
+    );
+
+    let raw_province_display = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddRawProvinceDisplay($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { address { country countryCode province provinceCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Raw Province Display",
+                "address": { "countryCode": "TH", "provinceCode": "10" }
+            }
+        }),
+    ));
+    assert_eq!(
+        raw_province_display.body["data"]["locationAdd"],
+        json!({
+            "location": {
+                "address": {
+                    "country": "Thailand",
+                    "countryCode": "TH",
+                    "province": "10",
+                    "provinceCode": "10"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let dubai_display = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddProvinceDisplay($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id address { country countryCode province provinceCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Dubai Display",
+                "address": { "countryCode": "AE", "provinceCode": "DU" }
+            }
+        }),
+    ));
+    assert_eq!(
+        dubai_display.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let dubai_id = dubai_display.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        dubai_display.body["data"]["locationAdd"]["location"]["address"],
+        json!({
+            "country": "United Arab Emirates",
+            "countryCode": "AE",
+            "province": "Dubai",
+            "provinceCode": "DU"
+        })
+    );
+
+    let dubai_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationAddProvinceDisplayRead($id: ID!) {
+          location(id: $id) { address { country countryCode province provinceCode } }
+        }
+        "#,
+        json!({ "id": dubai_id }),
+    ));
+    assert_eq!(
+        dubai_read.body["data"]["location"]["address"],
+        json!({
+            "country": "United Arab Emirates",
+            "countryCode": "AE",
+            "province": "Dubai",
+            "provinceCode": "DU"
+        })
+    );
+
     let too_long_address = proxy.process_request(json_graphql_request(
         r#"
         mutation GenericLocationAddTooLongAddress($input: LocationAddInput!) {
@@ -3597,6 +3732,55 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         })
     );
 
+    let display_edit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationEditDisplayNames($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { address { country countryCode province provinceCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "id": primary_id,
+            "input": {
+                "address": { "countryCode": "AE", "provinceCode": "DU" }
+            }
+        }),
+    ));
+    assert_eq!(
+        display_edit.body["data"]["locationEdit"],
+        json!({
+            "location": {
+                "address": {
+                    "country": "United Arab Emirates",
+                    "countryCode": "AE",
+                    "province": "Dubai",
+                    "provinceCode": "DU"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let display_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationEditDisplayRead($id: ID!) {
+          location(id: $id) { address { country countryCode province provinceCode } }
+        }
+        "#,
+        json!({ "id": primary_id }),
+    ));
+    assert_eq!(
+        display_read.body["data"]["location"]["address"],
+        json!({
+            "country": "United Arab Emirates",
+            "countryCode": "AE",
+            "province": "Dubai",
+            "provinceCode": "DU"
+        })
+    );
+
     let read = proxy.process_request(json_graphql_request(
         r#"
         query GenericLocationEditRead($id: ID!) {
@@ -3635,7 +3819,10 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         .iter()
         .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
         .collect();
-    assert_eq!(roots, vec!["locationAdd", "locationAdd", "locationEdit"]);
+    assert_eq!(
+        roots,
+        vec!["locationAdd", "locationAdd", "locationEdit", "locationEdit"]
+    );
     assert!(log["entries"][2]["rawBody"]
         .as_str()
         .unwrap()
