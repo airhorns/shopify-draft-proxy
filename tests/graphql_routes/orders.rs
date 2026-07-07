@@ -5594,6 +5594,89 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
 }
 
 #[test]
+fn draft_order_create_reserve_inventory_until_uses_proxy_clock_boundary() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let past = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithPastReserveUntil($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "past-reserve@example.test",
+                "reserveInventoryUntil": "2025-06-01T00:00:00Z",
+                "lineItems": [{
+                    "title": "Past reserve line",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00"
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(past.status, 200);
+    assert_eq!(
+        past.body["data"]["draftOrderCreate"],
+        json!({
+            "draftOrder": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Reserve until can't be in the past"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let future = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithFutureReserveUntil($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id reserveInventoryUntil }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "future-reserve@example.test",
+                "reserveInventoryUntil": "2026-07-08T00:00:00Z",
+                "lineItems": [{
+                    "title": "Future reserve line",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00"
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(future.status, 200);
+    assert_eq!(
+        future.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        future.body["data"]["draftOrderCreate"]["draftOrder"]["reserveInventoryUntil"],
+        json!("2026-07-08T00:00:00Z")
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["operationName"],
+        json!("draftOrderCreate")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CreateDraftWithFutureReserveUntil"));
+}
+
+#[test]
 fn draft_orders_count_applies_query_filter_like_connection() {
     let mut proxy = snapshot_proxy();
 
