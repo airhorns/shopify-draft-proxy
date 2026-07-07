@@ -660,14 +660,13 @@ impl DraftProxy {
         None
     }
 
-    fn remaining_transfer_line_quantity(
+    pub(super) fn remaining_transfer_line_quantity(
         &self,
         transfer_id: &str,
         transfer_line_item_id: &str,
         excluding_shipment_id: Option<&str>,
     ) -> i64 {
-        let total = self
-            .store
+        self.store
             .staged
             .inventory_transfers
             .get(transfer_id)
@@ -676,22 +675,95 @@ impl DraftProxy {
                     .line_items
                     .iter()
                     .find(|line_item| line_item.id == transfer_line_item_id)
-                    .map(|line_item| line_item.quantity)
+                    .map(|line_item| {
+                        self.remaining_transfer_record_line_quantity(
+                            transfer_id,
+                            line_item,
+                            excluding_shipment_id,
+                        )
+                    })
             })
-            .unwrap_or(0);
-        let staged = self
+            .unwrap_or(0)
+    }
+
+    pub(super) fn remaining_transfer_record_line_quantity(
+        &self,
+        transfer_id: &str,
+        transfer_line: &InventoryTransferLineItemRecord,
+        excluding_shipment_id: Option<&str>,
+    ) -> i64 {
+        transfer_line.quantity
+            - self.transfer_line_shipment_consumed_quantity(
+                transfer_id,
+                transfer_line,
+                excluding_shipment_id,
+            )
+    }
+
+    fn shipment_belongs_to_transfer(
+        &self,
+        shipment: &InventoryShipmentRecord,
+        transfer_id: &str,
+    ) -> bool {
+        shipment.transfer_id.as_deref() == Some(transfer_id)
+            || shipment.movement_id.as_deref() == Some(transfer_id)
+    }
+
+    fn shipment_line_matches_transfer_line(
+        &self,
+        shipment_line: &InventoryShipmentLineItemRecord,
+        transfer_line: &InventoryTransferLineItemRecord,
+    ) -> bool {
+        shipment_line.transfer_line_item_id.as_deref() == Some(transfer_line.id.as_str())
+            || (shipment_line.transfer_line_item_id.is_none()
+                && shipment_line.inventory_item_id == transfer_line.inventory_item_id)
+    }
+
+    pub(super) fn transfer_line_shipment_quantities(
+        &self,
+        transfer_id: &str,
+        transfer_line: &InventoryTransferLineItemRecord,
+        excluding_shipment_id: Option<&str>,
+    ) -> (i64, i64) {
+        let mut shipped = 0;
+        let mut picked = 0;
+        for shipment in self
             .store
             .staged
             .inventory_shipments
             .values()
             .filter(|shipment| excluding_shipment_id != Some(shipment.id.as_str()))
-            .flat_map(|shipment| shipment.line_items.iter())
-            .filter(|line_item| {
-                line_item.transfer_line_item_id.as_deref() == Some(transfer_line_item_id)
-            })
-            .map(|line_item| line_item.quantity)
-            .sum::<i64>();
-        total - staged
+            .filter(|shipment| self.shipment_belongs_to_transfer(shipment, transfer_id))
+        {
+            let quantity = shipment
+                .line_items
+                .iter()
+                .filter(|shipment_line| {
+                    self.shipment_line_matches_transfer_line(shipment_line, transfer_line)
+                })
+                .map(|shipment_line| shipment_line.quantity)
+                .sum::<i64>();
+            if shipment.status == "DRAFT" {
+                picked += quantity;
+            } else {
+                shipped += quantity;
+            }
+        }
+        (shipped, picked)
+    }
+
+    fn transfer_line_shipment_consumed_quantity(
+        &self,
+        transfer_id: &str,
+        transfer_line: &InventoryTransferLineItemRecord,
+        excluding_shipment_id: Option<&str>,
+    ) -> i64 {
+        let (shipped, picked) = self.transfer_line_shipment_quantities(
+            transfer_id,
+            transfer_line,
+            excluding_shipment_id,
+        );
+        shipped + picked
     }
 
     fn inventory_shipment_payload_json(

@@ -2788,6 +2788,130 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
 }
 
 #[test]
+fn inventory_path_product_sibling_uses_product_scoped_inventory_and_tracking() {
+    let mut proxy = inventory_seed_proxy();
+    let location_id = add_inventory_test_location(&mut proxy, "Product sibling stock");
+
+    let untracked_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryPathUntrackedProduct($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              variants(first: 1) { nodes { inventoryItem { id tracked } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory path untracked product",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": false, "requiresShipping": true }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        untracked_setup.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    let untracked_product_id = untracked_setup.body["data"]["productSet"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let untracked_inventory_item_id = untracked_setup.body["data"]["productSet"]["product"]
+        ["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let stocked_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryPathStockedOtherProduct($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              title
+              status
+              totalInventory
+              tracksInventory
+              variants(first: 1) {
+                nodes {
+                  id
+                  inventoryQuantity
+                  inventoryItem {
+                    id
+                    tracked
+                    requiresShipping
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory path stocked other product",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": true, "requiresShipping": true },
+                    "inventoryQuantities": [{
+                        "locationId": location_id,
+                        "name": "available",
+                        "quantity": 11
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        stocked_setup.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryPathProductSibling($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) { id tracked }
+          product(id: $productId) { id totalInventory tracksInventory }
+        }
+        "#,
+        json!({
+            "inventoryItemId": untracked_inventory_item_id,
+            "productId": untracked_product_id
+        }),
+    ));
+    assert_eq!(read.body["data"]["inventoryItem"]["tracked"], json!(false));
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "id": untracked_product_id,
+            "totalInventory": 0,
+            "tracksInventory": false
+        })
+    );
+}
+
+#[test]
 fn inventory_quantity_mutations_reject_non_sentinel_unknown_ids() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) =
@@ -6633,6 +6757,126 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
             json!("inventoryTransferMarkAsReadyToShip"),
             json!("inventoryTransferCancel")
         ]
+    );
+}
+
+#[test]
+fn inventory_transfer_read_quantities_reflect_in_transit_shipment_consumption() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Shipment Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Shipment Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-SHIPMENT-READ");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
+
+    let create_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReadyTransferForShipment($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let transfer =
+        &create_response.body["data"]["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"];
+    assert_eq!(transfer["status"], json!("READY_TO_SHIP"));
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        transfer["lineItems"]["nodes"][0],
+        json!({
+            "id": transfer["lineItems"]["nodes"][0]["id"],
+            "totalQuantity": 2,
+            "shippableQuantity": 2,
+            "shippedQuantity": 0,
+            "processableQuantity": 2,
+            "pickedForShipmentQuantity": 0
+        })
+    );
+
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipOneTransferUnit($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItemTotalQuantity
+              lineItems(first: 10) { nodes { quantity inventoryItem { id } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "movementId": transfer_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query TransferAfterShipment($id: ID!) {
+          inventoryTransfer(id: $id) {
+            status
+            lineItems(first: 10) {
+              nodes {
+                totalQuantity
+                shippableQuantity
+                shippedQuantity
+                processableQuantity
+                pickedForShipmentQuantity
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryTransfer"]["status"],
+        json!("IN_PROGRESS")
+    );
+    assert_eq!(
+        read.body["data"]["inventoryTransfer"]["lineItems"]["nodes"][0],
+        json!({
+            "totalQuantity": 2,
+            "shippableQuantity": 1,
+            "shippedQuantity": 1,
+            "processableQuantity": 1,
+            "pickedForShipmentQuantity": 0
+        })
     );
 }
 
