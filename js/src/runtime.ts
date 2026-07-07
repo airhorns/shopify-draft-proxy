@@ -82,9 +82,14 @@ function resolveRustServerBinaryPath(): string {
   if (rustServerBinaryPath === undefined) {
     const cargoMetadataTarget = cargoMetadataTargetDir();
     rustServerBinaryPath = [
-      releaseBinaryIn(resolve(repoRoot, 'target')),
-      process.env['CARGO_TARGET_DIR'] === undefined ? undefined : releaseBinaryIn(process.env['CARGO_TARGET_DIR']),
+      // The cargo metadata target directory is where `cargo build` actually
+      // places artifacts when `.cargo/config.toml` redirects the target dir
+      // (e.g. Symphony's shared cache setup). Check it first so a stale
+      // `target/release/` binary from a previous non-redirected build doesn't
+      // shadow the freshly compiled cache-dir binary.
       cargoMetadataTarget === undefined ? undefined : releaseBinaryIn(cargoMetadataTarget),
+      process.env['CARGO_TARGET_DIR'] === undefined ? undefined : releaseBinaryIn(process.env['CARGO_TARGET_DIR']),
+      releaseBinaryIn(resolve(repoRoot, 'target')),
     ].find((candidate) => candidate !== undefined && existsSync(candidate));
   }
   if (rustServerBinaryPath === undefined) {

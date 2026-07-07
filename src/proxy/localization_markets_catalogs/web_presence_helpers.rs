@@ -191,7 +191,7 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
                 vec!["input", "alternateLocales"],
                 &format!(
                     "Alternate locales Duplicates were found in the following languages: {}",
-                    humanize_and_list(&listed)
+                    humanize_and_list(&listed, " and ")
                 ),
                 json!("DUPLICATE_LANGUAGES"),
             ));
@@ -201,11 +201,11 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
 
 /// Join a list with commas and a trailing "and": `[a]`->`a`, `[a,b]`->`a and b`,
 /// `[a,b,c]`->`a, b, and c` (Shopify's duplicate-language error phrasing).
-fn humanize_and_list(items: &[String]) -> String {
+fn humanize_and_list(items: &[String], two_item_separator: &str) -> String {
     match items {
         [] => String::new(),
         [only] => only.clone(),
-        [first, second] => format!("{first} and {second}"),
+        [first, second] => format!("{first}{two_item_separator}{second}"),
         [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
     }
 }
@@ -269,15 +269,13 @@ pub(in crate::proxy) fn normalize_shopify_locale(raw_locale: &str) -> Option<Str
 }
 
 pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> String {
-    match invalid_locales {
-        [] => "Invalid locale codes".to_string(),
-        [locale] => format!("Invalid locale codes: {locale}"),
-        [first, second] => format!("Invalid locale codes: {first}, and {second}"),
-        _ => {
-            let mut locales = invalid_locales.to_vec();
-            let last = locales.pop().unwrap_or_default();
-            format!("Invalid locale codes: {}, and {last}", locales.join(", "))
-        }
+    if invalid_locales.is_empty() {
+        "Invalid locale codes".to_string()
+    } else {
+        format!(
+            "Invalid locale codes: {}",
+            humanize_and_list(invalid_locales, ", and ")
+        )
     }
 }
 

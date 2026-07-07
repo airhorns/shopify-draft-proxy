@@ -1113,8 +1113,7 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
-        self.observed_shop_currency_code()
-            .unwrap_or_else(|| "USD".to_string())
+        self.observed_shop_currency_code().unwrap_or_default()
     }
 
     pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {

@@ -1,0 +1,55 @@
+{
+  "scenarioId": "productCreate-category-non-sentinel-parity",
+  "operationNames": ["productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-non-sentinel-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-category-parity.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify productCreate with ProductCreateInput.category using a taxonomy category outside the former runtime sentinel IDs, followed by an immediate product readback. This proves the product category resolver does not collapse arbitrary real taxonomy IDs to null category names.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify and the local staging registry allocate product ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "non-sentinel-category-mutation-data",
+        "capturePath": "$.mutation.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "non-sentinel-category-downstream-read-data",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-category-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local staging registry allocate product ids independently."
+          }
+        ]
+      }
+    ]
+  }
+}

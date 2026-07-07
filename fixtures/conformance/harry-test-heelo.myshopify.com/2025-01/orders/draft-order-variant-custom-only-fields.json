@@ -2,14 +2,14 @@
   "scenarioId": "draft-order-variant-custom-only-fields",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-06-24T01:01:25.713Z",
+  "recordedAt": "2026-07-05T08:12:02.931Z",
   "source": "live-shopify-admin-graphql",
   "setup": {
     "productCreate": {
       "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Draft order catalog source 20260624010123",
+          "title": "Draft order catalog source 20260705081200",
           "status": "DRAFT"
         }
       },
@@ -17,12 +17,12 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10220301549874",
-              "title": "Draft order catalog source 20260624010123",
+              "id": "gid://shopify/Product/10232113299762",
+              "title": "Draft order catalog source 20260705081200",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51359250350386",
+                    "id": "gid://shopify/ProductVariant/51425149354290",
                     "title": "Default Title"
                   }
                 ]
@@ -47,14 +47,14 @@
     "productVariantsBulkUpdate": {
       "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      productVariants {\n        id\n        title\n        sku\n        taxable\n        price\n        inventoryItem {\n          requiresShipping\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10220301549874",
+        "productId": "gid://shopify/Product/10232113299762",
         "variants": [
           {
-            "id": "gid://shopify/ProductVariant/51359250350386",
+            "id": "gid://shopify/ProductVariant/51425149354290",
             "price": "19.95",
             "taxable": true,
             "inventoryItem": {
-              "sku": "DRAFT-CATALOG-20260624010123",
+              "sku": "DRAFT-CATALOG-20260705081200",
               "requiresShipping": true
             }
           }
@@ -65,9 +65,9 @@
           "productVariantsBulkUpdate": {
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51359250350386",
+                "id": "gid://shopify/ProductVariant/51425149354290",
                 "title": "Default Title",
-                "sku": "DRAFT-CATALOG-20260624010123",
+                "sku": "DRAFT-CATALOG-20260705081200",
                 "taxable": true,
                 "price": "19.95",
                 "inventoryItem": {
@@ -94,21 +94,21 @@
     "variantHydrate": {
       "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
       "variables": {
-        "id": "gid://shopify/ProductVariant/51359250350386"
+        "id": "gid://shopify/ProductVariant/51425149354290"
       },
       "response": {
         "data": {
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51359250350386",
+            "id": "gid://shopify/ProductVariant/51425149354290",
             "title": "Default Title",
-            "sku": "DRAFT-CATALOG-20260624010123",
+            "sku": "DRAFT-CATALOG-20260705081200",
             "taxable": true,
             "price": "19.95",
             "inventoryItem": {
               "requiresShipping": true
             },
             "product": {
-              "title": "Draft order catalog source 20260624010123"
+              "title": "Draft order catalog source 20260705081200"
             }
           }
         },
@@ -130,10 +130,10 @@
     "query": "mutation DraftOrderVariantCustomOnlyFieldsCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      lineItems(first: 5) {\n        nodes {\n          title\n          name\n          sku\n          quantity\n          custom\n          requiresShipping\n          taxable\n          variant {\n            id\n            title\n            sku\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "email": "draft-order-variant-custom-fields-20260624010123@example.com",
+        "email": "draft-order-variant-custom-fields-20260705081200@example.com",
         "lineItems": [
           {
-            "variantId": "gid://shopify/ProductVariant/51359250350386",
+            "variantId": "gid://shopify/ProductVariant/51425149354290",
             "title": "Bogus custom title",
             "sku": "BOGUS-CUSTOM-SKU",
             "quantity": 2,
@@ -148,21 +148,21 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270117335346",
+            "id": "gid://shopify/DraftOrder/1276055388466",
             "lineItems": {
               "nodes": [
                 {
-                  "title": "Draft order catalog source 20260624010123",
-                  "name": "Draft order catalog source 20260624010123",
-                  "sku": "DRAFT-CATALOG-20260624010123",
+                  "title": "Draft order catalog source 20260705081200",
+                  "name": "Draft order catalog source 20260705081200",
+                  "sku": "DRAFT-CATALOG-20260705081200",
                   "quantity": 2,
                   "custom": false,
                   "requiresShipping": true,
                   "taxable": true,
                   "variant": {
-                    "id": "gid://shopify/ProductVariant/51359250350386",
+                    "id": "gid://shopify/ProductVariant/51425149354290",
                     "title": "Default Title",
-                    "sku": "DRAFT-CATALOG-20260624010123"
+                    "sku": "DRAFT-CATALOG-20260705081200"
                   },
                   "originalUnitPriceSet": {
                     "shopMoney": {
@@ -196,7 +196,7 @@
       "input": {
         "lineItems": [
           {
-            "variantId": "gid://shopify/ProductVariant/51359250350386",
+            "variantId": "gid://shopify/ProductVariant/51425149354290",
             "title": "Bogus custom title",
             "sku": "BOGUS-CUSTOM-SKU",
             "quantity": 2,
@@ -213,7 +213,7 @@
           "calculatedDraftOrder": {
             "lineItems": [
               {
-                "title": "Draft order catalog source 20260624010123",
+                "title": "Draft order catalog source 20260705081200",
                 "quantity": 2,
                 "custom": false,
                 "originalUnitPriceSet": {
@@ -245,7 +245,7 @@
     {
       "operationName": "OrdersDraftOrderVariantHydrate",
       "variables": {
-        "id": "gid://shopify/ProductVariant/51359250350386"
+        "id": "gid://shopify/ProductVariant/51425149354290"
       },
       "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
       "response": {
@@ -253,16 +253,16 @@
         "body": {
           "data": {
             "productVariant": {
-              "id": "gid://shopify/ProductVariant/51359250350386",
+              "id": "gid://shopify/ProductVariant/51425149354290",
               "title": "Default Title",
-              "sku": "DRAFT-CATALOG-20260624010123",
+              "sku": "DRAFT-CATALOG-20260705081200",
               "taxable": true,
               "price": "19.95",
               "inventoryItem": {
                 "requiresShipping": true
               },
               "product": {
-                "title": "Draft order catalog source 20260624010123"
+                "title": "Draft order catalog source 20260705081200"
               }
             }
           },
@@ -279,6 +279,34 @@
           }
         }
       }
+    },
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "cleanup": {
@@ -286,13 +314,13 @@
       "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsDraftDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/DraftOrder/1270117335346"
+          "id": "gid://shopify/DraftOrder/1276055388466"
         }
       },
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1270117335346",
+            "deletedId": "gid://shopify/DraftOrder/1276055388466",
             "userErrors": []
           }
         },
@@ -314,13 +342,13 @@
       "query": "#graphql\n  mutation DraftOrderVariantCustomFieldsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10220301549874"
+          "id": "gid://shopify/Product/10232113299762"
         }
       },
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10220301549874",
+            "deletedProductId": "gid://shopify/Product/10232113299762",
             "userErrors": []
           }
         },

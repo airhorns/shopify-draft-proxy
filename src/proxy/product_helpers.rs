@@ -31,6 +31,8 @@ pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = incl
     "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
 );
 
+pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
+
 pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
 );
@@ -1264,6 +1266,40 @@ impl DraftProxy {
             ),
         )
     }
+
+    pub(in crate::proxy) fn product_variant_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
+        )
+    }
+
+    pub(in crate::proxy) fn product_variant_inventory_item_json_with_current_publication_context(
+        &self,
+        variant: &ProductVariantRecord,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_variant_inventory_item_json_with_publication_context(
+            variant,
+            product,
+            selections,
+            product.map(|product| {
+                self.store
+                    .product_is_published_on_current_publication(product)
+            }),
+        )
+    }
 }
 
 pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
@@ -1606,29 +1642,6 @@ pub(in crate::proxy) fn product_has_out_of_stock_variants(
         .any(|variant| variant.inventory_quantity <= 0)
 }
 
-pub(in crate::proxy) fn product_json_with_variants(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-) -> Value {
-    product_json_with_variants_and_currency(product, variants, selections, "USD")
-}
-
-pub(in crate::proxy) fn product_json_with_variants_and_currency(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-    currency_code: &str,
-) -> Value {
-    product_json_with_variants_and_currency_and_publication_context(
-        product,
-        variants,
-        selections,
-        currency_code,
-        None,
-    )
-}
-
 pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
@@ -1739,7 +1752,7 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_
             product
                 .extra_fields
                 .get("category")
-                .cloned()
+                .map(|value| nullable_selected_json(value, &selection.selection))
                 .unwrap_or(Value::Null),
         ),
         "requiresSellingPlan" => Some(
@@ -1905,6 +1918,15 @@ pub(in crate::proxy) fn product_variant_json(
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
 ) -> Value {
+    product_variant_json_with_publication_context(variant, product, selections, None)
+}
+
+pub(in crate::proxy) fn product_variant_json_with_publication_context(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
         "id" => Some(json!(variant.id)),
@@ -1939,13 +1961,22 @@ pub(in crate::proxy) fn product_variant_json(
                 })
                 .collect(),
         )),
-        "inventoryItem" => Some(product_variant_inventory_item_json(
-            variant,
-            product,
-            &selection.selection,
-        )),
+        "inventoryItem" => Some(
+            product_variant_inventory_item_json_with_publication_context(
+                variant,
+                product,
+                &selection.selection,
+                published_on_current_publication,
+            ),
+        ),
         "product" => Some(match product {
-            Some(product) => product_json_with_variants(product, &[], &selection.selection),
+            Some(product) => product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
             None => variant
                 .extra_fields
                 .get("product")
@@ -2139,10 +2170,11 @@ fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
     StagedSortValue::String(value.as_ref().to_ascii_lowercase())
 }
 
-pub(in crate::proxy) fn product_variant_inventory_item_json(
+pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_context(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("InventoryItem")),
@@ -2151,7 +2183,12 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
         "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
         // Render the inventory item's backreference variant with its owning product so
         // `inventoryItem(id:).variant.product` resolves rather than returning null.
-        "variant" => Some(product_variant_json(variant, product, &selection.selection)),
+        "variant" => Some(product_variant_json_with_publication_context(
+            variant,
+            product,
+            &selection.selection,
+            published_on_current_publication,
+        )),
         _ => variant
             .inventory_item
             .extra_fields
@@ -2160,20 +2197,22 @@ pub(in crate::proxy) fn product_variant_inventory_item_json(
     })
 }
 
-pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
+pub(in crate::proxy) fn observed_product_variant_inventory_item_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Option<Value> {
     let inventory_item = variant.get("inventoryItem")?;
     Some(selected_payload_json(
         selections,
         |selection| match selection.name.as_str() {
             "__typename" => Some(json!("InventoryItem")),
-            "variant" => Some(observed_product_variant_json(
+            "variant" => Some(observed_product_variant_json_with_publication_context(
                 product,
                 variant,
                 &selection.selection,
+                published_on_current_publication,
             )),
             _ => inventory_item
                 .get(&selection.name)
@@ -2182,18 +2221,23 @@ pub(in crate::proxy) fn observed_product_variant_inventory_item_json(
     ))
 }
 
-fn observed_product_variant_json(
+fn observed_product_variant_json_with_publication_context(
     product: &ProductRecord,
     variant: &Value,
     selections: &[SelectedField],
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
-        "product" => Some(product_json_with_variants(
-            product,
-            &[],
-            &selection.selection,
-        )),
+        "product" => Some(
+            product_json_with_variants_and_currency_and_publication_context(
+                product,
+                &[],
+                &selection.selection,
+                "USD",
+                published_on_current_publication,
+            ),
+        ),
         _ => variant
             .get(&selection.name)
             .map(|value| product_variant_extra_field_json(value, &selection.selection)),
@@ -2675,15 +2719,19 @@ pub(in crate::proxy) fn product_mutation_payload_json(
     product_selections: &[SelectedField],
     currency_code: &str,
     shop: Option<&Value>,
+    published_on_current_publication: Option<bool>,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json_with_variants_and_currency(
-                product,
-                variants,
-                product_selections,
-                currency_code,
-            )),
+            "product" => Some(
+                product_json_with_variants_and_currency_and_publication_context(
+                    product,
+                    variants,
+                    product_selections,
+                    currency_code,
+                    published_on_current_publication,
+                ),
+            ),
             "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
             "userErrors" => Some(json!([])),
             _ => None,
@@ -3183,18 +3231,143 @@ pub(in crate::proxy) fn product_category_input_id(
         })
 }
 
-/// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
-/// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// covered by captured evidence and reject unresolved input IDs before staging.
-pub(in crate::proxy) fn product_category_value(id: &str) -> Option<Value> {
-    let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => {
-            json!("Apparel & Accessories > Clothing > Activewear")
+impl DraftProxy {
+    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
+    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
+    /// When that source is unavailable, derive a deterministic fallback from the input
+    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
+    pub(in crate::proxy) fn product_category_value_for_input(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        let tail = taxonomy_category_tail(id)?;
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
+        {
+            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
+                return Some(category);
+            }
         }
-        "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
-        _ => return None,
+
+        Some(derived_product_category_value(id, tail))
+    }
+
+    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": TAXONOMY_CATEGORY_HYDRATE_QUERY,
+                "operationName": "ProductTaxonomyCategoryHydrate",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return None;
+        }
+        let node = response.body.pointer("/data/node")?;
+        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
+            return None;
+        }
+
+        let fallback = taxonomy_category_tail(id)
+            .map(|tail| derived_product_category_value(id, tail))
+            .unwrap_or_else(|| json!({ "id": id, "fullName": null }));
+        Some(json!({
+            "id": id,
+            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
+            "name": category_field_or_fallback(node, &fallback, "name"),
+            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
+            "level": category_field_or_fallback(node, &fallback, "level"),
+            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
+        }))
+    }
+}
+
+fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
+    node.get(field)
+        .filter(|value| !value.is_null())
+        .cloned()
+        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+}
+
+fn taxonomy_category_tail(id: &str) -> Option<&str> {
+    let tail = shopify_gid_tail_for_type(id, "TaxonomyCategory")?;
+    let tail = tail.split('?').next().unwrap_or(tail);
+    if taxonomy_category_tail_is_valid(tail) {
+        Some(tail)
+    } else {
+        None
+    }
+}
+
+fn taxonomy_category_tail_is_valid(tail: &str) -> bool {
+    let segments: Vec<&str> = tail
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return false;
+    }
+    if !segments[0]
+        .chars()
+        .all(|character| character.is_ascii_lowercase())
+    {
+        return false;
+    }
+    segments[1..]
+        .iter()
+        .all(|segment| segment.chars().all(|character| character.is_ascii_digit()))
+}
+
+fn derived_product_category_value(id: &str, tail: &str) -> Value {
+    let segments: Vec<&str> = tail
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let labels = segments
+        .iter()
+        .map(|segment| taxonomy_category_tail_label(segment))
+        .collect::<Vec<_>>();
+    let name = labels.last().cloned().unwrap_or_default();
+    let full_name = labels.join(" > ");
+    let parent_id = if segments.len() > 1 {
+        let parent_tail = segments[..segments.len() - 1].join("-");
+        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
+    } else {
+        Value::Null
     };
-    Some(json!({ "id": id, "fullName": full_name }))
+
+    json!({
+        "id": id,
+        "fullName": full_name,
+        "name": name,
+        "isLeaf": true,
+        "level": segments.len(),
+        "parentId": parent_id
+    })
+}
+
+fn taxonomy_category_tail_label(segment: &str) -> String {
+    if segment.chars().all(|character| character.is_ascii_digit()) {
+        return segment.to_string();
+    }
+
+    segment
+        .split('_')
+        .flat_map(|part| part.split_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => {
+                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(

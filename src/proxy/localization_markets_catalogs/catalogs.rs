@@ -229,6 +229,23 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut updated_catalog = existing_catalog;
+        if let Some(title) = resolved_string_field(&input, "title") {
+            if let Some(object) = updated_catalog.as_object_mut() {
+                object.insert("title".to_string(), json!(title));
+            }
+        }
+        if let Some(status) = resolved_string_field(&input, "status") {
+            if let Some(object) = updated_catalog.as_object_mut() {
+                object.insert("status".to_string(), json!(status));
+            }
+        }
+        if let Some(context) = resolved_object_field(&input, "context") {
+            if let Some(error) =
+                self.apply_catalog_update_context_input(field, &mut updated_catalog, &context)
+            {
+                return error;
+            }
+        }
 
         if let Some(price_list_id) = resolved_string_field(&input, "priceListId") {
             self.catalog_relation_price_list_preflight(request, &price_list_id);
@@ -286,6 +303,75 @@ impl DraftProxy {
             .catalogs
             .insert(id, updated_catalog.clone());
         self.selected_catalog_payload(field, updated_catalog, Vec::new())
+    }
+
+    fn apply_catalog_update_context_input(
+        &self,
+        field: &RootFieldSelection,
+        catalog: &mut Value,
+        context: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let context_type_fields = catalog_context_type_fields(context);
+        if context_type_fields.len() != 1 {
+            return Some(selected_catalog_error(
+                field,
+                vec!["input", "context"],
+                "Must provide exactly one context type.",
+                "CONTEXT_DRIVER_MISMATCH",
+            ));
+        }
+
+        let (driver, field_name) = context_type_fields[0];
+        let catalog_driver = catalog_context_driver(catalog);
+        if driver != catalog_driver {
+            return Some(selected_catalog_error(
+                field,
+                vec!["input", "context", field_name],
+                CATALOG_CONTEXT_DRIVER_MISMATCH_MESSAGE,
+                "CONTEXT_DRIVER_MISMATCH",
+            ));
+        }
+
+        match driver {
+            CatalogContextDriver::Market => {
+                let market_ids = list_string_field(context, field_name);
+                for (index, market_id) in market_ids.iter().enumerate() {
+                    if !self.market_exists(market_id) {
+                        return Some(selected_catalog_error(
+                            field,
+                            vec!["input", "context", field_name, &index.to_string()],
+                            "Market does not exist",
+                            "MARKET_NOT_FOUND",
+                        ));
+                    }
+                }
+                let market_names = self.staged_market_names();
+                set_catalog_market_ids(catalog, &market_ids, &market_names);
+            }
+            CatalogContextDriver::CompanyLocation => {
+                let company_location_ids = company_location_ids_from_context(context);
+                for (index, location_id) in company_location_ids.iter().enumerate() {
+                    if !self.store.staged.b2b_locations.contains_key(location_id) {
+                        return Some(selected_catalog_error(
+                            field,
+                            vec!["input", "context", field_name, &index.to_string()],
+                            COMPANY_LOCATION_NOT_FOUND_MESSAGE,
+                            "COMPANY_LOCATION_NOT_FOUND",
+                        ));
+                    }
+                }
+                set_catalog_company_location_ids(
+                    catalog,
+                    &company_location_ids,
+                    &self.staged_company_locations_for_catalog(),
+                );
+            }
+            CatalogContextDriver::Country => {
+                let country_codes = country_codes_from_context(context);
+                set_catalog_country_codes(catalog, &country_codes);
+            }
+        }
+        None
     }
 
     pub(in crate::proxy) fn catalog_delete_response(
@@ -385,38 +471,23 @@ impl DraftProxy {
         match catalog_driver {
             CatalogContextDriver::Market => {
                 let mut market_ids = catalog_market_ids(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let remove = list_string_field(context, "marketIds")
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    market_ids.retain(|id| !remove.contains(id));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for market_id in list_string_field(context, "marketIds") {
-                        if !market_ids.contains(&market_id) {
-                            market_ids.push(market_id);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut market_ids,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    |context| list_string_field(context, "marketIds"),
+                );
                 let market_names = self.staged_market_names();
                 set_catalog_market_ids(&mut updated_catalog, &market_ids, &market_names);
             }
             CatalogContextDriver::CompanyLocation => {
                 let mut company_location_ids = catalog_company_location_ids(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let mut remove = list_string_field(context, "companyLocationIds")
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    remove.extend(list_string_field(context, "locationIds"));
-                    company_location_ids.retain(|id| !remove.contains(id));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for location_id in company_location_ids_from_context(context) {
-                        if !company_location_ids.contains(&location_id) {
-                            company_location_ids.push(location_id);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut company_location_ids,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    company_location_ids_from_context,
+                );
                 set_catalog_company_location_ids(
                     &mut updated_catalog,
                     &company_location_ids,
@@ -425,19 +496,12 @@ impl DraftProxy {
             }
             CatalogContextDriver::Country => {
                 let mut country_codes = catalog_country_codes(&updated_catalog);
-                if let Some(context) = contexts_to_remove.as_ref() {
-                    let remove = country_codes_from_context(context)
-                        .into_iter()
-                        .collect::<BTreeSet<_>>();
-                    country_codes.retain(|code| !remove.contains(code));
-                }
-                if let Some(context) = contexts_to_add.as_ref() {
-                    for country_code in country_codes_from_context(context) {
-                        if !country_codes.contains(&country_code) {
-                            country_codes.push(country_code);
-                        }
-                    }
-                }
+                apply_context_id_diff(
+                    &mut country_codes,
+                    contexts_to_remove.as_ref(),
+                    contexts_to_add.as_ref(),
+                    country_codes_from_context,
+                );
                 set_catalog_country_codes(&mut updated_catalog, &country_codes);
             }
         }
@@ -449,8 +513,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_catalog_id(&self, driver_type: CatalogContextDriver) -> String {
-        let numeric_id =
-            (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
+        let numeric_id = next_markets_catalogs_numeric_id(&self.store, 0);
         shopify_gid(driver_type.catalog_type_name(), numeric_id)
     }
 
@@ -554,11 +617,7 @@ impl DraftProxy {
                 return PriceListFieldOutcome::resource_not_found(catalog_id, field);
             }
             if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::price_list_with_user_errors(
-                    field,
-                    Value::Null,
-                    vec![error],
-                );
+                return self.selected_price_list_outcome(field, Value::Null, vec![error]);
             }
         }
 
@@ -586,22 +645,20 @@ impl DraftProxy {
         if let Some(error) = price_list_adjustment_error(&adjustment) {
             return PriceListFieldOutcome::price_list_error(field, error);
         }
-        let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
 
         let id = self.next_price_list_id();
         let price_list = price_list_record(
             &id,
             &name,
             &currency,
-            &adjustment_type,
-            price_list_adjustment_value_json(&adjustment),
+            price_list_parent_json(&parent),
             catalog_id.as_deref(),
         );
         if let Some(catalog_id) = catalog_id.as_deref() {
             self.attach_price_list_to_catalog(catalog_id, &id);
         }
         self.store.staged.price_lists.insert(id, price_list.clone());
-        PriceListFieldOutcome::price_list_with_user_errors(field, price_list, Vec::new())
+        self.selected_price_list_outcome(field, price_list, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_update_response(
@@ -632,7 +689,7 @@ impl DraftProxy {
             let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
             if let Some(error) = price_list_adjustment_error(&adjustment) {
                 let (path, message, code) = error;
-                return PriceListFieldOutcome::price_list_with_user_errors(
+                return self.selected_price_list_outcome(
                     field,
                     existing.clone(),
                     vec![price_list_user_error(path, message, code)],
@@ -647,11 +704,7 @@ impl DraftProxy {
                 if let Some(error) =
                     self.price_list_catalog_validation_error(&catalog_id, Some(&id))
                 {
-                    return PriceListFieldOutcome::price_list_with_user_errors(
-                        field,
-                        Value::Null,
-                        vec![error],
-                    );
+                    return self.selected_price_list_outcome(field, Value::Null, vec![error]);
                 }
             }
         }
@@ -668,13 +721,8 @@ impl DraftProxy {
             }
         }
         if let Some(parent) = parent_update.as_ref() {
-            let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
-            let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
             if let Some(object) = updated.as_object_mut() {
-                object.insert(
-                    "parent".to_string(),
-                    json!({"adjustment": {"type": adjustment_type, "value": price_list_adjustment_value_json(&adjustment)}}),
-                );
+                object.insert("parent".to_string(), price_list_parent_json(parent));
             }
         }
         if input.get("catalogId") == Some(&ResolvedValue::Null) {
@@ -692,7 +740,7 @@ impl DraftProxy {
             }
         }
         self.store.staged.price_lists.insert(id, updated.clone());
-        PriceListFieldOutcome::price_list_with_user_errors(field, updated, Vec::new())
+        self.selected_price_list_outcome(field, updated, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_delete_response(
@@ -1150,10 +1198,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_price_list_id(&self) -> String {
-        let numeric_id = (self.store.staged.markets.len() * 2)
-            + (self.store.staged.catalogs.len() * 2)
-            + self.store.staged.price_lists.len()
-            + 1;
+        let numeric_id =
+            next_markets_catalogs_numeric_id(&self.store, self.store.staged.price_lists.len());
         shopify_gid("PriceList", numeric_id)
     }
 

@@ -216,10 +216,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
-            .unwrap_or_else(|| {
-                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-            });
+        let location_id =
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let tax_exempt_argument = field.raw_arguments.get("taxExempt");
         let tax_exempt_is_null = matches!(
             tax_exempt_argument,
@@ -231,7 +229,7 @@ impl DraftProxy {
         );
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
+        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return failed_payload_outcome(b2b_company_location_payload(
                 None,
                 vec![user_error(
@@ -240,7 +238,7 @@ impl DraftProxy {
                     Some("RESOURCE_NOT_FOUND"),
                 )],
             ));
-        }
+        };
         if tax_exempt_is_null {
             return failed_payload_outcome(b2b_company_location_payload(
                 None,
@@ -252,13 +250,6 @@ impl DraftProxy {
             ));
         }
 
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
         let mut exemptions = Vec::new();
         if let Some(current_exemptions) = location
             .pointer("/taxSettings/taxExemptions")
@@ -315,24 +306,7 @@ pub(in crate::proxy) fn b2b_company_location_exists(
     locations: &BTreeMap<String, Value>,
     location_id: &str,
 ) -> bool {
-    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
-    json!({
-        "id": location_id,
-        "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" },
-        "taxSettings": {
-            "taxRegistrationId": Value::Null,
-            "taxExempt": true,
-            "taxExemptions": []
-        }
-    })
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
-    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+    locations.contains_key(location_id)
 }
 
 enum B2bCompanyLocationDeleteBlocker {
@@ -1353,19 +1327,6 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
             Some(location) => location,
-            // Shopify always provisions a default, tax-exempt company location on
-            // the shop. An update targeting the synthetic seed location resolves
-            // against that default (so input validation runs) rather than failing
-            // not-found, mirroring real Shopify where the location already exists.
-            None if location_id == b2b_synthetic_seed_company_location_id() => json!({
-                "id": location_id,
-                "name": "HQ",
-                "taxSettings": { "taxExempt": true, "taxExemptions": [] },
-                "buyerExperienceConfiguration":
-                    b2b_buyer_experience_configuration_json(&BTreeMap::new()),
-                "roleAssignmentIds": [],
-                "staffAssignmentIds": []
-            }),
             None => {
                 return failed_payload_outcome(b2b_company_location_payload(
                     None,
@@ -3997,11 +3958,7 @@ impl DraftProxy {
         existing: Option<&Value>,
     ) -> Option<String> {
         b2b_location_input_country_code(input)
-            .or_else(|| {
-                existing
-                    .and_then(b2b_location_record_country_code)
-                    .map(str::to_string)
-            })
+            .or_else(|| existing.and_then(b2b_location_record_country_code))
             .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
     }
 
@@ -4135,7 +4092,7 @@ fn b2b_address_input_errors(
         None => None,
     };
 
-    if let Some(country_code) = country {
+    if let Some(country_code) = country.as_deref() {
         // Zone: only validated when the country publishes subdivisions (e.g. SG
         // has none) and a zoneCode was supplied.
         if let Some(zone_code) = resolved_string_field(address, "zoneCode") {
@@ -4198,17 +4155,15 @@ fn b2b_address_input_errors(
     errors
 }
 
-/// B2B address validation currently accepts the captured live-Admin country
-/// boundary while sourcing known display names from the shared location module.
-fn b2b_country_catalog_by_code(code: &str) -> Option<&'static str> {
-    let country_code = match code.to_ascii_uppercase().as_str() {
-        "CA" => "CA",
-        "US" => "US",
-        "SG" => "SG",
-        _ => return None,
-    };
-    country_name_for_code(country_code)?;
-    Some(country_code)
+/// B2B address validation uses the same accepted country-code catalog as other
+/// Admin address helpers, while preserving canonical uppercase ISO codes in
+/// staged state.
+fn b2b_country_catalog_by_code(code: &str) -> Option<String> {
+    let country_code = code.to_ascii_uppercase();
+    if country_code == "ZZ" {
+        return None;
+    }
+    location_country_code_is_valid(&country_code).then_some(country_code)
 }
 
 fn b2b_country_has_zone_catalog(country_code: &str) -> bool {
@@ -4403,28 +4358,50 @@ fn b2b_company_location_input_currency_code(
 fn b2b_address_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(input, "countryCode")
         .or_else(|| resolved_string_field(input, "countryCodeV2"))
-        .and_then(|code| b2b_country_catalog_by_code(&code).map(str::to_string))
+        .and_then(|code| b2b_country_catalog_by_code(&code))
 }
 
 fn b2b_company_location_currency_code(location: &Value, default_currency_code: &str) -> String {
     location
         .get("currency")
         .and_then(Value::as_str)
-        .or_else(|| b2b_location_record_country_code(location).and_then(b2b_country_currency_code))
+        .or_else(|| {
+            b2b_location_record_country_code(location)
+                .as_deref()
+                .and_then(b2b_country_currency_code)
+        })
         .unwrap_or(default_currency_code)
         .to_string()
 }
 
 fn b2b_country_currency_code(country_code: &str) -> Option<&'static str> {
-    match b2b_country_catalog_by_code(country_code)? {
+    match b2b_country_catalog_by_code(country_code)?.as_str() {
+        "AE" => Some("AED"),
+        "AR" => Some("ARS"),
+        "AT" | "BE" | "DE" | "ES" | "FI" | "FR" | "IE" | "IT" | "NL" | "PT" => Some("EUR"),
+        "AU" => Some("AUD"),
+        "BR" => Some("BRL"),
         "CA" => Some("CAD"),
+        "CH" => Some("CHF"),
+        "CN" => Some("CNY"),
+        "DK" => Some("DKK"),
+        "GB" => Some("GBP"),
+        "HK" => Some("HKD"),
+        "IN" => Some("INR"),
+        "JP" => Some("JPY"),
+        "MX" => Some("MXN"),
+        "NO" => Some("NOK"),
+        "NZ" => Some("NZD"),
+        "PL" => Some("PLN"),
+        "SE" => Some("SEK"),
         "SG" => Some("SGD"),
         "US" => Some("USD"),
+        "ZA" => Some("ZAR"),
         _ => None,
     }
 }
 
-fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
+fn b2b_location_record_country_code(location: &Value) -> Option<String> {
     location
         .get("shippingAddress")
         .and_then(b2b_address_record_country_code)
@@ -4435,7 +4412,7 @@ fn b2b_location_record_country_code(location: &Value) -> Option<&str> {
         })
 }
 
-fn b2b_address_record_country_code(address: &Value) -> Option<&str> {
+fn b2b_address_record_country_code(address: &Value) -> Option<String> {
     value_country_code(address).and_then(b2b_country_catalog_by_code)
 }
 

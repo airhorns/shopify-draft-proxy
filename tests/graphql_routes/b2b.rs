@@ -4,7 +4,8 @@ use pretty_assertions::assert_eq;
 #[test]
 fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Tax Settings Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Tax Settings Branch");
 
     let required_and_nullable = proxy.process_request(json_graphql_request(
         r#"
@@ -26,9 +27,9 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
         required_and_nullable.body["data"]["emptyInput"],
         json!({
             "companyLocation": {
-                "id": location_id,
-                "taxSettings": {
-                    "taxExempt": true,
+                    "id": location_id,
+                    "taxSettings": {
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -49,14 +50,14 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
 
     let invalid_literal = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BTaxSettingsInvalidEnumLiteral {
-          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [FOO_BAR]) {
+        mutation RustB2BTaxSettingsInvalidEnumLiteral($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: [FOO_BAR]) {
             companyLocation { id taxSettings { taxExemptions } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({}),
+        json!({ "locationId": location_id }),
     ));
     assert_eq!(invalid_literal.status, 200);
     assert_eq!(
@@ -185,9 +186,69 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
 }
 
 #[test]
-fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+fn b2b_tax_settings_update_rejects_unhydrated_synthetic_location_and_uses_actual_location_state() {
     let mut proxy = snapshot_proxy();
+    let synthetic_location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BTaxSettingsSyntheticLocationRejected($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id name taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": synthetic_location_id }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let company_id = create_b2b_company(&mut proxy, "Taxable Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Taxable Branch");
+    let actual = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BTaxSettingsActualLocation($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id name taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(actual.status, 200);
+    assert_eq!(
+        actual.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "name": "Taxable Branch",
+                "taxSettings": {
+                    "taxExempt": false,
+                    "taxExemptions": []
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Registration Tax Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Registration Branch");
 
     let no_knobs = proxy.process_request(json_graphql_request(
         r#"
@@ -213,12 +274,12 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
         json!({
             "companyLocation": {
                 "id": location_id,
-                "taxSettings": {
-                    "taxRegistrationId": Value::Null,
-                    "taxExempt": true,
-                    "taxExemptions": []
-                }
-            },
+                    "taxSettings": {
+                        "taxRegistrationId": Value::Null,
+                        "taxExempt": false,
+                        "taxExemptions": []
+                    }
+                },
             "userErrors": []
         })
     );
@@ -250,12 +311,12 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
         json!({
             "companyLocation": {
                 "id": location_id,
-                "taxSettings": {
-                    "taxRegistrationId": "VAT-123",
-                    "taxExempt": true,
-                    "taxExemptions": []
-                }
-            },
+                    "taxSettings": {
+                        "taxRegistrationId": "VAT-123",
+                        "taxExempt": false,
+                        "taxExemptions": []
+                    }
+                },
             "userErrors": []
         })
     );
@@ -282,7 +343,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
             "id": location_id,
             "taxSettings": {
                 "taxRegistrationId": "VAT-123",
-                "taxExempt": true,
+                "taxExempt": false,
                 "taxExemptions": []
             }
         })
@@ -304,9 +365,10 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
 
 #[test]
 fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
-
     let mut fresh_proxy = snapshot_proxy();
+    let fresh_company_id = create_b2b_company(&mut fresh_proxy, "Fresh Tax Co");
+    let fresh_location_id =
+        create_b2b_location(&mut fresh_proxy, &fresh_company_id, "Fresh Tax Branch");
     let assign_and_remove = fresh_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsAssignAndRemove(
@@ -325,7 +387,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": fresh_location_id,
             "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
             "remove": ["US_CA_RESELLER_EXEMPTION"]
         }),
@@ -335,7 +397,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         assign_and_remove.body["data"]["companyLocationTaxSettingsUpdate"],
         json!({
             "companyLocation": {
-                "id": location_id,
+                "id": fresh_location_id,
                 "taxSettings": {
                     "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
                 }
@@ -345,6 +407,9 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
     );
 
     let mut staged_proxy = snapshot_proxy();
+    let staged_company_id = create_b2b_company(&mut staged_proxy, "Staged Tax Co");
+    let staged_location_id =
+        create_b2b_location(&mut staged_proxy, &staged_company_id, "Staged Tax Branch");
     let initial = staged_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInitial(
@@ -372,7 +437,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": staged_location_id,
             "taxRegistrationId": "REG-1",
             "taxExempt": true,
             "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
@@ -413,7 +478,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": staged_location_id,
             "remove": ["US_CA_RESELLER_EXEMPTION"]
         }),
     ));
@@ -422,7 +487,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         remove_absent.body["data"]["companyLocationTaxSettingsUpdate"],
         json!({
             "companyLocation": {
-                "id": location_id,
+                "id": staged_location_id,
                 "taxSettings": {
                     "taxRegistrationId": "REG-1",
                     "taxExempt": true,
@@ -446,13 +511,13 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
           }
         }
         "#,
-        json!({ "locationId": location_id }),
+        json!({ "locationId": staged_location_id }),
     ));
     assert_eq!(read_after_write.status, 200);
     assert_eq!(
         read_after_write.body["data"]["companyLocation"],
         json!({
-            "id": location_id,
+            "id": staged_location_id,
             "taxSettings": {
                 "taxRegistrationId": "REG-1",
                 "taxExempt": true,
@@ -465,7 +530,8 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
 #[test]
 fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Buyer Experience Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Buyer Experience Branch");
 
     let empty = proxy.process_request(json_graphql_request(
         r#"
@@ -566,10 +632,10 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
     assert_eq!(
         valid.body["data"]["companyLocationUpdate"],
         json!({
-            "companyLocation": {
-                "id": location_id,
-                "taxSettings": { "taxExempt": true },
-                "buyerExperienceConfiguration": {
+                "companyLocation": {
+                    "id": location_id,
+                    "taxSettings": { "taxExempt": false },
+                    "buyerExperienceConfiguration": {
                     "editableShippingAddress": true,
                     "checkoutToDraft": true,
                     "paymentTermsTemplate": { "id": "gid://shopify/PaymentTermsTemplate/4" },
@@ -3094,6 +3160,7 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
 #[test]
 fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create_company = proxy.process_request(json_graphql_request(
         r#"
@@ -3730,6 +3797,121 @@ fn b2b_company_nested_connections_sort_reverse_and_window() {
 
     assert_ne!(default_location_id, remote_location_id);
     assert_ne!(secondary_assignment_id, main_remote_assignment_id);
+}
+
+#[test]
+fn b2b_company_location_addresses_accept_shared_country_catalog() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "International Address Co");
+
+    let create_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCreateGbLocation($companyId: ID!) {
+          companyLocationCreate(
+            companyId: $companyId,
+            input: {
+              name: "London HQ"
+              shippingAddress: {
+                address1: "10 Downing Street"
+                city: "London"
+                countryCode: "GB"
+                zoneCode: "LND"
+                zip: "SW1A 2AA"
+              }
+            }
+          ) {
+            companyLocation {
+              id
+              currency
+              shippingAddress { address1 city countryCode zip }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(create_location.status, 200);
+    assert_eq!(
+        create_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let location = &create_location.body["data"]["companyLocationCreate"]["companyLocation"];
+    let location_id = location["id"].as_str().expect("location id").to_string();
+    assert_eq!(location["currency"], json!("GBP"));
+    assert_eq!(
+        location["shippingAddress"],
+        json!({
+            "address1": "10 Downing Street",
+            "city": "London",
+            "countryCode": "GB",
+            "zip": "SW1A 2AA"
+        })
+    );
+
+    let assign_de_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignDeAddress($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: {
+              address1: "Unter den Linden 1"
+              city: "Berlin"
+              countryCode: "DE"
+              zoneCode: "BE"
+              zip: "10117"
+            },
+            addressTypes: [BILLING]
+          ) {
+            addresses { address1 city countryCode zip }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(assign_de_address.status, 200);
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["addresses"],
+        json!([{
+            "address1": "Unter den Linden 1",
+            "city": "Berlin",
+            "countryCode": "DE",
+            "zip": "10117"
+        }])
+    );
+
+    let invalid_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignInvalidCountry($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: { address1: "Unknown", countryCode: ZZ },
+            addressTypes: [SHIPPING]
+          ) {
+            addresses { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(invalid_country.status, 200);
+    assert_eq!(
+        invalid_country.body["data"]["companyLocationAssignAddress"],
+        json!({
+            "addresses": Value::Null,
+            "userErrors": [{
+                "field": ["address", "countryCode"],
+                "message": "Country code is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
 }
 
 #[test]

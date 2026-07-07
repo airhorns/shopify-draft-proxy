@@ -1,0 +1,75 @@
+{
+  "scenarioId": "draft-order-invoice-send-created-no-recipient",
+  "operationNames": ["draftOrderCreate", "draftOrderInvoiceSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-invoice-send-created-no-recipient.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-draft-with-real-line-and-totals",
+        "capturePath": "$.create.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live store and local proxy allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.name",
+            "matcher": "regex:^#D[0-9]+$",
+            "reason": "The live store and local proxy allocate independent draft order names."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "send-created-draft-no-recipient-projects-lines-and-totals",
+        "capturePath": "$.send.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-created-no-recipient-send.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live store and local proxy allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.name",
+            "matcher": "regex:^#D[0-9]+$",
+            "reason": "The live store and local proxy allocate independent draft order names."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for creating a disposable no-recipient draft order and then rejecting draftOrderInvoiceSend with the created draft's actual line quantities, money totals, and draft name projection. The line title intentionally matches the former runtime sentinel as ordinary merchant data; the proxy replay must earn the draft through public draftOrderCreate and must not route by that title."
+}

@@ -139,6 +139,14 @@ impl DraftProxy {
         if !order_edit_commit_is_money_bag_only {
             return None;
         }
+        if fields.iter().any(|field| {
+            field.name == "orderCreate"
+                && resolved_object_field(&field.arguments, "order")
+                    .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
+        }) {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
+        let shop_currency_code = self.store.shop_currency_code();
 
         let mut staged_ids = Vec::new();
         let mut early_response = None;
@@ -148,7 +156,7 @@ impl DraftProxy {
             }
             let value = match field.name.as_str() {
                 "orderCreate" => {
-                    let order = self.stage_money_bag_order(field);
+                    let order = self.stage_money_bag_order(field, &shop_currency_code);
                     staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
                     selected_json(
                         &json!({ "order": order, "userErrors": [] }),
@@ -161,7 +169,6 @@ impl DraftProxy {
                     let transactions = resolved_object_list_field(&input, "transactions");
                     let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
                     let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
-                        let shop_currency_code = self.store.shop_currency_code();
                         early_response = Some(json!({
                             "data": {
                                 field.response_key.clone(): refund_input_error(
@@ -183,12 +190,16 @@ impl DraftProxy {
                             &order,
                             &input,
                             transaction,
-                            &self.store.shop_currency_code(),
+                            &shop_currency_code,
                         )
                     }) {
                         total
                     } else {
-                        money_bag_order_money_set(&order, "totalOutstandingSet")
+                        money_bag_order_money_set(
+                            &order,
+                            "totalOutstandingSet",
+                            &shop_currency_code,
+                        )
                     };
                     if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
                         order["totalRefundedSet"] = total.clone();
@@ -239,7 +250,7 @@ impl DraftProxy {
                     let calculated = json!({
                         "id": calculated_id,
                         "originalOrder": { "id": order_id },
-                        "totalPriceSet": money_bag_order_money_set(&order, "totalPriceSet")
+                        "totalPriceSet": money_bag_order_money_set(&order, "totalPriceSet", &shop_currency_code)
                     });
                     self.store
                         .staged
@@ -303,10 +314,15 @@ impl DraftProxy {
         Some(json!({ "data": data }))
     }
 
-    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+    fn stage_money_bag_order(
+        &mut self,
+        field: &RootFieldSelection,
+        shop_currency_code: &str,
+    ) -> Value {
         let (id, order_input, first_line) = self.staged_order_input_and_first_line(field);
-        let default_currency =
-            resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string());
+        let default_currency = resolved_string_field(&order_input, "currency")
+            .or_else(|| resolved_string_field(&order_input, "currencyCode"))
+            .unwrap_or_else(|| shop_currency_code.to_string());
         let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
             line_items_price_set_values(
                 &order_input,
@@ -363,7 +379,7 @@ impl DraftProxy {
     }
 }
 
-fn money_bag_order_money_set(order: &Value, key: &str) -> Value {
+fn money_bag_order_money_set(order: &Value, key: &str, shop_currency_code: &str) -> Value {
     for candidate in [
         key,
         "currentTotalPriceSet",
@@ -376,7 +392,8 @@ fn money_bag_order_money_set(order: &Value, key: &str) -> Value {
         let shop_amount = money_amount(value, "shopMoney")
             .or_else(|| value["amount"].as_str().map(ToString::to_string))
             .unwrap_or_else(|| "0.0".to_string());
-        let shop_currency = money_set_shop_currency(value).unwrap_or_else(|| "USD".to_string());
+        let shop_currency =
+            money_set_shop_currency(value).unwrap_or_else(|| shop_currency_code.to_string());
         let presentment_amount =
             money_set_presentment_or_shop_amount(value).unwrap_or_else(|| shop_amount.clone());
         let presentment_currency =
@@ -388,7 +405,8 @@ fn money_bag_order_money_set(order: &Value, key: &str) -> Value {
             &presentment_currency,
         );
     }
-    let currency = money_bag_currency(&order["totalPriceSet"]);
+    let currency = money_bag_currency(&order["totalPriceSet"])
+        .unwrap_or_else(|| shop_currency_code.to_string());
     money_set_pair("0.0", &currency, "0.0", &currency)
 }
 
@@ -413,8 +431,8 @@ fn money_bag_refund_transaction_total(
                 .and_then(money_set_presentment_or_shop_currency)
         })
         .unwrap_or_else(|| order_presentment_currency(order, &shop_currency));
-    let conversion_basis =
-        parent_amount_set.unwrap_or_else(|| money_bag_order_money_set(order, "totalPriceSet"));
+    let conversion_basis = parent_amount_set
+        .unwrap_or_else(|| money_bag_order_money_set(order, "totalPriceSet", shop_currency_code));
     Some(payment_money_set_for_capture(
         &conversion_basis,
         &amount,

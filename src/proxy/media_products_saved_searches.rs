@@ -288,9 +288,11 @@ impl DraftProxy {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
             let variant = self.variant_with_inventory_levels(variant);
             let product = self.store.product_by_id(&variant.product_id);
-            return Some(product_variant_inventory_item_json(
-                &variant, product, selection,
-            ));
+            return Some(
+                self.product_variant_inventory_item_json_with_current_publication_context(
+                    &variant, product, selection,
+                ),
+            );
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {
@@ -299,7 +301,17 @@ impl DraftProxy {
                     .and_then(|inventory_item| inventory_item.get("id"))
                     .and_then(Value::as_str)
                     == Some(id))
-                .then(|| observed_product_variant_inventory_item_json(product, variant, selection))
+                .then(|| {
+                    observed_product_variant_inventory_item_json_with_publication_context(
+                        product,
+                        variant,
+                        selection,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(product),
+                        ),
+                    )
+                })
                 .flatten()
             })
         })
@@ -323,7 +335,7 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        product_json_with_variants_and_currency(
+        self.product_json_with_variants_and_currency_context(
             product,
             variants,
             selections,
@@ -570,25 +582,6 @@ impl DraftProxy {
             ));
         }
 
-        let category = if let Some(category_id) = product_category_input_id(&input) {
-            match product_category_value(&category_id) {
-                Some(category) => Some(category),
-                None => {
-                    let field = primary_root_field(query, variables);
-                    let (response_key, location) = field
-                        .as_ref()
-                        .map(|field| (field.response_key.as_str(), field.location))
-                        .unwrap_or(("productCreate", SourceLocation { line: 1, column: 1 }));
-                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
-                        response_key,
-                        location,
-                    ));
-                }
-            }
-        } else {
-            None
-        };
-
         let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
@@ -642,10 +635,25 @@ impl DraftProxy {
         // Shopify resolves the input `category` taxonomy GID into a `{id, fullName}`
         // object on the created product, surfaced through both the mutation payload and
         // downstream reads.
-        if let Some(category) = category {
-            product
-                .extra_fields
-                .insert("category".to_string(), category);
+        if let Some(category_id) = product_category_input_id(&input) {
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    product
+                        .extra_fields
+                        .insert("category".to_string(), category);
+                }
+                None => {
+                    let field = primary_root_field(query, variables);
+                    let (response_key, location) = field
+                        .as_ref()
+                        .map(|field| (field.response_key.as_str(), field.location))
+                        .unwrap_or(("productCreate", SourceLocation { line: 1, column: 1 }));
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        response_key,
+                        location,
+                    ));
+                }
+            }
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -706,6 +714,10 @@ impl DraftProxy {
                         &product_selection,
                         &shop_currency_code,
                         Some(&shop),
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -946,9 +958,12 @@ impl DraftProxy {
             }
         }
 
-        let category = if let Some(category_id) = product_category_input_id(&input) {
-            match product_category_value(&category_id) {
-                Some(category) => Some(category),
+        let mut extra_fields = existing.extra_fields;
+        if let Some(category_id) = product_category_input_id(&input) {
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    extra_fields.insert("category".to_string(), category);
+                }
                 None => {
                     let field = primary_root_field(query, variables);
                     let (response_key, location) = field
@@ -961,13 +976,6 @@ impl DraftProxy {
                     ));
                 }
             }
-        } else {
-            None
-        };
-
-        let mut extra_fields = existing.extra_fields;
-        if let Some(category) = category {
-            extra_fields.insert("category".to_string(), category);
         }
 
         let product = ProductRecord {
@@ -1017,6 +1025,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -1384,7 +1396,7 @@ impl DraftProxy {
                             .iter()
                             .filter_map(|variant_id| self.store.product_variant_by_id(variant_id))
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2277,7 +2289,7 @@ impl DraftProxy {
                         variants
                             .iter()
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2409,7 +2421,7 @@ impl DraftProxy {
                     None => Value::Null,
                 }),
                 "productVariant" => Some(match variant {
-                    Some(variant) => product_variant_json(
+                    Some(variant) => self.product_variant_json_with_current_publication_context(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         &variant_selection,
@@ -2908,6 +2920,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),

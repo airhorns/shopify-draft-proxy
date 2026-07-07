@@ -42,11 +42,35 @@ fn market_relation_connection<'a>(
     market_id: &str,
     market_ids: impl Fn(&Value) -> Vec<String>,
 ) -> Value {
-    let nodes = records
+    connection_json(market_related_records(records, market_id, market_ids))
+}
+
+fn market_related_records<'a>(
+    records: impl Iterator<Item = &'a Value>,
+    market_id: &str,
+    market_ids: impl Fn(&Value) -> Vec<String>,
+) -> Vec<Value> {
+    records
         .filter(|record| market_ids(record).iter().any(|id| id == market_id))
         .cloned()
-        .collect::<Vec<_>>();
-    connection_json(nodes)
+        .collect()
+}
+
+fn selected_market_relation_connection<'a, Records, MarketIds, NodeJson>(
+    records: Records,
+    market_id: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+    market_ids: MarketIds,
+    node_json: NodeJson,
+) -> Value
+where
+    Records: Iterator<Item = &'a Value>,
+    MarketIds: Fn(&Value) -> Vec<String>,
+    NodeJson: Fn(&Value, &[SelectedField]) -> Value,
+{
+    let records = market_related_records(records, market_id, market_ids);
+    selected_typed_connection_with_args(&records, arguments, selection, node_json, value_id_cursor)
 }
 
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
@@ -233,17 +257,6 @@ impl PriceListFieldOutcome {
         ))
     }
 
-    fn price_list_with_user_errors(
-        field: &RootFieldSelection,
-        price_list: Value,
-        user_errors: Vec<Value>,
-    ) -> Self {
-        Self::payload(selected_json(
-            &json!({"priceList": price_list, "userErrors": user_errors}),
-            &field.selection,
-        ))
-    }
-
     fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
         Self {
             value: Value::Null,
@@ -263,6 +276,35 @@ fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
 fn selected_record_field(record: &Value, selection: &SelectedField) -> Option<Value> {
     let projected = selected_json(record, std::slice::from_ref(selection));
     projected.get(&selection.response_key).cloned()
+}
+
+fn selected_record_with_connections(
+    record: &Value,
+    selections: &[SelectedField],
+    mut connection_field: impl FnMut(&SelectedField) -> Option<Value>,
+) -> Value {
+    if record.is_null() {
+        return Value::Null;
+    }
+    selected_payload_json(selections, |selection| {
+        connection_field(selection).or_else(|| selected_record_field(record, selection))
+    })
+}
+
+fn selected_resource_payload(
+    field: &RootFieldSelection,
+    resource_key: &str,
+    resource: Value,
+    user_errors: Vec<Value>,
+    resource_json: impl Fn(&Value, &[SelectedField]) -> Value,
+) -> Value {
+    selected_payload_json(&field.selection, |selection| {
+        match selection.name.as_str() {
+            "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+            name if name == resource_key => Some(resource_json(&resource, &selection.selection)),
+            _ => None,
+        }
+    })
 }
 
 fn value_string<'a>(value: &'a Value, field: &str) -> &'a str {
@@ -355,12 +397,12 @@ fn catalog_search_decision(
 }
 
 fn catalog_search_term_decision(catalog: &Value, term: &str) -> StagedSearchDecision {
-    let term = term.trim().trim_matches('\'').trim_matches('"');
+    let term = unquote_search_value(term);
     if term.is_empty() {
         return StagedSearchDecision::Match;
     }
     if let Some((key, value)) = term.split_once(':') {
-        let value = value.trim().trim_matches('\'').trim_matches('"');
+        let value = unquote_search_value(value);
         return match key {
             "id" => StagedSearchDecision::from_bool(
                 catalog
@@ -403,11 +445,8 @@ fn catalog_search_term_decision(catalog: &Value, term: &str) -> StagedSearchDeci
 }
 
 fn catalog_text_matches(value: Option<&str>, term: &str) -> bool {
-    let needle = term.trim_end_matches('*').to_ascii_lowercase();
-    !needle.is_empty()
-        && value
-            .map(|value| value.to_ascii_lowercase().contains(&needle))
-            .unwrap_or(false)
+    let needle = search_term_needle(term);
+    !needle.is_empty() && value.is_some_and(|value| value_contains_ci(value, term))
 }
 
 fn market_sort_key(market: &Value, sort_key: Option<&str>) -> StagedSortKey {
@@ -442,12 +481,12 @@ fn market_search_decision(market: &Value, query: Option<&str>) -> StagedSearchDe
 }
 
 fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecision {
-    let term = term.trim().trim_matches('\'').trim_matches('"');
+    let term = unquote_search_value(term);
     if term.is_empty() {
         return StagedSearchDecision::Match;
     }
     if let Some((key, value)) = term.split_once(':') {
-        let value = value.trim().trim_matches('\'').trim_matches('"');
+        let value = unquote_search_value(value);
         let matches = match key {
             "id" => {
                 let id = value_string(market, "id");
@@ -466,7 +505,6 @@ fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecisi
         return StagedSearchDecision::from_bool(matches);
     }
 
-    let needle = term.trim_end_matches('*').to_ascii_lowercase();
     let haystack = format!(
         "{} {} {} {} {}",
         value_string(market, "id"),
@@ -476,13 +514,46 @@ fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecisi
         value_string(market, "type")
     )
     .to_ascii_lowercase();
-    StagedSearchDecision::from_bool(haystack.contains(&needle))
+    StagedSearchDecision::from_bool(value_contains_ci(&haystack, term))
 }
 
 fn value_contains_ci(value: &str, needle: &str) -> bool {
     value
         .to_ascii_lowercase()
-        .contains(&needle.trim_end_matches('*').to_ascii_lowercase())
+        .contains(&search_term_needle(needle))
+}
+
+fn unquote_search_value(value: &str) -> &str {
+    value.trim().trim_matches('\'').trim_matches('"')
+}
+
+fn search_term_needle(value: &str) -> String {
+    value.trim_end_matches('*').to_ascii_lowercase()
+}
+
+fn apply_context_id_diff<ReadIds>(
+    ids: &mut Vec<String>,
+    contexts_to_remove: Option<&BTreeMap<String, ResolvedValue>>,
+    contexts_to_add: Option<&BTreeMap<String, ResolvedValue>>,
+    read_ids: ReadIds,
+) where
+    ReadIds: Fn(&BTreeMap<String, ResolvedValue>) -> Vec<String>,
+{
+    if let Some(context) = contexts_to_remove {
+        let remove = read_ids(context).into_iter().collect::<BTreeSet<_>>();
+        ids.retain(|id| !remove.contains(id));
+    }
+    if let Some(context) = contexts_to_add {
+        for id in read_ids(context) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+}
+
+fn next_markets_catalogs_numeric_id(store: &Store, extra_len: usize) -> usize {
+    (store.staged.markets.len() * 2) + (store.staged.catalogs.len() * 2) + extra_len + 1
 }
 fn selected_catalog_error(
     field: &RootFieldSelection,
@@ -537,19 +608,11 @@ fn country_codes_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<
         .collect()
 }
 
-fn selected_market_payload(
-    field: &RootFieldSelection,
-    market: Value,
-    user_errors: Vec<Value>,
-) -> Value {
+fn selected_market_user_errors(field: &RootFieldSelection, user_errors: Vec<Value>) -> Value {
     selected_json(
-        &json!({"market": market, "userErrors": user_errors}),
+        &json!({"market": Value::Null, "userErrors": user_errors}),
         &field.selection,
     )
-}
-
-fn selected_market_user_errors(field: &RootFieldSelection, user_errors: Vec<Value>) -> Value {
-    selected_market_payload(field, Value::Null, user_errors)
 }
 
 fn selected_market_error(
@@ -725,24 +788,75 @@ fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
     fallback
 }
 
-fn web_presence_host(url: &str) -> Option<String> {
-    let (_, rest) = url.split_once("://")?;
-    let host = rest.split('/').next().unwrap_or("");
-    if host.is_empty() {
-        None
-    } else {
-        Some(host.to_string())
+fn web_presence_targets_shop_primary_host(store: &Store, record: &Value) -> bool {
+    let Some(target_host) = record
+        .get("domain")
+        .and_then(web_presence_domain_normalized_host)
+    else {
+        return false;
+    };
+    web_presence_primary_domain_host(store).as_deref() == Some(target_host.as_str())
+}
+
+fn web_presence_primary_domain_host(store: &Store) -> Option<String> {
+    let shop = store.effective_shop();
+    shop.get("primaryDomain")
+        .and_then(web_presence_domain_normalized_host)
+        .or_else(|| {
+            shop.get("myshopifyDomain")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_domain_normalized_host(domain: &Value) -> Option<String> {
+    domain
+        .get("host")
+        .and_then(Value::as_str)
+        .and_then(web_presence_normalized_host)
+        .or_else(|| {
+            domain
+                .get("url")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_normalized_host(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
     }
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed);
+    without_scheme
+        .split('/')
+        .next()
+        .map(str::trim)
+        .map(|host| host.trim_end_matches('.'))
+        .filter(|host| !host.is_empty())
+        .map(str::to_ascii_lowercase)
+}
+
+fn web_presence_host(url: &str) -> Option<String> {
+    web_presence_scheme_host(url).map(|(_, host)| host.to_string())
 }
 
 /// Extract `scheme://host` from a URL, dropping any path/query suffix.
 fn web_presence_origin(url: &str) -> Option<String> {
+    let (scheme, host) = web_presence_scheme_host(url)?;
+    Some(format!("{scheme}://{host}"))
+}
+
+fn web_presence_scheme_host(url: &str) -> Option<(&str, &str)> {
     let (scheme, rest) = url.split_once("://")?;
     let host = rest.split('/').next().unwrap_or("");
     if host.is_empty() {
         None
     } else {
-        Some(format!("{scheme}://{host}"))
+        Some((scheme, host))
     }
 }
 
