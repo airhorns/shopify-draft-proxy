@@ -1,17 +1,59 @@
 use super::*;
 
-pub(in crate::proxy) fn fulfillment_order_supported_actions(include_split: bool) -> Value {
-    let mut actions = vec![
-        json!({ "action": "CREATE_FULFILLMENT" }),
-        json!({ "action": "REPORT_PROGRESS" }),
-        json!({ "action": "MOVE" }),
-        json!({ "action": "HOLD" }),
-    ];
-    if include_split {
-        actions.push(json!({ "action": "SPLIT" }));
+fn fulfillment_order_action_values(actions: &[&str]) -> Value {
+    Value::Array(
+        actions
+            .iter()
+            .map(|action| json!({ "action": action }))
+            .collect(),
+    )
+}
+
+fn fulfillment_order_is_fulfillment_service_assigned(order: &Value) -> bool {
+    let assigned_location = &order["assignedLocation"];
+    let location = &assigned_location["location"];
+    location
+        .get("isFulfillmentService")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || location
+            .get("fulfillmentService")
+            .is_some_and(Value::is_object)
+        || assigned_location
+            .get("fulfillmentService")
+            .is_some_and(Value::is_object)
+}
+
+pub(in crate::proxy) fn fulfillment_order_supported_actions(
+    order: &Value,
+    include_split: bool,
+) -> Value {
+    let status = order["status"].as_str().unwrap_or("OPEN");
+    match status {
+        "CLOSED" | "CANCELLED" => fulfillment_order_action_values(&[]),
+        "SCHEDULED" => fulfillment_order_action_values(&["MARK_AS_OPEN"]),
+        "ON_HOLD" => fulfillment_order_action_values(&["RELEASE_HOLD", "HOLD", "MOVE"]),
+        "IN_PROGRESS" => {
+            let mut actions = vec!["CREATE_FULFILLMENT"];
+            if fulfillment_order_is_fulfillment_service_assigned(order) {
+                actions.push("REPORT_PROGRESS");
+            }
+            actions.extend(["HOLD", "MARK_AS_OPEN"]);
+            fulfillment_order_action_values(&actions)
+        }
+        _ => {
+            let mut actions = vec!["CREATE_FULFILLMENT"];
+            if fulfillment_order_is_fulfillment_service_assigned(order) {
+                actions.push("REPORT_PROGRESS");
+            }
+            actions.extend(["MOVE", "HOLD"]);
+            if include_split {
+                actions.push("SPLIT");
+            }
+            actions.push("MERGE");
+            fulfillment_order_action_values(&actions)
+        }
     }
-    actions.push(json!({ "action": "MERGE" }));
-    Value::Array(actions)
 }
 
 pub(in crate::proxy) fn fulfillment_order_assigned_location_from_location(
@@ -22,13 +64,28 @@ pub(in crate::proxy) fn fulfillment_order_assigned_location_from_location(
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    Some(json!({
+    let mut assigned_location = json!({
         "name": name,
         "location": {
             "id": id,
             "name": name
         }
-    }))
+    });
+    if let Some(location_object) = location.as_object() {
+        if let Some(assigned_location_object) = assigned_location["location"].as_object_mut() {
+            for key in [
+                "isFulfillmentService",
+                "fulfillmentService",
+                "fulfillsOnlineOrders",
+                "shipsInventory",
+            ] {
+                if let Some(value) = location_object.get(key) {
+                    assigned_location_object.insert(key.to_string(), value.clone());
+                }
+            }
+        }
+    }
+    Some(assigned_location)
 }
 
 pub(in crate::proxy) fn normalize_fulfillment_order_record(
@@ -44,13 +101,22 @@ pub(in crate::proxy) fn normalize_fulfillment_order_record(
     if order.get("fulfillBy").is_none() {
         order["fulfillBy"] = Value::Null;
     }
-    if order.get("supportedActions").is_none() {
-        order["supportedActions"] = fulfillment_order_supported_actions(true);
-    }
     if order.get("assignedLocation").is_none() {
         if let Some(assigned_location) = assigned_location {
             order["assignedLocation"] = assigned_location.clone();
         }
+    }
+    if order.get("supportedActions").is_none()
+        || order["supportedActions"].is_null()
+        || (order["supportedActions"]
+            .as_array()
+            .is_some_and(Vec::is_empty)
+            && !matches!(
+                order["status"].as_str(),
+                Some("CLOSED" | "CANCELLED" | "SCHEDULED")
+            ))
+    {
+        set_fulfillment_order_supported_actions_from_lines(order);
     }
     if order.get("fulfillmentHolds").is_none() {
         order["fulfillmentHolds"] = json!([]);
@@ -91,6 +157,11 @@ pub(in crate::proxy) fn fulfillment_order_line_quantity_total(order: &Value) -> 
         .sum()
 }
 
+pub(in crate::proxy) fn set_fulfillment_order_supported_actions_from_lines(order: &mut Value) {
+    let remaining_total = fulfillment_order_line_quantity_total(order);
+    order["supportedActions"] = fulfillment_order_supported_actions(order, remaining_total > 1);
+}
+
 pub(in crate::proxy) fn set_fulfillment_order_status_from_lines(order: &mut Value) {
     let remaining_total = fulfillment_order_line_quantity_total(order);
     order["status"] = json!(if remaining_total == 0 {
@@ -98,7 +169,7 @@ pub(in crate::proxy) fn set_fulfillment_order_status_from_lines(order: &mut Valu
     } else {
         "OPEN"
     });
-    order["supportedActions"] = fulfillment_order_supported_actions(remaining_total > 1);
+    order["supportedActions"] = fulfillment_order_supported_actions(order, remaining_total > 1);
 }
 
 pub(in crate::proxy) fn fulfillment_order_line_with_quantity(line: &Value, quantity: i64) -> Value {
@@ -939,6 +1010,7 @@ impl DraftProxy {
             }
             _ => {}
         }
+        set_fulfillment_order_supported_actions_from_lines(fulfillment_order);
         let changed = fulfillment_order.clone();
         self.store.staged.orders.insert(order_id.clone(), order);
         self.record_orders_local_log_entry(OrdersLocalLogEntry {
@@ -1582,15 +1654,7 @@ impl DraftProxy {
                                 }
                             }
                         }
-                        let remaining_total = line_nodes
-                            .iter()
-                            .filter_map(|line| line["remainingQuantity"].as_i64())
-                            .sum::<i64>();
-                        fulfillment_order["status"] = json!(if remaining_total == 0 {
-                            "CLOSED"
-                        } else {
-                            "OPEN"
-                        });
+                        set_fulfillment_order_status_from_lines(fulfillment_order);
                     }
                 }
             }
