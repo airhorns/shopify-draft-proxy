@@ -8235,7 +8235,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                             "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
                         },
                         "shop": {
-                            "id": "gid://shopify/Shop/upstream",
+                            "id": "gid://shopify/Shop/63755419881",
                             "name": "Upstream Shop",
                             "myshopifyDomain": "upstream-shop.myshopify.com",
                             "primaryDomain": { "host": "policies.upstream.example" },
@@ -8247,7 +8247,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                                     "title": "Privacy Policy",
                                     "body": "<p>Old upstream privacy</p>",
                                     "type": "PRIVACY_POLICY",
-                                    "url": "https://upstream-shop.myshopify.com/policies/2002.html?locale=en",
+                                    "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en",
                                     "createdAt": "2026-02-03T04:05:06Z",
                                     "updatedAt": "2026-02-03T04:05:06Z"
                                 }
@@ -8287,7 +8287,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     assert_eq!(
         response.body["data"]["publishablePublish"]["shop"],
         json!({
-            "id": "gid://shopify/Shop/upstream",
+            "id": "gid://shopify/Shop/63755419881",
             "name": "Upstream Shop",
             "myshopifyDomain": "upstream-shop.myshopify.com",
             "currencyCode": "CAD",
@@ -8307,7 +8307,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     });
     assert_eq!(
         state.body["baseState"]["shop"]["id"],
-        json!("gid://shopify/Shop/upstream")
+        json!("gid://shopify/Shop/63755419881")
     );
     assert_eq!(state.body["baseState"]["publicationCount"], json!(5));
     assert_eq!(
@@ -8343,7 +8343,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
             "id": "gid://shopify/ShopPolicy/2002",
             "title": "Privacy Policy",
             "body": "<p>Updated privacy</p>",
-            "url": "https://policies.upstream.example/policies/2002.html?locale=en",
+            "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en",
             "createdAt": "2026-02-03T04:05:06Z"
         })
     );
@@ -8368,7 +8368,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                 "type": "PRIVACY_POLICY",
                 "title": "Privacy Policy",
                 "body": "<p>Updated privacy</p>",
-                "url": "https://policies.upstream.example/policies/2002.html?locale=en"
+                "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en"
             }
         ])
     );

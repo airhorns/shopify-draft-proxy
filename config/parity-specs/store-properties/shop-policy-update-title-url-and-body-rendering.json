@@ -13,7 +13,7 @@
     "variablesCapturePath": "$.privacyMutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-636 parity for shopPolicyUpdate title casing, policy URL fallback derivation, migrated body rendering, and the 524287/524288 byte body limit edge. The captured public 2026-04 dev shop returned sentence-case titles and checkout.shopify.com URLs, while the ticket's cited Shopify source maps titles through ShopPolicy::DEPRECATED_POLICY_TITLES and the proxy cannot hydrate a true shop.checkout_url from Admin shop fields. Expected differences therefore assert the requested title-case proxy value and the documented primary-domain URL fallback shape while still comparing body, type, userErrors, and selected timestamps strictly.",
+  "notes": "Captured parity for shopPolicyUpdate title casing, checkout-host policy URL derivation, migrated body rendering, and the 524287/524288 byte body limit edge. The captured public 2026-04 dev shop returned sentence-case titles and checkout.shopify.com URLs; the proxy derives checkout-host policy URLs from the hydrated Shop gid tail and compares them strictly while keeping deterministic local timestamp differences explicit.",
   "comparison": {
     "mode": "strict-json",
     "targets": [
@@ -25,17 +25,12 @@
           {
             "path": "$.title",
             "matcher": "exact-string:Privacy Policy",
-            "reason": "The live dev-shop capture returned the older sentence-case title, but HAR-636 is scoped to the Shopify source-backed deprecated title map."
+            "reason": "The live dev-shop capture returned the older sentence-case title, while the proxy stages Shopify source-backed deprecated title casing."
           },
           {
             "path": "$.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy emits deterministic local timestamps for staged policies."
-          },
-          {
-            "path": "$.url",
-            "matcher": "shop-policy-url-base:https://harry-test-heelo.myshopify.com",
-            "reason": "The live capture exposes Shopify's checkout host, which is not present in the Admin shop hydrate; the proxy must use its documented primary-domain fallback and preserve Shopify's numeric policy path shape."
           }
         ]
       },
@@ -56,17 +51,12 @@
           {
             "path": "$.title",
             "matcher": "exact-string:Privacy Policy",
-            "reason": "The live dev-shop capture returned the older sentence-case title, but HAR-636 is scoped to the Shopify source-backed deprecated title map."
+            "reason": "The live dev-shop capture returned the older sentence-case title, while the proxy stages Shopify source-backed deprecated title casing."
           },
           {
             "path": "$.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy emits deterministic local timestamps for staged policies."
-          },
-          {
-            "path": "$.url",
-            "matcher": "shop-policy-url-base:https://harry-test-heelo.myshopify.com",
-            "reason": "The live capture exposes Shopify's checkout host, which is not present in the Admin shop hydrate; the proxy must use its documented primary-domain fallback and preserve Shopify's numeric policy path shape."
           }
         ]
       },
@@ -83,17 +73,12 @@
           {
             "path": "$.title",
             "matcher": "exact-string:Refund Policy",
-            "reason": "The live dev-shop capture returned the older sentence-case title, but HAR-636 is scoped to the Shopify source-backed deprecated title map."
+            "reason": "The live dev-shop capture returned the older sentence-case title, while the proxy stages Shopify source-backed deprecated title casing."
           },
           {
             "path": "$.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy emits deterministic local timestamps for staged policies."
-          },
-          {
-            "path": "$.url",
-            "matcher": "shop-policy-url-base:https://harry-test-heelo.myshopify.com",
-            "reason": "The live capture exposes Shopify's checkout host, which is not present in the Admin shop hydrate; the proxy must use its documented primary-domain fallback and preserve Shopify's numeric policy path shape."
           }
         ]
       },
@@ -115,17 +100,12 @@
           {
             "path": "$.title",
             "matcher": "exact-string:Refund Policy",
-            "reason": "The live dev-shop capture returned the older sentence-case title, but HAR-636 is scoped to the Shopify source-backed deprecated title map."
+            "reason": "The live dev-shop capture returned the older sentence-case title, while the proxy stages Shopify source-backed deprecated title casing."
           },
           {
             "path": "$.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy emits deterministic local timestamps for staged policies."
-          },
-          {
-            "path": "$.url",
-            "matcher": "shop-policy-url-base:https://harry-test-heelo.myshopify.com",
-            "reason": "The live capture exposes Shopify's checkout host, which is not present in the Admin shop hydrate; the proxy must use its documented primary-domain fallback and preserve Shopify's numeric policy path shape."
           }
         ]
       },

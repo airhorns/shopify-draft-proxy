@@ -189,8 +189,14 @@ impl DraftProxy {
     }
 
     fn shop_policy_url_for_id(&self, id: &str) -> String {
-        let domain = effective_shop_domain(&self.store.effective_shop());
         let policy_path_id = resource_id_tail(id);
+        let shop = self.store.effective_shop();
+        if let Some(shop_path_id) = shop_policy_checkout_shop_id(&shop) {
+            return format!(
+                "https://checkout.shopify.com/{shop_path_id}/policies/{policy_path_id}.html?locale=en"
+            );
+        }
+        let domain = effective_shop_domain(&shop);
         format!("https://{domain}/policies/{policy_path_id}.html?locale=en")
     }
 
@@ -580,4 +586,12 @@ fn effective_shop_domain(shop: &Value) -> String {
         })
         .unwrap_or("shopify-draft-proxy.local")
         .to_string()
+}
+
+fn shop_policy_checkout_shop_id(shop: &Value) -> Option<&str> {
+    let tail = shop
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| shopify_gid_tail_for_type(id, "Shop"))?;
+    tail.chars().all(|c| c.is_ascii_digit()).then_some(tail)
 }
