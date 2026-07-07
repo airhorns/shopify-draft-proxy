@@ -2,6 +2,12 @@ use super::*;
 
 const SUPPORTED_ADMIN_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2025-10", "2026-01", "2026-04"];
 
+// Version segments that name Shopify's internal, uncaptured Admin GraphQL schema. They are
+// routable like a dated version, but there is no captured snapshot to validate against, so
+// `admin_graphql_version` stays `None` for them: schema input validation is skipped and the
+// mutation is staged and replayed verbatim to the live origin, which is authoritative.
+const UNCAPTURED_ADMIN_GRAPHQL_VERSIONS: &[&str] = &["unversioned", "unstable"];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
     Health,
@@ -38,9 +44,7 @@ pub(in crate::proxy) fn route(request: &Request) -> Route {
                 },
             )
         }
-        path if admin_graphql_version(path).is_some() => {
-            only_method("POST", &method, Route::Graphql)
-        }
+        path if is_admin_graphql_path(path) => only_method("POST", &method, Route::Graphql),
         _ => Route::NotFound,
     }
 }
@@ -57,6 +61,16 @@ pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) 
     } else {
         Route::MethodNotAllowed
     }
+}
+
+// True for any recognized Admin GraphQL request path -- a captured (dated) version OR an
+// uncaptured (`unversioned`/`unstable`) one. Routing does not require a captured schema;
+// only validation does, and validation keys off `admin_graphql_version`, which stays `None`
+// for uncaptured versions. An unrecognized version segment is still `NotFound`.
+pub(in crate::proxy) fn is_admin_graphql_path(path: &str) -> bool {
+    admin_graphql_path_version(path).is_some_and(|version| {
+        supported_admin_graphql_version(version) || uncaptured_admin_graphql_version(version)
+    })
 }
 
 pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
@@ -83,6 +97,10 @@ fn admin_graphql_path_version(path: &str) -> Option<&str> {
 
 pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
     SUPPORTED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
+}
+
+pub(in crate::proxy) fn uncaptured_admin_graphql_version(version: &str) -> bool {
+    UNCAPTURED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
 }
 
 pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {

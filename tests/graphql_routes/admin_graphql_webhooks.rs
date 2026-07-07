@@ -472,6 +472,58 @@ fn admin_graphql_rejects_unknown_api_versions() {
 }
 
 #[test]
+fn admin_graphql_routes_uncaptured_versions_and_skips_input_validation() {
+    // The `name` field on PubSubWebhookSubscriptionInput is rejected as `argumentNotAccepted`
+    // against a captured schema (see admin_graphql_validation_uses_versioned_input_schema_fields
+    // at 2025-01). The uncaptured `unversioned`/`unstable` versions have no captured schema, so
+    // they must route (not 404) AND skip input validation, letting the mutation stage instead of
+    // being rejected -- mirroring how Shopify's internal unversioned endpoint accepts fields that
+    // postdate every dated release.
+    let query = r#"
+        mutation VersionedPubSubInput {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: {
+              name: "Current_API-field"
+              pubSubProject: "valid-project"
+              pubSubTopic: "topic-1"
+            }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let body = json!({ "query": query }).to_string();
+
+    for version in ["unversioned", "unstable"] {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(request_with_body(
+            "POST",
+            &format!("/admin/api/{version}/graphql.json"),
+            &body,
+        ));
+
+        assert_eq!(response.status, 200, "{version} should route, not 404");
+        assert_eq!(
+            response.body["errors"],
+            Value::Null,
+            "{version} should skip input validation (no top-level argumentNotAccepted)"
+        );
+        assert_eq!(
+            response.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+        assert!(
+            response.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"]["id"]
+                .as_str()
+                .is_some()
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    }
+}
+
+#[test]
 fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_connections() {
     let mut proxy = snapshot_proxy();
 
