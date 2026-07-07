@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::graphql::ParsedDocument;
+use crate::graphql::{variable_definition_info, ParsedDocument};
 use graphql_parser::query::parse_query;
 use std::sync::OnceLock;
 
@@ -143,8 +143,6 @@ impl AdminOutputSchema {
         self.insert_local_scalar_field("TaxAppConfiguration", "id", "ID");
         self.insert_local_scalar_field("TaxAppConfiguration", "ready", "Boolean");
         self.insert_local_scalar_field("TaxAppConfiguration", "updatedAt", "DateTime");
-        self.insert_local_scalar_field("WebPixel", "status", "String");
-        self.insert_local_scalar_field("WebPixel", "webhookEndpointAddress", "String");
     }
 }
 
@@ -310,13 +308,13 @@ pub(in crate::proxy) fn length_user_error(
     field_name: &str,
     bound: LengthUserErrorBound,
 ) -> Value {
-    let (message, code) = match bound {
-        LengthUserErrorBound::TooLong { maximum } => (
-            too_long_message(field_name, maximum),
-            TOO_LONG_USER_ERROR_CODE,
+    match bound {
+        LengthUserErrorBound::TooLong { maximum } => user_error(
+            field,
+            &too_long_message(field_name, maximum),
+            Some(TOO_LONG_USER_ERROR_CODE),
         ),
-    };
-    user_error(field, &message, Some(code))
+    }
 }
 
 pub(in crate::proxy) fn max_input_size_exceeded_error(
@@ -344,6 +342,50 @@ pub(in crate::proxy) fn payload_error(root_key: &str, user_errors: Vec<Value>) -
     json!({
         root_key: Value::Null,
         "userErrors": user_errors,
+    })
+}
+
+pub(in crate::proxy) fn payload_user_error(root_key: &str, user_error: Value) -> Value {
+    payload_error(root_key, vec![user_error])
+}
+
+pub(in crate::proxy) fn missing_required_arguments_error(
+    field_name: &str,
+    arguments: &str,
+    location: SourceLocation,
+    path: Vec<Value>,
+) -> Value {
+    json!({
+        "message": format!("Field '{field_name}' is missing required arguments: {arguments}"),
+        "locations": graphql_locations(location),
+        "path": path,
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": field_name,
+            "arguments": arguments
+        }
+    })
+}
+
+pub(in crate::proxy) fn required_argument_null_error(
+    field_name: &str,
+    argument_name: &str,
+    expected_type: &str,
+    location: SourceLocation,
+    path: Vec<Value>,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on Field '{field_name}' has an invalid value (null). Expected type '{expected_type}'."
+        ),
+        "locations": graphql_locations(location),
+        "path": path,
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": argument_name
+        }
     })
 }
 
@@ -498,18 +540,27 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
                 context,
             ));
         }
-        for (argument_name, argument_schema) in arguments {
-            if argument_schema.type_ref.non_null
-                && !argument_schema.has_default
-                && !field.raw_arguments.contains_key(argument_name)
-            {
-                errors.push(required_root_argument_error(
-                    field,
-                    argument_name,
-                    &argument_schema.type_ref,
-                    context,
-                ));
-            }
+        let missing_required_arguments = arguments
+            .iter()
+            .filter(|(argument_name, argument_schema)| {
+                argument_schema.type_ref.non_null
+                    && !argument_schema.has_default
+                    && !field.raw_arguments.contains_key(*argument_name)
+            })
+            .map(|(argument_name, _)| argument_name.as_str())
+            .collect::<Vec<_>>();
+        if !missing_required_arguments.is_empty() {
+            errors.push(required_root_arguments_error(
+                field,
+                &missing_required_arguments,
+                context,
+            ));
+        }
+    }
+    for error in product_feed_required_input_errors(&document) {
+        errors.retain(|existing| !product_feed_required_input_error_replaces(existing, &error));
+        if !errors.iter().any(|existing| existing == &error) {
+            errors.push(error);
         }
     }
     errors.extend(product_media_variable_errors(&document));
@@ -542,6 +593,88 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     product_create_argument_arity_response(&document, api_version)
 }
 
+pub(in crate::proxy) fn graphql_locations(location: SourceLocation) -> Value {
+    json!([{ "line": location.line, "column": location.column }])
+}
+
+pub(in crate::proxy) fn source_location_for_query_substring(
+    query: &str,
+    needle: &str,
+) -> Option<SourceLocation> {
+    source_location_for_byte_offset(query, query.find(needle)?)
+}
+
+pub(in crate::proxy) fn top_level_access_denied_error_envelope(
+    message: String,
+    location: Option<SourceLocation>,
+    path: Vec<Value>,
+    required_access: Option<&str>,
+) -> Value {
+    let mut error = json!({
+        "message": message,
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+        },
+        "path": path,
+    });
+    if let Some(location) = location {
+        error["locations"] = graphql_locations(location);
+    }
+    if let Some(required_access) = required_access {
+        error["extensions"]["requiredAccess"] = json!(required_access);
+    }
+    error
+}
+
+pub(in crate::proxy) fn argument_literals_incompatible_error_envelope(
+    message: String,
+    location: Option<SourceLocation>,
+    path: Option<Value>,
+    type_name: Option<&str>,
+    argument_name: Option<&str>,
+) -> Value {
+    let mut error = json!({
+        "message": message,
+        "extensions": { "code": "argumentLiteralsIncompatible" }
+    });
+    if let Some(location) = location {
+        error["locations"] = graphql_locations(location);
+    }
+    if let Some(path) = path {
+        error["path"] = path;
+    }
+    if let Some(type_name) = type_name {
+        error["extensions"]["typeName"] = json!(type_name);
+    }
+    if let Some(argument_name) = argument_name {
+        error["extensions"]["argumentName"] = json!(argument_name);
+    }
+    error
+}
+
+pub(in crate::proxy) fn missing_required_input_object_attribute_error_envelope(
+    input_object_type: &str,
+    argument_name: &str,
+    argument_type: &str,
+    location: SourceLocation,
+    path: Value,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_object_type}' is required. Expected type {argument_type}"
+        ),
+        "locations": graphql_locations(location),
+        "path": path,
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": argument_name,
+            "argumentType": argument_type,
+            "inputObjectType": input_object_type
+        }
+    })
+}
+
 fn parse_error(query: &str) -> Value {
     let location = unexpected_end_of_file_location(query);
     json!({
@@ -549,7 +682,7 @@ fn parse_error(query: &str) -> Value {
             "syntax error, unexpected end of file at [{}, {}]",
             location.line, location.column
         ),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": graphql_locations(location),
         "extensions": { "code": "PARSE_ERROR" }
     })
 }
@@ -656,12 +789,15 @@ fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Ve
         .filter(|field| field.selection.is_empty())
         .filter_map(|field| {
             let output_type = output_schema.query_root_fields.get(&field.name)?;
+            if !output_type.composite {
+                return None;
+            }
             Some(json!({
                 "message": format!(
                     "Field must have selections (field '{}' returns {} but has no selections. Did you mean '{} {{ ... }}'?)",
                     field.name, output_type.named_type, field.name
                 ),
-                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "locations": graphql_locations(field.location),
                 "path": [document.operation_path.clone(), field.response_key.clone()],
                 "extensions": {
                     "code": "selectionMismatch",
@@ -687,7 +823,9 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
         };
         let mode = match document.operation_type {
             OperationType::Query => UndefinedSelectionMode::AllFields,
-            OperationType::Mutation => UndefinedSelectionMode::PlainUserErrorCodeOnly,
+            OperationType::Mutation => {
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents
+            }
             OperationType::Subscription => continue,
         };
         collect_undefined_selection_field_errors(
@@ -706,8 +844,10 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
 #[derive(Clone, Copy)]
 enum UndefinedSelectionMode {
     AllFields,
-    PlainUserErrorCodeOnly,
+    PlainUserErrorCodeOnlyAndStrictParents,
 }
+
+const STRICT_MUTATION_SELECTION_PARENT_TYPES: &[&str] = &["WebPixel"];
 
 fn collect_undefined_selection_field_errors(
     document: &ParsedDocument,
@@ -743,9 +883,14 @@ fn collect_undefined_selection_field_errors(
                 errors,
             );
         } else if schema_fields.is_some() {
-            if matches!(mode, UndefinedSelectionMode::PlainUserErrorCodeOnly)
-                && !(selected_parent_type == "UserError" && selection.name == "code")
-            {
+            let should_report = match mode {
+                UndefinedSelectionMode::AllFields => true,
+                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents => {
+                    (selected_parent_type == "UserError" && selection.name == "code")
+                        || STRICT_MUTATION_SELECTION_PARENT_TYPES.contains(&selected_parent_type)
+                }
+            };
+            if !should_report {
                 continue;
             }
             errors.push(undefined_field_error(
@@ -768,7 +913,7 @@ fn undefined_field_error(
 ) -> Value {
     json!({
         "message": format!("Field '{field_name}' doesn't exist on type '{parent_type}'"),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": graphql_locations(location),
         "path": path,
         "extensions": {
             "code": "undefinedField",
@@ -804,7 +949,7 @@ fn product_create_argument_arity_response(
         "data": Value::Object(data),
         "errors": [{
             "message": "productCreate must include exactly one of the following arguments: input, product.",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "locations": graphql_locations(field.location),
             "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
             "path": [field.response_key.clone()]
         }]
@@ -1104,18 +1249,17 @@ fn invalid_global_id_literal_error(
     invalid_id: &str,
     context: ValidationContext<'_>,
 ) -> Value {
-    json!({
-        "message": format!("Invalid global id '{invalid_id}'"),
-        "locations": [{
-            "line": context.field_location.line,
-            "column": context.field_location.column,
-        }],
-        "path": [context.operation_path, field.response_key.as_str(), argument_name],
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "typeName": "CoercionError",
-        },
-    })
+    argument_literals_incompatible_error_envelope(
+        format!("Invalid global id '{invalid_id}'"),
+        Some(context.field_location),
+        Some(json!([
+            context.operation_path,
+            field.response_key.as_str(),
+            argument_name
+        ])),
+        Some("CoercionError"),
+        None,
+    )
 }
 
 pub(in crate::proxy) fn invalid_variable_error_envelope(
@@ -1126,10 +1270,7 @@ pub(in crate::proxy) fn invalid_variable_error_envelope(
 ) -> Value {
     json!({
         "message": message,
-        "locations": [{
-            "line": location.line,
-            "column": location.column,
-        }],
+        "locations": graphql_locations(location),
         "extensions": {
             "code": "INVALID_VARIABLE",
             "value": value,
@@ -1190,6 +1331,74 @@ fn variable_problem_path_display(path: &[Value]) -> Option<String> {
             .collect::<Vec<_>>()
             .join("."),
     )
+}
+
+fn product_feed_required_input_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if field.name != "productFeedCreate" {
+            continue;
+        }
+        if let Some(RawArgumentValue::Variable {
+            name,
+            value: Some(ResolvedValue::Object(input)),
+        }) = field.raw_arguments.get("input")
+        {
+            let mut problems = Vec::new();
+            for (argument_name, _) in product_feed_required_input_fields() {
+                if input
+                    .get(argument_name)
+                    .is_none_or(|value| matches!(value, ResolvedValue::Null))
+                {
+                    problems.push(variable_problem_value_path(
+                        &[json!(argument_name)],
+                        "Expected value to not be null",
+                    ));
+                }
+            }
+            if !problems.is_empty() {
+                let (variable_type, location) = resolve_variable_definition_type(
+                    document,
+                    name,
+                    "ProductFeedInput",
+                    field.location,
+                );
+                errors.push(invalid_variable_error(
+                    VariableValidationContext {
+                        variable_name: name,
+                        variable_type: &variable_type,
+                        location,
+                    },
+                    &ResolvedValue::Object(input.clone()),
+                    problems,
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn product_feed_required_input_fields() -> [(&'static str, SchemaTypeRef); 2] {
+    [
+        ("language", non_null("LanguageCode")),
+        ("country", non_null("CountryCode")),
+    ]
+}
+
+fn product_feed_required_input_error_replaces(existing: &Value, replacement: &Value) -> bool {
+    existing.pointer("/extensions/code").and_then(Value::as_str) == Some("INVALID_VARIABLE")
+        && replacement
+            .pointer("/extensions/code")
+            .and_then(Value::as_str)
+            == Some("INVALID_VARIABLE")
+        && existing
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
+        && replacement
+            .get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|message| message.contains("Variable $input of type ProductFeedInput"))
 }
 
 /// The product media mutations are not modelled in the declarative input
@@ -1351,7 +1560,7 @@ fn metaobject_access_invalid_enum_errors(query: &str, document: &ParsedDocument)
             "message": format!(
                 "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value ({provided}). Expected type 'MetaobjectCustomerAccountAccess'."
             ),
-            "locations": [{ "line": location.line, "column": location.column }],
+            "locations": graphql_locations(location),
             "path": [
                 document.operation_path.clone(),
                 field.response_key.clone(),
@@ -1381,9 +1590,10 @@ fn validate_argument_value(
     if type_ref.named_type == "ID" {
         if let RawArgumentValue::String(s) = value {
             if s.trim().is_empty() {
-                return vec![blank_id_argument_literal_error(
+                return vec![invalid_global_id_literal_error(
                     field,
                     argument_name,
+                    "",
                     context,
                 )];
             }
@@ -2010,7 +2220,7 @@ fn root_argument_not_accepted_error(
         .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": graphql_locations(location),
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -2021,39 +2231,18 @@ fn root_argument_not_accepted_error(
     })
 }
 
-fn required_root_argument_error(
+fn required_root_arguments_error(
     field: &RootFieldSelection,
-    argument_name: &str,
-    _type_ref: &SchemaTypeRef,
+    argument_names: &[&str],
     context: ValidationContext<'_>,
 ) -> Value {
-    json!({
-        "message": format!("Field '{}' is missing required arguments: {}", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
-        "path": [context.operation_path, context.response_key],
-        "extensions": {
-            "code": "missingRequiredArguments",
-            "className": "Field",
-            "name": field.name,
-            "arguments": argument_name
-        }
-    })
-}
-
-fn blank_id_argument_literal_error(
-    _field: &RootFieldSelection,
-    argument_name: &str,
-    context: ValidationContext<'_>,
-) -> Value {
-    json!({
-        "message": "Invalid global id ''",
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
-        "path": [context.operation_path, context.response_key, argument_name],
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "typeName": "CoercionError"
-        }
-    })
+    let arguments = argument_names.join(", ");
+    missing_required_arguments_error(
+        &field.name,
+        &arguments,
+        context.field_location,
+        vec![json!(context.operation_path), json!(context.response_key)],
+    )
 }
 
 fn non_null_argument_literal_error(
@@ -2062,19 +2251,17 @@ fn non_null_argument_literal_error(
     type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
-    json!({
-        "message": format!(
-            "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
-            argument_name, field.name, type_ref.display
-        ),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
-        "path": [context.operation_path, context.response_key, argument_name],
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "typeName": "Field",
-            "argumentName": argument_name
-        }
-    })
+    required_argument_null_error(
+        &field.name,
+        argument_name,
+        &type_ref.display,
+        context.field_location,
+        vec![
+            json!(context.operation_path),
+            json!(context.response_key),
+            json!(argument_name),
+        ],
+    )
 }
 
 fn root_argument_literal_incompatible_error(
@@ -2089,7 +2276,7 @@ fn root_argument_literal_incompatible_error(
             "Argument '{}' on Field '{}' has an invalid value ({}). Expected type '{}'.",
             argument_name, field.name, invalid_value, expected_type
         ),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": graphql_locations(context.field_location),
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentLiteralsIncompatible",
@@ -2128,7 +2315,7 @@ fn argument_literal_incompatible_error(
         "message": format!(
             "Argument '{argument_name}' on InputObject '{input_type_name}' has an invalid value ({invalid_value}). Expected type '{expected_type}'."
         ),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": graphql_locations(location),
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "argumentLiteralsIncompatible",
@@ -2167,7 +2354,7 @@ pub(in crate::proxy) fn input_object_argument_not_accepted_error(
     .unwrap_or(context.field_location);
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": graphql_locations(location),
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "argumentNotAccepted",
@@ -2186,20 +2373,13 @@ fn missing_required_input_object_attribute_error(
     context: ValidationContext<'_>,
     location: SourceLocation,
 ) -> Value {
-    json!({
-        "message": format!(
-            "Argument '{argument_name}' on InputObject '{input_type_name}' is required. Expected type {}",
-            type_ref.display
-        ),
-        "locations": [{ "line": location.line, "column": location.column }],
-        "path": input_error_path(context, path, argument_name),
-        "extensions": {
-            "code": "missingRequiredInputObjectAttribute",
-            "argumentName": argument_name,
-            "argumentType": type_ref.display,
-            "inputObjectType": input_type_name
-        }
-    })
+    missing_required_input_object_attribute_error_envelope(
+        input_type_name,
+        argument_name,
+        &type_ref.display,
+        location,
+        input_error_path(context, path, argument_name),
+    )
 }
 
 fn inline_argument_name_location(
@@ -2294,7 +2474,7 @@ pub(in crate::proxy) fn inline_argument_value_location(
     source_location_for_byte_offset(query, value_offset_after(query, after_name)?)
 }
 
-fn inline_argument_list_item_object_location(
+pub(in crate::proxy) fn inline_argument_list_item_object_location(
     query: &str,
     field: &RootFieldSelection,
     argument_name: &str,
@@ -2447,36 +2627,12 @@ pub(in crate::proxy) fn source_location_for_byte_offset(
     (target_offset == query.len()).then_some(SourceLocation { line, column })
 }
 
-fn graphql_variable_occurrence(
-    query: &str,
-    variable_name: &str,
-    search_from: usize,
-) -> Option<(usize, usize)> {
-    let needle = format!("${variable_name}");
-    let bytes = query.as_bytes();
-    let mut search_from = search_from;
-    while let Some(relative) = query[search_from..].find(&needle) {
-        let start = search_from + relative;
-        let after = start + needle.len();
-        let is_boundary = match bytes.get(after) {
-            None => true,
-            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
-        };
-        if is_boundary {
-            return Some((start, after));
-        }
-        search_from = after;
-    }
-    None
-}
-
 /// Resolves the 1-based location of a variable definition (`$name`) in the query.
 pub(in crate::proxy) fn graphql_variable_definition_location(
     query: &str,
     variable_name: &str,
 ) -> Option<(usize, usize)> {
-    let (start, _) = graphql_variable_occurrence(query, variable_name, 0)?;
-    let location = source_location_for_byte_offset(query, start)?;
+    let location = variable_definition_info(query, variable_name)?.location;
     Some((location.line, location.column))
 }
 
@@ -2485,22 +2641,7 @@ pub(in crate::proxy) fn graphql_variable_definition_type(
     query: &str,
     variable_name: &str,
 ) -> Option<String> {
-    let mut search_from = 0;
-    while let Some((_, after)) = graphql_variable_occurrence(query, variable_name, search_from) {
-        if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
-            let declared: String = type_part
-                .trim_start()
-                .chars()
-                .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
-                .collect();
-            let declared = declared.trim();
-            if !declared.is_empty() {
-                return Some(declared.to_string());
-            }
-        }
-        search_from = after;
-    }
-    None
+    Some(variable_definition_info(query, variable_name)?.type_display)
 }
 
 pub(in crate::proxy) fn invalid_variable_error(
@@ -2849,6 +2990,9 @@ fn extend_product_input_schema(schema: &mut AdminInputSchema, api_version: &str)
     let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
 
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductDeleteInput") {
+        schema.insert_strict_input_object(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "ProductFeedInput") {
         schema.insert_strict_input_object(name, fields);
     }
     schema.mutation_fields.insert(
@@ -3643,6 +3787,10 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    schema.enum_values.insert(
+        "DraftOrderEmailTemplate".to_string(),
+        vec!["DRAFT_ORDER_INVOICE".to_string()],
+    );
     // This local-runtime abandonment helper models the internal delivery activity
     // state map exposed by captured fixtures, whose transition values include
     // states not present in the public introspected AbandonmentDeliveryState enum.
@@ -3676,7 +3824,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
                 "presentmentCurrencyCode".to_string(),
                 mutation_arg(named("CurrencyCode")),
             ),
-            ("templateName".to_string(), mutation_arg(named("String"))),
+            (
+                "templateName".to_string(),
+                mutation_arg(named("DraftOrderEmailTemplate")),
+            ),
         ]),
     );
     schema.insert_strict_input_object(

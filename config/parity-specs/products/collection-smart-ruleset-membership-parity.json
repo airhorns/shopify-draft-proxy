@@ -1,0 +1,78 @@
+{
+  "scenarioId": "collection-smart-ruleset-membership-parity",
+  "operationNames": ["productSet", "collectionCreate", "collection"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "rule-set-membership"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-smart-ruleset-membership-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collection-smart-ruleset-membership-product-set.graphql",
+    "variablesCapturePath": "$.productSet.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured against a disposable product and smart collection. The scenario proves a smart collection with TITLE, TYPE, VENDOR, TAG, and VARIANT_PRICE rules reports matching products/productsCount on downstream collection reads; setup and replay use public GraphQL mutations only.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productSet.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify and the proxy allocate setup product ids independently."
+      },
+      {
+        "path": "$.productSet.product.variants.nodes[0].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Shopify and the proxy allocate setup variant ids independently."
+      },
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the proxy allocate smart collection ids independently."
+      },
+      {
+        "path": "$.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The downstream read uses the collection id allocated by each replay."
+      },
+      {
+        "path": "$.collection.products.nodes[0].id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The downstream smart collection member is the product allocated by each replay."
+      }
+    ],
+    "targets": [
+      {
+        "name": "product-set-setup",
+        "capturePath": "$.productSet.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-create",
+        "capturePath": "$.smartCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-smart-ruleset-membership-create.graphql",
+          "variablesCapturePath": "$.smartCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-downstream-read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-smart-ruleset-membership-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "smart-create",
+              "path": "$.data.collectionCreate.collection.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

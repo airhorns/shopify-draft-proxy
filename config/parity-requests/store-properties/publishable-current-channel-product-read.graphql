@@ -1,0 +1,12 @@
+query PublishableCurrentChannelProductRead($id: ID!) {
+  product(id: $id) {
+    id
+    publishedOnCurrentPublication
+  }
+  node(id: $id) {
+    ... on Product {
+      id
+      publishedOnCurrentPublication
+    }
+  }
+}

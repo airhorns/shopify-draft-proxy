@@ -1,5 +1,8 @@
 use super::*;
 
+const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
+
 fn return_matches_id(return_value: &Value, value: &str) -> bool {
     let value = value.trim_matches('"').trim_matches('\'');
     return_value
@@ -71,16 +74,9 @@ fn return_search_decision(return_value: &Value, query: Option<&str>) -> StagedSe
 }
 
 fn return_sort_key(return_value: &Value, _sort_key: Option<&str>) -> StagedSortKey {
-    let tail = return_value
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    let id_value = tail
-        .parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
-    vec![id_value]
+    vec![resource_id_tail_sort_value(
+        return_value.get("id").and_then(Value::as_str),
+    )]
 }
 
 fn selected_return_connection(
@@ -143,14 +139,6 @@ fn return_already_declined_error() -> Value {
         "The return is already declined.",
         Some("INVALID_STATE"),
     )
-}
-
-fn return_user_error_null_field(message: &str, code: Option<&str>) -> Value {
-    json!({
-        "field": Value::Null,
-        "message": message,
-        "code": code
-    })
 }
 
 fn blank_return_line_string(value: Option<String>) -> bool {
@@ -221,6 +209,38 @@ fn return_line_items_array(return_value: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn order_line_items_array(order: &Value) -> Vec<Value> {
+    if let Some(array) = order["lineItems"].as_array() {
+        return array.clone();
+    }
+    order["lineItems"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Fulfillments embedded in an order, accepting both the locally-staged array
+/// shape and the Admin connection shape returned by live hydration.
+fn order_fulfillments_array(order: &Value) -> Vec<Value> {
+    if let Some(array) = order["fulfillments"].as_array() {
+        return array.clone();
+    }
+    order["fulfillments"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn fulfillment_line_items_array(fulfillment: &Value) -> Vec<Value> {
+    if let Some(array) = fulfillment["fulfillmentLineItems"].as_array() {
+        return array.clone();
+    }
+    fulfillment["fulfillmentLineItems"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// The fulfillment line item id a return line item points at, tolerating both
 /// the nested object shape (`fulfillmentLineItem { id }`) and a flat id.
 fn return_line_item_fulfillment_line_item_id(line: &Value) -> Option<String> {
@@ -233,17 +253,8 @@ fn return_line_item_fulfillment_line_item_id(line: &Value) -> Option<String> {
 /// Find a fulfillment line item across an order's fulfillments by id. Each
 /// fulfillment's `fulfillmentLineItems` may be a bare array or a connection.
 fn find_order_fulfillment_line_item(order: &Value, id: &str) -> Option<Value> {
-    let fulfillments = order["fulfillments"].as_array()?;
-    for fulfillment in fulfillments {
-        let lines = fulfillment["fulfillmentLineItems"]
-            .as_array()
-            .cloned()
-            .or_else(|| {
-                fulfillment["fulfillmentLineItems"]["nodes"]
-                    .as_array()
-                    .cloned()
-            })
-            .unwrap_or_default();
+    for fulfillment in order_fulfillments_array(order) {
+        let lines = fulfillment_line_items_array(&fulfillment);
         if let Some(line) = lines
             .into_iter()
             .find(|line| line["id"].as_str() == Some(id))
@@ -287,6 +298,258 @@ fn build_return_line_item(
             "lineItem": line_item
         }
     })
+}
+
+fn order_currency(order: &Value) -> String {
+    order["currencyCode"]
+        .as_str()
+        .or_else(|| order["totalPriceSet"]["shopMoney"]["currencyCode"].as_str())
+        .unwrap_or("USD")
+        .to_string()
+}
+
+fn order_presentment_currency(order: &Value) -> String {
+    order["presentmentCurrencyCode"]
+        .as_str()
+        .or_else(|| order["totalPriceSet"]["presentmentMoney"]["currencyCode"].as_str())
+        .unwrap_or_else(|| order["currencyCode"].as_str().unwrap_or("USD"))
+        .to_string()
+}
+
+fn fulfillment_line_item_price_set(line: &Value) -> &Value {
+    if line["lineItem"]["priceSet"].is_object() {
+        &line["lineItem"]["priceSet"]
+    } else {
+        &line["lineItem"]["originalUnitPriceSet"]
+    }
+}
+
+fn calculated_line_money_set(order: &Value, fulfillment_line_item: &Value, quantity: i64) -> Value {
+    let price_set = fulfillment_line_item_price_set(fulfillment_line_item);
+    let shop_unit = money_set_amount(price_set).unwrap_or(0.0);
+    let presentment_unit = price_set["presentmentMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(shop_unit);
+    let shop_currency = money_set_shop_currency(price_set).unwrap_or_else(|| order_currency(order));
+    let presentment_currency = money_set_presentment_currency(price_set)
+        .unwrap_or_else(|| order_presentment_currency(order));
+    money_set_pair(
+        &format_money_amount(-(shop_unit * quantity as f64)),
+        &shop_currency,
+        &format_money_amount(-(presentment_unit * quantity as f64)),
+        &presentment_currency,
+    )
+}
+
+fn order_line_item_for_fulfillment_line_item(
+    order: &Value,
+    fulfillment_line_item: &Value,
+) -> Option<Value> {
+    let embedded_line_item = fulfillment_line_item
+        .get("lineItem")
+        .filter(|line_item| line_item.is_object());
+    let line_item_id = embedded_line_item.and_then(|line_item| line_item["id"].as_str());
+    if let Some(line_item) = embedded_line_item {
+        if line_item.get("taxLines").is_some() {
+            return Some(line_item.clone());
+        }
+    }
+    let order_line_item = order_line_items_array(order)
+        .into_iter()
+        .find(|line| line["id"].as_str() == line_item_id);
+    order_line_item.or_else(|| embedded_line_item.cloned())
+}
+
+fn line_item_quantity(line_item: &Value, fulfillment_line_item: &Value) -> i64 {
+    line_item["quantity"]
+        .as_i64()
+        .or_else(|| fulfillment_line_item["quantity"].as_i64())
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn tax_line_price_set(tax_line: &Value) -> &Value {
+    if tax_line["priceSet"].is_object() {
+        &tax_line["priceSet"]
+    } else {
+        &tax_line["price"]
+    }
+}
+
+fn money_set_presentment_amount(value: &Value) -> Option<f64> {
+    value["presentmentMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+}
+
+fn calculated_line_tax_set(order: &Value, fulfillment_line_item: &Value, quantity: i64) -> Value {
+    let Some(line_item) = order_line_item_for_fulfillment_line_item(order, fulfillment_line_item)
+    else {
+        return money_set_pair(
+            "0.0",
+            &order_currency(order),
+            "0.0",
+            &order_presentment_currency(order),
+        );
+    };
+    let line_quantity = line_item_quantity(&line_item, fulfillment_line_item);
+    if line_quantity <= 0 {
+        return money_set_pair(
+            "0.0",
+            &order_currency(order),
+            "0.0",
+            &order_presentment_currency(order),
+        );
+    }
+    let tax_lines = line_item["taxLines"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let shop_currency = tax_lines
+        .iter()
+        .find_map(|tax_line| money_set_shop_currency(tax_line_price_set(tax_line)))
+        .unwrap_or_else(|| order_currency(order));
+    let presentment_currency = tax_lines
+        .iter()
+        .find_map(|tax_line| money_set_presentment_currency(tax_line_price_set(tax_line)))
+        .unwrap_or_else(|| order_presentment_currency(order));
+    let shop_total = tax_lines
+        .iter()
+        .filter_map(|tax_line| money_set_amount(tax_line_price_set(tax_line)))
+        .sum::<f64>();
+    let presentment_total = tax_lines
+        .iter()
+        .map(|tax_line| {
+            let price_set = tax_line_price_set(tax_line);
+            money_set_presentment_amount(price_set)
+                .unwrap_or_else(|| money_set_amount(price_set).unwrap_or(0.0))
+        })
+        .sum::<f64>();
+    let ratio = quantity.max(0) as f64 / line_quantity as f64;
+    money_set_pair(
+        &format_money_amount(-(shop_total * ratio)),
+        &shop_currency,
+        &format_money_amount(-(presentment_total * ratio)),
+        &presentment_currency,
+    )
+}
+
+fn calculated_restocking_fee(
+    order: &Value,
+    fulfillment_line_item_id: &str,
+    subtotal: &Value,
+    line_input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let Some(fee_input) = resolved_object_field(line_input, "restockingFee") else {
+        return Value::Null;
+    };
+    let Some(percentage) = resolved_number_field(&fee_input, "percentage") else {
+        return Value::Null;
+    };
+    let shop_subtotal = money_set_amount(subtotal).unwrap_or(0.0).abs();
+    let presentment_subtotal = money_set_presentment_amount(subtotal)
+        .or_else(|| money_set_amount(subtotal))
+        .unwrap_or(0.0)
+        .abs();
+    let shop_currency = money_set_shop_currency(subtotal).unwrap_or_else(|| order_currency(order));
+    let presentment_currency = money_set_presentment_currency(subtotal)
+        .unwrap_or_else(|| order_presentment_currency(order));
+    json!({
+        "id": shopify_gid(
+            "CalculatedRestockingFee",
+            resource_id_tail(fulfillment_line_item_id)
+        ),
+        "percentage": percentage,
+        "amountSet": money_set_pair(
+            &format_money_amount(shop_subtotal * percentage / 100.0),
+            &shop_currency,
+            &format_money_amount(presentment_subtotal * percentage / 100.0),
+            &presentment_currency
+        )
+    })
+}
+
+fn return_calculation_line_item_has_price_and_tax_data(line: &Value) -> bool {
+    fulfillment_line_item_price_set(line)
+        .get("shopMoney")
+        .is_some_and(Value::is_object)
+        && line["lineItem"].get("taxLines").is_some()
+}
+
+fn order_has_return_calculation_prices(order: &Value) -> bool {
+    order_fulfillments_array(order).iter().any(|fulfillment| {
+        fulfillment_line_items_array(fulfillment)
+            .iter()
+            .any(return_calculation_line_item_has_price_and_tax_data)
+    })
+}
+
+fn selected_returnable_fulfillment(
+    fulfillment: &Value,
+    line_items: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    let fulfillment_id = fulfillment["id"].as_str().unwrap_or_default();
+    let id = if fulfillment_id.is_empty() {
+        Value::Null
+    } else {
+        json!(shopify_gid(
+            "ReturnableFulfillment",
+            resource_id_tail(fulfillment_id)
+        ))
+    };
+    let base = json!({
+        "id": id,
+        "fulfillment": fulfillment
+    });
+    selected_payload_json(selection, |field| match field.name.as_str() {
+        "returnableFulfillmentLineItems" => Some(selected_connection_json_with_args(
+            line_items.clone(),
+            &field.arguments,
+            &field.selection,
+            |line| {
+                line["fulfillmentLineItem"]["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string()
+            },
+        )),
+        _ => selected_json(&base, std::slice::from_ref(field))
+            .as_object()
+            .and_then(|object| object.get(&field.response_key).cloned()),
+    })
+}
+
+fn returnable_fulfillment_nodes(order: &Value, order_id: &str, proxy: &DraftProxy) -> Vec<Value> {
+    order_fulfillments_array(order)
+        .into_iter()
+        .filter_map(|fulfillment| {
+            let line_items = fulfillment_line_items_array(&fulfillment)
+                .into_iter()
+                .filter_map(|line| {
+                    let line_id = line["id"].as_str()?;
+                    let fulfilled_quantity = line["quantity"].as_i64().unwrap_or(0);
+                    let already_returned =
+                        proxy.already_returned_quantity(order, order_id, line_id);
+                    let returnable_quantity = (fulfilled_quantity - already_returned).max(0);
+                    (returnable_quantity > 0).then(|| {
+                        json!({
+                            "fulfillmentLineItem": line,
+                            "quantity": returnable_quantity
+                        })
+                    })
+                })
+                .collect::<Vec<_>>();
+            (!line_items.is_empty()).then(|| {
+                json!({
+                    "id": fulfillment["id"].as_str().map(|id| shopify_gid("ReturnableFulfillment", resource_id_tail(id))),
+                    "fulfillment": fulfillment,
+                    "__returnableLineItems": line_items
+                })
+            })
+        })
+        .collect()
 }
 
 /// `returnDeclineRequest` reaches the handler only after public Admin schema
@@ -368,6 +631,14 @@ impl DraftProxy {
 
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
+            "returnableFulfillments" => {
+                let value = self.returnable_fulfillments(request, field);
+                Some(data_response(&field.response_key, value))
+            }
+            "returnCalculate" => {
+                let value = self.calculate_return(request, field);
+                Some(data_response(&field.response_key, value))
+            }
             "returnCreate" => {
                 let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
                 Some(data_response(&field.response_key, value))
@@ -427,6 +698,114 @@ impl DraftProxy {
                 Some(data_response(&field.response_key, value))
             }
             _ => None,
+        }
+    }
+
+    fn returnable_fulfillments(&mut self, request: &Request, field: &RootFieldSelection) -> Value {
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
+        self.hydrate_order_for_return(request, &order_id);
+        let Some(order) = self.staged_order_record_for_id(&order_id) else {
+            return selected_empty_connection_json(&field.selection);
+        };
+        let nodes = returnable_fulfillment_nodes(&order, &order_id, self);
+        let (nodes, page_info) = connection_window(&nodes, &field.arguments, value_id_cursor);
+        selected_typed_connection_with_page_info(
+            &nodes,
+            &field.selection,
+            |node, selection| {
+                let line_items = node["__returnableLineItems"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+                selected_returnable_fulfillment(&node["fulfillment"], line_items, selection)
+            },
+            value_id_cursor,
+            page_info,
+        )
+    }
+
+    fn calculate_return(&mut self, request: &Request, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+        self.hydrate_order_for_return_calculation(request, &order_id);
+        let order = self
+            .staged_order_record_for_id(&order_id)
+            .unwrap_or(Value::Null);
+        let calculated_line_items = resolved_object_list_field(&input, "returnLineItems")
+            .into_iter()
+            .filter_map(|line_input| {
+                let fulfillment_line_item_id =
+                    resolved_string_field(&line_input, "fulfillmentLineItemId")?;
+                let quantity = resolved_int_field(&line_input, "quantity")
+                    .unwrap_or(0)
+                    .max(0);
+                let fulfillment_line_item =
+                    find_order_fulfillment_line_item(&order, &fulfillment_line_item_id)?;
+                let subtotal = calculated_line_money_set(&order, &fulfillment_line_item, quantity);
+                let total_tax = calculated_line_tax_set(&order, &fulfillment_line_item, quantity);
+                let restocking_fee = calculated_restocking_fee(
+                    &order,
+                    &fulfillment_line_item_id,
+                    &subtotal,
+                    &line_input,
+                );
+                Some(json!({
+                    "id": shopify_gid(
+                        "CalculatedReturnLineItem",
+                        resource_id_tail(&fulfillment_line_item_id)
+                    ),
+                    "fulfillmentLineItem": fulfillment_line_item,
+                    "quantity": quantity,
+                    "restockingFee": restocking_fee,
+                    "subtotalBeforeOrderDiscountsSet": subtotal.clone(),
+                    "subtotalSet": subtotal,
+                    "totalTaxSet": total_tax
+                }))
+            })
+            .collect::<Vec<_>>();
+        let return_shipping_fee = resolved_object_field(&input, "returnShippingFee").map(|fee| {
+            let amount = resolved_object_field(&fee, "amount").unwrap_or_default();
+            let amount_value =
+                resolved_string_field(&amount, "amount").unwrap_or_else(|| "0.00".to_string());
+            let currency = resolved_string_field(&amount, "currencyCode")
+                .unwrap_or_else(|| order_currency(&order));
+            json!({
+                "id": shopify_gid("CalculatedReturnShippingFee", resource_id_tail(&order_id)),
+                "amountSet": return_money_set(&amount_value, &currency)
+            })
+        });
+        selected_json(
+            &json!({
+                "id": shopify_gid("CalculatedReturn", resource_id_tail(&order_id)),
+                "exchangeLineItems": [],
+                "returnLineItems": calculated_line_items,
+                "returnShippingFee": return_shipping_fee
+            }),
+            &field.selection,
+        )
+    }
+
+    fn hydrate_order_for_return_calculation(&mut self, request: &Request, order_id: &str) {
+        if order_id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        if self
+            .staged_order_record_for_id(order_id)
+            .is_some_and(|order| order_has_return_calculation_prices(&order))
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": RETURN_CALCULATION_ORDER_HYDRATE_QUERY,
+                "operationName": "ReturnCalculationOrderHydrate",
+                "variables": { "id": order_id }
+            }),
+        );
+        let order = response.body["data"]["order"].clone();
+        if order.is_object() {
+            self.store.staged.orders.insert(order_id.to_string(), order);
         }
     }
 
@@ -723,7 +1102,7 @@ impl DraftProxy {
             .into_iter()
             .filter_map(|id| self.store.staged.returns.get(&id).cloned())
             .collect::<Vec<_>>();
-        let order = self.store.staged.orders.get(order_id).cloned();
+        let order = self.staged_order_record_for_id(order_id);
         let name = order
             .as_ref()
             .and_then(|order| order["name"].as_str())
@@ -745,9 +1124,7 @@ impl DraftProxy {
                 &field.arguments,
                 &field.selection,
             )),
-            _ => selected_json(&order, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
+            _ => selected_field_json(&order, field),
         })
     }
 
@@ -916,7 +1293,8 @@ impl DraftProxy {
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
                     if quantity <= 0 {
-                        user_errors.push(return_user_error_null_field(
+                        user_errors.push(user_error(
+                            Value::Null,
                             "Quantity must be greater than 0",
                             Some("GREATER_THAN"),
                         ));
@@ -1366,10 +1744,11 @@ impl DraftProxy {
         }
         let mut stored_record = record.clone();
         stored_record["status"] = json!("CLOSED");
+        stored_record["closedAt"] = json!("2024-01-01T00:00:03.000Z");
         self.store
             .staged
             .returns
-            .insert(id.to_string(), stored_record);
+            .insert(id.to_string(), stored_record.clone());
         self.return_payload(record, Vec::new(), &field.selection)
     }
 }

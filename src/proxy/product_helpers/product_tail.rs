@@ -21,7 +21,36 @@ impl ProductTailMutationFieldResult {
     }
 }
 
+fn product_tail_failed_outcome(payload: Value) -> (Value, Vec<String>, &'static str) {
+    (payload, Vec::new(), "failed")
+}
+
+fn product_tail_status(user_errors: &[Value]) -> &'static str {
+    if user_errors.is_empty() {
+        "staged"
+    } else {
+        "failed"
+    }
+}
+
 impl DraftProxy {
+    fn record_product_tail_outcome(
+        &mut self,
+        log_context: ProductTailLogContext<'_>,
+        root_field: &str,
+        user_errors: &[Value],
+        staged_ids: Vec<String>,
+    ) {
+        self.record_mutation_log_with_status(
+            log_context.request,
+            log_context.query,
+            log_context.variables,
+            root_field,
+            staged_ids,
+            product_tail_status(user_errors),
+        );
+    }
+
     pub(in crate::proxy) fn products_mutation_tail_helper_response(
         &mut self,
         request: &Request,
@@ -93,13 +122,11 @@ impl DraftProxy {
                     }
                 }
                 "bulkProductResourceFeedbackCreate" => {
-                    self.record_mutation_log_with_status(
+                    self.record_failed_mutation(
                         request,
                         query,
                         variables,
                         "bulkProductResourceFeedbackCreate",
-                        Vec::new(),
-                        "failed",
                     );
                     let missing_product_ids = self.feedback_missing_product_ids(field, request);
                     ProductTailMutationFieldResult::value(product_tail_resource_feedback_payload(
@@ -116,13 +143,11 @@ impl DraftProxy {
                     }
                 }
                 "shopResourceFeedbackCreate" => {
-                    self.record_mutation_log_with_status(
+                    self.record_failed_mutation(
                         request,
                         query,
                         variables,
                         "shopResourceFeedbackCreate",
-                        Vec::new(),
-                        "failed",
                     );
                     ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(field))
                 }
@@ -177,11 +202,7 @@ impl DraftProxy {
             .and_then(|catalog_id| self.store.staged.catalogs.get(catalog_id).cloned());
         let (payload, staged_ids, status) =
             if let (Some(catalog_id), None) = (catalog_id.as_deref(), catalog.as_ref()) {
-                (
-                    publication_catalog_not_found_payload(catalog_id),
-                    Vec::new(),
-                    "failed",
-                )
+                product_tail_failed_outcome(publication_catalog_not_found_payload(catalog_id))
             } else {
                 let id = self.next_publication_id();
                 let name = publication_create_name(&id, catalog.as_ref());
@@ -236,14 +257,7 @@ impl DraftProxy {
             .as_deref()
             .and_then(|id| self.store.staged.publications.get(id).cloned());
         let (Some(id), Some(mut record)) = (id, record) else {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "publicationUpdate",
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, "publicationUpdate");
             return ProductTailMutationFieldResult::value(selected_json(
                 &publication_not_found_payload("publication"),
                 &field.selection,
@@ -257,14 +271,7 @@ impl DraftProxy {
                 &publishables_to_add,
                 &publishables_to_remove,
             ) {
-                self.record_mutation_log_with_status(
-                    request,
-                    query,
-                    variables,
-                    "publicationUpdate",
-                    Vec::new(),
-                    "failed",
-                );
+                self.record_failed_mutation(request, query, variables, "publicationUpdate");
                 return ProductTailMutationFieldResult {
                     value: Value::Null,
                     errors: vec![Self::publication_update_invalid_variant_error(
@@ -300,14 +307,7 @@ impl DraftProxy {
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "publicationUpdate",
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, "publicationUpdate");
             return ProductTailMutationFieldResult::value(selected_json(
                 &json!({
                     "publication": null,
@@ -368,14 +368,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "publicationDelete",
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, "publicationDelete");
             return selected_json(
                 &publication_not_found_payload("deletedId"),
                 &field.selection,
@@ -384,14 +377,7 @@ impl DraftProxy {
         // Only publications staged this scenario can be deleted; the base/default
         // publication (and any unknown id) cannot be removed.
         if !self.store.staged.created_publication_ids.contains(&id) {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "publicationDelete",
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, "publicationDelete");
             if id != "gid://shopify/Publication/1"
                 && !self.store.staged.publications.contains_key(&id)
             {
@@ -558,12 +544,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let country = resolved_string_field(&input, "country").unwrap_or_else(|| "US".to_string());
-        let language =
-            resolved_string_field(&input, "language").unwrap_or_else(|| "EN".to_string());
-        // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
-        // values outside those enums at the resolver with a field-scoped INVALID userError.
-        if !is_valid_product_feed_country(&country) {
+        let Some(country) = resolved_string_field(&input, "country") else {
             self.record_mutation_log_with_status(
                 request,
                 query,
@@ -579,8 +560,8 @@ impl DraftProxy {
                 }),
                 &field.selection,
             );
-        }
-        if !is_valid_product_feed_language(&language) {
+        };
+        let Some(language) = resolved_string_field(&input, "language") else {
             self.record_mutation_log_with_status(
                 request,
                 query,
@@ -596,18 +577,33 @@ impl DraftProxy {
                 }),
                 &field.selection,
             );
+        };
+        // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
+        // values outside those enums at the resolver with a field-scoped INVALID userError.
+        if !is_valid_product_feed_country(&country) {
+            self.record_failed_mutation(request, query, variables, "productFeedCreate");
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [user_error(["country"], "Country is invalid", Some("INVALID"))]
+                }),
+                &field.selection,
+            );
+        }
+        if !is_valid_product_feed_language(&language) {
+            self.record_failed_mutation(request, query, variables, "productFeedCreate");
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [user_error(["language"], "Language is invalid", Some("INVALID"))]
+                }),
+                &field.selection,
+            );
         }
         let id = shopify_gid("ProductFeed", format_args!("{country}-{language}"));
         // A feed is unique per country/language pair; re-creating an existing one is rejected.
         if self.store.product_feed_by_id(&id).is_some() {
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "productFeedCreate",
-                Vec::new(),
-                "failed",
-            );
+            self.record_failed_mutation(request, query, variables, "productFeedCreate");
             return selected_json(
                 &json!({
                     "productFeed": null,
@@ -664,14 +660,10 @@ impl DraftProxy {
                 "staged",
             )
         } else {
-            (
-                json!({
-                    "deletedId": null,
-                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
-                }),
-                Vec::new(),
-                "failed",
-            )
+            product_tail_failed_outcome(json!({
+                "deletedId": null,
+                "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
+            }))
         };
         self.record_mutation_log_with_status(
             request,
@@ -697,34 +689,26 @@ impl DraftProxy {
         let before_updated_at = resolved_string_field(&field.arguments, "beforeUpdatedAt");
         let updated_at_since = resolved_string_field(&field.arguments, "updatedAtSince");
         let (payload, staged_ids, status) = if !feed_exists {
-            (
-                json!({
-                    "__typename": "ProductFullSyncPayload",
-                    "id": null,
-                    "job": null,
-                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
-                }),
-                Vec::new(),
-                "failed",
-            )
+            product_tail_failed_outcome(json!({
+                "__typename": "ProductFullSyncPayload",
+                "id": null,
+                "job": null,
+                "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
+            }))
         } else if product_full_sync_updated_at_range_invalid(
             before_updated_at.as_deref(),
             updated_at_since.as_deref(),
         ) {
-            (
-                json!({
-                    "__typename": "ProductFullSyncPayload",
-                    "id": null,
-                    "job": null,
-                    "userErrors": [user_error(
-                        ["updatedAtSince"],
-                        "updatedAtSince must be before beforeUpdatedAt",
-                        None,
-                    )]
-                }),
-                Vec::new(),
-                "failed",
-            )
+            product_tail_failed_outcome(json!({
+                "__typename": "ProductFullSyncPayload",
+                "id": null,
+                "job": null,
+                "userErrors": [user_error(
+                    ["updatedAtSince"],
+                    "updatedAtSince must be before beforeUpdatedAt",
+                    None,
+                )]
+            }))
         } else {
             let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
             let job_id = self.next_synthetic_gid("Job");
@@ -931,7 +915,7 @@ impl DraftProxy {
                 ["productsAdded"],
                 &format!(
                     "The product with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_child_ids).unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_string_list(&missing_child_ids)
                 ),
                 Some("PRODUCT_NOT_FOUND"),
             ));
@@ -1141,8 +1125,7 @@ impl DraftProxy {
                 ["input"],
                 &format!(
                     "The product variants with ID(s) {} could not be found.",
-                    serde_json::to_string(&missing_variant_ids)
-                        .unwrap_or_else(|_| "[]".to_string())
+                    shopify_error_string_list(&missing_variant_ids)
                 ),
                 Some("PRODUCT_VARIANTS_NOT_FOUND"),
             ));
@@ -1308,23 +1291,16 @@ impl DraftProxy {
         product: Option<ProductRecord>,
         staged_ids: Vec<String>,
     ) -> Value {
-        let status = if user_errors.is_empty() {
-            "staged"
-        } else {
-            "failed"
-        };
-        self.record_mutation_log_with_status(
-            log_context.request,
-            log_context.query,
-            log_context.variables,
+        self.record_product_tail_outcome(
+            log_context,
             "combinedListingUpdate",
+            &user_errors,
             staged_ids,
-            status,
         );
         let product_value = product
             .as_ref()
             .map(|product| {
-                product_json_with_variants_and_currency(
+                self.product_json_with_variants_and_currency_context(
                     product,
                     &self.store.product_variants_for_product(&product.id),
                     selected_child_selection(&field.selection, "product")
@@ -1421,25 +1397,18 @@ impl DraftProxy {
         parent_variants: Vec<ProductVariantRecord>,
         staged_ids: Vec<String>,
     ) -> Value {
-        let status = if user_errors.is_empty() {
-            "staged"
-        } else {
-            "failed"
-        };
-        self.record_mutation_log_with_status(
-            log_context.request,
-            log_context.query,
-            log_context.variables,
+        self.record_product_tail_outcome(
+            log_context,
             "productVariantRelationshipBulkUpdate",
+            &user_errors,
             staged_ids,
-            status,
         );
         let parent_values = if user_errors.is_empty() {
             Value::Array(
                 parent_variants
                     .iter()
                     .map(|variant| {
-                        product_variant_json(
+                        self.product_variant_json_with_current_publication_context(
                             variant,
                             self.store.product_by_id(&variant.product_id),
                             selected_child_selection(&field.selection, "parentProductVariants")
@@ -1460,29 +1429,227 @@ impl DraftProxy {
             &field.selection,
         )
     }
+    // Collect the `feedbackInput[].productId`s that reference a product the
+    // proxy can prove is unavailable to resource feedback, so
+    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry missing
+    // product userError. A locally tombstoned id is reported missing
+    // immediately. Known non-ACTIVE products are also unavailable. An id merely
+    // absent from the local catalog is NOT assumed missing — the proxy never
+    // seeds every real product, so absence alone is no proof. Instead we confirm
+    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
+    // (or, in Snapshot mode, no upstream to consult) means the product does not
+    // exist; a hydrated node means it does and feedback stages normally.
+    pub(in crate::proxy) fn feedback_missing_product_ids(
+        &self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> BTreeSet<String> {
+        let mut missing = BTreeSet::new();
+        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
+        // oversized batch returns TOO_LONG without ever looking up a product. Never
+        // forward an existence lookup the resolver itself would not perform.
+        if inputs.len() > 50 {
+            return missing;
+        }
+        for input in inputs.iter() {
+            // Per-entry message / generated-at / length guards run before the
+            // existence check, mirroring Shopify's resolver order: an entry that
+            // fails one of those reports only that error and never resolves (nor
+            // forwards a lookup for) its product.
+            if resource_feedback_validation_error(input, None).is_some() {
+                continue;
+            }
+            let Some(id) = resolved_string_field(input, "productId") else {
+                continue;
+            };
+            if self.store.product_is_tombstoned(&id) {
+                missing.insert(id);
+                continue;
+            }
+            if let Some(product) = self.store.product_staged_or_base(&id) {
+                if !product.status.is_empty() && product.status != "ACTIVE" {
+                    missing.insert(id);
+                }
+                continue;
+            }
+            // Only LiveHybrid can prove a product's absence by hydrating it
+            // upstream (a definitive null node). In Snapshot mode there is no
+            // upstream to consult, so an unseeded product is treated as existing
+            // (fail open) rather than fabricated-missing — absence from the local
+            // seed is not evidence the product does not exist.
+            if self.config.read_mode == ReadMode::LiveHybrid
+                && self.hydrate_product_for_tags(&id, request).is_none()
+            {
+                missing.insert(id);
+            }
+        }
+        missing
+    }
+}
+
+pub(in crate::proxy) fn product_tail_resource_feedback_payload(
+    field: &RootFieldSelection,
+    missing_product_ids: &BTreeSet<String>,
+) -> Value {
+    let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
+    let payload = if inputs.len() > 50 {
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback"],
+                "message": "Feedback cannot contain more than 50 entries",
+                "code": "TOO_LONG"
+            }]
+        })
+    } else {
+        let mut feedback = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
+                user_errors.push(error);
+                continue;
+            }
+            // Per-entry product availability is validated only after the message /
+            // generated-at / length guards pass, mirroring Shopify's resolver
+            // order: a blank-message or future-date entry never also reports the
+            // product missing.
+            let product_id = resolved_string_field(input, "productId").unwrap_or_default();
+            if missing_product_ids.contains(&product_id) {
+                user_errors.push(resource_feedback_missing_product_error(Some(index)));
+            } else {
+                feedback.push(product_resource_feedback_json(input));
+            }
+        }
+        json!({ "feedback": feedback, "userErrors": user_errors })
+    };
+    selected_json(&payload, &field.selection)
+}
+
+pub(in crate::proxy) fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let payload = if let Some(error) = resource_feedback_validation_error(&input, None) {
+        json!({
+            "feedback": null,
+            "userErrors": [error]
+        })
+    } else {
+        json!({ "feedback": shop_resource_feedback_json(&input), "userErrors": [] })
+    };
+    selected_json(&payload, &field.selection)
+}
+
+fn product_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "productId": resolved_string_field(input, "productId").unwrap_or_default(),
+        "state": resolved_string_field(input, "state").unwrap_or_default(),
+        "messages": list_string_field(input, "messages"),
+        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default(),
+        "productUpdatedAt": resolved_string_field(input, "productUpdatedAt").unwrap_or_default()
+    })
+}
+
+fn shop_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let messages = list_string_field(input, "messages")
+        .into_iter()
+        .map(|message| json!({ "message": message }))
+        .collect::<Vec<_>>();
+    json!({
+        "state": resolved_string_field(input, "state").unwrap_or_default(),
+        "messages": messages,
+        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default()
+    })
+}
+
+fn resource_feedback_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    feedback_index: Option<usize>,
+) -> Option<Value> {
+    let messages = list_string_field(input, "messages");
+    if messages.is_empty() {
+        return Some(presence_user_error(
+            feedback_field_path(feedback_index, "messages", None),
+            "Messages",
+        ));
+    }
+
+    let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
+    if feedback_generated_at_is_future(&generated_at) {
+        return Some(resource_feedback_user_error(
+            feedback_field_path(feedback_index, "feedbackGeneratedAt", None),
+            "Feedback generated at must not be in the future",
+            "INVALID",
+        ));
+    }
+
+    messages
+        .iter()
+        .position(|message| message.chars().count() > 100)
+        .map(|message_index| {
+            length_user_error(
+                feedback_field_path(feedback_index, "messages", Some(message_index)),
+                "Message",
+                LengthUserErrorBound::TooLong { maximum: 100 },
+            )
+        })
+}
+
+fn feedback_field_path(
+    feedback_index: Option<usize>,
+    field: &str,
+    nested_index: Option<usize>,
+) -> Vec<String> {
+    let mut path = match feedback_index {
+        Some(index) => vec!["feedback".to_string(), index.to_string()],
+        None => vec!["feedback".to_string()],
+    };
+    path.push(field.to_string());
+    if let Some(index) = nested_index {
+        path.push(index.to_string());
+    }
+    path
+}
+
+fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
+    user_error(field, message, Some(code))
+}
+
+// Shopify reports referenced-but-unavailable products at the product id field,
+// distinct from the BLANK / INVALID / TOO_LONG resolver guards.
+fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
+    let field = feedback_index
+        .map(|index| json!(["feedback", index.to_string(), "productId"]))
+        .unwrap_or(Value::Null);
+    user_error(field, "Product does not exist", None)
+}
+
+fn feedback_generated_at_is_future(generated_at: &str) -> bool {
+    let Some(generated_at) = parse_rfc3339_epoch_seconds(generated_at) else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    generated_at > now.as_secs() as i64
 }
 
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
-    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+    request_header(request, ACCESS_SCOPES_HEADER).is_some()
         && !app_access_scope_handles(&current_app_installation_from_request(request))
             .contains("write_resource_feedbacks")
 }
 
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
     const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
-    json!({
-        "message": format!(
+    top_level_access_denied_error_envelope(
+        format!(
             "Access denied for {} field. Required access: {REQUIRED_ACCESS}",
             field.name
         ),
-        "locations": [{"line": field.location.line, "column": field.location.column}],
-        "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": REQUIRED_ACCESS
-        },
-        "path": [field.response_key.clone()]
-    })
+        Some(field.location),
+        vec![json!(field.response_key.clone())],
+        Some(REQUIRED_ACCESS),
+    )
 }
 
 fn product_combined_listing_role(product: &ProductRecord) -> Option<String> {
@@ -1561,6 +1728,15 @@ fn product_variant_component_rows(variant: &ProductVariantRecord) -> Vec<Value> 
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
+}
+
+fn shopify_error_string_list(values: &[String]) -> String {
+    let quoted = values
+        .iter()
+        .map(|value| serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{quoted}]")
 }
 
 const PUBLICATION_UPDATE_LIMIT: usize = 50;

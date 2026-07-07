@@ -8,6 +8,10 @@ mutation ProductCreateCategoryParity($product: ProductCreateInput!) {
       category {
         id
         fullName
+        name
+        isLeaf
+        level
+        parentId
       }
       requiresSellingPlan
     }

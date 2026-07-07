@@ -181,6 +181,7 @@ fn metaobject_definition_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     meta_type: &str,
+    timestamp: &str,
 ) -> Value {
     let name = resolved_string_field(input, "name").unwrap_or_default();
     let display_name_key = resolved_string_field(input, "displayNameKey");
@@ -200,8 +201,8 @@ fn metaobject_definition_record(
         "fieldDefinitions": field_definitions,
         "metaobjectsCount": 0,
         "standardTemplate": Value::Null,
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "updatedAt": "2024-01-01T00:00:00.000Z"
+        "createdAt": timestamp,
+        "updatedAt": timestamp
     })
 }
 
@@ -449,7 +450,7 @@ fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("app--")
 }
 
-fn metaobject_definition_field_limit(_meta_type: &str) -> usize {
+fn metaobject_definition_field_limit() -> usize {
     METAOBJECT_DEFINITION_FIELD_LIMIT
 }
 
@@ -484,22 +485,22 @@ fn metaobject_definition_create_validation_errors(
     if name.trim().is_empty() {
         errors.push(metaobject_field_error(
             vec!["definition", "name"],
-            "Name can't be blank",
-            "BLANK",
+            &blank_message("Name"),
+            BLANK_USER_ERROR_CODE,
         ));
     } else if name.chars().count() > 255 {
         errors.push(metaobject_field_error(
             vec!["definition", "name"],
-            "Name is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Name", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     }
 
-    if meta_type.is_empty() {
+    if meta_type.trim().is_empty() {
         errors.push(metaobject_field_error(
             vec!["definition", "type"],
-            "Type can't be blank",
-            "BLANK",
+            &blank_message("Type"),
+            BLANK_USER_ERROR_CODE,
         ));
     } else if meta_type.chars().count() < 3 {
         errors.push(metaobject_field_error(
@@ -510,8 +511,8 @@ fn metaobject_definition_create_validation_errors(
     } else if meta_type.chars().count() > 255 {
         errors.push(metaobject_field_error(
             vec!["definition", "type"],
-            "Type is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Type", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     } else if !token_chars_valid(meta_type) {
         errors.push(metaobject_field_error(
@@ -525,8 +526,8 @@ fn metaobject_definition_create_validation_errors(
         if description.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "description"],
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Description", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -544,7 +545,7 @@ fn metaobject_definition_create_validation_errors(
     }
 
     let field_definitions = resolved_object_list_field(input, "fieldDefinitions");
-    let max_fields = metaobject_definition_field_limit(meta_type);
+    let max_fields = metaobject_definition_field_limit();
     if field_definitions.len() > max_fields {
         errors.push(metaobject_definition_max_fields_error(max_fields));
     }
@@ -655,8 +656,8 @@ fn push_metaobject_field_key_errors(
         // Blank keys surface Shopify's presence, length, and format errors in order.
         errors.push(metaobject_user_error(
             path.clone(),
-            "Key can't be blank",
-            "BLANK",
+            &blank_message("Key"),
+            BLANK_USER_ERROR_CODE,
             json!(key),
             Value::Null,
         ));
@@ -689,8 +690,8 @@ fn push_metaobject_field_key_errors(
     if key.chars().count() > MAX_FIELD_KEY_LENGTH {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
-            &format!("Key is too long (maximum is {MAX_FIELD_KEY_LENGTH} characters)"),
-            "TOO_LONG",
+            &too_long_message("Key", MAX_FIELD_KEY_LENGTH),
+            TOO_LONG_USER_ERROR_CODE,
             json!(key),
             Value::Null,
         ));
@@ -777,14 +778,14 @@ fn metaobject_definition_update_validation_errors(
         if name.trim().is_empty() {
             errors.push(metaobject_field_error(
                 vec!["definition", "name"],
-                "Name can't be blank",
-                "BLANK",
+                &blank_message("Name"),
+                BLANK_USER_ERROR_CODE,
             ));
         } else if name.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "name"],
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Name", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -792,8 +793,8 @@ fn metaobject_definition_update_validation_errors(
         if description.chars().count() > 255 {
             errors.push(metaobject_field_error(
                 vec!["definition", "description"],
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
+                &too_long_message("Description", 255),
+                TOO_LONG_USER_ERROR_CODE,
             ));
         }
     }
@@ -815,7 +816,7 @@ fn metaobject_definition_update_validation_errors(
     let MetaobjectFieldOperationValidation {
         errors: field_operation_errors,
         resulting_keys,
-    } = metaobject_field_operation_validation(input, meta_type, field_definitions);
+    } = metaobject_field_operation_validation(input, field_definitions);
     errors.extend(field_operation_errors);
     if let Some(display_name_key) = resolved_string_field(input, "displayNameKey") {
         if !resulting_keys.contains(&display_name_key) {
@@ -841,7 +842,6 @@ struct MetaobjectFieldOperationValidation {
 /// the operation index itself.
 fn metaobject_field_operation_validation(
     input: &BTreeMap<String, ResolvedValue>,
-    meta_type: &str,
     field_definitions: &[Value],
 ) -> MetaobjectFieldOperationValidation {
     let mut errors = Vec::new();
@@ -927,7 +927,7 @@ fn metaobject_field_operation_validation(
             }
         }
     }
-    let max_fields = metaobject_definition_field_limit(meta_type);
+    let max_fields = metaobject_definition_field_limit();
     if known_keys.len() > max_fields {
         errors.push(metaobject_definition_max_fields_error(max_fields));
     }
@@ -940,6 +940,7 @@ fn metaobject_field_operation_validation(
 fn update_metaobject_definition_record(
     mut definition: Value,
     input: &BTreeMap<String, ResolvedValue>,
+    updated_at: &str,
 ) -> Value {
     if let Some(name) = resolved_string_field(input, "name") {
         definition["name"] = json!(name);
@@ -974,6 +975,7 @@ fn update_metaobject_definition_record(
     }
     apply_metaobject_definition_capability_updates(&mut definition, input);
     apply_metaobject_definition_field_operations(&mut definition, input);
+    definition["updatedAt"] = json!(updated_at);
     definition
 }
 
@@ -1233,11 +1235,7 @@ fn metaobject_normalize_list_json_value(field_type: &str, parsed: Value) -> Valu
 /// stringification, rating key order). Other elements serialize verbatim.
 fn metaobject_list_value_token(field_type: &str, item: &Value) -> String {
     if let Some((number, unit)) = metaobject_measurement_parts(item) {
-        return format!(
-            "{{\"value\":{},\"unit\":\"{}\"}}",
-            metaobject_format_measurement_number(number),
-            unit.to_uppercase()
-        );
+        return metaobject_measurement_value_token(number, unit);
     }
     match field_type {
         "list.date_time" => {
@@ -1281,16 +1279,20 @@ fn metaobject_format_measurement_number(number: &Value) -> String {
     }
 }
 
+fn metaobject_measurement_value_token(number: &Value, unit: &str) -> String {
+    format!(
+        "{{\"value\":{},\"unit\":\"{}\"}}",
+        metaobject_format_measurement_number(number),
+        unit.to_uppercase()
+    )
+}
+
 /// Renders a measurement object's `value` field with Shopify's canonical formatting:
 /// the numeric value is always emitted as a decimal (`5` -> `5.0`) and the unit is
 /// uppercased. Returns `None` when the parsed JSON is not measurement-shaped.
 fn metaobject_measurement_value_string(parsed: &Value) -> Option<String> {
     if let Some((number, unit)) = metaobject_measurement_parts(parsed) {
-        return Some(format!(
-            "{{\"value\":{},\"unit\":\"{}\"}}",
-            metaobject_format_measurement_number(number),
-            unit.to_uppercase()
-        ));
+        return Some(metaobject_measurement_value_token(number, unit));
     }
     let items = parsed.as_array()?;
     if items.is_empty()
@@ -1304,11 +1306,7 @@ fn metaobject_measurement_value_string(parsed: &Value) -> Option<String> {
         .iter()
         .map(|item| {
             let (number, unit) = metaobject_measurement_parts(item).expect("checked above");
-            format!(
-                "{{\"value\":{},\"unit\":\"{}\"}}",
-                metaobject_format_measurement_number(number),
-                unit.to_uppercase()
-            )
+            metaobject_measurement_value_token(number, unit)
         })
         .collect::<Vec<_>>()
         .join(",");
@@ -2011,15 +2009,15 @@ fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Va
     if handle.is_empty() {
         errors.push(metaobject_field_error(
             field.clone(),
-            "Handle can't be blank",
-            "BLANK",
+            &blank_message("Handle"),
+            BLANK_USER_ERROR_CODE,
         ));
     }
     if handle.len() > 255 {
         errors.push(metaobject_field_error(
             field.clone(),
-            "Handle is too long (maximum is 255 characters)",
-            "TOO_LONG",
+            &too_long_message("Handle", 255),
+            TOO_LONG_USER_ERROR_CODE,
         ));
     }
     if handle.is_empty()
@@ -2480,10 +2478,28 @@ fn metaobject_required_field_errors_for_upsert(
 }
 
 struct MetaobjectRecordOptions<'a> {
+    created_at: Option<&'a str>,
     display_name: &'a str,
     publishable_status: &'a str,
     online_store_template_suffix: Value,
     updated_at: &'a str,
+}
+
+struct MetaobjectUpdateApplyOptions {
+    definition_error_path_root: &'static str,
+    handle_error_path: Vec<&'static str>,
+    default_handle_display_source: Option<String>,
+    rewrite_required_field_errors: bool,
+    hydrate_requested_handle: bool,
+    stage_redirect_new_handle: bool,
+}
+
+struct MetaobjectUpdateApplyContext<'a> {
+    existing: Value,
+    meta_type: &'a str,
+    input: BTreeMap<String, ResolvedValue>,
+    selection: &'a [SelectedField],
+    options: MetaobjectUpdateApplyOptions,
 }
 
 fn metaobject_record_from_definition_with_options(
@@ -2515,7 +2531,7 @@ fn metaobject_record_from_definition_with_options(
                 .cloned()
         })
         .or_else(|| fields.first().cloned());
-    json!({
+    let mut record = json!({
         "id": id,
         "handle": handle,
         "type": meta_type,
@@ -2535,7 +2551,11 @@ fn metaobject_record_from_definition_with_options(
         },
         "fields": fields,
         "titleField": title_field
-    })
+    });
+    if let Some(created_at) = options.created_at {
+        record["createdAt"] = json!(created_at);
+    }
+    record
 }
 
 fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
@@ -2596,14 +2616,7 @@ fn metaobject_normalized_sort_value(record: &Value, field: &str) -> StagedSortVa
 }
 
 fn metaobject_id_sort_value(record: &Value) -> StagedSortValue {
-    let tail = record
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(record.get("id").and_then(Value::as_str))
 }
 
 fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
@@ -2614,9 +2627,9 @@ fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedS
     let primary = match sort_key.as_str() {
         "display_name" | "displayname" => metaobject_normalized_sort_value(record, "displayName"),
         "type" => metaobject_normalized_sort_value(record, "type"),
-        "updated_at" | "updatedat" => StagedSortValue::String(
-            metaobject_string_value(record, "updatedAt").to_ascii_lowercase(),
-        ),
+        "updated_at" | "updatedat" => StagedSortValue::String(metaobject_sortable_datetime(
+            &metaobject_string_value(record, "updatedAt"),
+        )),
         "id" => metaobject_id_sort_value(record),
         _ => metaobject_id_sort_value(record),
     };
@@ -2694,13 +2707,56 @@ fn metaobject_id_matches(record: &Value, raw_value: &str) -> bool {
 }
 
 fn metaobject_updated_at_matches(record: &Value, raw_value: &str) -> bool {
-    let (operator, value) = metaobject_search_value(raw_value);
-    let actual = record
-        .get("updatedAt")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    metaobject_compare_order(actual, value, operator)
+    let value = raw_value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = search_comparator(value);
+    if expected.is_empty() {
+        return false;
+    }
+    let Some(actual) = record.get("updatedAt").and_then(Value::as_str) else {
+        return false;
+    };
+    let (actual, expected) = if expected.contains('T') {
+        (
+            metaobject_sortable_datetime(actual),
+            metaobject_sortable_datetime(expected),
+        )
+    } else {
+        (
+            search_datetime_value(actual, expected).to_string(),
+            expected.to_string(),
+        )
+    };
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(&expected),
+    }
+}
+
+fn metaobject_sortable_datetime(value: &str) -> String {
+    let value = value.trim();
+    let Some(without_z) = value.strip_suffix('Z').or_else(|| value.strip_suffix('z')) else {
+        return value.to_string();
+    };
+    let Some(time_start) = without_z.find('T').or_else(|| without_z.find('t')) else {
+        return format!("{without_z}.000000000Z");
+    };
+    let time_part = &without_z[time_start + 1..];
+    if let Some((base, fraction)) = without_z.rsplit_once('.') {
+        if time_part.contains('.') && fraction.chars().all(|character| character.is_ascii_digit()) {
+            let mut normalized = fraction.chars().take(9).collect::<String>();
+            while normalized.len() < 9 {
+                normalized.push('0');
+            }
+            return format!("{base}.{normalized}Z");
+        }
+    }
+    format!("{without_z}.000000000Z")
 }
 
 fn metaobject_field_search_text(field: &Value) -> Option<String> {
@@ -3022,7 +3078,7 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
+                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
                 "variables": {"id": id}
             }),
         );
@@ -3284,86 +3340,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn has_staged_url_redirects(&self) -> bool {
-        !self.store.staged.url_redirects.is_empty()
-    }
-
-    pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "urlRedirect" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .url_redirects
-                        .get(&id)
-                        .map(|redirect| selected_json(redirect, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "urlRedirects" => self.url_redirect_connection(field),
-                "urlRedirectsCount" => {
-                    let result = staged_connection_query(
-                        self.url_redirect_records(),
-                        &field.arguments,
-                        url_redirect_search_decision,
-                        url_redirect_sort_key,
-                        value_id_cursor,
-                    );
-                    selected_count_json(result.total_count, &field.selection)
-                }
-                _ => Value::Null,
-            })
-        })
-    }
-
-    fn url_redirect_records(&self) -> Vec<Value> {
-        let mut records = self
-            .store
-            .staged
-            .url_redirect_order
-            .iter()
-            .filter_map(|id| self.store.staged.url_redirects.get(id))
-            .cloned()
-            .collect::<Vec<_>>();
-        for (id, redirect) in &self.store.staged.url_redirects {
-            if !self.store.staged.url_redirect_order.contains(id) {
-                records.push(redirect.clone());
-            }
-        }
-        records
-    }
-
-    fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
-        let result = staged_connection_query(
-            self.url_redirect_records(),
-            &field.arguments,
-            url_redirect_search_decision,
-            url_redirect_sort_key,
-            value_id_cursor,
-        );
-        selected_typed_connection_with_page_info(
-            &result.records,
-            &field.selection,
-            selected_json,
-            value_id_cursor,
-            result.page_info,
-        )
-    }
-
-    fn stage_url_redirect(&mut self, path: String, target: String) -> String {
-        let id = self.next_proxy_synthetic_gid("UrlRedirect");
-        let redirect = json!({
-            "id": id,
-            "path": path,
-            "target": target
-        });
-        if !self.store.staged.url_redirects.contains_key(&id) {
-            self.store.staged.url_redirect_order.push(id.clone());
-        }
-        self.store.staged.url_redirects.insert(id.clone(), redirect);
-        id
-    }
-
     pub(in crate::proxy) fn metaobject_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3477,17 +3453,19 @@ impl DraftProxy {
         let display_name =
             metaobject_display_name(&definition, &input_values, &handle_choice.display_source);
         let publishable_status = metaobject_publishable_status(input, &definition);
+        let timestamp = self.next_mutation_timestamp();
         let record = metaobject_record_from_definition_with_options(
             &id,
             &handle_choice.handle,
             &definition,
             &input_values,
             MetaobjectRecordOptions {
+                created_at: Some(&timestamp),
                 display_name: &display_name,
                 publishable_status: &publishable_status,
                 online_store_template_suffix: metaobject_online_store_template_suffix_input(input)
                     .unwrap_or(Value::Null),
-                updated_at: "2026-01-01T00:00:00Z",
+                updated_at: &timestamp,
             },
         );
         self.store
@@ -3587,126 +3565,23 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let Some(definition) = self
-            .metaobject_definition_by_type(&meta_type)
-            .or_else(|| self.hydrate_metaobject_definition_by_type(request, &meta_type))
-            .or_else(|| metaobject_definition_from_record(&existing))
-        else {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_no_definition_error(
-                        "metaobject",
-                        &meta_type,
-                        "UNDEFINED_OBJECT_TYPE",
-                    )]
-                }),
-                &field.selection,
-            );
-        };
-
-        let input_values = metaobject_merged_input_values(&existing, &input);
-        let validation_context = MetaobjectFieldValueValidationContext {
-            proxy: self,
-            existing_id: Some(&id),
-            validate_existing_values: true,
-        };
-        let mut validation_errors = metaobject_create_validation_errors(
-            Some(&validation_context),
-            &input,
-            &definition,
-            &input_values,
-            true,
-        );
-        let existing_handle = existing
-            .get("handle")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        let requested_handle = resolved_string_field(&input, "handle");
-        let (next_handle, handle_display_source) = if let Some(handle) = requested_handle.as_deref()
-        {
-            validation_errors.extend(metaobject_handle_validation_errors(
-                handle,
-                vec!["metaobject", "handle"],
-            ));
-            let normalized = slugify_handle(handle);
-            if self.metaobject_handle_belongs_to_other_case_insensitive(
-                &meta_type,
-                &normalized,
-                &id,
-            ) {
-                validation_errors.push(metaobject_user_error(
-                    vec!["metaobject", "handle"],
-                    "Handle has already been taken",
-                    "TAKEN",
-                    Value::Null,
-                    Value::Null,
-                ));
-            }
-            (normalized, handle.to_string())
-        } else {
-            (existing_handle.clone(), existing_handle.clone())
-        };
-        validation_errors.extend(self.metaobject_display_name_conflict_errors(
-            &id,
-            &definition,
-            &input,
-            &input_values,
-            &handle_display_source,
-        ));
-        if !validation_errors.is_empty() {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": validation_errors}),
-                &field.selection,
-            );
-        }
-
-        let display_name =
-            metaobject_display_name(&definition, &input_values, &handle_display_source);
-        let publishable_status =
-            metaobject_updated_publishable_status(&input, &definition, &existing);
-        // `_with_options` nulls the publishable capability when the definition has it
-        // disabled (e.g. after a schema change turned it off), matching how Shopify
-        // reads back entries whose definition no longer exposes the capability.
-        let updated_at = existing
-            .get("updatedAt")
-            .and_then(Value::as_str)
-            .unwrap_or("2026-01-01T00:00:00Z");
-        let record = metaobject_record_from_definition_with_options(
-            &id,
-            &next_handle,
-            &definition,
-            &input_values,
-            MetaobjectRecordOptions {
-                display_name: &display_name,
-                publishable_status: &publishable_status,
-                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
-                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
-                    .unwrap_or(Value::Null),
-                updated_at,
+        self.apply_metaobject_update_to_existing(
+            request,
+            staged_ids,
+            MetaobjectUpdateApplyContext {
+                existing,
+                meta_type: &meta_type,
+                input,
+                selection: &field.selection,
+                options: MetaobjectUpdateApplyOptions {
+                    definition_error_path_root: "metaobject",
+                    handle_error_path: vec!["metaobject", "handle"],
+                    default_handle_display_source: None,
+                    rewrite_required_field_errors: false,
+                    hydrate_requested_handle: false,
+                    stage_redirect_new_handle: true,
+                },
             },
-        );
-        self.store
-            .staged
-            .metaobjects
-            .insert(id.clone(), record.clone());
-        if resolved_bool_field(&input, "redirectNewHandle").unwrap_or(false)
-            && existing_handle != next_handle
-            && metaobject_definition_has_renderable_online_store(&definition)
-            && metaobject_record_has_active_online_store(&record)
-        {
-            if let (Some(path), Some(target)) = (
-                metaobject_page_path(&definition, &existing_handle),
-                metaobject_page_path(&definition, &next_handle),
-            ) {
-                self.stage_url_redirect(path, target);
-            }
-        }
-        staged_ids.push(id);
-        self.selected_metaobject_payload(
-            &json!({"metaobject": record, "userErrors": []}),
-            &field.selection,
         )
     }
 
@@ -3745,126 +3620,27 @@ impl DraftProxy {
             .metaobject_by_type_and_handle(&meta_type, &meta_handle)
             .or_else(|| self.hydrate_metaobject_by_handle(request, &meta_type, &meta_handle))
         {
-            let Some(definition) = self
-                .metaobject_definition_by_type(&meta_type)
-                .or_else(|| self.hydrate_metaobject_definition_by_type(request, &meta_type))
-                .or_else(|| metaobject_definition_from_record(&existing))
-            else {
-                return self.selected_metaobject_payload(
-                    &json!({
-                        "metaobject": null,
-                        "userErrors": [metaobject_no_definition_error(
-                            "handle",
-                            &meta_type,
-                            "UNDEFINED_OBJECT_TYPE",
-                        )]
-                    }),
-                    &field.selection,
-                );
-            };
             let mut update_input = input.clone();
             if let Some(handle) = resolved_string_field(&input, "handle") {
                 update_input.insert("handle".to_string(), ResolvedValue::String(handle));
             }
-            let input_values = metaobject_merged_input_values(&existing, &update_input);
-            let existing_id = existing
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            let validation_context = MetaobjectFieldValueValidationContext {
-                proxy: self,
-                existing_id: Some(&existing_id),
-                validate_existing_values: true,
-            };
-            let mut validation_errors = metaobject_required_field_errors_for_upsert(
-                metaobject_create_validation_errors(
-                    Some(&validation_context),
-                    &update_input,
-                    &definition,
-                    &input_values,
-                    true,
-                ),
-                &definition,
-            );
-            let (next_handle, handle_display_source) =
-                if let Some(handle) = resolved_string_field(&update_input, "handle") {
-                    validation_errors.extend(metaobject_handle_validation_errors(
-                        &handle,
-                        vec!["handle", "handle"],
-                    ));
-                    let normalized = slugify_handle(&handle);
-                    if !self.metaobject_handle_exists_case_insensitive(&meta_type, &normalized) {
-                        self.hydrate_metaobject_by_handle(request, &meta_type, &normalized);
-                    }
-                    if self.metaobject_handle_belongs_to_other_case_insensitive(
-                        &meta_type,
-                        &normalized,
-                        &existing_id,
-                    ) {
-                        validation_errors.push(metaobject_user_error(
-                            vec!["handle", "handle"],
-                            "Handle has already been taken",
-                            "TAKEN",
-                            Value::Null,
-                            Value::Null,
-                        ));
-                    }
-                    (normalized, handle)
-                } else {
-                    let existing_handle = existing
-                        .get("handle")
-                        .and_then(Value::as_str)
-                        .unwrap_or(meta_handle.as_str())
-                        .to_string();
-                    (existing_handle, meta_handle_input.clone())
-                };
-            validation_errors.extend(self.metaobject_display_name_conflict_errors(
-                &existing_id,
-                &definition,
-                &update_input,
-                &input_values,
-                &handle_display_source,
-            ));
-            if !validation_errors.is_empty() {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": null, "userErrors": validation_errors}),
-                    &field.selection,
-                );
-            }
-            let id = existing_id;
-            let display_name =
-                metaobject_display_name(&definition, &input_values, &handle_display_source);
-            let publishable_status =
-                metaobject_updated_publishable_status(&update_input, &definition, &existing);
-            let updated_at = existing
-                .get("updatedAt")
-                .and_then(Value::as_str)
-                .unwrap_or("2026-01-01T00:00:00Z");
-            let record = metaobject_record_from_definition_with_options(
-                &id,
-                &next_handle,
-                &definition,
-                &input_values,
-                MetaobjectRecordOptions {
-                    display_name: &display_name,
-                    publishable_status: &publishable_status,
-                    online_store_template_suffix: metaobject_online_store_template_suffix_input(
-                        &update_input,
-                    )
-                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
-                    .unwrap_or(Value::Null),
-                    updated_at,
+            return self.apply_metaobject_update_to_existing(
+                request,
+                staged_ids,
+                MetaobjectUpdateApplyContext {
+                    existing,
+                    meta_type: &meta_type,
+                    input: update_input,
+                    selection: &field.selection,
+                    options: MetaobjectUpdateApplyOptions {
+                        definition_error_path_root: "handle",
+                        handle_error_path: vec!["handle", "handle"],
+                        default_handle_display_source: Some(meta_handle_input.clone()),
+                        rewrite_required_field_errors: true,
+                        hydrate_requested_handle: true,
+                        stage_redirect_new_handle: false,
+                    },
                 },
-            );
-            self.store
-                .staged
-                .metaobjects
-                .insert(id.clone(), record.clone());
-            staged_ids.push(id);
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": record, "userErrors": []}),
-                &field.selection,
             );
         }
 
@@ -3896,6 +3672,159 @@ impl DraftProxy {
             staged_ids,
             &field.selection,
             true,
+        )
+    }
+
+    fn apply_metaobject_update_to_existing(
+        &mut self,
+        request: &Request,
+        staged_ids: &mut Vec<String>,
+        context: MetaobjectUpdateApplyContext<'_>,
+    ) -> Value {
+        let MetaobjectUpdateApplyContext {
+            existing,
+            meta_type,
+            input,
+            selection,
+            options,
+        } = context;
+        let Some(definition) = self
+            .metaobject_definition_by_type(meta_type)
+            .or_else(|| self.hydrate_metaobject_definition_by_type(request, meta_type))
+            .or_else(|| metaobject_definition_from_record(&existing))
+        else {
+            return self.selected_metaobject_payload(
+                &json!({
+                    "metaobject": null,
+                    "userErrors": [metaobject_no_definition_error(
+                        options.definition_error_path_root,
+                        meta_type,
+                        "UNDEFINED_OBJECT_TYPE",
+                    )]
+                }),
+                selection,
+            );
+        };
+
+        let id = existing
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let existing_handle = existing
+            .get("handle")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let input_values = metaobject_merged_input_values(&existing, &input);
+        let validation_context = MetaobjectFieldValueValidationContext {
+            proxy: self,
+            existing_id: Some(&id),
+            validate_existing_values: true,
+        };
+        let validation_errors = metaobject_create_validation_errors(
+            Some(&validation_context),
+            &input,
+            &definition,
+            &input_values,
+            true,
+        );
+        let mut validation_errors = if options.rewrite_required_field_errors {
+            metaobject_required_field_errors_for_upsert(validation_errors, &definition)
+        } else {
+            validation_errors
+        };
+        let (next_handle, handle_display_source) = if let Some(handle) =
+            resolved_string_field(&input, "handle")
+        {
+            validation_errors.extend(metaobject_handle_validation_errors(
+                &handle,
+                options.handle_error_path.clone(),
+            ));
+            let normalized = slugify_handle(&handle);
+            if options.hydrate_requested_handle
+                && !self.metaobject_handle_exists_case_insensitive(meta_type, &normalized)
+            {
+                self.hydrate_metaobject_by_handle(request, meta_type, &normalized);
+            }
+            if self.metaobject_handle_belongs_to_other_case_insensitive(meta_type, &normalized, &id)
+            {
+                validation_errors.push(metaobject_user_error(
+                    options.handle_error_path.clone(),
+                    "Handle has already been taken",
+                    "TAKEN",
+                    Value::Null,
+                    Value::Null,
+                ));
+            }
+            (normalized, handle)
+        } else {
+            (
+                existing_handle.clone(),
+                options
+                    .default_handle_display_source
+                    .unwrap_or_else(|| existing_handle.clone()),
+            )
+        };
+        validation_errors.extend(self.metaobject_display_name_conflict_errors(
+            &id,
+            &definition,
+            &input,
+            &input_values,
+            &handle_display_source,
+        ));
+        if !validation_errors.is_empty() {
+            return self.selected_metaobject_payload(
+                &json!({"metaobject": null, "userErrors": validation_errors}),
+                selection,
+            );
+        }
+
+        let display_name =
+            metaobject_display_name(&definition, &input_values, &handle_display_source);
+        let publishable_status =
+            metaobject_updated_publishable_status(&input, &definition, &existing);
+        // `_with_options` nulls the publishable capability when the definition has it
+        // disabled (e.g. after a schema change turned it off), matching how Shopify
+        // reads back entries whose definition no longer exposes the capability.
+        let created_at = existing.get("createdAt").and_then(Value::as_str);
+        let updated_at = self.next_mutation_timestamp();
+        let record = metaobject_record_from_definition_with_options(
+            &id,
+            &next_handle,
+            &definition,
+            &input_values,
+            MetaobjectRecordOptions {
+                created_at,
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                updated_at: &updated_at,
+            },
+        );
+        self.store
+            .staged
+            .metaobjects
+            .insert(id.clone(), record.clone());
+        if options.stage_redirect_new_handle
+            && resolved_bool_field(&input, "redirectNewHandle").unwrap_or(false)
+            && existing_handle != next_handle
+            && metaobject_definition_has_renderable_online_store(&definition)
+            && metaobject_record_has_active_online_store(&record)
+        {
+            if let (Some(path), Some(target)) = (
+                metaobject_page_path(&definition, &existing_handle),
+                metaobject_page_path(&definition, &next_handle),
+            ) {
+                self.stage_url_redirect(path, target);
+            }
+        }
+        staged_ids.push(id);
+        self.selected_metaobject_payload(
+            &json!({"metaobject": record, "userErrors": []}),
+            selection,
         )
     }
 
@@ -4264,7 +4193,9 @@ impl DraftProxy {
             );
         }
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
-        let definition = metaobject_definition_record(&id, &definition_input, &meta_type);
+        let timestamp = self.next_mutation_timestamp();
+        let definition =
+            metaobject_definition_record(&id, &definition_input, &meta_type, &timestamp);
         self.store
             .staged
             .metaobject_definitions
@@ -4354,7 +4285,9 @@ impl DraftProxy {
         }
         let old_url_handle =
             metaobject_definition_online_store_url_handle(&definition).map(str::to_string);
-        let updated = update_metaobject_definition_record(definition, &definition_input);
+        let updated_at = self.next_mutation_timestamp();
+        let updated =
+            update_metaobject_definition_record(definition, &definition_input, &updated_at);
         let new_url_handle =
             metaobject_definition_online_store_url_handle(&updated).map(str::to_string);
         let redirect_paths = if metaobject_definition_input_create_redirects(&definition_input)
@@ -4649,50 +4582,6 @@ impl DraftProxy {
                     .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
         })
     }
-}
-
-fn url_redirect_search_decision(redirect: &Value, query: Option<&str>) -> StagedSearchDecision {
-    StagedSearchDecision::from_bool(
-        query.is_none_or(|query| url_redirect_matches_query(redirect, query)),
-    )
-}
-
-fn url_redirect_sort_key(redirect: &Value, sort_key: Option<&str>) -> StagedSortKey {
-    let field = match sort_key.unwrap_or("ID") {
-        "PATH" => "path",
-        "TARGET" => "target",
-        _ => "id",
-    };
-    vec![StagedSortValue::String(
-        redirect
-            .get(field)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_ascii_lowercase(),
-    )]
-}
-
-fn url_redirect_matches_query(redirect: &Value, query: &str) -> bool {
-    let query = query.trim();
-    if query.is_empty() {
-        return true;
-    }
-    if let Some(path) = query.strip_prefix("path:") {
-        let path = path.trim().trim_matches('"').trim_matches('\'');
-        return redirect.get("path").and_then(Value::as_str) == Some(path);
-    }
-    if let Some(target) = query.strip_prefix("target:") {
-        let target = target.trim().trim_matches('"').trim_matches('\'');
-        return redirect.get("target").and_then(Value::as_str) == Some(target);
-    }
-    redirect
-        .get("path")
-        .and_then(Value::as_str)
-        .is_some_and(|path| path.contains(query))
-        || redirect
-            .get("target")
-            .and_then(Value::as_str)
-            .is_some_and(|target| target.contains(query))
 }
 
 #[cfg(test)]

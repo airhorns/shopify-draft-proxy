@@ -55,6 +55,25 @@ pub(in crate::proxy) fn selected_user_errors_field(
     Some(selected_user_errors(errors, &selection.selection))
 }
 
+pub(in crate::proxy) fn selected_field_json(
+    record: &Value,
+    field: &SelectedField,
+) -> Option<Value> {
+    selected_json(record, std::slice::from_ref(field))
+        .as_object()
+        .and_then(|object| object.get(&field.response_key).cloned())
+}
+
+pub(in crate::proxy) fn selection_contains_any(
+    selections: &[SelectedField],
+    names: &[&str],
+) -> bool {
+    selections.iter().any(|selection| {
+        names.contains(&selection.name.as_str())
+            || selection_contains_any(&selection.selection, names)
+    })
+}
+
 pub(in crate::proxy) trait DispatchField {
     fn response_key(&self) -> &str;
 }
@@ -125,6 +144,14 @@ fn type_condition_matches(record: &Value, typename: Option<&str>, type_condition
 
     match type_condition {
         "Node" => record.get("id").and_then(Value::as_str).is_some(),
+        "Catalog" => matches!(
+            record_type,
+            "MarketCatalog"
+                | "CompanyLocationCatalog"
+                | "CountryCatalog"
+                | "AppCatalog"
+                | "NoneCatalog"
+        ),
         "File" => matches!(
             record_type,
             "MediaImage" | "Video" | "GenericFile" | "Model3d" | "ExternalVideo"
@@ -339,6 +366,32 @@ mod tests {
                 "__typename": "GenericFile",
                 "id": "gid://shopify/GenericFile/1",
                 "url": "https://cdn.example.com/spec.pdf"
+            })
+        );
+    }
+
+    #[test]
+    fn selected_json_allows_catalog_interface_fragments_for_catalog_types() {
+        let record = json!({
+            "__typename": "MarketCatalog",
+            "id": "gid://shopify/MarketCatalog/1",
+            "title": "Wholesale",
+            "status": "ACTIVE",
+            "name": "not a catalog field"
+        });
+        let selections = vec![
+            typed_field("__typename", "__typename", "Catalog", vec![]),
+            typed_field("title", "title", "Catalog", vec![]),
+            typed_field("status", "status", "Catalog", vec![]),
+            typed_field("name", "name", "Market", vec![]),
+        ];
+
+        assert_eq!(
+            selected_json(&record, &selections),
+            json!({
+                "__typename": "MarketCatalog",
+                "title": "Wholesale",
+                "status": "ACTIVE"
             })
         );
     }

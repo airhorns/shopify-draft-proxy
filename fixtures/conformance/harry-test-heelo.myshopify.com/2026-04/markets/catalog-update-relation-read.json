@@ -1,0 +1,568 @@
+{
+  "capturedAt": "2026-07-05T07:28:13.862Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "catalogUpdate scalar/context relation readback and price-list parent settings",
+  "cases": [
+    {
+      "name": "markets read for catalogUpdate relation read setup",
+      "query": "#graphql\nquery CatalogRelationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n  }\n}\n",
+      "variables": {
+        "first": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate for catalogUpdate relation read",
+      "query": "mutation CatalogUpdateRelationReadCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n      }\n      publication {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog relation read initial catalog-update-relation-1783236487383",
+          "status": "DRAFT",
+          "context": {
+            "marketIds": ["gid://shopify/Market/97997685042"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154263847218",
+                "title": "Catalog relation read initial catalog-update-relation-1783236487383",
+                "status": "DRAFT",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97997685042",
+                      "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate"
+                    }
+                  ]
+                },
+                "priceList": null,
+                "publication": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "publicationCreate for catalogUpdate relation read",
+      "query": "mutation CatalogUpdateRelationReadPublicationCreate($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "autoPublish": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationCreate": {
+              "publication": {
+                "id": "gid://shopify/Publication/302643544370",
+                "autoPublish": true,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate with catalog relation and compare-at settings",
+      "query": "mutation CatalogUpdateRelationReadPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n        settings {\n          compareAtMode\n        }\n      }\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+          "currency": "USD",
+          "catalogId": "gid://shopify/MarketCatalog/154263847218",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            },
+            "settings": {
+              "compareAtMode": "ADJUSTED"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32307020082",
+                "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  },
+                  "settings": {
+                    "compareAtMode": "ADJUSTED"
+                  }
+                },
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/154263847218",
+                  "title": "Catalog relation read initial catalog-update-relation-1783236487383",
+                  "status": "DRAFT"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListUpdate changes compare-at settings while catalog remains expanded",
+      "query": "mutation CatalogUpdateRelationReadPriceListUpdate($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n        settings {\n          compareAtMode\n        }\n      }\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32307020082",
+        "input": {
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_INCREASE",
+              "value": 15
+            },
+            "settings": {
+              "compareAtMode": "NULLIFY"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32307020082",
+                "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_INCREASE",
+                    "value": 15
+                  },
+                  "settings": {
+                    "compareAtMode": "NULLIFY"
+                  }
+                },
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/154263847218",
+                  "title": "Catalog relation read initial catalog-update-relation-1783236487383",
+                  "status": "DRAFT"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogUpdate scalar context and relation readback",
+      "query": "mutation CatalogUpdateScalarContextRelations($id: ID!, $input: CatalogUpdateInput!) {\n  catalogUpdate(id: $id, input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n        parent {\n          adjustment {\n            type\n            value\n          }\n          settings {\n            compareAtMode\n          }\n        }\n        catalog {\n          id\n          title\n          status\n        }\n      }\n      publication {\n        id\n        autoPublish\n        supportsFuturePublishing\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/154263847218",
+        "input": {
+          "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/97997816114"]
+          },
+          "publicationId": "gid://shopify/Publication/302643544370"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogUpdate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154263847218",
+                "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97997816114",
+                      "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate"
+                    }
+                  ]
+                },
+                "priceList": {
+                  "id": "gid://shopify/PriceList/32307020082",
+                  "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+                  "currency": "USD",
+                  "parent": {
+                    "adjustment": {
+                      "type": "PERCENTAGE_INCREASE",
+                      "value": 15
+                    },
+                    "settings": {
+                      "compareAtMode": "NULLIFY"
+                    }
+                  },
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154263847218",
+                    "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+                    "status": "ACTIVE"
+                  }
+                },
+                "publication": {
+                  "id": "gid://shopify/Publication/302643544370",
+                  "autoPublish": true,
+                  "supportsFuturePublishing": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog and price list read after catalogUpdate relation changes",
+      "query": "query CatalogUpdateScalarContextRelationRead($catalogId: ID!, $priceListId: ID!, $catalogQuery: String!) {\n  catalog(id: $catalogId) {\n    id\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n        settings {\n          compareAtMode\n        }\n      }\n    }\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n  }\n  catalogs(first: 5, type: MARKET, query: $catalogQuery) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n      publication {\n        id\n        autoPublish\n        supportsFuturePublishing\n      }\n    }\n  }\n  priceList(id: $priceListId) {\n    id\n    name\n    currency\n    parent {\n      adjustment {\n        type\n        value\n      }\n      settings {\n        compareAtMode\n      }\n    }\n    catalog {\n      id\n      title\n      status\n    }\n  }\n}\n",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/154263847218",
+        "priceListId": "gid://shopify/PriceList/32307020082",
+        "catalogQuery": "title:catalog-update-relation-1783236487383"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "id": "gid://shopify/MarketCatalog/154263847218",
+              "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+              "status": "ACTIVE",
+              "markets": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Market/97997816114",
+                    "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate"
+                  }
+                ]
+              },
+              "priceList": {
+                "id": "gid://shopify/PriceList/32307020082",
+                "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_INCREASE",
+                    "value": 15
+                  },
+                  "settings": {
+                    "compareAtMode": "NULLIFY"
+                  }
+                }
+              },
+              "publication": {
+                "id": "gid://shopify/Publication/302643544370",
+                "autoPublish": true,
+                "supportsFuturePublishing": false
+              }
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154263847218",
+                  "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/97997816114",
+                        "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32307020082",
+                    "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+                    "currency": "USD"
+                  },
+                  "publication": {
+                    "id": "gid://shopify/Publication/302643544370",
+                    "autoPublish": true,
+                    "supportsFuturePublishing": false
+                  }
+                }
+              ]
+            },
+            "priceList": {
+              "id": "gid://shopify/PriceList/32307020082",
+              "name": "Catalog relation read prices catalog-update-relation-1783236487383",
+              "currency": "USD",
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_INCREASE",
+                  "value": 15
+                },
+                "settings": {
+                  "compareAtMode": "NULLIFY"
+                }
+              },
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154263847218",
+                "title": "Catalog relation read updated catalog-update-relation-1783236487383",
+                "status": "ACTIVE"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 42,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/154263847218",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/154263847218",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32307020082",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Price list does not exist.",
+                  "code": "PRICE_LIST_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "publication",
+      "id": "gid://shopify/Publication/302643544370",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Publication was not found",
+                  "code": "PUBLICATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "CatalogRelationMarketsRead",
+      "variables": {
+        "first": 2
+      },
+      "query": "#graphql\nquery CatalogRelationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

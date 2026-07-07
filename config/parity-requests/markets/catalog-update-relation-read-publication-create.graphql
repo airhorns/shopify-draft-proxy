@@ -1,0 +1,14 @@
+mutation CatalogUpdateRelationReadPublicationCreate($input: PublicationCreateInput!) {
+  publicationCreate(input: $input) {
+    publication {
+      id
+      autoPublish
+      supportsFuturePublishing
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

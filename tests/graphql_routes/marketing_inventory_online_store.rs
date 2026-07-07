@@ -60,6 +60,297 @@ fn create_metaobject_definition_for_test(
         .to_string()
 }
 
+fn assert_timestamp_second(value: &Value, expected_prefix: &str, context: &str) -> String {
+    let timestamp = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a timestamp string"));
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|error| panic!("{context} should parse as RFC3339: {error}"));
+    assert!(
+        timestamp.starts_with(expected_prefix),
+        "{context} should start with {expected_prefix}, got {timestamp}"
+    );
+    timestamp.to_string()
+}
+
+#[test]
+fn metaobject_timestamps_follow_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_324_800)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateTimestampDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "timestamp_lifecycle_test",
+            "name": "Timestamp lifecycle test",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition =
+        &definition_create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"];
+    let definition_id = definition["id"].as_str().unwrap().to_string();
+    let definition_created_at = assert_timestamp_second(
+        &definition["createdAt"],
+        "2026-07-06T08:00:00",
+        "definition createdAt",
+    );
+    let definition_updated_at = assert_timestamp_second(
+        &definition["updatedAt"],
+        "2026-07-06T08:00:00",
+        "definition updatedAt",
+    );
+    assert_eq!(definition_created_at, definition_updated_at);
+
+    set_clock(&clock, 1_783_324_801);
+    let definition_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateTimestampDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {"name": "Timestamp lifecycle updated"}
+        }),
+    ));
+    assert_eq!(
+        definition_update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    let updated_definition =
+        &definition_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"];
+    assert_eq!(
+        updated_definition["createdAt"],
+        json!(definition_created_at)
+    );
+    let definition_updated_again = assert_timestamp_second(
+        &updated_definition["updatedAt"],
+        "2026-07-06T08:00:01",
+        "definition updatedAt after update",
+    );
+    assert_ne!(definition_updated_again, definition_created_at);
+
+    let create_entry = |proxy: &mut DraftProxy, handle: &str, title: &str| -> Value {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateTimestampEntry($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id handle createdAt updatedAt }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"metaobject": {
+                "type": "timestamp_lifecycle_test",
+                "handle": handle,
+                "fields": [{"key": "title", "value": title}]
+            }}),
+        ));
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+    };
+
+    set_clock(&clock, 1_783_324_802);
+    let entry_a = create_entry(&mut proxy, "entry-a", "Entry A");
+    let entry_a_id = entry_a["id"].as_str().unwrap().to_string();
+    let entry_a_created_at = assert_timestamp_second(
+        &entry_a["createdAt"],
+        "2026-07-06T08:00:02",
+        "entry A createdAt",
+    );
+    let entry_a_initial_updated_at = assert_timestamp_second(
+        &entry_a["updatedAt"],
+        "2026-07-06T08:00:02",
+        "entry A updatedAt",
+    );
+    assert_eq!(entry_a_created_at, entry_a_initial_updated_at);
+
+    set_clock(&clock, 1_783_324_803);
+    let entry_b = create_entry(&mut proxy, "entry-b", "Entry B");
+    let entry_b_created_at = assert_timestamp_second(
+        &entry_b["createdAt"],
+        "2026-07-06T08:00:03",
+        "entry B createdAt",
+    );
+    let entry_b_updated_at = assert_timestamp_second(
+        &entry_b["updatedAt"],
+        "2026-07-06T08:00:03",
+        "entry B updatedAt",
+    );
+    assert_eq!(entry_b_created_at, entry_b_updated_at);
+
+    set_clock(&clock, 1_783_324_804);
+    let entry_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateTimestampEntry($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": entry_a_id,
+            "metaobject": {"fields": [{"key": "title", "value": "Entry A updated"}]}
+        }),
+    ));
+    assert_eq!(
+        entry_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+    let entry_a_updated = &entry_update.body["data"]["metaobjectUpdate"]["metaobject"];
+    assert_eq!(entry_a_updated["createdAt"], json!(entry_a_created_at));
+    let entry_a_updated_at = assert_timestamp_second(
+        &entry_a_updated["updatedAt"],
+        "2026-07-06T08:00:04",
+        "entry A updatedAt after update",
+    );
+    assert_ne!(entry_a_updated_at, entry_a_created_at);
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesSorted($type: String!) {
+          metaobjects(first: 10, type: $type, sortKey: UPDATED_AT, reverse: true) {
+            nodes { handle createdAt updatedAt }
+          }
+        }
+        "#,
+        json!({"type": "timestamp_lifecycle_test"}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["handle"],
+        json!("entry-a")
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][1]["handle"],
+        json!("entry-b")
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["createdAt"],
+        json!(entry_a_created_at)
+    );
+    assert_eq!(
+        sorted.body["data"]["metaobjects"]["nodes"][0]["updatedAt"],
+        json!(entry_a_updated_at)
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesFiltered($type: String!, $query: String!) {
+          metaobjects(first: 10, type: $type, query: $query) {
+            nodes { handle updatedAt }
+          }
+        }
+        "#,
+        json!({
+            "type": "timestamp_lifecycle_test",
+            "query": "updated_at:>2026-07-06T08:00:03Z"
+        }),
+    ));
+    assert_eq!(
+        filtered.body["data"]["metaobjects"]["nodes"],
+        json!([{"handle": "entry-a", "updatedAt": entry_a_updated_at}])
+    );
+
+    let date_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query TimestampEntriesDateFiltered($type: String!, $query: String!) {
+          metaobjects(first: 10, type: $type, query: $query) {
+            nodes { handle }
+          }
+        }
+        "#,
+        json!({
+            "type": "timestamp_lifecycle_test",
+            "query": "updated_at:>2026-06-01"
+        }),
+    ));
+    assert_eq!(
+        date_filtered.body["data"]["metaobjects"]["nodes"],
+        json!([{"handle": "entry-a"}, {"handle": "entry-b"}])
+    );
+
+    set_clock(&clock, 1_783_324_805);
+    let upsert_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertTimestampEntry($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "timestamp_lifecycle_test", "handle": "upserted-entry"},
+            "metaobject": {"fields": [{"key": "title", "value": "Upserted entry"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let upserted = &upsert_create.body["data"]["metaobjectUpsert"]["metaobject"];
+    let upsert_created_at = assert_timestamp_second(
+        &upserted["createdAt"],
+        "2026-07-06T08:00:05",
+        "upsert create createdAt",
+    );
+    let upsert_initial_updated_at = assert_timestamp_second(
+        &upserted["updatedAt"],
+        "2026-07-06T08:00:05",
+        "upsert create updatedAt",
+    );
+    assert_eq!(upsert_created_at, upsert_initial_updated_at);
+
+    set_clock(&clock, 1_783_324_806);
+    let upsert_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertTimestampEntryAgain($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "timestamp_lifecycle_test", "handle": "upserted-entry"},
+            "metaobject": {"fields": [{"key": "title", "value": "Upserted entry updated"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_update.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let upserted_again = &upsert_update.body["data"]["metaobjectUpsert"]["metaobject"];
+    assert_eq!(upserted_again["createdAt"], json!(upsert_created_at));
+    let upsert_updated_at = assert_timestamp_second(
+        &upserted_again["updatedAt"],
+        "2026-07-06T08:00:06",
+        "upsert update updatedAt",
+    );
+    assert_ne!(upsert_updated_at, upsert_created_at);
+}
+
 #[test]
 fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() {
     let mut proxy = snapshot_proxy();
@@ -588,7 +879,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -613,7 +904,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         r#"
         mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title createdAt marketingEvent { id type } }
+            marketingActivity { id title createdAt app { title } marketingEvent { id type } }
             userErrors { field message code }
           }
         }
@@ -639,6 +930,14 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         json!([])
     );
     assert_eq!(create_zulu.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(
+        create_alpha.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
+    assert_eq!(
+        create_zulu.body["data"]["created"]["marketingActivity"]["app"],
+        json!({ "title": "shopify-draft-proxy" })
+    );
 
     let alpha_id = create_alpha.body["data"]["created"]["marketingActivity"]["id"]
         .as_str()
@@ -726,7 +1025,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
             "idRangeQuery": "id:>1",
             "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
             "appIdQuery": "app_id:42",
-            "appNameQuery": "app_name:42",
+            "appNameQuery": "app_name:shopify-draft-proxy",
             "unknownFieldQuery": "unknown_field:\"Alpha launch\""
         }),
     ));
@@ -805,6 +1104,93 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         read.body["data"]["eventSearch"]["nodes"],
         json!([{ "id": alpha_event_id, "type": "NEWSLETTER" }])
     );
+}
+
+#[test]
+fn marketing_activity_queries_treat_boolean_operators_as_logic() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title status }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let active = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Active newsletter",
+            "remoteId": "active-newsletter",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/active",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "active", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    let paused = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {
+            "title": "Paused newsletter",
+            "remoteId": "paused-newsletter",
+            "status": "PAUSED",
+            "remoteUrl": "https://example.com/paused",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "paused", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    assert_eq!(active.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(paused.body["data"]["created"]["userErrors"], json!([]));
+    let active_id = active.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let paused_id = paused.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityBooleanSearch(
+          $orQuery: String!
+          $andQuery: String!
+          $exclusiveAndQuery: String!
+        ) {
+          statusOr: marketingActivities(first: 5, sortKey: ID, query: $orQuery) {
+            nodes { id title status }
+          }
+          statusAnd: marketingActivities(first: 5, sortKey: ID, query: $andQuery) {
+            nodes { id title status }
+          }
+          exclusiveAnd: marketingActivities(first: 5, sortKey: ID, query: $exclusiveAndQuery) {
+            nodes { id title status }
+          }
+        }
+        "#,
+        json!({
+            "orQuery": "status:ACTIVE OR status:PAUSED",
+            "andQuery": "status:ACTIVE AND title:\"Active newsletter\"",
+            "exclusiveAndQuery": "status:ACTIVE AND status:PAUSED"
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["statusOr"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" },
+            { "id": paused_id, "title": "Paused newsletter", "status": "PAUSED" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["statusAnd"]["nodes"],
+        json!([
+            { "id": active_id, "title": "Active newsletter", "status": "ACTIVE" }
+        ])
+    );
+    assert_eq!(read.body["data"]["exclusiveAnd"]["nodes"], json!([]));
 }
 
 #[test]
@@ -1215,7 +1601,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
-fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_values() {
+fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_values() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(
         r#"
@@ -1226,7 +1612,7 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
             status: ACTIVE,
             tactic: AD,
             marketingChannelType: SEARCH,
-            channelHandle: "social-feed",
+            channelHandle: "email",
             remoteUrl: "https://example.com/social-launch",
             previewUrl: "https://example.com/social-preview",
             utm: { campaign: "social-campaign", source: "social", medium: "paid" }
@@ -1274,12 +1660,12 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         &json!({
             "id": activity_id,
             "remoteId": "social-remote-1",
-            "app": { "id": "gid://shopify/App/347082227713", "title": "347082227713" },
+            "app": { "id": "gid://shopify/App/347082227713", "title": "shopify-draft-proxy" },
             "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
             "marketingEvent": {
                 "id": created["marketingEvent"]["id"],
                 "remoteId": "social-remote-1",
-                "channelHandle": "social-feed",
+                "channelHandle": "email",
                 "utmCampaign": "social-campaign",
                 "utmSource": "social",
                 "utmMedium": "paid"
@@ -1290,6 +1676,97 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
         created["marketingEvent"]["id"],
         json!(assumed_event_id),
         "marketing event ids must be allocated independently from activity ids"
+    );
+}
+
+#[test]
+fn marketing_external_activity_app_title_uses_installed_app_model() {
+    let mut proxy = snapshot_proxy();
+    let app_id = "gid://shopify/App/347082227713";
+
+    let mut observe_app = json_graphql_request(
+        r#"
+        query ObserveMarketingApp {
+          currentAppInstallation {
+            app { id title handle }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-title".to_string(),
+        "Hermes Marketing".to_string(),
+    );
+    observe_app.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        "hermes-marketing".to_string(),
+    );
+    let observed_app = proxy.process_request(observe_app);
+    assert_eq!(
+        observed_app.body["data"]["currentAppInstallation"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing", "handle": "hermes-marketing" })
+    );
+
+    let mut create = json_graphql_request(
+        r#"
+        mutation CreateMarketingActivityForInstalledApp {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Installed app campaign",
+            remoteId: "installed-app-campaign",
+            status: ACTIVE,
+            tactic: NEWSLETTER,
+            marketingChannelType: EMAIL,
+            remoteUrl: "https://example.com/installed-app-campaign",
+            utm: { campaign: "installed-app-campaign", source: "email", medium: "newsletter" }
+          }) {
+            marketingActivity { id app { id title } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create);
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
+    );
+
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .expect("created activity id")
+        .to_string();
+    let mut read = json_graphql_request(
+        r#"
+        query ReadMarketingActivityApp($id: ID!) {
+          marketingActivity(id: $id) {
+            app { id title }
+          }
+        }
+        "#,
+        json!({ "id": activity_id }),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["marketingActivity"]["app"],
+        json!({ "id": app_id, "title": "Hermes Marketing" })
     );
 }
 
@@ -1342,13 +1819,12 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
-fn marketing_channel_handles_accept_non_empty_values() {
+fn marketing_unknown_channel_handles_return_captured_user_errors() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingChannelHandleAcceptance(
+        mutation MarketingChannelHandleValidation(
           $createInput: MarketingActivityCreateExternalInput!
-          $upsertInput: MarketingActivityUpsertExternalInput!
           $engagement: MarketingEngagementInput!
         ) {
           customEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
@@ -1359,40 +1835,21 @@ fn marketing_channel_handles_accept_non_empty_values() {
             marketingActivity { id }
             userErrors { field message code }
           }
-          customUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
-            marketingActivity { id }
-            userErrors { field message code }
-          }
         }
         "#,
         json!({
             "createInput": {"title": "Invalid create channel", "remoteId": "invalid-create-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-create-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-create-channel", "source": "email", "medium": "newsletter"}},
-            "upsertInput": {"title": "Invalid upsert channel", "remoteId": "invalid-upsert-channel", "status": "ACTIVE", "remoteUrl": "https://example.com/invalid-upsert-channel", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "channelHandle": "not-a-real-channel", "utm": {"campaign": "invalid-upsert-channel", "source": "email", "medium": "newsletter"}},
             "engagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00"}
         }),
     ));
 
     assert_eq!(
         response.body["data"]["customEngagement"],
-        json!({"marketingEngagement": {"occurredOn": "2026-04-01"}, "userErrors": []})
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
     assert_eq!(
-        response.body["data"]["customCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        response.body["data"]["customUpsert"]["userErrors"],
-        json!([])
-    );
-    assert!(
-        response.body["data"]["customCreate"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
-    );
-    assert!(
-        response.body["data"]["customUpsert"]["marketingActivity"]["id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
+        response.body["data"]["customCreate"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
 }
 
@@ -1700,6 +2157,7 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
           $validEngagement: MarketingEngagementInput!
         ) {
           activityWithoutEvent: marketingActivityUpdate(input: $activityInput) { marketingActivity { id marketingEvent { id } } userErrors { field message } }
+          unknownChannelCurrency: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           unknownRemoteCurrency: marketingEngagementCreate(remoteId: $missingRemoteId, marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingActivity: marketingEngagementCreate(marketingActivityId: $missingActivityId, marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
           missingEvent: marketingEngagementCreate(marketingActivityId: "gid://shopify/MarketingActivity/1", marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
@@ -1714,6 +2172,10 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
         }),
     ));
 
+    assert_eq!(
+        response.body["data"]["unknownChannelCurrency"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
     assert_eq!(
         response.body["data"]["unknownRemoteCurrency"],
         json!({"marketingEngagement": null, "userErrors": [{"field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT"}]})
@@ -2618,6 +3080,475 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
             {"name": "available", "quantity": -2},
             {"name": "on_hand", "quantity": 0}
         ])
+    );
+}
+
+#[test]
+fn location_inventory_levels_overlay_and_args() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "LOCATION-LEVEL-BETA");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Location Level Source");
+    let destination_location_id =
+        add_inventory_test_location(&mut proxy, "Location Level Destination");
+    let source_level_id = inventory_level_id_for_test(&first_item_id, &source_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLocationInventoryLevels($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": source_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustLocationInventoryLevel($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "delta": 3, "changeFromQuantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let active_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsActive($locationId: ID!, $firstItemQuery: String!) {
+          location(id: $locationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+            firstPage: inventoryLevels(first: 1) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, query: $firstItemQuery) {
+              nodes { item { id } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "locationId": source_location_id,
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    let location_levels = &active_read.body["data"]["location"]["inventoryLevels"]["nodes"];
+    assert_eq!(
+        location_levels,
+        &json!([
+            {
+                "item": {"id": first_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 7},
+                    {"name": "on_hand", "quantity": 7}
+                ]
+            },
+            {
+                "item": {"id": second_item_id},
+                "location": {"id": source_location_id, "name": "Location Level Source"},
+                "quantities": [
+                    {"name": "available", "quantity": 8},
+                    {"name": "on_hand", "quantity": 8}
+                ]
+            }
+        ])
+    );
+    let item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FirstItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              location { id name }
+              quantities(names: ["available", "on_hand"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": source_location_id}),
+    ));
+    assert_eq!(
+        item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        location_levels[0]
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["firstPage"],
+        json!({
+            "nodes": [{"item": {"id": first_item_id}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": source_level_id
+            }
+        })
+    );
+    assert_eq!(
+        active_read.body["data"]["location"]["filtered"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDestinationLevel($inventoryItemId: ID!, $locationId: ID!, $idempotencyKey: String!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": first_item_id,
+            "locationId": destination_location_id,
+            "idempotencyKey": "location-level-activate"
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateSourceLevel($inventoryLevelId: ID!, $idempotencyKey: String!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": source_level_id,
+            "idempotencyKey": "location-level-deactivate"
+        }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let inactive_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationInventoryLevelsInactive(
+          $sourceLocationId: ID!
+          $destinationLocationId: ID!
+          $firstItemId: ID!
+          $after: String!
+          $before: String!
+          $firstItemQuery: String!
+        ) {
+          source: location(id: $sourceLocationId) {
+            activeLevels: inventoryLevels(first: 10) {
+              nodes { item { id } isActive }
+            }
+            allLevels: inventoryLevels(first: 10, includeInactive: true) {
+              nodes { item { id } isActive }
+            }
+            afterFirst: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeSecond: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+              nodes { item { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, includeInactive: true, query: $firstItemQuery) {
+              nodes {
+                item { id }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+          destination: location(id: $destinationLocationId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                isActive
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "sourceLocationId": source_location_id,
+            "destinationLocationId": destination_location_id,
+            "firstItemId": first_item_id,
+            "after": source_level_id,
+            "before": inventory_level_id_for_test(&second_item_id, &source_location_id),
+            "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
+        }),
+    ));
+    assert_eq!(
+        inactive_read.body["data"]["source"]["activeLevels"]["nodes"],
+        json!([{ "item": { "id": second_item_id }, "isActive": true }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["allLevels"]["nodes"],
+        json!([
+            { "item": { "id": first_item_id }, "isActive": false },
+            { "item": { "id": second_item_id }, "isActive": true }
+        ])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["afterFirst"]["nodes"],
+        json!([{ "item": { "id": second_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["beforeSecond"]["nodes"],
+        json!([{ "item": { "id": first_item_id } }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["source"]["filtered"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 7}]
+        }])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["destination"]["inventoryLevels"]["nodes"],
+        json!([{
+            "item": { "id": first_item_id },
+            "isActive": true,
+            "quantities": [{"name": "available", "quantity": 0}]
+        }])
+    );
+    let destination_item_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query DestinationItemLocationLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevel(locationId: $locationId) {
+              item { id }
+              quantities(names: ["available"]) { name quantity }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": first_item_id, "locationId": destination_location_id}),
+    ));
+    assert_eq!(
+        destination_item_level_read.body["data"]["inventoryItem"]["inventoryLevel"],
+        json!({
+            "item": { "id": first_item_id },
+            "quantities": [{"name": "available", "quantity": 0}]
+        })
+    );
+}
+
+#[test]
+fn location_inventory_levels_preserves_hydrated_untouched_levels() {
+    let location_id = "gid://shopify/Location/9001";
+    let first_item_id = "gid://shopify/InventoryItem/9002";
+    let second_item_id = "gid://shopify/InventoryItem/9003";
+    let first_level_id =
+        "gid://shopify/InventoryLevel/9002-9001?inventory_item_id=gid://shopify/InventoryItem/9002";
+    let second_level_id =
+        "gid://shopify/InventoryLevel/9003-9001?inventory_item_id=gid://shopify/InventoryItem/9003";
+    let location_node = json!({
+        "__typename": "Location",
+        "id": location_id,
+        "name": "Hydrated Stockroom",
+        "isActive": true,
+        "isFulfillmentService": false,
+        "inventoryLevels": {
+            "nodes": [
+                {
+                    "id": first_level_id,
+                    "isActive": true,
+                    "item": { "id": first_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 5 },
+                        { "name": "on_hand", "quantity": 5 }
+                    ]
+                },
+                {
+                    "id": second_level_id,
+                    "isActive": true,
+                    "item": { "id": second_item_id },
+                    "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                    "quantities": [
+                        { "name": "available", "quantity": 12 },
+                        { "name": "on_hand", "quantity": 12 }
+                    ]
+                }
+            ]
+        }
+    });
+    let first_item_node = json!({
+        "__typename": "InventoryItem",
+        "id": first_item_id,
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/9002",
+            "title": "Hydrated Alpha",
+            "sku": "HYDRATED-ALPHA",
+            "inventoryQuantity": 5,
+            "product": {
+                "id": "gid://shopify/Product/9002",
+                "title": "Hydrated Product",
+                "handle": "hydrated-product",
+                "status": "ACTIVE",
+                "totalInventory": 5,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": {
+            "nodes": [{
+                "id": first_level_id,
+                "isActive": true,
+                "location": { "id": location_id, "name": "Hydrated Stockroom" },
+                "quantities": [
+                    { "name": "available", "quantity": 5 },
+                    { "name": "on_hand", "quantity": 5 }
+                ]
+            }]
+        }
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        let location_node = location_node.clone();
+        let first_item_node = first_item_node.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("upstream inventory hydration body parses");
+            upstream_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("node(id:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "node": location_node.clone() } }),
+                };
+            }
+            if query.contains("nodes(ids:") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": [first_item_node.clone(), location_node.clone()] } }),
+                };
+            }
+            panic!("unexpected upstream inventory request: {body}");
+        }
+    });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateLocationInventoryLevels($id: ID!) {
+          node(id: $id) {
+            ... on Location {
+              id
+              name
+              inventoryLevels(first: 10) {
+                nodes {
+                  id
+                  isActive
+                  item { id }
+                  location { id name }
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(hydrate.body["data"]["node"]["id"], json!(location_id));
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdjustHydratedLocationLevel(
+          $input: InventoryAdjustQuantitiesInput!
+          $idempotencyKey: String!
+        ) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "idempotencyKey": "hydrated-location-level-adjust",
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "changes": [{
+                    "inventoryItemId": first_item_id,
+                    "locationId": location_id,
+                    "delta": 3,
+                    "changeFromQuantity": 5
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedLocationInventoryLevels($id: ID!) {
+          location(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes {
+                item { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"]["inventoryLevels"]["nodes"],
+        json!([
+            {
+                "item": { "id": first_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 8 },
+                    { "name": "on_hand", "quantity": 8 }
+                ]
+            },
+            {
+                "item": { "id": second_item_id },
+                "quantities": [
+                    { "name": "available", "quantity": 12 },
+                    { "name": "on_hand", "quantity": 12 }
+                ]
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        2,
+        "location read after staging should use local hydrated state"
     );
 }
 
@@ -6804,9 +7735,9 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntime {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
@@ -7000,9 +7931,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
                         "webPixel": {
                             "__typename": "WebPixel",
                             "id": web_pixel_id,
-                            "status": "CONNECTED",
-                            "settings": {"accountID": "upstream"},
-                            "webhookEndpointAddress": null
+                            "settings": {"accountID": "upstream"}
                         },
                         "serverPixel": {
                             "__typename": "ServerPixel",
@@ -7036,7 +7965,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
           themes(first: 10) { nodes { id name role } }
           scriptTag(id: $scriptTagId) { id src displayScope event cache }
           scriptTags(first: 10) { nodes { id src displayScope event cache } }
-          webPixel(id: $webPixelId) { id status settings webhookEndpointAddress }
+          webPixel(id: $webPixelId) { id settings }
           serverPixel(id: $serverPixelId) { id status webhookEndpointAddress }
           mobilePlatformApplication(id: $mobileAppId) { __typename ... on AppleApplication { id appId universalLinksEnabled } }
           mobilePlatformApplications(first: 10) { nodes { __typename ... on AppleApplication { id appId universalLinksEnabled } } }
@@ -7078,7 +8007,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     );
     assert_eq!(
         hydrated_read.body["data"]["webPixel"],
-        json!({"id": web_pixel_id, "status": "CONNECTED", "settings": {"accountID": "upstream"}, "webhookEndpointAddress": null})
+        json!({"id": web_pixel_id, "settings": {"accountID": "upstream"}})
     );
     assert_eq!(
         hydrated_read.body["data"]["serverPixel"],
@@ -7148,10 +8077,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
                 "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
                 "title": "Hydrogen",
                 "accessToken": first_token,
-                "accessScopes": [
-                    {"handle": "unauthenticated_read_product_listings"},
-                    {"handle": "unauthenticated_read_product_inventory"}
-                ]
+                "accessScopes": []
             },
             "shop": {},
             "userErrors": []
@@ -7282,13 +8208,13 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
 }
 
 #[test]
-fn web_pixel_create_success_returns_connected_with_non_null_settings() {
+fn web_pixel_create_success_returns_non_null_settings() {
     let mut omitted_proxy = snapshot_proxy();
     let omitted = omitted_proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeOmittedSettings {
           webPixelCreate(webPixel: {}) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -7300,7 +8226,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -7312,7 +8237,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeEmptyJsonSettings {
           webPixelCreate(webPixel: { settings: "{}" }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -7324,7 +8249,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {}
             },
             "userErrors": []
@@ -7336,7 +8260,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         r#"
         mutation WebPixelUpdateValidationLocalRuntimeObjectSettings {
           webPixelCreate(webPixel: { settings: { accountID: "abc" } }) {
-            webPixel { id status settings }
+            webPixel { id settings }
             userErrors { __typename code field message }
           }
         }
@@ -7348,7 +8272,6 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
         json!({
             "webPixel": {
                 "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "status": "CONNECTED",
                 "settings": {"accountID": "abc"}
             },
             "userErrors": []
@@ -7360,21 +8283,55 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
 fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
+    let web_pixel_status = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreWebPixelStatusIsNotAField($webPixel: WebPixelInput!) {
+          webPixelCreate(webPixel: $webPixel) {
+            webPixel { id status }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({"webPixel": {"settings": "{}"}}),
+    ));
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["message"],
+        json!("Field 'status' doesn't exist on type 'WebPixel'")
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["path"],
+        json!([
+            "mutation RustOnlineStoreWebPixelStatusIsNotAField",
+            "webPixelCreate",
+            "webPixel",
+            "status"
+        ])
+    );
+    assert_eq!(
+        web_pixel_status.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "WebPixel",
+            "fieldName": "status"
+        })
+    );
+    assert!(web_pixel_status.body.get("data").is_none());
+
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStorePixelLocalRuntimeEdges {
-          create: webPixelCreate(webPixel: {}) { webPixel { id status settings webhookEndpointAddress } userErrors { __typename code field message } }
-          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id status } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id } userErrors { __typename code field message } }
           missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
-          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings status } userErrors { __typename code field message } }
-          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings status webhookEndpointAddress } userErrors { __typename code field message } }
+          invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
+          validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         web_pixel.body["data"]["create"],
-        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "CONNECTED", "settings": {}, "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {}}, "userErrors": []})
     );
     assert_eq!(
         web_pixel.body["data"]["duplicate"],
@@ -7390,7 +8347,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     );
     assert_eq!(
         web_pixel.body["data"]["validUpdate"]["webPixel"],
-        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}, "status": "CONNECTED", "webhookEndpointAddress": null})
+        json!({"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "settings": {"accountID": "abc"}})
     );
 
     let missing_server = proxy.process_request(json_graphql_request(
@@ -7417,19 +8374,27 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
         r#"
         mutation RustOnlineStoreServerPixelEndpointLocalRuntimeEdges {
           create: serverPixelCreate { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
-          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
-          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } }
+          eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
+          pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") { serverPixel { id status webhookEndpointAddress } userErrors { __typename code field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         server_pixel.body["data"]["create"],
-        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "CONNECTED", "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"serverPixel": {"id": "gid://shopify/ServerPixel/2?shopify-draft-proxy=synthetic", "status": "DISCONNECTED_UNCONFIGURED", "webhookEndpointAddress": null}, "userErrors": []})
+    );
+    assert_eq!(
+        server_pixel.body["data"]["eventBridge"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["eventBridge"]["serverPixel"]["webhookEndpointAddress"],
         json!("arn:aws:events:us-east-1:123456789012:event-bus/local")
+    );
+    assert_eq!(
+        server_pixel.body["data"]["pubsub"]["serverPixel"]["status"],
+        json!("CONNECTED")
     );
     assert_eq!(
         server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],
@@ -12948,6 +13913,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let blog_handle = create.body["data"]["madeBlog"]["blog"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let blog_created_at = assert_online_store_operation_timestamp(
         &create.body["data"]["madeBlog"]["blog"]["createdAt"],
         "blogCreate.createdAt",
@@ -12958,6 +13927,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     );
     assert_eq!(blog_created_at, blog_updated_at);
     let page_id = create.body["data"]["madePage"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let page_handle = create.body["data"]["madePage"]["page"]["handle"]
         .as_str()
         .unwrap()
         .to_string();
@@ -13011,6 +13984,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let article_handle = article_create.body["data"]["madeArticle"]["article"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let article_created_at = assert_online_store_operation_timestamp(
         &article_create.body["data"]["madeArticle"]["article"]["createdAt"],
         "articleCreate.createdAt",
@@ -13039,6 +14016,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
           }
           page(id: $pageId) { id title handle isPublished createdAt updatedAt }
           article(id: $articleId) { id title isPublished publishedAt createdAt updatedAt blog { id title } commentsCount { count precision } }
+          articleTags(limit: 10)
           blogsCount { count precision }
           pagesCount { count precision }
         }
@@ -13083,6 +14061,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!(article_published_at)
     );
     assert_eq!(
+        read.body["data"]["articleTags"],
+        json!(["cms", "online-store"])
+    );
+    assert_eq!(
         read.body["data"]["blogsCount"],
         json!({"count": 1, "precision": "EXACT"})
     );
@@ -13101,6 +14083,66 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     assert_eq!(
         node_read.body["data"]["articleNode"]["__typename"],
         json!("Article")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCmsWithoutHandles(
+          $blogId: ID!
+          $pageId: ID!
+          $articleId: ID!
+          $blog: BlogUpdateInput!
+          $page: PageUpdateInput!
+          $article: ArticleUpdateInput!
+        ) {
+          blogUpdate(id: $blogId, blog: $blog) {
+            blog { id title handle }
+            userErrors { field message code }
+          }
+          pageUpdate(id: $pageId, page: $page) {
+            page { id title handle }
+            userErrors { field message code }
+          }
+          articleUpdate(id: $articleId, article: $article) {
+            article { id title handle blog { id title handle } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blogId": blog_id,
+            "pageId": page_id,
+            "articleId": article_id,
+            "blog": {"title": "CMS Lifecycle Blog Updated"},
+            "page": {"title": "CMS Lifecycle Page Updated"},
+            "article": {"title": "CMS Lifecycle Article Updated"}
+        }),
+    ));
+    assert_eq!(update.body["data"]["blogUpdate"]["userErrors"], json!([]));
+    assert_eq!(update.body["data"]["pageUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["blogUpdate"]["blog"]["handle"],
+        json!(blog_handle)
+    );
+    assert_eq!(
+        update.body["data"]["pageUpdate"]["page"]["handle"],
+        json!(page_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["handle"],
+        json!(article_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "CMS Lifecycle Blog Updated",
+            "handle": blog_handle
+        })
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -13147,6 +14189,393 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!([])
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_content_back_references_project_full_parent_records() {
+    let comment_id = "gid://shopify/Comment/9203";
+    let hydrated_article_id = Arc::new(Mutex::new(String::new()));
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let hydrated_article_id = Arc::clone(&hydrated_article_id);
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            *upstream_calls.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("OnlineStoreCommentHydrate"),
+                "unexpected online-store hydrate query: {query}"
+            );
+            let article_id = hydrated_article_id.lock().unwrap().clone();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "comment": {
+                            "__typename": "Comment",
+                            "id": comment_id,
+                            "status": "UNAPPROVED",
+                            "body": "Back reference comment",
+                            "bodyHtml": "<p>Back reference comment</p>",
+                            "isPublished": false,
+                            "publishedAt": null,
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z",
+                            "article": { "id": article_id }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let blog_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceBlog($blog: BlogCreateInput!) {
+          blogCreate(blog: $blog) {
+            blog { id title handle commentPolicy createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"blog": {"title": "Back Reference Blog", "commentPolicy": "MODERATED"}}),
+    ));
+    assert_eq!(
+        blog_create.body["data"]["blogCreate"]["userErrors"],
+        json!([])
+    );
+    let blog = &blog_create.body["data"]["blogCreate"]["blog"];
+    let blog_id = blog["id"].as_str().unwrap().to_string();
+    let blog_created_at = blog["createdAt"].clone();
+    let blog_updated_at = blog["updatedAt"].clone();
+
+    let article_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceArticle($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article {
+              id
+              title
+              publishedAt
+              author { name }
+              blog { id title handle commentPolicy createdAt updatedAt }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"article": {
+            "title": "Back Reference Article",
+            "blogId": blog_id,
+            "author": {"name": "Initial Back Reference Author"},
+            "isPublished": true
+        }}),
+    ));
+    assert_eq!(
+        article_create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        article_create.body["data"]["articleCreate"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "Back Reference Blog",
+            "handle": "back-reference-blog",
+            "commentPolicy": "MODERATED",
+            "createdAt": blog_created_at,
+            "updatedAt": blog_updated_at
+        })
+    );
+    let article_id = article_create.body["data"]["articleCreate"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    *hydrated_article_id.lock().unwrap() = article_id.clone();
+
+    let blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+          blogUpdate(id: $id, blog: $blog) {
+            blog { id commentPolicy updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": blog_id, "blog": {"commentPolicy": "CLOSED"}}),
+    ));
+    assert_eq!(
+        blog_update.body["data"]["blogUpdate"]["userErrors"],
+        json!([])
+    );
+    let blog_updated_again_at = blog_update.body["data"]["blogUpdate"]["blog"]["updatedAt"].clone();
+
+    let article_after_blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleBackReferenceAfterBlogUpdate($id: ID!) {
+          article(id: $id) {
+            id
+            blog { id title handle commentPolicy createdAt updatedAt }
+          }
+        }
+        "#,
+        json!({"id": article_id}),
+    ));
+    assert_eq!(
+        article_after_blog_update.body["data"]["article"]["blog"],
+        json!({
+            "id": blog_id,
+            "title": "Back Reference Blog",
+            "handle": "back-reference-blog",
+            "commentPolicy": "CLOSED",
+            "createdAt": blog_created_at,
+            "updatedAt": blog_updated_again_at
+        })
+    );
+
+    let comment_approve = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceComment($id: ID!) {
+          commentApprove(id: $id) {
+            comment {
+              id
+              status
+              article {
+                id
+                title
+                publishedAt
+                author { name }
+                blog { id title handle commentPolicy createdAt updatedAt }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": comment_id}),
+    ));
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["comment"]["article"]["author"],
+        json!({"name": "Initial Back Reference Author"})
+    );
+    assert_eq!(
+        comment_approve.body["data"]["commentApprove"]["comment"]["article"]["blog"]
+            ["commentPolicy"],
+        json!("CLOSED")
+    );
+
+    let article_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackReferenceArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article { id title author { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": article_id, "article": {
+            "title": "Updated Back Reference Article",
+            "author": {"name": "Updated Back Reference Author"}
+        }}),
+    ));
+    assert_eq!(
+        article_update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let comment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query CommentBackReferenceAfterArticleUpdate($id: ID!) {
+          comment(id: $id) {
+            id
+            article {
+              id
+              title
+              author { name }
+              publishedAt
+              blog { id commentPolicy }
+            }
+          }
+        }
+        "#,
+        json!({"id": comment_id}),
+    ));
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["title"],
+        json!("Updated Back Reference Article")
+    );
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["author"],
+        json!({"name": "Updated Back Reference Author"})
+    );
+    assert_eq!(
+        comment_read.body["data"]["comment"]["article"]["blog"],
+        json!({"id": blog_id, "commentPolicy": "CLOSED"})
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+}
+
+#[test]
+fn online_store_nested_blog_articles_connection_honors_args_and_staged_writes() {
+    let mut proxy = snapshot_proxy();
+
+    let blog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NestedArticleBlog {
+          blogCreate(blog: { title: "Nested article blog" }) {
+            blog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(blog.body["data"]["blogCreate"]["userErrors"], json!([]));
+    let blog_id = blog.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut article_ids = Vec::<(String, String)>::new();
+    for title in [
+        "Alpha nested article",
+        "Bravo nested article",
+        "Charlie nested article",
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NestedArticleCreate($article: ArticleCreateInput!) {
+              articleCreate(article: $article) {
+                article { id title }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "article": {
+                    "title": title,
+                    "blogId": blog_id,
+                    "author": { "name": "Nested Author" }
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["articleCreate"]["userErrors"],
+            json!([])
+        );
+        article_ids.push((
+            title.to_string(),
+            create.body["data"]["articleCreate"]["article"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        ));
+    }
+
+    let alpha_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Alpha"))
+        .unwrap()
+        .1
+        .clone();
+    let bravo_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Bravo"))
+        .unwrap()
+        .1
+        .clone();
+    let charlie_id = article_ids
+        .iter()
+        .find(|(title, _)| title.starts_with("Charlie"))
+        .unwrap()
+        .1
+        .clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedBlogArticles($blogId: ID!, $after: String!, $before: String!) {
+          firstPage: blog(id: $blogId) {
+            articlesFirst: articles(first: 2) {
+              nodes { id title }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          afterPage: blog(id: $blogId) {
+            articlesAfter: articles(first: 2, after: $after) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          beforePage: blog(id: $blogId) {
+            articlesBefore: articles(last: 1, before: $before) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          reversePage: blog(id: $blogId) {
+            articlesReverse: articles(first: 2, reverse: true) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"blogId": blog_id, "after": bravo_id, "before": charlie_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["nodes"],
+        json!([
+            {"id": alpha_id, "title": "Alpha nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["edges"],
+        json!([
+            {"cursor": alpha_id, "node": {"id": alpha_id}},
+            {"cursor": bravo_id, "node": {"id": bravo_id}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["articlesFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha_id,
+            "endCursor": bravo_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["nodes"],
+        json!([{"id": charlie_id, "title": "Charlie nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["articlesAfter"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["nodes"],
+        json!([{"id": bravo_id, "title": "Bravo nested article"}])
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["articlesBefore"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["articlesReverse"]["nodes"],
+        json!([
+            {"id": charlie_id, "title": "Charlie nested article"},
+            {"id": bravo_id, "title": "Bravo nested article"}
+        ])
+    );
 }
 
 #[test]
@@ -13205,7 +14634,12 @@ fn online_store_articles_published_status_query_controls_visibility() {
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
           byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
           byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          bareTagText: articles(first: 10, query: "status-tag") { nodes { id title } }
+          bareHandleText: articles(first: 10, query: "published-article") { nodes { id title } }
           byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          draftTagDefault: articles(first: 10, query: "draft-tag") { nodes { id title isPublished } }
+          draftTagAny: articles(first: 10, query: "published_status:any draft-tag") { nodes { id title isPublished } }
+          allTags: articleTags(limit: 20)
           titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
           titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
           unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
@@ -13240,7 +14674,18 @@ fn online_store_articles_published_status_query_controls_visibility() {
         json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
     assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
     assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["bareTagText"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["bareHandleText"]["nodes"], json!([]));
     assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["draftTagDefault"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["draftTagAny"]["nodes"],
+        json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["allTags"],
+        json!(["draft-tag", "status-tag"])
+    );
     assert_eq!(
         read.body["data"]["titleSorted"]["nodes"],
         json!([
@@ -13256,6 +14701,193 @@ fn online_store_articles_published_status_query_controls_visibility() {
         ])
     );
     assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_article_metafields_reflect_staged_create_and_update() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {
+          articleCreate(article: $article, blog: $blog) {
+            article {
+              id
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 1, namespace: "online_store_conformance") {
+                nodes { id namespace key type value jsonValue ownerType }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blog": { "title": "Article metafield blog" },
+            "article": {
+                "title": "Article metafields",
+                "author": { "name": "Metafield Author" },
+                "metafields": [
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "hero",
+                        "type": "single_line_text_field",
+                        "value": "created hero"
+                    },
+                    {
+                        "namespace": "online_store_conformance",
+                        "key": "secondary",
+                        "type": "single_line_text_field",
+                        "value": "created secondary"
+                    },
+                    {
+                        "namespace": "other_namespace",
+                        "key": "hidden",
+                        "type": "single_line_text_field",
+                        "value": "hidden"
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    let article = &create.body["data"]["articleCreate"]["article"];
+    let article_id = article["id"].as_str().unwrap().to_string();
+    let article_handle = article["handle"].as_str().unwrap().to_string();
+    assert_eq!(
+        article["metafield"],
+        json!({
+            "id": article["metafield"]["id"].clone(),
+            "namespace": "online_store_conformance",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "created hero",
+            "jsonValue": "created hero",
+            "ownerType": "ARTICLE"
+        })
+    );
+    assert_eq!(article["metafields"]["nodes"][0]["key"], json!("hero"));
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        article["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    let after_cursor = article["metafields"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleMetafieldsAfter($id: ID!, $after: String!) {
+          article(id: $id) {
+            metafields(first: 2, namespace: "online_store_conformance", after: $after) {
+              nodes { key value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": article_id, "after": after_cursor}),
+    ));
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["nodes"],
+        json!([{ "key": "secondary", "value": "created secondary" }])
+    );
+    assert_eq!(
+        read_after.body["data"]["article"]["metafields"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleMetafieldsUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              title
+              handle
+              metafield(namespace: "online_store_conformance", key: "hero") {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                ownerType
+              }
+              metafields(first: 5, namespace: "online_store_conformance") {
+                nodes { key value jsonValue }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": article_id,
+            "article": {
+                "title": "Article metafields renamed",
+                "metafields": [{
+                    "namespace": "online_store_conformance",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updated hero"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["title"],
+        json!("Article metafields renamed")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["handle"],
+        json!(article_handle)
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["value"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafield"]["jsonValue"],
+        json!("updated hero")
+    );
+    assert_eq!(
+        update.body["data"]["articleUpdate"]["article"]["metafields"]["nodes"],
+        json!([
+            {
+                "key": "hero",
+                "value": "updated hero",
+                "jsonValue": "updated hero"
+            },
+            {
+                "key": "secondary",
+                "value": "created secondary",
+                "jsonValue": "created secondary"
+            }
+        ])
+    );
 }
 
 #[test]
@@ -13466,6 +15098,236 @@ fn online_store_comments_connection_filters_sort_and_reverse_hydrated_state() {
         ])
     );
     assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+}
+
+#[test]
+fn online_store_nested_article_comments_connection_honors_args_and_staged_moderation() {
+    let blog_id = "gid://shopify/Blog/9201";
+    let article_id = "gid://shopify/Article/9202";
+    let alpha_comment_id = "gid://shopify/Comment/9203";
+    let bravo_comment_id = "gid://shopify/Comment/9204";
+    let charlie_comment_id = "gid://shopify/Comment/9205";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let upstream_calls = upstream_calls.clone();
+            move |_request| {
+                *upstream_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "article": {
+                                "__typename": "Article",
+                                "id": article_id,
+                                "title": "Nested comments article",
+                                "handle": "nested-comments-article",
+                                "createdAt": "2026-01-01T00:00:00Z",
+                                "updatedAt": "2026-01-01T00:00:00Z",
+                                "blog": {
+                                    "id": blog_id,
+                                    "title": "Nested comments blog",
+                                    "handle": "nested-comments-blog"
+                                },
+                                "comments": {
+                                    "nodes": [
+                                        {
+                                            "__typename": "Comment",
+                                            "id": alpha_comment_id,
+                                            "status": "PUBLISHED",
+                                            "body": "Alpha comment body",
+                                            "bodyHtml": "<p>Alpha comment body</p>",
+                                            "isPublished": true,
+                                            "publishedAt": "2026-01-01T00:00:00Z",
+                                            "createdAt": "2026-01-01T00:00:00Z",
+                                            "updatedAt": "2026-01-01T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        },
+                                        {
+                                            "__typename": "Comment",
+                                            "id": bravo_comment_id,
+                                            "status": "UNAPPROVED",
+                                            "body": "Bravo comment body",
+                                            "bodyHtml": "<p>Bravo comment body</p>",
+                                            "isPublished": false,
+                                            "publishedAt": null,
+                                            "createdAt": "2026-01-02T00:00:00Z",
+                                            "updatedAt": "2026-01-02T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        },
+                                        {
+                                            "__typename": "Comment",
+                                            "id": charlie_comment_id,
+                                            "status": "PUBLISHED",
+                                            "body": "Charlie comment body",
+                                            "bodyHtml": "<p>Charlie comment body</p>",
+                                            "isPublished": true,
+                                            "publishedAt": "2026-01-03T00:00:00Z",
+                                            "createdAt": "2026-01-03T00:00:00Z",
+                                            "updatedAt": "2026-01-03T00:00:00Z",
+                                            "article": { "id": article_id, "title": "Nested comments article" }
+                                        }
+                                    ],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "upstream-alpha",
+                                        "endCursor": "upstream-charlie"
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateNestedComments($articleId: ID!) {
+          article(id: $articleId) {
+            id
+            title
+            handle
+            createdAt
+            updatedAt
+            blog { id title handle }
+            comments(first: 10) {
+              nodes {
+                id
+                status
+                body
+                bodyHtml
+                isPublished
+                publishedAt
+                createdAt
+                updatedAt
+                article { id title }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"articleId": article_id}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let spam = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCommentModeration($id: ID!) {
+          commentSpam(id: $id) {
+            comment { id status isPublished publishedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": alpha_comment_id}),
+    ));
+    assert_eq!(spam.body["data"]["commentSpam"]["userErrors"], json!([]));
+    assert_eq!(
+        spam.body["data"]["commentSpam"]["comment"],
+        json!({
+            "id": alpha_comment_id,
+            "status": "SPAM",
+            "isPublished": false,
+            "publishedAt": null
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedArticleComments($articleId: ID!, $after: String!, $before: String!) {
+          firstPage: article(id: $articleId) {
+            commentsFirst: comments(first: 2) {
+              nodes { id status body }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          afterPage: article(id: $articleId) {
+            commentsAfter: comments(first: 2, after: $after) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          beforePage: article(id: $articleId) {
+            commentsBefore: comments(last: 1, before: $before) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          reversePage: article(id: $articleId) {
+            commentsReverse: comments(first: 1, reverse: true) {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          spamOnly: article(id: $articleId) {
+            commentsSpam: comments(first: 5, query: "status:SPAM") {
+              nodes { id status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "articleId": article_id,
+            "after": bravo_comment_id,
+            "before": charlie_comment_id
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["nodes"],
+        json!([
+            {"id": alpha_comment_id, "status": "SPAM", "body": "Alpha comment body"},
+            {"id": bravo_comment_id, "status": "UNAPPROVED", "body": "Bravo comment body"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["edges"],
+        json!([
+            {"cursor": alpha_comment_id, "node": {"id": alpha_comment_id}},
+            {"cursor": bravo_comment_id, "node": {"id": bravo_comment_id}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["commentsFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": alpha_comment_id,
+            "endCursor": bravo_comment_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["commentsAfter"]["nodes"],
+        json!([{"id": charlie_comment_id, "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterPage"]["commentsAfter"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["commentsBefore"]["nodes"],
+        json!([{"id": bravo_comment_id, "status": "UNAPPROVED"}])
+    );
+    assert_eq!(
+        read.body["data"]["beforePage"]["commentsBefore"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["commentsReverse"]["nodes"],
+        json!([{"id": charlie_comment_id, "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["spamOnly"]["commentsSpam"]["nodes"],
+        json!([{"id": alpha_comment_id, "status": "SPAM"}])
+    );
     assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 

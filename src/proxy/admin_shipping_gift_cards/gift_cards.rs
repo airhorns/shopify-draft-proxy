@@ -1,7 +1,8 @@
 use crate::proxy::*;
+use std::cmp::Ordering;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
-const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
+const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
         id
@@ -41,61 +42,15 @@ const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
             processedAt
             amount { amount currencyCode }
           }
-        }
-      }
-      giftCardConfiguration {
-        issueLimit { amount currencyCode }
-        purchaseLimit { amount currencyCode }
-      }
-    }
-  "#;
-const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
-    query GiftCardHydrate($id: ID!) {
-      giftCard(id: $id) {
-        id
-        lastCharacters
-        maskedCode
-        enabled
-        deactivatedAt
-        expiresOn
-        note
-        templateSuffix
-        createdAt
-        updatedAt
-        initialValue { amount currencyCode }
-        balance { amount currencyCode }
-        customer {
-          id
-          email
-          defaultEmailAddress { emailAddress }
-          defaultPhoneNumber { phoneNumber }
-        }
-        recipientAttributes {
-          message
-          preferredName
-          sendNotificationAt
-          recipient {
-            id
-            email
-            defaultEmailAddress { emailAddress }
-            defaultPhoneNumber { phoneNumber }
-          }
-        }
-        transactions(first: 250) {
-          nodes {
-            __typename
-            id
-            note
-            processedAt
-            amount { amount currencyCode }
-          }
-          pageInfo {
+"#;
+const GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO: &str = r#"          pageInfo {
             hasNextPage
             hasPreviousPage
             startCursor
             endCursor
           }
-        }
+"#;
+const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"        }
       }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
@@ -103,6 +58,23 @@ const GIFT_CARD_NOTIFICATION_HYDRATE_QUERY: &str = r#"#graphql
       }
     }
   "#;
+const GIFT_CARD_CREATE_CONFIGURATION_QUERY: &str = r#"#graphql
+  query GiftCardCreateConfiguration {
+    giftCardConfiguration {
+      issueLimit { amount currencyCode }
+      purchaseLimit { amount currencyCode }
+    }
+  }
+"#;
+
+fn gift_card_hydrate_query(include_transactions_page_info: bool) -> String {
+    let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
+    if include_transactions_page_info {
+        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO);
+    }
+    query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
+    query
+}
 
 #[derive(Clone, Copy)]
 struct GiftCardTransactionSpec {
@@ -125,6 +97,66 @@ const GIFT_CARD_DEBIT_TRANSACTION: GiftCardTransactionSpec = GiftCardTransaction
     transaction_field: "giftCardDebitTransaction",
     is_credit: false,
 };
+
+fn gift_card_lifecycle_base_card(id: &str, _shop_currency_code: &str) -> Value {
+    let timestamp = default_product_timestamp();
+    json!({
+        "__typename": "GiftCard",
+        "id": id,
+        "legacyResourceId": resource_id_path_tail(id),
+        "lastCharacters": null,
+        "maskedCode": null,
+        "giftCardCode": null,
+        "enabled": true,
+        "deactivatedAt": null,
+        "disabledAt": null,
+        "expiresOn": null,
+        "note": null,
+        "templateSuffix": null,
+        "createdAt": timestamp.clone(),
+        "updatedAt": timestamp,
+        "initialValue": null,
+        "balance": null,
+        "customer": null,
+        "recipientAttributes": null,
+        "transactions": connection_json(Vec::new())
+    })
+}
+
+fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
+    json!({
+        "issueLimit": money_value("3000.0", shop_currency_code),
+        "purchaseLimit": money_value("14000.0", shop_currency_code)
+    })
+}
+
+fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
+    if !card.get("transactions").is_some_and(Value::is_object) {
+        card["transactions"] = connection_json(Vec::new());
+    } else {
+        if !card["transactions"]
+            .get("nodes")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["nodes"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("edges")
+            .is_some_and(Value::is_array)
+        {
+            card["transactions"]["edges"] = json!([]);
+        }
+        if !card["transactions"]
+            .get("pageInfo")
+            .is_some_and(Value::is_object)
+        {
+            card["transactions"]["pageInfo"] = empty_page_info();
+        }
+    }
+    if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
+        nodes.push(transaction);
+    }
+}
 
 impl DraftProxy {
     pub(in crate::proxy) fn gift_card_read_response(
@@ -255,11 +287,12 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
         staged_connection_query(
             self.gift_card_effective_records(),
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| gift_card_staged_sort_key(card, sort_key, reverse),
             value_id_cursor,
         )
     }
@@ -451,7 +484,13 @@ impl DraftProxy {
             staged_cards,
             arguments,
             gift_card_search_decision,
-            gift_card_staged_sort_key,
+            |card, sort_key| {
+                gift_card_staged_sort_key(
+                    card,
+                    sort_key,
+                    resolved_bool_field(arguments, "reverse").unwrap_or(false),
+                )
+            },
             value_id_cursor,
         );
         let local = selected_json(
@@ -517,6 +556,7 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        self.hydrate_gift_card_configuration_for_create(request);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         if user_errors.is_empty() {
             user_errors.extend(self.gift_card_assignment_errors(&field.name, &input, "input"));
@@ -583,7 +623,7 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let shop_currency_code = self.store.shop_currency_code();
+        let shop_currency_code = self.gift_card_configuration_currency();
         let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
         card["lastCharacters"] = json!(last_characters);
         card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
@@ -767,9 +807,12 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(processed_at) = resolved_string_field(&input, "processedAt") {
-                if let Some(error) =
-                    gift_card_processed_at_error(&field.name, input_name, &processed_at)
-                {
+                if let Some(error) = gift_card_processed_at_error(
+                    &field.name,
+                    input_name,
+                    &processed_at,
+                    self.current_epoch_seconds(),
+                ) {
                     user_errors.push(error);
                 }
             }
@@ -991,7 +1034,7 @@ impl DraftProxy {
                         "The gift card has no customer.",
                     ));
                 } else if field.name == "giftCardSendNotificationToCustomer"
-                    && gift_card_customer_has_no_contact(card)
+                    && gift_card_person_has_no_contact(&card["customer"])
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
@@ -1009,7 +1052,7 @@ impl DraftProxy {
                         "The gift card has no recipient.",
                     ));
                 } else if field.name == "giftCardSendNotificationToRecipient"
-                    && gift_card_recipient_has_no_contact(card)
+                    && gift_card_person_has_no_contact(&card["recipientAttributes"]["recipient"])
                 {
                     user_errors.push(gift_card_user_error(
                         &field.name,
@@ -1032,22 +1075,23 @@ impl DraftProxy {
     }
 
     fn hydrate_gift_card_for_mutation(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card_with_query(request, id, GIFT_CARD_MUTATION_HYDRATE_QUERY)
+        self.hydrate_gift_card(request, id, false)
     }
 
     fn hydrate_gift_card_for_notification(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card_with_query(request, id, GIFT_CARD_NOTIFICATION_HYDRATE_QUERY)
+        self.hydrate_gift_card(request, id, true)
     }
 
-    fn hydrate_gift_card_with_query(
+    fn hydrate_gift_card(
         &mut self,
         request: &Request,
         id: &str,
-        query: &str,
+        include_transactions_page_info: bool,
     ) -> Option<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
+        let query = gift_card_hydrate_query(include_transactions_page_info);
         let response = self.upstream_post(
             request,
             json!({
@@ -1069,6 +1113,26 @@ impl DraftProxy {
             .gift_cards
             .insert(id.to_string(), card.clone());
         Some(card)
+    }
+
+    fn hydrate_gift_card_configuration_for_create(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.base.gift_card_configuration.is_some()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": GIFT_CARD_CREATE_CONFIGURATION_QUERY,
+                "operationName": "GiftCardCreateConfiguration",
+                "variables": {},
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        self.observe_gift_card_configuration(&response.body["data"]["giftCardConfiguration"]);
     }
 
     fn gift_card_effective_record(&self, id: &str) -> Option<Value> {
@@ -1234,7 +1298,7 @@ impl DraftProxy {
             )];
         }
         if let Some(send_at) = resolved_string_field(&recipient, "sendNotificationAt") {
-            let now = gift_card_synthetic_now_epoch_seconds();
+            let now = self.current_epoch_seconds();
             let max_send_at = now + GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS * 86_400;
             match parse_rfc3339_epoch_seconds(&send_at) {
                 Some(send_at) if send_at >= now && send_at <= max_send_at => {}
@@ -1311,7 +1375,7 @@ impl DraftProxy {
     }
 
     fn gift_card_today_epoch_day(&self) -> i64 {
-        let now = gift_card_synthetic_now_epoch_seconds();
+        let now = self.current_epoch_seconds();
         let Some(offset_minutes) = self.store.base.shop["timezoneOffsetMinutes"].as_i64() else {
             eprintln!(
                 "shopify-draft-proxy: gift-card expiry validation using UTC date because shop timezone baseline is missing"
@@ -1442,6 +1506,7 @@ fn gift_card_processed_at_error(
     root_field: &str,
     input_name: &str,
     processed_at: &str,
+    now_epoch_seconds: i64,
 ) -> Option<Value> {
     let Some(processed_at) = parse_rfc3339_epoch_seconds(processed_at) else {
         return Some(gift_card_user_error(
@@ -1459,7 +1524,7 @@ fn gift_card_processed_at_error(
             "A valid processed date must be used.",
         ));
     }
-    if processed_at > gift_card_synthetic_now_epoch_seconds() {
+    if processed_at > now_epoch_seconds {
         return Some(gift_card_user_error(
             root_field,
             json!([input_name, "processedAt"]),
@@ -1470,14 +1535,6 @@ fn gift_card_processed_at_error(
     None
 }
 
-fn gift_card_synthetic_now_epoch_seconds() -> i64 {
-    parse_rfc3339_epoch_seconds(&gift_card_validation_now_timestamp())
-        .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
-}
-
-fn gift_card_validation_now_timestamp() -> String {
-    format!("{:04}-{:02}-{:02}T09:31:02Z", 2026, 4, 29)
-}
 fn normalize_gift_card_code(code: &str) -> String {
     code.chars()
         .filter(|character| !character.is_whitespace() && *character != '-')
@@ -1509,14 +1566,10 @@ fn gift_card_user_error(
     code: Option<&str>,
     message: &str,
 ) -> Value {
-    let mut error = serde_json::Map::new();
     if let Some(typename) = gift_card_user_error_typename(root_field) {
-        error.insert("__typename".to_string(), json!(typename));
+        return user_error_typed(typename, field, message, code);
     }
-    error.insert("field".to_string(), field);
-    error.insert("code".to_string(), code.map_or(Value::Null, Value::from));
-    error.insert("message".to_string(), json!(message));
-    Value::Object(error)
+    user_error(field, message, code)
 }
 
 fn gift_card_not_found_error(root_field: &str) -> Value {
@@ -1588,14 +1641,7 @@ fn gift_card_search_decision(card: &Value, query: Option<&str>) -> StagedSearchD
 }
 
 fn gift_card_gid_tail_sort_value(card: &Value) -> StagedSortValue {
-    let tail = card
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .unwrap_or_default();
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    resource_id_tail_sort_value(card.get("id").and_then(Value::as_str))
 }
 
 fn gift_card_string_sort_value(card: &Value, field: &str) -> StagedSortValue {
@@ -1645,14 +1691,27 @@ fn gift_card_customer_name_sort_value(card: &Value) -> StagedSortValue {
         .unwrap_or(StagedSortValue::Null)
 }
 
-fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>) -> StagedSortKey {
+fn gift_card_disabled_at_sort_value(card: &Value, reverse: bool) -> StagedSortValue {
+    card.get("deactivatedAt")
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or_else(|| {
+            if reverse {
+                StagedSortValue::Null
+            } else {
+                StagedSortValue::String("~".to_string())
+            }
+        })
+}
+
+fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>, reverse: bool) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
         "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
         "BALANCE" => gift_card_money_sort_value(card, "balance"),
         "CODE" => gift_card_code_sort_value(card),
         "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
         "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
-        "DISABLED_AT" => gift_card_string_sort_value(card, "disabledAt"),
+        "DISABLED_AT" => gift_card_disabled_at_sort_value(card, reverse),
         "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
         "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
         "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
@@ -1738,9 +1797,9 @@ fn gift_card_matches_search_term(card: &Value, term: &str) -> bool {
 }
 
 fn gift_card_matches_id(card: &Value, value: &str) -> bool {
-    card.get("id").and_then(Value::as_str).is_some_and(|id| {
-        id == value || resource_id_tail(id) == value || resource_id_path_tail(id) == value
-    })
+    card.get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, value))
 }
 
 fn gift_card_matches_status(card: &Value, value: &str) -> bool {
@@ -1764,11 +1823,9 @@ fn gift_card_matches_balance_status(card: &Value, value: &str) -> bool {
 }
 
 fn gift_card_matches_related_id(value: &Value, query_value: &str) -> bool {
-    value.as_str().is_some_and(|id| {
-        id == query_value
-            || resource_id_tail(id) == query_value
-            || resource_id_path_tail(id) == query_value
-    })
+    value
+        .as_str()
+        .is_some_and(|id| resource_id_matches_gid_or_tail(id, query_value))
 }
 
 fn gift_card_matches_code_fragment(card: &Value, term: &str) -> bool {
@@ -1793,13 +1850,7 @@ fn gift_card_matches_string_comparator(actual: Option<&str>, query_value: &str) 
     let (operator, expected) = gift_card_split_search_comparator(query_value);
     let actual = gift_card_search_date_value(actual);
     let expected = gift_card_search_date_value(expected);
-    match operator {
-        ">=" => actual >= expected,
-        ">" => actual > expected,
-        "<=" => actual <= expected,
-        "<" => actual < expected,
-        _ => actual == expected,
-    }
+    gift_card_matches_comparator_order(operator, actual.cmp(expected), actual == expected)
 }
 
 fn gift_card_matches_numeric_comparator(actual: Option<f64>, query_value: &str) -> bool {
@@ -1808,12 +1859,19 @@ fn gift_card_matches_numeric_comparator(actual: Option<f64>, query_value: &str) 
     };
     let (operator, expected) = gift_card_split_search_comparator(query_value);
     let expected = expected.parse::<f64>().ok().unwrap_or(actual);
+    let Some(ordering) = actual.partial_cmp(&expected) else {
+        return false;
+    };
+    gift_card_matches_comparator_order(operator, ordering, (actual - expected).abs() < f64::EPSILON)
+}
+
+fn gift_card_matches_comparator_order(operator: &str, ordering: Ordering, is_equal: bool) -> bool {
     match operator {
-        ">=" => actual >= expected,
-        ">" => actual > expected,
-        "<=" => actual <= expected,
-        "<" => actual < expected,
-        _ => (actual - expected).abs() < f64::EPSILON,
+        ">=" => matches!(ordering, Ordering::Greater | Ordering::Equal),
+        ">" => ordering == Ordering::Greater,
+        "<=" => matches!(ordering, Ordering::Less | Ordering::Equal),
+        "<" => ordering == Ordering::Less,
+        _ => is_equal,
     }
 }
 
@@ -1849,30 +1907,16 @@ fn gift_card_has_no_recipient(card: &Value) -> bool {
         .is_none_or(str::is_empty)
 }
 
-fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
-    let recipient = &card["recipientAttributes"]["recipient"];
-    let has_contact_projection = recipient.get("email").is_some()
-        || recipient.get("phone").is_some()
-        || recipient.get("defaultEmailAddress").is_some()
-        || recipient.get("defaultPhoneNumber").is_some();
+fn gift_card_person_has_no_contact(person: &Value) -> bool {
+    let has_contact_projection = person.get("email").is_some()
+        || person.get("phone").is_some()
+        || person.get("defaultEmailAddress").is_some()
+        || person.get("defaultPhoneNumber").is_some();
     has_contact_projection
-        && recipient["email"].is_null()
-        && recipient["phone"].is_null()
-        && recipient["defaultEmailAddress"]["emailAddress"].is_null()
-        && recipient["defaultPhoneNumber"]["phoneNumber"].is_null()
-}
-
-fn gift_card_customer_has_no_contact(card: &Value) -> bool {
-    let customer = &card["customer"];
-    let has_contact_projection = customer.get("email").is_some()
-        || customer.get("phone").is_some()
-        || customer.get("defaultEmailAddress").is_some()
-        || customer.get("defaultPhoneNumber").is_some();
-    has_contact_projection
-        && customer["email"].is_null()
-        && customer["phone"].is_null()
-        && customer["defaultEmailAddress"]["emailAddress"].is_null()
-        && customer["defaultPhoneNumber"]["phoneNumber"].is_null()
+        && person["email"].is_null()
+        && person["phone"].is_null()
+        && person["defaultEmailAddress"]["emailAddress"].is_null()
+        && person["defaultPhoneNumber"]["phoneNumber"].is_null()
 }
 
 fn gift_card_read_value_has_model_fields(card: &Value) -> bool {
@@ -1907,6 +1951,51 @@ fn format_gift_card_currency_limit(amount: f64) -> String {
     }
     let whole = formatted.chars().rev().collect::<String>();
     format!("${whole}.{cents}")
+}
+
+pub(in crate::proxy) fn gift_card_payload_json(
+    gift_card: &Value,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
+}
+
+pub(in crate::proxy) fn gift_card_transaction_payload(
+    selections: &[SelectedField],
+    transaction_field: &str,
+    transaction: Option<Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        name if name == transaction_field => Some(match transaction.as_ref() {
+            Some(transaction) => selected_json(transaction, &selection.selection),
+            None => Value::Null,
+        }),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+        _ => None,
+    })
+}
+
+pub(in crate::proxy) fn gift_card_payload_json_nullable(
+    gift_card: Option<&Value>,
+    selections: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "giftCard" => Some(match gift_card {
+            Some(card) => selected_json(card, &selection.selection),
+            None => Value::Null,
+        }),
+        "giftCardCode" => Some(
+            gift_card
+                .and_then(|card| card.get("giftCardCode"))
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+        _ => None,
+    })
 }
 
 fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {

@@ -45,19 +45,25 @@ fn gid_tail_sort_string(id: &str) -> StagedSortValue {
 }
 
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
-    let primary = match sort_key.unwrap_or("CREATED_AT") {
-        "TITLE" => normalized_sort_string(&product.title),
-        "VENDOR" => normalized_sort_string(&product.vendor),
-        "PRODUCT_TYPE" => normalized_sort_string(&product.product_type),
-        "PUBLISHED_AT" => product
+    let primary = match sort_key {
+        None | Some("CREATED_AT") => StagedSortValue::String(product.created_at.clone()),
+        Some("TITLE") => normalized_sort_string(&product.title),
+        Some("VENDOR") => normalized_sort_string(&product.vendor),
+        Some("PRODUCT_TYPE") => normalized_sort_string(&product.product_type),
+        Some("PUBLISHED_AT") => product
             .extra_fields
             .get("publishedAt")
             .and_then(Value::as_str)
             .map(|value| StagedSortValue::String(value.to_string()))
             .unwrap_or(StagedSortValue::Null),
-        "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
-        "ID" => gid_tail_sort_string(&product.id),
-        _ => StagedSortValue::String(product.created_at.clone()),
+        Some("UPDATED_AT") => StagedSortValue::String(product.updated_at.clone()),
+        Some("INVENTORY_TOTAL") => StagedSortValue::I64(product.total_inventory),
+        Some("ID") => gid_tail_sort_string(&product.id),
+        // Shopify relevance is a search score. The local staged search adapter
+        // only computes match/no-match, so keep a deterministic created-at order
+        // instead of letting RELEVANCE disappear into the unknown-key branch.
+        Some("RELEVANCE") => StagedSortValue::String(product.created_at.clone()),
+        Some(_) => gid_tail_sort_string(&product.id),
     };
     vec![primary, gid_tail_sort_string(&product.id)]
 }
@@ -188,13 +194,7 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selection,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_from_base(product, selection, base)
             }
             None if Self::owner_field_selects_direct_metafields(selection) => {
                 let owner_id = id.clone();
@@ -236,13 +236,7 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selection,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_from_base(product, selection, base)
             }
             None => match identifier.get("id") {
                 Some(ResolvedValue::String(id))
@@ -294,9 +288,11 @@ impl DraftProxy {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
             let variant = self.variant_with_inventory_levels(variant);
             let product = self.store.product_by_id(&variant.product_id);
-            return Some(product_variant_inventory_item_json(
-                &variant, product, selection,
-            ));
+            return Some(
+                self.product_variant_inventory_item_json_with_current_publication_context(
+                    &variant, product, selection,
+                ),
+            );
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {
@@ -305,7 +301,17 @@ impl DraftProxy {
                     .and_then(|inventory_item| inventory_item.get("id"))
                     .and_then(Value::as_str)
                     == Some(id))
-                .then(|| observed_product_variant_inventory_item_json(product, variant, selection))
+                .then(|| {
+                    observed_product_variant_inventory_item_json_with_publication_context(
+                        product,
+                        variant,
+                        selection,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(product),
+                        ),
+                    )
+                })
                 .flatten()
             })
         })
@@ -323,6 +329,45 @@ impl DraftProxy {
         self.store.has_product_state() || self.store.has_product_feed_state()
     }
 
+    fn product_json_with_store_currency(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+    ) -> Value {
+        self.product_json_with_variants_and_currency_context(
+            product,
+            variants,
+            selections,
+            &self.store.shop_currency_code(),
+        )
+    }
+
+    fn product_owner_json_with_store_currency(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        selections: &[SelectedField],
+    ) -> Value {
+        let base = self.product_json_with_store_currency(product, variants, selections);
+        self.product_owner_json_from_base(product, selections, base)
+    }
+
+    fn product_owner_json_from_base(
+        &self,
+        product: &ProductRecord,
+        selections: &[SelectedField],
+        base: Value,
+    ) -> Value {
+        self.owner_metafield_overlay_owner_json_with_product_variants(
+            "product",
+            &product.id,
+            selections,
+            &product.variants,
+            base,
+        )
+    }
+
     pub(in crate::proxy) fn products_connection_value(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
@@ -337,19 +382,7 @@ impl DraftProxy {
             product_staged_sort_key,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants_and_currency(
-                    product,
-                    &variants,
-                    selections,
-                    &self.store.shop_currency_code(),
-                );
-                self.owner_metafield_overlay_owner_json_with_product_variants(
-                    "product",
-                    &product.id,
-                    selections,
-                    &product.variants,
-                    base,
-                )
+                self.product_owner_json_with_store_currency(product, &variants, selections)
             },
             |product| product_cursor(product).to_string(),
         )
@@ -603,9 +636,24 @@ impl DraftProxy {
         // object on the created product, surfaced through both the mutation payload and
         // downstream reads.
         if let Some(category_id) = product_category_input_id(&input) {
-            product
-                .extra_fields
-                .insert("category".to_string(), product_category_value(&category_id));
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    product
+                        .extra_fields
+                        .insert("category".to_string(), category);
+                }
+                None => {
+                    let field = primary_root_field(query, variables);
+                    let (response_key, location) = field
+                        .as_ref()
+                        .map(|field| (field.response_key.as_str(), field.location))
+                        .unwrap_or(("productCreate", SourceLocation { line: 1, column: 1 }));
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        response_key,
+                        location,
+                    ));
+                }
+            }
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -670,6 +718,10 @@ impl DraftProxy {
                         &product_selection,
                         &shop_currency_code,
                         Some(&shop),
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -895,8 +947,9 @@ impl DraftProxy {
                     "data": {
                         response_key: selected_json(
                             &json!({
-                                "product": product_json_with_currency(
+                                "product": self.product_json_with_variants_and_currency_context(
                                     &existing,
+                                    &[],
                                     &product_selection,
                                     &self.store.shop_currency_code()
                                 ),
@@ -906,6 +959,26 @@ impl DraftProxy {
                         )
                     }
                 })));
+            }
+        }
+
+        let mut extra_fields = existing.extra_fields;
+        if let Some(category_id) = product_category_input_id(&input) {
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    extra_fields.insert("category".to_string(), category);
+                }
+                None => {
+                    let field = primary_root_field(query, variables);
+                    let (response_key, location) = field
+                        .as_ref()
+                        .map(|field| (field.response_key.as_str(), field.location))
+                        .unwrap_or(("productUpdate", SourceLocation { line: 1, column: 1 }));
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        response_key,
+                        location,
+                    ));
+                }
             }
         }
 
@@ -937,7 +1010,7 @@ impl DraftProxy {
             media: existing.media,
             variants: existing.variants,
             collections: existing.collections,
-            extra_fields: existing.extra_fields,
+            extra_fields,
         };
         self.store.stage_product(product.clone());
         self.stage_basic_event("update", &product.id, "");
@@ -957,6 +1030,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -998,8 +1075,9 @@ impl DraftProxy {
             "data": {
                 response_key: selected_json(
                     &json!({
-                        "product": product_json_with_currency(
+                        "product": self.product_json_with_variants_and_currency_context(
                             existing,
+                            &[],
                             &product_selection,
                             &self.store.shop_currency_code()
                         ),
@@ -1309,11 +1387,10 @@ impl DraftProxy {
                 "product" => Some(match self.store.product_by_id(product_id) {
                     Some(product) if user_errors.is_empty() => {
                         let variants = self.store.product_variants_for_product(product_id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &selection.selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     _ => Value::Null,
@@ -1324,7 +1401,7 @@ impl DraftProxy {
                             .iter()
                             .filter_map(|variant_id| self.store.product_variant_by_id(variant_id))
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2211,11 +2288,10 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &selection.selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     None => Value::Null,
@@ -2225,7 +2301,7 @@ impl DraftProxy {
                         variants
                             .iter()
                             .map(|variant| {
-                                product_variant_json(
+                                self.product_variant_json_with_current_publication_context(
                                     variant,
                                     self.store.product_by_id(&variant.product_id),
                                     &selection.selection,
@@ -2348,17 +2424,16 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants_and_currency(
+                        self.product_json_with_store_currency(
                             product,
                             &variants,
                             &product_selection,
-                            &self.store.shop_currency_code(),
                         )
                     }
                     None => Value::Null,
                 }),
                 "productVariant" => Some(match variant {
-                    Some(variant) => product_variant_json(
+                    Some(variant) => self.product_variant_json_with_current_publication_context(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         &variant_selection,
@@ -2777,8 +2852,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        let Some(field) = fields
+        let Some(document) = parsed_document(query, variables) else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productChangeStatus root field found",
+            ));
+        };
+        let Some(field) = document
+            .root_fields
             .iter()
             .find(|field| field.name == "productChangeStatus")
         else {
@@ -2789,16 +2870,17 @@ impl DraftProxy {
         };
         if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
-                    "locations": [{"line": 3, "column": 3}],
-                    "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "Field",
-                        "argumentName": "productId"
-                    }
-                }]
+                "errors": [argument_literals_incompatible_error_envelope(
+                    "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.".to_string(),
+                    Some(field.location),
+                    Some(json!([
+                        document.operation_path.as_str(),
+                        field.response_key.clone(),
+                        "productId"
+                    ])),
+                    Some("Field"),
+                    Some("productId"),
+                )]
             })));
         }
         let Some(ResolvedValue::String(id)) = field.arguments.get("productId") else {
@@ -2865,6 +2947,10 @@ impl DraftProxy {
                         &product_selection,
                         &self.store.shop_currency_code(),
                         None,
+                        Some(
+                            self.store
+                                .product_is_published_on_current_publication(&product),
+                        ),
                     )
                 }
             })),
@@ -2947,8 +3033,9 @@ impl DraftProxy {
         let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
         let payload_selection = &field.selection;
         let payload = json!({
-            "node": product_json_with_currency(
+            "node": self.product_json_with_variants_and_currency_context(
                 &product,
+                &[],
                 &node_selection,
                 &self.store.shop_currency_code(),
             ),
@@ -3242,8 +3329,9 @@ impl DraftProxy {
 
         let payload = selected_payload_json(&payload_selection, |selection| {
             match selection.name.as_str() {
-                "product" => Some(product_json_with_currency(
+                "product" => Some(self.product_json_with_variants_and_currency_context(
                     &product,
+                    &[],
                     &product_selection,
                     &self.store.shop_currency_code(),
                 )),
@@ -3533,7 +3621,7 @@ fn product_variant_media_is_image(media: &Value) -> bool {
         None => media
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with("gid://shopify/MediaImage/")),
+            .is_some_and(|id| is_shopify_gid_of_type(id, "MediaImage")),
     }
 }
 

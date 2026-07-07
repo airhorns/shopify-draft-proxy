@@ -1,0 +1,28 @@
+mutation CatalogUpdateRelationReadPriceListUpdate($id: ID!, $input: PriceListUpdateInput!) {
+  priceListUpdate(id: $id, input: $input) {
+    priceList {
+      id
+      name
+      currency
+      parent {
+        adjustment {
+          type
+          value
+        }
+        settings {
+          compareAtMode
+        }
+      }
+      catalog {
+        id
+        title
+        status
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

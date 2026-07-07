@@ -22,7 +22,7 @@ const fixturePath = path.join(
 );
 
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -70,6 +70,9 @@ const variantHydrateDocument =
   'query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n';
 const variantHydrateVariables = { id: shippingVariantId };
 const variantHydrateResponse = await runGraphql(variantHydrateDocument, variantHydrateVariables);
+const shopPricingHydrateDocument =
+  'query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }';
+const shopPricingHydrateResponse = await runGraphqlRequest<JsonRecord>(shopPricingHydrateDocument, {});
 
 const document = `#graphql
   mutation DraftOrderCalculateValidationAndShippingRates(
@@ -174,6 +177,15 @@ const fixture = {
         body: {
           data: variantHydrateResponse.data,
         },
+      },
+    },
+    {
+      operationName: 'DraftProxyShopPricingHydrate',
+      variables: {},
+      query: shopPricingHydrateDocument,
+      response: {
+        status: shopPricingHydrateResponse.status,
+        body: shopPricingHydrateResponse.payload,
       },
     },
   ],

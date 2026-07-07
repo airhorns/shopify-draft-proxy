@@ -413,11 +413,13 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ReadProductBulkArtifact($id: ID!) {
-          bulkOperation(id: $id) { id status url partialDataUrl }
+          bulkOperation(id: $id) { id status objectCount rootObjectCount url partialDataUrl }
         }
         "#,
         json!({ "id": operation_id }),
     ));
+    let completed_operation = &read.body["data"]["bulkOperation"];
+    assert_eq!(completed_operation["status"], json!("COMPLETED"));
     let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
     let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
     assert_eq!(parsed_url.scheme(), "https");
@@ -465,6 +467,11 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
             && row["sku"] == json!("BULK-ARTIFACT-SKU")
             && row["__parentId"] == json!(product_id)
     }));
+    assert_eq!(
+        completed_operation["objectCount"],
+        json!(rows.len().to_string())
+    );
+    assert_eq!(completed_operation["rootObjectCount"], json!("1"));
 
     let variants_run = proxy.process_request(json_graphql_request(
         r#"
@@ -2420,6 +2427,12 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
           defaultCurrent: currentBulkOperation { id type status }
           queryOnly: bulkOperations(first: 5, query: "operation_type:QUERY") { nodes { id type } }
           cancelingQueries: bulkOperations(first: 5, query: "status:CANCELING operation_type:QUERY") { nodes { id type status } }
+          completedLowercase: bulkOperations(first: 5, query: "status:completed") { nodes { id status } }
+          completedAfter: bulkOperations(first: 5, query: "status:completed AND created_at:>=2024-01-01") { nodes { id status createdAt } }
+          strictAfter: bulkOperations(first: 5, query: "created_at:>2023-12-31") { nodes { id createdAt } }
+          onOrBefore: bulkOperations(first: 5, query: "created_at:<=2023-12-31") { nodes { id createdAt } }
+          createdBefore: bulkOperations(first: 5, query: "created_at:<2024-01-01") { nodes { id createdAt } }
+          unknownFilter: bulkOperations(first: 5, query: "made_up:value") { nodes { id } }
           firstPage: bulkOperations(first: 1, sortKey: CREATED_AT) {
             nodes { id type }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -2453,6 +2466,46 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
     assert_eq!(
         read.body["data"]["cancelingQueries"]["nodes"],
         json!([{ "id": older_id, "type": "QUERY", "status": "CANCELING" }])
+    );
+    assert_eq!(
+        read.body["data"]["completedLowercase"]["nodes"],
+        json!([{ "id": query_id, "status": "COMPLETED" }])
+    );
+    assert_eq!(
+        read.body["data"]["completedAfter"]["nodes"],
+        json!([{ "id": query_id, "status": "COMPLETED", "createdAt": "2024-01-01T00:00:01.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["strictAfter"]["nodes"],
+        json!([{ "id": query_id, "createdAt": "2024-01-01T00:00:01.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["onOrBefore"]["nodes"],
+        json!([{ "id": older_id, "createdAt": "2023-12-31T23:59:59.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["createdBefore"]["nodes"],
+        json!([{ "id": older_id, "createdAt": "2023-12-31T23:59:59.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["unknownFilter"]["nodes"],
+        json!([{ "id": query_id }, { "id": older_id }])
+    );
+    assert_eq!(
+        read.body["extensions"]["search"],
+        json!([{
+            "path": ["unknownFilter"],
+            "query": "made_up:value",
+            "parsed": {
+                "field": "made_up",
+                "match_all": "value"
+            },
+            "warnings": [{
+                "field": "made_up",
+                "message": "Invalid search field for this query.",
+                "code": "invalid_field"
+            }]
+        }])
     );
     assert_eq!(
         read.body["data"]["firstPage"]["nodes"][0]["id"],
@@ -3120,34 +3173,60 @@ fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
 #[test]
 fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
     let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation InvalidTaxLiteral {
-          customerAddTaxExemptions(
-            customerId: "gid://shopify/Customer/9102966915305",
-            taxExemptions: [NOT_A_REAL_EXEMPTION]
-          ) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    ));
+    for root in [
+        "customerAddTaxExemptions",
+        "customerRemoveTaxExemptions",
+        "customerReplaceTaxExemptions",
+    ] {
+        let query = format!(
+            r#"
+            mutation InvalidTaxLiteral {{
+              {root}(
+                customerId: "gid://shopify/Customer/9102966915305",
+                taxExemptions: [FOO_BAR]
+              ) {{
+                customer {{ id taxExemptions }}
+                userErrors {{ field message }}
+              }}
+            }}
+            "#
+        );
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
 
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["code"],
-        json!("argumentLiteralsIncompatible")
-    );
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["argumentName"],
-        json!("taxExemptions")
-    );
-    assert!(response.body["errors"][0]["message"]
-        .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!("argumentLiteralsIncompatible")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["typeName"],
+            json!("Field")
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["argumentName"],
+            json!("taxExemptions")
+        );
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!("Argument 'taxExemptions' on Field '{root}' has an invalid value ([FOO_BAR]). Expected type '[TaxExemption!]!'."))
+        );
+        assert_eq!(
+            response.body["errors"][0]["locations"],
+            json!([{ "line": 3, "column": 15 }])
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"],
+            json!(["mutation InvalidTaxLiteral", root, "taxExemptions"])
+        );
+        assert!(!response.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Did you mean"));
+        assert!(!response.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("NOT_A_REAL_EXEMPTION"));
+    }
     assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
@@ -4236,13 +4315,190 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
 }
 
 #[test]
+fn customer_delete_shop_payload_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/customer-delete-restored",
+        "name": "Customer delete restored shop",
+        "myshopifyDomain": "customer-delete-restored.myshopify.com",
+        "currencyCode": "CAD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteRestoredShopCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-restored-shop@example.test",
+                "firstName": "Delete",
+                "lastName": "Shop"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteRestoredShop($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            shop { id name myshopifyDomain currencyCode }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": customer_id,
+            "shop": {
+                "id": "gid://shopify/Shop/customer-delete-restored",
+                "name": "Customer delete restored shop",
+                "myshopifyDomain": "customer-delete-restored.myshopify.com",
+                "currencyCode": "CAD"
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn customer_delete_shop_payload_hydrates_live_shop_state_when_selected() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/customer-delete-live-hydrate";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.lock().unwrap().push(request.body.clone());
+            if request.body.contains("CustomerHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": customer_id,
+                                "firstName": "Live",
+                                "lastName": "Delete",
+                                "displayName": "Live Delete",
+                                "email": "customer-delete-live-hydrate@example.test",
+                                "phone": null,
+                                "locale": "en",
+                                "note": null,
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "dataSaleOptOut": false,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "state": "DISABLED",
+                                "tags": [],
+                                "createdAt": "2026-07-04T00:00:00Z",
+                                "updatedAt": "2026-07-04T00:00:00Z",
+                                "defaultEmailAddress": {
+                                    "emailAddress": "customer-delete-live-hydrate@example.test"
+                                },
+                                "defaultPhoneNumber": null,
+                                "defaultAddress": null,
+                                "addressesV2": { "nodes": [] }
+                            }
+                        }
+                    }),
+                };
+            }
+            if request.body.contains("CustomerDeleteShopHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "id": "gid://shopify/Shop/customer-delete-live-shop",
+                                "name": "Customer delete live shop",
+                                "myshopifyDomain": "customer-delete-live-shop.myshopify.com",
+                                "currencyCode": "CAD",
+                                "primaryDomain": {
+                                    "id": "gid://shopify/Domain/customer-delete-live-shop",
+                                    "host": "customer-delete-live-shop.myshopify.com",
+                                    "url": "https://customer-delete-live-shop.myshopify.com",
+                                    "sslEnabled": true
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            panic!("unexpected upstream request: {}", request.body);
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteLiveHydrateShop($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            shop { id name myshopifyDomain currencyCode primaryDomain { host } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": customer_id,
+            "shop": {
+                "id": "gid://shopify/Shop/customer-delete-live-shop",
+                "name": "Customer delete live shop",
+                "myshopifyDomain": "customer-delete-live-shop.myshopify.com",
+                "currencyCode": "CAD",
+                "primaryDomain": {
+                    "host": "customer-delete-live-shop.myshopify.com"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0].contains("CustomerHydrate"));
+    assert!(calls[1].contains("CustomerDeleteShopHydrate"));
+}
+
+#[test]
 fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let mut proxy = snapshot_proxy();
 
     let create_query = r#"
         mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id email displayName }
+            customer { id email displayName canDelete }
             userErrors { field message }
           }
         }
@@ -4265,6 +4521,10 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["canDelete"],
+        json!(true)
+    );
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -4306,7 +4566,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         r#"
         query CustomerDeleteOrderPreconditionRead($id: ID!) {
           customer(id: $id) {
-            id email displayName
+            id email displayName canDelete
             orders(first: 5) { nodes { id customer { id email displayName } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           }
         }
@@ -4314,8 +4574,65 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         json!({ "id": customer_id }),
     ));
     assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
+    assert_eq!(read.body["data"]["customer"]["canDelete"], json!(false));
     assert_eq!(
         read.body["data"]["customer"]["orders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let seeded_customer_id = "gid://shopify/Customer/seeded-order-history";
+    restore_state_with(&mut proxy, |state| {
+        state["stagedState"]["customers"][seeded_customer_id] = json!({
+            "id": seeded_customer_id,
+            "email": "seeded-order-history@example.test",
+            "displayName": "Seeded Order History",
+            "canDelete": true,
+            "numberOfOrders": "2",
+            "orders": {
+                "edges": [
+                    {
+                        "cursor": "opaque-seeded-order-cursor",
+                        "node": {
+                            "id": "gid://shopify/Order/seeded-order",
+                            "customer": { "id": seeded_customer_id }
+                        }
+                    }
+                ],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-seeded-order-cursor",
+                    "endCursor": "opaque-seeded-order-cursor"
+                }
+            }
+        });
+    });
+
+    let seeded_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SeededOrderHistoryCustomerCanDelete($id: ID!) {
+          customer(id: $id) {
+            id
+            canDelete
+            orders(first: 5) {
+              edges { cursor node { id customer { id } } }
+              pageInfo { startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": seeded_customer_id }),
+    ));
+
+    assert_eq!(
+        seeded_read.body["data"]["customer"]["canDelete"],
+        json!(false)
+    );
+    assert_eq!(
+        seeded_read.body["data"]["customer"]["orders"]["edges"]
             .as_array()
             .unwrap()
             .len(),
@@ -8217,6 +8534,184 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
 }
 
 #[test]
+fn delivery_profile_read_after_write_echoes_method_description_and_zone_countries() {
+    let mut proxy = snapshot_proxy();
+    let source_location_id = seed_delivery_profile_location(&mut proxy, "Profile readback source");
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileDescriptionCountryCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              profileLocationGroups {
+                locationGroup { id }
+                countriesInAnyZone {
+                  zone
+                  country { code { countryCode restOfWorld } }
+                }
+                locationGroupZones(first: 5) {
+                  nodes {
+                    zone { id name }
+                    methodDefinitions(first: 5) {
+                      nodes { id name description }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with descriptions and zones",
+                "locationGroupsToCreate": [{
+                    "locations": [source_location_id],
+                    "zonesToCreate": [
+                        {
+                            "name": "Domestic",
+                            "countries": [{ "code": "US", "includeAllProvinces": true }],
+                            "methodDefinitionsToCreate": [{
+                                "name": "Standard",
+                                "description": "Standard ground service",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "7.25", "currencyCode": "USD" }
+                                }
+                            }]
+                        },
+                        {
+                            "name": "Canada",
+                            "countries": [{ "code": "CA", "includeAllProvinces": true }],
+                            "methodDefinitionsToCreate": [{
+                                "name": "Canada standard",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "9.25", "currencyCode": "USD" }
+                                }
+                            }]
+                        }
+                    ]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let profile = &create.body["data"]["deliveryProfileCreate"]["profile"];
+    let profile_id = profile["id"].as_str().unwrap().to_string();
+    let zone_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]["zone"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let method_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+        ["methodDefinitions"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_query = r#"
+        query DeliveryProfileDescriptionCountryRead($id: ID!) {
+          deliveryProfile(id: $id) {
+            profileLocationGroups {
+              countriesInAnyZone {
+                zone
+                country { code { countryCode restOfWorld } }
+              }
+              locationGroupZones(first: 5) {
+                nodes {
+                  zone { name }
+                  methodDefinitions(first: 5) {
+                    nodes { name description }
+                  }
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["countriesInAnyZone"],
+        json!([
+            {
+                "zone": "Domestic",
+                "country": { "code": { "countryCode": "US", "restOfWorld": false } }
+            },
+            {
+                "zone": "Canada",
+                "country": { "code": { "countryCode": "CA", "restOfWorld": false } }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["locationGroupZones"]
+            ["nodes"][0]["methodDefinitions"]["nodes"][0]["description"],
+        json!("Standard ground service")
+    );
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["profileLocationGroups"][0]["locationGroupZones"]
+            ["nodes"][1]["methodDefinitions"]["nodes"][0]["description"],
+        Value::Null
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileDescriptionCountryUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroupZones(first: 5) {
+                  nodes {
+                    methodDefinitions(first: 5) { nodes { id description } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": profile_id,
+            "profile": {
+                "locationGroupsToUpdate": [{
+                    "id": profile["profileLocationGroups"][0]["locationGroup"]["id"],
+                    "zonesToUpdate": [{
+                        "id": zone_id,
+                        "methodDefinitionsToUpdate": [{
+                            "id": method_id,
+                            "description": "Updated standard ground service"
+                        }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["deliveryProfile"]["profileLocationGroups"][0]
+            ["locationGroupZones"]["nodes"][0]["methodDefinitions"]["nodes"][0]["description"],
+        json!("Updated standard ground service")
+    );
+}
+
+#[test]
 fn delivery_profiles_connection_windows_and_computes_page_info() {
     let mut proxy = snapshot_proxy();
     for name in [
@@ -8358,6 +8853,172 @@ fn delivery_profiles_connection_windows_and_computes_page_info() {
                 "startCursor": gamma_id,
                 "endCursor": beta_id
             }
+        })
+    );
+}
+
+#[test]
+fn delivery_profiles_live_hybrid_merges_upstream_default_with_staged_custom_profiles() {
+    let default_profile_id = "gid://shopify/DeliveryProfile/default";
+    let graphql_2026_request = |query: &str, variables: Value| {
+        request_with_body(
+            "POST",
+            "/admin/api/2026-04/graphql.json",
+            &json!({ "query": query, "variables": variables }).to_string(),
+        )
+    };
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let default_profile_id = default_profile_id.to_string();
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("deliveryProfiles"),
+                "unexpected upstream query: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryProfiles": {
+                            "nodes": [{
+                                "id": default_profile_id,
+                                "name": "General profile",
+                                "default": true,
+                                "version": 4,
+                                "activeMethodDefinitionsCount": 0,
+                                "locationsWithoutRatesCount": 28,
+                                "originLocationCount": 0,
+                                "zoneCountryCount": 0,
+                                "productVariantsCount": { "count": 500, "precision": "AT_LEAST" }
+                            }],
+                            "edges": [{
+                                "cursor": default_profile_id,
+                                "node": {
+                                    "id": default_profile_id,
+                                    "name": "General profile",
+                                    "default": true,
+                                    "version": 4,
+                                    "activeMethodDefinitionsCount": 0,
+                                    "locationsWithoutRatesCount": 28,
+                                    "originLocationCount": 0,
+                                    "zoneCountryCount": 0,
+                                    "productVariantsCount": { "count": 500, "precision": "AT_LEAST" }
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": default_profile_id,
+                                "endCursor": default_profile_id
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(graphql_2026_request(
+        r#"
+        mutation DeliveryProfileMergeCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id name default }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "profile": { "name": "Custom local profile" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let custom_profile_id = create.body["data"]["deliveryProfileCreate"]["profile"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let catalog_query = include_str!(
+        "../../config/parity-requests/shipping-fulfillments/delivery-profiles-merged-read.graphql"
+    );
+
+    let merged = proxy.process_request(graphql_2026_request(catalog_query, json!({ "first": 10 })));
+    assert_eq!(
+        merged.body["data"]["deliveryProfiles"]["edges"],
+        json!([
+            {
+                "cursor": default_profile_id,
+                "node": { "id": default_profile_id, "name": "General profile", "default": true }
+            },
+            {
+                "cursor": custom_profile_id,
+                "node": { "id": custom_profile_id, "name": "Custom local profile", "default": false }
+            }
+        ])
+    );
+    assert_eq!(
+        merged.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": default_profile_id,
+            "endCursor": custom_profile_id
+        })
+    );
+
+    let first_page = proxy.process_request(graphql_2026_request(
+        r#"
+        query DeliveryProfilesMergedFirst($first: Int) {
+          deliveryProfiles(first: $first) {
+            nodes { id default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 1 }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"]["nodes"],
+        json!([{ "id": default_profile_id, "default": true }])
+    );
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": default_profile_id,
+            "endCursor": default_profile_id
+        })
+    );
+
+    let second_page = proxy.process_request(graphql_2026_request(
+        r#"
+        query DeliveryProfilesMergedSecond($first: Int, $after: String) {
+          deliveryProfiles(first: $first, after: $after) {
+            nodes { id default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 1,
+            "after": default_profile_id
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"]["nodes"],
+        json!([{ "id": custom_profile_id, "default": false }])
+    );
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": custom_profile_id,
+            "endCursor": custom_profile_id
         })
     );
 }
@@ -9831,6 +10492,22 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         }])
     );
 
+    let yesterday_expiry = store_credit_expiry_timestamp_days_from_now(-1);
+    let dynamic_past_expiry = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        Some(&yesterday_expiry),
+    );
+    assert_eq!(
+        dynamic_past_expiry,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+
     let unsupported_debit_currency = store_credit_debit_error(
         &mut proxy,
         &account_id,
@@ -10108,7 +10785,46 @@ fn store_credit_result_only_currency_codes_return_top_level_error_without_stagin
 #[test]
 fn store_credit_credit_creates_company_location_account() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let synthetic_location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let missing_owner = store_credit_credit_error(
+        &mut proxy,
+        synthetic_location_id,
+        json!({ "amount": "3.00", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        missing_owner,
+        json!([{
+            "field": ["id"],
+            "message": "Owner does not exist",
+            "code": "OWNER_NOT_FOUND"
+        }])
+    );
+
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditCompanyLocationSetup($name: String!) {
+          companyCreate(input: { company: { name: $name } }) {
+            company {
+              id
+              locations(first: 1) { nodes { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "name": "Store Credit Company Location Co" }),
+    ));
+    assert_eq!(company.status, 200);
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let location_id = company.body["data"]["companyCreate"]["company"]["locations"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -10142,6 +10858,11 @@ fn store_credit_credit_creates_company_location_account() {
         response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
             ["account"]["owner"]["id"],
         json!(location_id)
+    );
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["account"]["owner"]["name"],
+        json!("Store Credit Company Location Co")
     );
 }
 
@@ -10319,6 +11040,13 @@ fn store_credit_credit_response(
         "#,
         json!({ "id": id, "input": credit_input }),
     ))
+}
+
+fn store_credit_expiry_timestamp_days_from_now(days: i64) -> String {
+    let timestamp = time::OffsetDateTime::now_utc() + time::Duration::days(days);
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("expiry timestamp must format")
 }
 
 fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> Value {

@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate. Strict parity covers canonical country, decimal amount_spent, abandoned_checkout_date, companies IS NULL, AND, parenthesized OR, relative date predicates, segmentUpdate query replacement, and captured malformed-query userErrors.",
+  "notes": "Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate. Strict parity covers canonical country, decimal amount_spent, abandoned_checkout_date, companies IS NULL, AND, parenthesized OR, relative date predicates, segmentUpdate query replacement, and captured malformed-query userErrors for multiple invalid query strings across segmentCreate and segmentUpdate.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -357,6 +357,32 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
           "variablesCapturePath": "$.cases[10].request.variables"
+        }
+      },
+      {
+        "name": "segment-create-different-malformed-rejected",
+        "capturePath": "$.cases[11].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[11].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-different-malformed-rejected",
+        "capturePath": "$.cases[12].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "query": {
+              "fromCapturePath": "$.cases[12].request.variables.query"
+            }
+          }
         }
       }
     ]

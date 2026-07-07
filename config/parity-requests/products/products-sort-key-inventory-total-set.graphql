@@ -1,0 +1,15 @@
+mutation ProductsSortKeyInventoryTotalSet($input: ProductSetInput!, $synchronous: Boolean!) {
+    productSet(input: $input, synchronous: $synchronous) {
+      product {
+        id
+        title
+        tags
+        totalInventory
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }

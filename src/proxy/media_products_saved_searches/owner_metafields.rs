@@ -75,15 +75,7 @@ impl DraftProxy {
                 .metafields_set_effective_type(&input, api_client_id.as_deref())
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + metafields.len()
-                + 1;
+            let index = self.next_owner_metafield_index(metafields.len());
             let existing = self.owner_metafield(&owner_id, &namespace, &key);
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id: &owner_id,
@@ -145,10 +137,11 @@ impl DraftProxy {
         }) {
             let payload = json!({
                 "deletedMetafields": [],
-                "userErrors": [{
-                    "field": ["metafields", index.to_string(), "namespace"],
-                    "message": APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE
-                }]
+                "userErrors": [user_error_omit_code(
+                    vec!["metafields".to_string(), index.to_string(), "namespace".to_string()],
+                    APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+                    None,
+                )]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
@@ -167,10 +160,11 @@ impl DraftProxy {
         }) {
             let payload = json!({
                 "deletedMetafields": [],
-                "userErrors": [{
-                    "field": ["metafields"],
-                    "message": "Access to this namespace and key on Metafields for this resource type is not allowed."
-                }]
+                "userErrors": [user_error_omit_code(
+                    ["metafields"],
+                    "Access to this namespace and key on Metafields for this resource type is not allowed.",
+                    None,
+                )]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
@@ -238,10 +232,7 @@ impl DraftProxy {
         else {
             let payload = json!({
                 "deletedId": Value::Null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": "Metafield does not exist"
-                }]
+                "userErrors": [user_error_omit_code(["id"], "Metafield does not exist", None)]
             });
             return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
@@ -418,6 +409,12 @@ impl DraftProxy {
                 "collection" | "customer" | "order" | "company" => {
                     has_non_product_owner_read = true;
                 }
+                "shop" => {
+                    let owner_id = self.owner_field_id(&field, variables);
+                    if !owner_id.is_empty() && self.owner_has_metafield_local_effects(&owner_id) {
+                        has_non_product_owner_read = true;
+                    }
+                }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
                     let owner_id = self.owner_field_id(&field, variables);
                     if self.owner_needs_metafield_hydration(&field.name, &owner_id) {
@@ -454,7 +451,13 @@ impl DraftProxy {
         let data = root_payload_json(&fields, |field| {
             if !matches!(
                 field.name.as_str(),
-                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+                "product"
+                    | "productVariant"
+                    | "collection"
+                    | "customer"
+                    | "order"
+                    | "company"
+                    | "shop"
             ) {
                 return None;
             }
@@ -686,6 +689,11 @@ impl DraftProxy {
             "customer" => !self.store.staged.customers.contains_key(owner_id),
             "order" => !self.store.staged.orders.contains_key(owner_id),
             "company" => !self.store.staged.b2b_companies.contains_key(owner_id),
+            "shop" => {
+                !owner_id.is_empty()
+                    && !self.owner_has_metafield_local_effects(owner_id)
+                    && self.store.base.shop.get("id").and_then(Value::as_str) != Some(owner_id)
+            }
             _ => false,
         }
     }
@@ -728,6 +736,10 @@ impl DraftProxy {
                     .b2b_companies
                     .insert(owner_id.clone(), node.clone());
             }
+            Some("Shop") => {
+                self.store.base.shop =
+                    shallow_merged_object(self.store.base.shop.clone(), node.clone());
+            }
             _ => {}
         }
         self.stage_observed_owner_metafields(&owner_id, node);
@@ -755,9 +767,7 @@ impl DraftProxy {
     fn stage_observed_owner_metafields(&mut self, owner_id: &str, node: &Value) {
         let mut records = node
             .get("metafields")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
-            .cloned()
+            .map(connection_nodes)
             .unwrap_or_default();
         if let Some(page_info) = node
             .get("metafields")
@@ -875,14 +885,7 @@ impl DraftProxy {
             let metafield_type = resolved_string_field(&metafield, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + 1;
+            let index = self.next_owner_metafield_index(0);
             let record = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id,
                 namespace: &namespace,
@@ -908,25 +911,11 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base = product_json_with_variants_and_currency(
-                    product,
-                    &variants,
-                    selections,
-                    &self.store.shop_currency_code(),
-                );
-                Some(
-                    self.owner_metafield_overlay_owner_json_with_product_variants(
-                        root_field,
-                        owner_id,
-                        selections,
-                        &product.variants,
-                        base,
-                    ),
-                )
+                Some(self.product_owner_json_with_store_currency(product, &variants, selections))
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
-                let base = product_variant_json(
+                let base = self.product_variant_json_with_current_publication_context(
                     variant,
                     self.store.product_by_id(&variant.product_id),
                     selections,
@@ -967,6 +956,21 @@ impl DraftProxy {
                     selected_json(record, selections),
                 )
             }),
+            "shop" => {
+                let mut shop = self.store.effective_shop();
+                if !shop.is_object() {
+                    shop = json!({});
+                }
+                if shop.get("id").and_then(Value::as_str).is_none() && !owner_id.is_empty() {
+                    shop["id"] = json!(owner_id);
+                }
+                Some(self.owner_metafield_overlay_owner_json(
+                    root_field,
+                    owner_id,
+                    selections,
+                    selected_json(&shop, selections),
+                ))
+            }
             _ => None,
         }
     }
@@ -1082,7 +1086,7 @@ impl DraftProxy {
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
-                    let base = product_variant_json(
+                    let base = self.product_variant_json_with_current_publication_context(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         selections,
@@ -1143,6 +1147,9 @@ impl DraftProxy {
         field: &RootFieldSelection,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> String {
+        if field.name == "shop" {
+            return self.shop_owner_id_for_read().unwrap_or_default();
+        }
         field
             .arguments
             .get("id")
@@ -1155,6 +1162,33 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(variables, "orderId"))
             .or_else(|| resolved_string_field(variables, "companyId"))
             .unwrap_or_default()
+    }
+
+    fn shop_owner_id_for_read(&self) -> Option<String> {
+        self.store
+            .effective_shop()
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| shopify_gid_resource_type(id) == Some("Shop"))
+            .map(str::to_string)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .owner_metafields
+                    .keys()
+                    .find(|id| shopify_gid_resource_type(id) == Some("Shop"))
+                    .cloned()
+            })
+            .or_else(|| {
+                self.store
+                    .staged
+                    .deleted_owner_metafields
+                    .iter()
+                    .find_map(|(owner_id, _, _)| {
+                        (shopify_gid_resource_type(owner_id) == Some("Shop"))
+                            .then(|| owner_id.clone())
+                    })
+            })
     }
 
     fn selected_owner_metafield(&self, owner_id: &str, selection: &SelectedField) -> Value {
@@ -1435,14 +1469,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&metafield_input, "value").unwrap_or_default();
             let definition = self.owner_metafield_definition_value(owner_id, &namespace, &key);
-            let index = self
-                .store
-                .staged
-                .owner_metafields
-                .values()
-                .map(Vec::len)
-                .sum::<usize>()
-                + 1;
+            let index = self.next_owner_metafield_index(0);
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id,
                 namespace: &namespace,
@@ -1466,6 +1493,19 @@ impl DraftProxy {
                 .or_default()
                 .push(metafield);
         }
+    }
+}
+
+impl DraftProxy {
+    fn next_owner_metafield_index(&self, pending_offset: usize) -> usize {
+        self.store
+            .staged
+            .owner_metafields
+            .values()
+            .map(Vec::len)
+            .sum::<usize>()
+            + pending_offset
+            + 1
     }
 }
 
@@ -1501,7 +1541,9 @@ fn owner_metafield_record(
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
     let updated_at = existing
-        .filter(|metafield| metafield.get("value").and_then(Value::as_str) == Some(value))
+        .filter(|metafield| {
+            metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
+        })
         .and_then(|metafield| metafield.get("updatedAt"))
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
@@ -1515,7 +1557,7 @@ fn owner_metafield_record(
         "key": key,
         "type": metafield_type,
         "value": normalized_value,
-        "jsonValue": metafield_json_value(metafield_type, value),
+        "jsonValue": metafield_json_value(metafield_type, &normalized_value),
         "compareDigest": metafield_compare_digest(&normalized_value),
         "createdAt": created_at,
         "updatedAt": updated_at,
@@ -1735,6 +1777,7 @@ fn owner_typename_from_root(root_field: &str) -> &'static str {
         "customer" => "Customer",
         "order" => "Order",
         "company" => "Company",
+        "shop" => "Shop",
         _ => "Node",
     }
 }

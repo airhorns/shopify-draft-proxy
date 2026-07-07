@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-validation-metafields-input-validation",
-  "capturedAt": "2026-06-30T13:24:40.302Z",
+  "capturedAt": "2026-07-05T01:48:00.312Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "validationCreate and validationUpdate metafield input rejection branches with per-index userErrors and atomic no-write behavior.",
+  "summary": "validationCreate accepts a boolean validation metafield and validationCreate/validationUpdate reject invalid metafield branches with per-index userErrors and atomic no-write behavior.",
   "conformanceApp": {
     "validationFunctionHandle": "conformance-validation",
     "validationFunction": {
@@ -203,13 +203,13 @@
     "variables": {
       "validation": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
-            "key": "mode",
-            "type": "single_line_text_field",
-            "value": "strict"
+            "key": "enabled",
+            "type": "boolean",
+            "value": "true"
           }
         ]
       }
@@ -220,15 +220,15 @@
         "data": {
           "validationCreate": {
             "validation": {
-              "id": "gid://shopify/Validation/112984370",
-              "title": "validation metafields input mr0ohw6j",
+              "id": "gid://shopify/Validation/114295090",
+              "title": "validation metafields input mr74t8jo",
               "metafields": {
                 "nodes": [
                   {
                     "namespace": "custom",
-                    "key": "mode",
-                    "type": "single_line_text_field",
-                    "value": "strict"
+                    "key": "enabled",
+                    "type": "boolean",
+                    "value": "true"
                   }
                 ]
               }
@@ -253,7 +253,7 @@
   "invalidUpdate": {
     "query": "mutation ValidationMetafieldsInvalidUpdate(\n  $id: ID!\n  $validation: ValidationUpdateInput!\n) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/112984370",
+      "id": "gid://shopify/Validation/114295090",
       "validation": {
         "metafields": [
           {
@@ -296,21 +296,21 @@
   "postRejectedUpdateRead": {
     "query": "query ValidationMetafieldsPostRejectedUpdateRead($id: ID!) {\n  validation(id: $id) {\n    title\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/112984370"
+      "id": "gid://shopify/Validation/114295090"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validation": {
-            "title": "validation metafields input mr0ohw6j",
+            "title": "validation metafields input mr74t8jo",
             "metafields": {
               "nodes": [
                 {
                   "namespace": "custom",
-                  "key": "mode",
-                  "type": "single_line_text_field",
-                  "value": "strict"
+                  "key": "enabled",
+                  "type": "boolean",
+                  "value": "true"
                 }
               ]
             }
@@ -335,7 +335,7 @@
     "variables": {
       "mixedMissingKey": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -352,7 +352,7 @@
       },
       "missingType": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -363,7 +363,7 @@
       },
       "blankType": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -375,7 +375,7 @@
       },
       "missingValue": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -386,7 +386,7 @@
       },
       "blankValue": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -398,7 +398,7 @@
       },
       "invalidType": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -410,7 +410,7 @@
       },
       "reservedShopify": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "shopify",
@@ -422,7 +422,7 @@
       },
       "invalidValue": {
         "functionHandle": "conformance-validation",
-        "title": "validation metafields input mr0ohw6j",
+        "title": "validation metafields input mr74t8jo",
         "metafields": [
           {
             "namespace": "custom",
@@ -535,14 +535,14 @@
   "cleanup": {
     "query": "mutation ValidationMetafieldsCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/112984370"
+      "id": "gid://shopify/Validation/114295090"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validationDelete": {
-            "deletedId": "gid://shopify/Validation/112984370",
+            "deletedId": "gid://shopify/Validation/114295090",
             "userErrors": []
           }
         },
@@ -552,7 +552,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1979,
               "restoreRate": 100
             }
           }
@@ -653,7 +653,7 @@
     }
   ],
   "notes": {
-    "lifecycle": "The script creates one disposable validation with a valid metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.",
+    "lifecycle": "The script creates one disposable validation with a valid boolean metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.",
     "upstreamHydration": "The upstream call is the exact ShopifyFunction lookup the proxy sends when it needs to hydrate Function metadata for local validationCreate staging."
   }
 }

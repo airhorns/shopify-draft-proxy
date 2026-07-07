@@ -6,6 +6,7 @@ mutation RustPaymentCustomizationLocalRuntimeCreateValidationGaps(
   $missingEnabled: PaymentCustomizationInput!
   $bothIdentifiers: PaymentCustomizationInput!
   $missingIdentifier: PaymentCustomizationInput!
+  $unknownHandle: PaymentCustomizationInput!
   $seed1: PaymentCustomizationInput!
   $seed2: PaymentCustomizationInput!
   $seed3: PaymentCustomizationInput!
@@ -73,6 +74,16 @@ mutation RustPaymentCustomizationLocalRuntimeCreateValidationGaps(
     }
   }
   missingIdentifier: paymentCustomizationCreate(paymentCustomization: $missingIdentifier) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  unknownHandle: paymentCustomizationCreate(paymentCustomization: $unknownHandle) {
     paymentCustomization {
       id
     }

@@ -1,0 +1,21 @@
+query SegmentsSortKeyRead($first: Int!) {
+    byLastEditReverse: segments(first: $first, sortKey: LAST_EDIT_DATE, reverse: true) {
+      nodes {
+        name
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    byCreationDateReverse: segments(first: $first, sortKey: CREATION_DATE, reverse: true) {
+      nodes {
+        name
+      }
+    }
+    byIdReverse: segments(first: $first, sortKey: ID, reverse: true) {
+      nodes {
+        name
+      }
+    }
+  }

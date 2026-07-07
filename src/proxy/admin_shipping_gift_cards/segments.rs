@@ -1,7 +1,81 @@
 use super::*;
 use crate::graphql::ParsedDocument;
 
+fn segment_gid_tail_sort_value(segment: &Value) -> StagedSortValue {
+    let tail = segment
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn segment_string_sort_value(segment: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(
+        segment
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn segment_staged_sort_key(segment: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key {
+        Some("CREATION_DATE") => segment_string_sort_value(segment, "creationDate"),
+        Some("LAST_EDIT_DATE") => segment_string_sort_value(segment, "lastEditDate"),
+        None | Some("ID") | Some("RELEVANCE") => segment_gid_tail_sort_value(segment),
+        Some(_) => segment_gid_tail_sort_value(segment),
+    };
+    vec![primary, segment_gid_tail_sort_value(segment)]
+}
+
 impl DraftProxy {
+    pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        self.store.staged.segment_catalog.is_empty()
+            && fields
+                .iter()
+                .any(|field| segment_catalog_root(field.name.as_str()))
+    }
+
+    pub(in crate::proxy) fn merge_upstream_segment_catalog_data(
+        &self,
+        data: &mut Value,
+        errors: &mut Vec<Value>,
+        fields: &[RootFieldSelection],
+        upstream_body: &Value,
+    ) {
+        let Some(data_object) = data.as_object_mut() else {
+            return;
+        };
+        let catalog_response_keys = fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>();
+        for field in fields
+            .iter()
+            .filter(|field| segment_catalog_root(field.name.as_str()))
+        {
+            if let Some(value) = upstream_body["data"].get(&field.response_key) {
+                data_object.insert(field.response_key.clone(), value.clone());
+            }
+        }
+        if let Some(upstream_errors) = upstream_body["errors"].as_array() {
+            errors.extend(upstream_errors.iter().filter_map(|error| {
+                let response_key = error["path"].as_array()?.first()?.as_str()?;
+                catalog_response_keys
+                    .contains(&response_key)
+                    .then(|| error.clone())
+            }));
+        }
+    }
+
     pub(in crate::proxy) fn segment_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -38,10 +112,13 @@ impl DraftProxy {
                             .values()
                             .cloned()
                             .collect::<Vec<_>>();
-                        selected_connection_json_with_args(
+                        selected_staged_connection_with_args(
                             records,
                             &field.arguments,
                             &field.selection,
+                            |_, _| StagedSearchDecision::Match,
+                            segment_staged_sort_key,
+                            selected_json,
                             value_id_cursor,
                         )
                     }
@@ -50,15 +127,16 @@ impl DraftProxy {
                     Some(count) => selected_json(count, &field.selection),
                     None => selected_count_json(self.store.staged.segments.len(), &field.selection),
                 },
-                "segmentFilters"
-                | "segmentFilterSuggestions"
-                | "segmentValueSuggestions"
-                | "segmentMigrations" => match self.store.staged.segment_catalog.get(&field.name) {
-                    Some(connection) => {
-                        project_seeded_connection(connection, &field.arguments, &field.selection)
+                name if segment_catalog_root(name) => {
+                    match self.store.staged.segment_catalog.get(&field.name) {
+                        Some(connection) => project_seeded_connection(
+                            connection,
+                            &field.arguments,
+                            &field.selection,
+                        ),
+                        None => return None,
                     }
-                    None => return None,
-                },
+                }
                 _ => return None,
             })
         });
@@ -411,6 +489,61 @@ impl DraftProxy {
     }
 }
 
+fn segment_catalog_root(name: &str) -> bool {
+    matches!(
+        name,
+        "segmentFilters"
+            | "segmentFilterSuggestions"
+            | "segmentValueSuggestions"
+            | "segmentMigrations"
+    )
+}
+
+pub(in crate::proxy) fn segment_payload_json(
+    segment: Value,
+    deleted_segment_id: Value,
+    payload_selection: &[SelectedField],
+    segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "segment" => Some(if segment.is_null() {
+                Value::Null
+            } else {
+                selected_json(&segment, segment_selection)
+            }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn customer_segment_members_query_payload_json(
+    query_record: Value,
+    payload_selection: &[SelectedField],
+    query_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
+                Value::Null
+            } else {
+                selected_json(&query_record, query_selection)
+            }),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+            _ => None,
+        }
+    })
+}
+
 fn segment_user_error(field: Value, message: &str) -> Value {
     user_error_typed_omit_code("UserError", field, message, None)
 }
@@ -551,37 +684,18 @@ fn member_query_segment_id_invalid_literal_error(
     })
 }
 
-fn segment_query_token_spans(query: &str) -> Vec<(String, usize, usize)> {
-    let chars: Vec<char> = query.chars().collect();
-    let mut tokens: Vec<(String, usize, usize)> = Vec::new();
-    let mut start: Option<usize> = None;
-    for (index, ch) in chars.iter().enumerate() {
-        if ch.is_whitespace() {
-            if let Some(begin) = start.take() {
-                tokens.push((chars[begin..index].iter().collect(), begin + 1, index));
-            }
-        } else if start.is_none() {
-            start = Some(index);
-        }
-    }
-    if let Some(begin) = start.take() {
-        tokens.push((chars[begin..].iter().collect(), begin + 1, chars.len()));
-    }
-    tokens
-}
-
 /// Locate the first token that cannot continue a `[NOT] <filter> <operator>`
 /// prefix and render Shopify's `Line 1 Column N: 'TOKEN' is unexpected.` lexer
 /// message. The reported column is the position just past the previous token
 /// (where the parser expected an operator / continuation).
 fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
-    let tokens = segment_query_token_spans(query);
+    let tokens = segment_query_tokens(query);
     if tokens.is_empty() {
         return None;
     }
     let mut index = 0;
     // An optional leading boolean NOT prefix is consumed before the filter name.
-    if tokens[index].0.eq_ignore_ascii_case("not") {
+    if tokens[index].text.eq_ignore_ascii_case("not") {
         index += 1;
     }
     if index >= tokens.len() {
@@ -590,45 +704,50 @@ fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
     // Consume the filter identifier; an operator must follow.
     index += 1;
     if index < tokens.len() {
-        let (token, _, _) = &tokens[index];
-        if !segment_query_token_is_operator(token) {
-            let column = tokens[index - 1].2 + 1;
-            return Some(format!("Line 1 Column {column}: '{token}' is unexpected."));
+        let token = &tokens[index];
+        if !segment_query_token_is_operator(&token.text) {
+            let column = tokens[index - 1].end_column + 1;
+            return Some(format!(
+                "Line 1 Column {column}: '{}' is unexpected.",
+                token.text
+            ));
         }
     }
     None
 }
 
-fn segment_query_unknown_filter_message(query: &str) -> Option<String> {
-    let tokens = segment_query_token_spans(query);
-    if tokens.is_empty() {
-        return None;
+#[derive(Debug)]
+struct SegmentQueryToken {
+    text: String,
+    start_column: usize,
+    end_column: usize,
+}
+
+fn segment_query_tokens(query: &str) -> Vec<SegmentQueryToken> {
+    let chars: Vec<char> = query.chars().collect();
+    let mut tokens = Vec::new();
+    let mut start: Option<usize> = None;
+    for (index, ch) in chars.iter().enumerate() {
+        if ch.is_whitespace() {
+            if let Some(begin) = start.take() {
+                tokens.push(SegmentQueryToken {
+                    text: chars[begin..index].iter().collect(),
+                    start_column: begin + 1,
+                    end_column: index,
+                });
+            }
+        } else if start.is_none() {
+            start = Some(index);
+        }
     }
-    let mut index = 0;
-    let mut column = tokens[index].1;
-    if tokens[index].0.eq_ignore_ascii_case("not") {
-        column = tokens[index].2 + 1;
-        index += 1;
+    if let Some(begin) = start.take() {
+        tokens.push(SegmentQueryToken {
+            text: chars[begin..].iter().collect(),
+            start_column: begin + 1,
+            end_column: chars.len(),
+        });
     }
-    if index >= tokens.len() {
-        return None;
-    }
-    let filter = &tokens[index].0;
-    if !segment_query_filter_name_is_valid(filter) || segment_query_filter_is_known(filter) {
-        return None;
-    }
-    let rest = tokens
-        .iter()
-        .skip(index + 1)
-        .map(|(token, _, _)| token.as_str())
-        .collect::<Vec<_>>()
-        .join(" ");
-    if segment_query_unknown_filter_accepts(&rest) {
-        return None;
-    }
-    Some(format!(
-        "Line 1 Column {column}: '{filter}' filter cannot be found."
-    ))
+    tokens
 }
 
 /// Whether a token can begin the operator / continuation that follows a segment
@@ -656,27 +775,55 @@ fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
     if segment_query_grammar_accepts(stripped) {
         Vec::new()
     } else {
-        let mut errors = Vec::new();
-        if let Some(message) = segment_query_unexpected_token_message(stripped) {
-            errors.push(segment_user_error(
-                json!(["query"]),
-                &format!("Query {message}"),
-            ));
-        }
-        if let Some(message) = segment_query_unknown_filter_message(stripped) {
-            errors.push(segment_user_error(
-                json!(["query"]),
-                &format!("Query {message}"),
-            ));
-        }
-        if errors.is_empty() {
-            errors.push(segment_user_error(
-                json!(["query"]),
-                "Invalid segment query",
-            ));
-        }
-        errors
+        segment_query_grammar_error_messages(stripped)
+            .into_iter()
+            .map(|message| segment_user_error(json!(["query"]), &message))
+            .collect()
     }
+}
+
+fn segment_query_grammar_error_messages(query: &str) -> Vec<String> {
+    let mut messages = Vec::new();
+    if let Some(message) = segment_query_unexpected_token_message(query) {
+        messages.push(format!("Query {message}"));
+    }
+    if let Some(message) = segment_query_filter_not_found_message(query) {
+        messages.push(message);
+    }
+    if messages.is_empty() {
+        messages.push(segment_query_input_derived_invalid_message(query));
+    }
+    messages
+}
+
+fn segment_query_filter_not_found_message(query: &str) -> Option<String> {
+    let tokens = segment_query_tokens(query);
+    let mut index = 0;
+    let mut column = tokens.first()?.start_column;
+    if tokens[index].text.eq_ignore_ascii_case("not") {
+        column = tokens[index].end_column + 1;
+        index += 1;
+    }
+    let token = tokens.get(index)?;
+    if segment_query_filter_name_is_known(&token.text) {
+        return None;
+    }
+    Some(format!(
+        "Query Line 1 Column {column}: '{}' filter cannot be found.",
+        token.text
+    ))
+}
+
+fn segment_query_input_derived_invalid_message(query: &str) -> String {
+    segment_query_tokens(query)
+        .last()
+        .map(|token| {
+            format!(
+                "Query Line 1 Column {}: segment query is invalid near '{}'.",
+                token.start_column, token.text
+            )
+        })
+        .unwrap_or_else(|| "Invalid segment query".to_string())
 }
 
 fn segment_query_grammar_accepts(query: &str) -> bool {
@@ -719,6 +866,16 @@ fn segment_query_grammar_accepts(query: &str) -> bool {
     false
 }
 
+const SEGMENT_QUERY_FILTERS: &[&str] = &[
+    "number_of_orders",
+    "amount_spent",
+    "customer_countries",
+    "customer_tags",
+    "email_subscription_status",
+    "last_order_date",
+    "companies",
+];
+
 fn segment_query_predicate_accepts(query: &str) -> bool {
     let Some((filter, rest)) = split_segment_query_filter(query) else {
         return false;
@@ -726,7 +883,7 @@ fn segment_query_predicate_accepts(query: &str) -> bool {
     if !segment_query_filter_name_is_valid(filter) {
         return false;
     }
-    if !segment_query_filter_is_known(filter) {
+    if !segment_query_filter_name_is_known(filter) {
         return segment_query_unknown_filter_accepts(rest);
     }
 
@@ -770,19 +927,6 @@ fn segment_query_predicate_accepts(query: &str) -> bool {
     false
 }
 
-fn segment_query_filter_is_known(filter: &str) -> bool {
-    matches!(
-        filter,
-        "number_of_orders"
-            | "amount_spent"
-            | "customer_countries"
-            | "customer_tags"
-            | "email_subscription_status"
-            | "last_order_date"
-            | "companies"
-    )
-}
-
 fn split_segment_query_filter(query: &str) -> Option<(&str, &str)> {
     let index = query.find(char::is_whitespace)?;
     let filter = &query[..index];
@@ -800,6 +944,10 @@ fn segment_query_filter_name_is_valid(filter: &str) -> bool {
     };
     (first.is_ascii_alphabetic() || first == '_')
         && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn segment_query_filter_name_is_known(filter: &str) -> bool {
+    SEGMENT_QUERY_FILTERS.contains(&filter)
 }
 
 fn segment_query_unknown_filter_accepts(rest: &str) -> bool {
@@ -945,17 +1093,12 @@ fn segment_required_argument_error(
         .collect();
     if !missing.is_empty() {
         let arguments = missing.join(", ");
-        return Some(json!({
-            "message": format!("Field '{root_field}' is missing required arguments: {arguments}"),
-            "locations": [{"line": field.location.line, "column": field.location.column}],
-            "path": [operation_path, root_field],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": root_field,
-                "arguments": arguments
-            }
-        }));
+        return Some(missing_required_arguments_error(
+            root_field,
+            &arguments,
+            field.location,
+            vec![json!(operation_path), json!(root_field)],
+        ));
     }
     for (name, argument_type) in required {
         if field
@@ -963,16 +1106,13 @@ fn segment_required_argument_error(
             .get(*name)
             .is_some_and(RawArgumentValue::is_literal_null)
         {
-            return Some(json!({
-                "message": format!("Argument '{name}' on Field '{root_field}' has an invalid value (null). Expected type '{argument_type}'."),
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "path": [operation_path, root_field, *name],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": *name
-                }
-            }));
+            return Some(required_argument_null_error(
+                root_field,
+                name,
+                argument_type,
+                field.location,
+                vec![json!(operation_path), json!(root_field), json!(name)],
+            ));
         }
     }
     None

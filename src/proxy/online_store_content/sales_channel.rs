@@ -1,3 +1,5 @@
+use super::content::online_store_operation_timestamp;
+use super::search::is_online_store_content_query_root;
 use super::*;
 
 impl DraftProxy {
@@ -55,62 +57,27 @@ impl DraftProxy {
                         .unwrap_or(Value::Null),
                     "themes" => {
                         let roles = resolved_string_list_arg(&field.arguments, "roles");
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_online_store_theme_record(record))
-                            .filter(|record| {
+                        self.online_store_integration_connection_value(
+                            field,
+                            is_online_store_theme_record,
+                            |record| {
                                 roles.is_empty()
                                     || record.get("role").and_then(Value::as_str).is_some_and(
                                         |role| roles.iter().any(|expected| expected == role),
                                     )
-                            })
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
+                            },
                         )
                     }
-                    "scriptTags" => {
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_online_store_script_tag_record(record))
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
-                        )
-                    }
-                    "mobilePlatformApplications" => {
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_mobile_platform_application_record(record))
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
-                        )
-                    }
+                    "scriptTags" => self.online_store_integration_connection_value(
+                        field,
+                        is_online_store_script_tag_record,
+                        |_| true,
+                    ),
+                    "mobilePlatformApplications" => self.online_store_integration_connection_value(
+                        field,
+                        is_mobile_platform_application_record,
+                        |_| true,
+                    ),
                     _ => Value::Null,
                 }
             };
@@ -279,6 +246,34 @@ impl DraftProxy {
             .any(predicate)
     }
 
+    fn online_store_integration_connection_value<P, F>(
+        &self,
+        field: &RootFieldSelection,
+        predicate: P,
+        include: F,
+    ) -> Value
+    where
+        P: Fn(&Value) -> bool,
+        F: Fn(&Value) -> bool,
+    {
+        let mut records = self
+            .store
+            .staged
+            .online_store_integrations
+            .values()
+            .filter(|record| predicate(record))
+            .filter(|record| include(record))
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by_key(value_id_cursor);
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
+    }
+
     fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
         let Some(data) = body.get("data") else {
             return;
@@ -367,18 +362,10 @@ impl DraftProxy {
                     )],
                 );
             }
-            if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                return mobile_app_payload(
-                    &field.selection,
-                    None,
-                    vec![length_user_error(
-                        ["input", "android", "applicationId"],
-                        "Application ID",
-                        LengthUserErrorBound::TooLong {
-                            maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                        },
-                    )],
-                );
+            if let Some(error) =
+                mobile_app_id_length_error("android", "applicationId", &application_id)
+            {
+                return mobile_app_payload(&field.selection, None, vec![error]);
             }
             if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
                 return mobile_app_payload(
@@ -419,18 +406,8 @@ impl DraftProxy {
                 )],
             );
         }
-        if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-            return mobile_app_payload(
-                &field.selection,
-                None,
-                vec![length_user_error(
-                    ["input", "apple", "appId"],
-                    "Application ID",
-                    LengthUserErrorBound::TooLong {
-                        maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                    },
-                )],
-            );
+        if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
+            return mobile_app_payload(&field.selection, None, vec![error]);
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
             return mobile_app_payload(&field.selection, None, vec![error]);
@@ -516,18 +493,10 @@ impl DraftProxy {
                         )],
                     );
                 }
-                if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                    return mobile_app_payload(
-                        &field.selection,
-                        None,
-                        vec![length_user_error(
-                            ["input", "android", "applicationId"],
-                            "Application ID",
-                            LengthUserErrorBound::TooLong {
-                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                            },
-                        )],
-                    );
+                if let Some(error) =
+                    mobile_app_id_length_error("android", "applicationId", &application_id)
+                {
+                    return mobile_app_payload(&field.selection, None, vec![error]);
                 }
                 record["applicationId"] = json!(application_id);
             }
@@ -559,18 +528,8 @@ impl DraftProxy {
                         )],
                     );
                 }
-                if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                    return mobile_app_payload(
-                        &field.selection,
-                        None,
-                        vec![length_user_error(
-                            ["input", "apple", "appId"],
-                            "Application ID",
-                            LengthUserErrorBound::TooLong {
-                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                            },
-                        )],
-                    );
+                if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
+                    return mobile_app_payload(&field.selection, None, vec![error]);
                 }
                 record["appId"] = json!(app_id);
             }
@@ -1212,9 +1171,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1270,9 +1227,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1288,7 +1243,12 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(None),
+            "webhookEndpointAddress": null
+        });
         self.store
             .staged
             .online_store_integrations
@@ -1362,7 +1322,12 @@ impl DraftProxy {
             }
             format!("{project}/{topic}")
         };
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(Some(&endpoint)),
+            "webhookEndpointAddress": endpoint
+        });
         self.store
             .staged
             .online_store_integrations
