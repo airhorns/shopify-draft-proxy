@@ -55,6 +55,127 @@ pub(super) fn oe_int(value: &Value, key: &str) -> i64 {
     value.get(key).and_then(Value::as_i64).unwrap_or(0)
 }
 
+fn oe_money_set_shop_cents(value: &Value) -> Option<i64> {
+    value["shopMoney"]["amount"]
+        .as_str()
+        .or_else(|| value["amount"].as_str())
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .map(|amount| (amount * 100.0).round() as i64)
+}
+
+fn oe_rate_key(rate: &Value) -> String {
+    rate.as_f64()
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| rate.to_string())
+}
+
+fn oe_tax_basis_lines(source: &Value, basis_quantity: i64, fallback_currency: &str) -> Vec<Value> {
+    let empty = Vec::new();
+    let basis_quantity = basis_quantity.max(1);
+    source["taxLines"]
+        .as_array()
+        .unwrap_or(&empty)
+        .iter()
+        .map(|tax_line| {
+            let currency = money_set_shop_currency(&tax_line["priceSet"])
+                .unwrap_or_else(|| fallback_currency.to_string());
+            json!({
+                "title": tax_line.get("title").cloned().unwrap_or(json!("")),
+                "rate": tax_line.get("rate").cloned().unwrap_or(json!(0.0)),
+                "currency": currency,
+                "basisCents": oe_money_set_shop_cents(&tax_line["priceSet"]).unwrap_or(0),
+                "basisQuantity": basis_quantity
+            })
+        })
+        .collect()
+}
+
+fn oe_scaled_tax_cents(tax_line: &Value, quantity: i64) -> i64 {
+    if quantity <= 0 {
+        return 0;
+    }
+    let basis_cents = oe_int(tax_line, "basisCents");
+    if basis_cents <= 0 {
+        return 0;
+    }
+    let basis_quantity = oe_int(tax_line, "basisQuantity").max(1);
+    (basis_cents * quantity + basis_quantity / 2) / basis_quantity
+}
+
+fn oe_public_tax_line(tax_line: &Value, cents: i64, fallback_currency: &str) -> Value {
+    let currency = tax_line
+        .get("currency")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_currency);
+    json!({
+        "title": tax_line.get("title").cloned().unwrap_or(json!("")),
+        "rate": tax_line.get("rate").cloned().unwrap_or(json!(0.0)),
+        "priceSet": oe_shop_presentment_money(cents, currency)
+    })
+}
+
+fn oe_line_current_tax_lines(line: &Value, currency: &str) -> Vec<Value> {
+    let empty = Vec::new();
+    let quantity = oe_int(line, "curQty");
+    line.get("taxLines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+        .iter()
+        .filter_map(|tax_line| {
+            let cents = oe_scaled_tax_cents(tax_line, quantity);
+            (cents > 0).then(|| oe_public_tax_line(tax_line, cents, currency))
+        })
+        .collect()
+}
+
+fn oe_session_current_tax_lines(session: &Value) -> (Vec<Value>, i64) {
+    let currency = oe_session_currency(session);
+    let empty = Vec::new();
+    let lines = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
+    let mut totals: BTreeMap<String, (Value, Value, String, i64)> = BTreeMap::new();
+    for line in lines {
+        let quantity = oe_int(line, "curQty");
+        for tax_line in line
+            .get("taxLines")
+            .and_then(Value::as_array)
+            .unwrap_or(&empty)
+        {
+            let cents = oe_scaled_tax_cents(tax_line, quantity);
+            if cents <= 0 {
+                continue;
+            }
+            let title = tax_line.get("title").cloned().unwrap_or(json!(""));
+            let rate = tax_line.get("rate").cloned().unwrap_or(json!(0.0));
+            let tax_currency = tax_line
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or(currency)
+                .to_string();
+            let key = format!("{}|{}|{}", title, oe_rate_key(&rate), tax_currency);
+            totals
+                .entry(key)
+                .and_modify(|(_, _, _, total)| *total += cents)
+                .or_insert((title, rate, tax_currency, cents));
+        }
+    }
+    let mut tax_total = 0;
+    let tax_lines = totals
+        .into_values()
+        .map(|(title, rate, tax_currency, cents)| {
+            tax_total += cents;
+            json!({
+                "title": title,
+                "rate": rate,
+                "priceSet": oe_shop_presentment_money(cents, &tax_currency)
+            })
+        })
+        .collect();
+    (tax_lines, tax_total)
+}
+
 /// Total per-unit discount staged against a session line.
 pub(super) fn oe_line_discount_per_unit(line: &Value) -> i64 {
     line.get("discounts")
@@ -144,7 +265,8 @@ pub(super) fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
         .and_then(Value::as_array)
         .map(|lines| lines.iter().map(|line| oe_int(line, "priceCents")).sum())
         .unwrap_or(0);
-    (subtotal, subtotal - discount + shipping, quantity)
+    let (_, tax) = oe_session_current_tax_lines(session);
+    (subtotal, subtotal - discount + shipping + tax, quantity)
 }
 
 fn oe_session_original_total(session: &Value) -> i64 {
@@ -245,6 +367,7 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
                 .round() as i64;
             let historical = node["quantity"].as_i64().unwrap_or(0);
             let current = node["currentQuantity"].as_i64().unwrap_or(historical);
+            let tax_lines = oe_tax_basis_lines(node, current, &currency);
             lines.push(json!({
                 "calcId": shopify_gid("CalculatedLineItem", tail),
                 "orderLineId": node["id"].clone(),
@@ -255,6 +378,7 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
                 "unitCents": unit,
                 "histQty": historical,
                 "curQty": current,
+                "taxLines": tax_lines,
                 "discounts": []
             }));
         }
@@ -416,7 +540,13 @@ fn oe_display_fulfillment_status(base: &Value, session: &Value, quantity: i64) -
 /// lines are materialised as new line items. Current totals, derived display
 /// statuses, the edit history event, and per-line fulfillment orders are
 /// recomputed from the session.
-pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str>) -> Value {
+pub(super) fn oe_commit_order(
+    base: &Value,
+    session: &Value,
+    author: Option<&str>,
+    event_id: &str,
+    event_created_at: &str,
+) -> Value {
     let currency = oe_session_currency(session);
     let empty = Vec::new();
     let lines = session
@@ -424,6 +554,7 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
         .and_then(Value::as_array)
         .unwrap_or(&empty);
     let (subtotal, total, quantity) = oe_session_totals(session);
+    let (current_tax_lines, tax_total) = oe_session_current_tax_lines(session);
     let mut line_nodes = Vec::new();
     let mut fulfillment_orders = Vec::new();
     for (index, line) in lines.iter().enumerate() {
@@ -434,6 +565,7 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
             Some(id) => id.to_string(),
             None => shopify_gid("LineItem", format_args!("oe-{index}")),
         };
+        let tax_lines = oe_line_current_tax_lines(line, currency);
         line_nodes.push(json!({
             "id": line_id,
             "title": line.get("title").cloned().unwrap_or(Value::Null),
@@ -441,7 +573,8 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
             "currentQuantity": current,
             "sku": line.get("sku").cloned().unwrap_or(Value::Null),
             "variant": line.get("variant").cloned().unwrap_or(Value::Null),
-            "originalUnitPriceSet": oe_shop_money(unit, currency)
+            "originalUnitPriceSet": oe_shop_money(unit, currency),
+            "taxLines": tax_lines
         }));
         let fulfillment_quantity = oe_fulfillment_quantity_for_line(
             base["displayFulfillmentStatus"].as_str() == Some("FULFILLED"),
@@ -485,10 +618,7 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
     committed["id"] = base.get("id").cloned().unwrap_or(Value::Null);
     committed["name"] = base.get("name").cloned().unwrap_or(Value::Null);
     committed["note"] = base.get("note").cloned().unwrap_or(Value::Null);
-    committed["updatedAt"] = base
-        .get("updatedAt")
-        .cloned()
-        .unwrap_or(json!("2026-01-01T00:00:00Z"));
+    committed["updatedAt"] = json!(event_created_at);
     committed["closed"] = json!(false);
     committed["closedAt"] = Value::Null;
     committed["merchantEditable"] = json!(true);
@@ -499,18 +629,20 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
     committed["displayFulfillmentStatus"] =
         json!(oe_display_fulfillment_status(base, session, quantity));
     committed["currentSubtotalPriceSet"] = oe_shop_presentment_money(subtotal, currency);
+    committed["currentTotalTaxSet"] = oe_shop_presentment_money(tax_total, currency);
+    committed["totalTaxSet"] = oe_shop_presentment_money(tax_total, currency);
     committed["currentTotalPriceSet"] = oe_shop_presentment_money(total, currency);
     committed["totalPriceSet"] = oe_shop_presentment_money(total, currency);
     committed["totalReceivedSet"] = oe_shop_presentment_money(received, currency);
     committed["totalOutstandingSet"] = oe_shop_presentment_money(outstanding, currency);
-    committed["currentTaxLines"] = json!([]);
+    committed["currentTaxLines"] = Value::Array(current_tax_lines);
     committed["lineItems"] = json!({ "nodes": line_nodes });
     committed["events"] = json!({
         "nodes": [{
-            "id": "gid://shopify/BasicEvent/oe-edited",
+            "id": event_id,
             "action": "edited",
             "message": message.map(Value::String).unwrap_or(Value::Null),
-            "createdAt": "2026-01-01T00:00:00Z"
+            "createdAt": event_created_at
         }]
     });
     committed["fulfillmentOrders"] = json!({ "nodes": fulfillment_orders });
