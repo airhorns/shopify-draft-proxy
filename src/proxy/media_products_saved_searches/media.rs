@@ -5,6 +5,7 @@ use super::*;
 // records before staging local updates; in replay they match the recorded
 // cassette calls, and against a live backend they are ordinary GraphQL reads.
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
+const MEDIA_FILE_SAVED_SEARCH_HYDRATE_QUERY: &str = "query MediaFileSavedSearchHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}";
 pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
 // fileDelete / fileUpdate cascade clearing needs to know which products (and
 // their variants) a media file is attached to, so a delete or detach can remove
@@ -837,12 +838,23 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid {
             let mut response = (self.upstream_transport)(request.clone());
             if (200..300).contains(&response.status) {
+                if response.body.get("errors").is_some() {
+                    return response;
+                }
                 self.hydrate_media_files_read_state(request, &fields, &response.body["data"]);
+                self.hydrate_media_file_saved_searches_for_fields(request, &fields);
+                if let Some(error_response) = self.media_files_saved_search_error_response(&fields)
+                {
+                    return error_response;
+                }
                 response.body["data"] = self.media_files_read_data(request, &fields);
             }
             return response;
         }
         self.promote_polled_media_files_to_ready(&fields);
+        if let Some(error_response) = self.media_files_saved_search_error_response(&fields) {
+            return error_response;
+        }
         ok_json(json!({"data": self.media_files_read_data(request, &fields)}))
     }
 
@@ -935,6 +947,79 @@ impl DraftProxy {
         }
     }
 
+    fn hydrate_media_file_saved_searches_for_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for saved_search_id in media_file_saved_search_ids(fields) {
+            if self.store.saved_search_by_id(&saved_search_id).is_some() {
+                continue;
+            }
+            self.hydrate_media_file_saved_search_by_id(request, &saved_search_id, &api_client_id);
+        }
+    }
+
+    fn hydrate_media_file_saved_search_by_id(
+        &mut self,
+        request: &Request,
+        saved_search_id: &str,
+        api_client_id: &str,
+    ) {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": MEDIA_FILE_SAVED_SEARCH_HYDRATE_QUERY,
+                "variables": { "id": saved_search_id },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return;
+        }
+        let Some(record) =
+            saved_search_record_from_node(&response.body["data"]["node"], "FILE", api_client_id)
+        else {
+            return;
+        };
+        if record.resource_type != "FILE"
+            || self.store.staged.saved_searches.is_tombstoned(&record.id)
+        {
+            return;
+        }
+        self.store
+            .base
+            .saved_searches
+            .insert(record.id.clone(), record);
+    }
+
+    fn media_files_saved_search_error_response(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Response> {
+        for field in fields {
+            if field.name != "files" {
+                continue;
+            }
+            let Some(saved_search_id) = resolved_string_field(&field.arguments, "savedSearchId")
+            else {
+                continue;
+            };
+            if self
+                .store
+                .saved_search_by_id(&saved_search_id)
+                .is_some_and(|record| record.resource_type == "FILE")
+            {
+                continue;
+            }
+            return Some(media_file_saved_search_not_found_response(
+                field,
+                &saved_search_id,
+            ));
+        }
+        None
+    }
+
     fn promote_polled_media_files_to_ready(&mut self, fields: &[RootFieldSelection]) {
         if !fields.iter().any(|field| field.name == "files") {
             return;
@@ -971,13 +1056,13 @@ impl DraftProxy {
             .saved_search_by_id(&saved_search_id)
             .filter(|record| record.resource_type == "FILE")
             .map(|record| record.query);
-        let query = match saved_search_query {
-            Some(saved_search_query) => combine_media_file_queries(
-                resolved_string_field(arguments, "query").as_deref(),
-                Some(&saved_search_query),
-            ),
-            None => "id:__shopify_draft_proxy_no_matching_saved_search__".to_string(),
+        let Some(saved_search_query) = saved_search_query else {
+            return merged;
         };
+        let query = combine_media_file_queries(
+            resolved_string_field(arguments, "query").as_deref(),
+            Some(&saved_search_query),
+        );
         merged.insert("query".to_string(), ResolvedValue::String(query));
         merged
     }
@@ -1206,6 +1291,27 @@ fn media_file_row_user_error(index: usize, message: &str, code: &str) -> Value {
         message,
         Some(code),
     )
+}
+
+fn media_file_saved_search_not_found_response(
+    field: &RootFieldSelection,
+    saved_search_id: &str,
+) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": format!(
+                "The saved search with the ID {} could not be found.",
+                saved_search_legacy_resource_id(saved_search_id)
+            ),
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": Value::Null
+    }))
 }
 
 fn validate_file_create_input(
@@ -1720,6 +1826,22 @@ fn combine_media_file_queries(
         (None, Some(saved_search_query)) => saved_search_query.to_string(),
         (None, None) => String::new(),
     }
+}
+
+fn media_file_saved_search_ids(fields: &[RootFieldSelection]) -> Vec<String> {
+    let mut ids = Vec::new();
+    for field in fields {
+        if field.name != "files" {
+            continue;
+        }
+        let Some(id) = resolved_string_field(&field.arguments, "savedSearchId") else {
+            continue;
+        };
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids
 }
 
 fn media_file_staged_sort_key(file: &Value, sort_key: Option<&str>) -> StagedSortKey {
