@@ -2058,8 +2058,14 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record =
-            payment_customization_record(&id, &input, api_client_id, resolved_function.as_ref());
+        let timestamp = self.next_mutation_timestamp();
+        let record = payment_customization_record(
+            &id,
+            &input,
+            api_client_id,
+            resolved_function.as_ref(),
+            &timestamp,
+        );
         self.store
             .staged
             .payment_customizations
@@ -2152,7 +2158,9 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input, api_client_id);
+            let timestamp = self.next_mutation_timestamp();
+            let metafields =
+                payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store
