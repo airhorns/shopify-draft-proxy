@@ -909,6 +909,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
+        "refundableQuantity": quantity,
         "sku": resolved_string_field(input, "sku").unwrap_or_default(),
         "variantTitle": resolved_string_field(input, "variantTitle"),
         "variantId": variant_id,

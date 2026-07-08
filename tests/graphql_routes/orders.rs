@@ -13529,6 +13529,220 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
 }
 
 #[test]
+fn refund_create_caps_sequential_refunds_by_remaining_quantity() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePartiallyRefundableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "sequential-refunds@example.test",
+                "currency": "USD",
+                "lineItems": [
+                    {
+                        "title": "Refund cap line A",
+                        "quantity": 3,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    },
+                    {
+                        "title": "Refund cap line B",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "70.00", "currencyCode": "USD" } }
+                    }
+                ],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "100.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let line_a_id =
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
+    let line_b_id =
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][1]["id"].clone();
+    let payment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSequentialRefundParentTransaction($id: ID!) {
+          order(id: $id) {
+            transactions {
+              id
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    let parent_transaction_id = payment_read.body["data"]["order"]["transactions"][0]["id"].clone();
+
+    let refund_query = r#"
+        mutation SequentialRefund($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            order {
+              id
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+    "#;
+
+    let first_refund = proxy.process_request(json_graphql_request(
+        refund_query,
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "refundLineItems": [{
+                    "lineItemId": line_a_id.clone(),
+                    "quantity": 3,
+                    "restockType": "RETURN"
+                }],
+                "transactions": [{
+                    "parentId": parent_transaction_id.clone(),
+                    "kind": "REFUND",
+                    "amount": "30.00"
+                }]
+            }
+        }),
+    ));
+
+    let read_after_first = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRefundableQuantitiesAfterFirstRefund($id: ID!) {
+          order(id: $id) {
+            lineItems(first: 5) {
+              nodes {
+                id
+                refundableQuantity
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+
+    let second_refund = proxy.process_request(json_graphql_request(
+        refund_query,
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "refundLineItems": [{
+                    "lineItemId": line_a_id,
+                    "quantity": 3,
+                    "restockType": "RETURN"
+                }],
+                "transactions": [{
+                    "parentId": parent_transaction_id,
+                    "kind": "REFUND",
+                    "amount": "30.00"
+                }]
+            }
+        }),
+    ));
+
+    let read_after_second_attempt = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRefundableQuantitiesAfterSecondAttempt($id: ID!) {
+          order(id: $id) {
+            totalRefundedSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            refunds {
+              id
+            }
+            lineItems(first: 5) {
+              nodes {
+                id
+                refundableQuantity
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+
+    assert_eq!(first_refund.status, 200);
+    assert_eq!(read_after_first.status, 200);
+    assert_eq!(second_refund.status, 200);
+    assert_eq!(read_after_second_attempt.status, 200);
+    assert_eq!(
+        json!({
+            "firstRefundUserErrors": first_refund.body["data"]["refundCreate"]["userErrors"].clone(),
+            "firstRefundTotal": first_refund.body["data"]["refundCreate"]["refund"]["totalRefundedSet"]["shopMoney"].clone(),
+            "lineAAfterFirst": read_after_first.body["data"]["order"]["lineItems"]["nodes"][0]["refundableQuantity"].clone(),
+            "lineBAfterFirst": read_after_first.body["data"]["order"]["lineItems"]["nodes"][1]["refundableQuantity"].clone(),
+            "secondRefund": second_refund.body["data"]["refundCreate"]["refund"].clone(),
+            "secondRefundUserErrors": second_refund.body["data"]["refundCreate"]["userErrors"].clone(),
+            "totalAfterSecondAttempt": read_after_second_attempt.body["data"]["order"]["totalRefundedSet"]["shopMoney"].clone(),
+            "refundCountAfterSecondAttempt": read_after_second_attempt.body["data"]["order"]["refunds"].as_array().expect("refunds array").len(),
+            "lineAAfterSecondAttempt": read_after_second_attempt.body["data"]["order"]["lineItems"]["nodes"][0]["refundableQuantity"].clone(),
+            "lineBAfterSecondAttempt": read_after_second_attempt.body["data"]["order"]["lineItems"]["nodes"][1]["refundableQuantity"].clone(),
+            "lineBIdPreserved": read_after_second_attempt.body["data"]["order"]["lineItems"]["nodes"][1]["id"] == line_b_id
+        }),
+        json!({
+            "firstRefundUserErrors": [],
+            "firstRefundTotal": { "amount": "30.0", "currencyCode": "USD" },
+            "lineAAfterFirst": 0,
+            "lineBAfterFirst": 1,
+            "secondRefund": Value::Null,
+            "secondRefundUserErrors": [{
+                "field": ["refundLineItems", "0", "quantity"],
+                "message": "Quantity cannot refund more items than were purchased"
+            }],
+            "totalAfterSecondAttempt": { "amount": "30.0", "currencyCode": "USD" },
+            "refundCountAfterSecondAttempt": 1,
+            "lineAAfterSecondAttempt": 0,
+            "lineBAfterSecondAttempt": 1,
+            "lineBIdPreserved": true
+        })
+    );
+}
+
+#[test]
 fn draft_order_invoice_send_success_marks_invoice_sent_and_read_back_matches() {
     let mut proxy = snapshot_proxy();
 
