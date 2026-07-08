@@ -2398,7 +2398,7 @@ fn inline_argument_location(
     inline_argument_value_location(query, field, argument_name).unwrap_or(field.location)
 }
 
-fn inline_input_field_name_location(
+pub(in crate::proxy) fn inline_input_field_name_location(
     query: &str,
     field_location: SourceLocation,
     target_depth: i32,
