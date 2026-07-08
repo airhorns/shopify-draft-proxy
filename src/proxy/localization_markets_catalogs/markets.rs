@@ -1017,8 +1017,9 @@ impl DraftProxy {
             | "priceLists"
             | "webPresences"
             | "marketsResolvedValues" => !self.has_markets_overlay_state(),
-            "marketLocalizableResources" | "marketLocalizableResourcesByIds" => {
-                !self.has_market_localizable_resource_state()
+            "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
+            "marketLocalizableResourcesByIds" => {
+                self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
             }
             _ => false,
         }
