@@ -1,0 +1,15 @@
+query InventoryTransferReadAfterShipmentParity($id: ID!) {
+  inventoryTransfer(id: $id) {
+    status
+    totalQuantity
+    lineItems(first: 10) {
+      nodes {
+        totalQuantity
+        shippableQuantity
+        shippedQuantity
+        processableQuantity
+        pickedForShipmentQuantity
+      }
+    }
+  }
+}

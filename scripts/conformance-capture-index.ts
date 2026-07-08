@@ -2389,6 +2389,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-path-product-sibling-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-path-product-sibling-read-conformance.ts',
+    purpose:
+      'Inventory-led product sibling readback for product.totalInventory and product.tracksInventory with an unrelated stocked product present.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-path-product-sibling-read.json`,
+      'config/parity-specs/products/inventory-path-product-sibling-read.json',
+      'config/parity-requests/products/inventory-path-product-sibling-location.graphql',
+      'config/parity-requests/products/inventory-path-product-sibling-product-set.graphql',
+      'config/parity-requests/products/inventory-path-product-sibling-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable location, an untracked product, and a separate stocked tracked product, records the inventory-led sibling product read, then deletes the products and location best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-transfers',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-transfer-conformance.ts',
@@ -2451,9 +2477,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-default-location-order-create.graphql',
       'config/parity-requests/products/inventory-default-location-item-read.graphql',
       'config/parity-requests/products/inventory-shipment-create-carrier.graphql',
+      'config/parity-requests/products/inventory-shipment-create-in-transit.graphql',
+      'config/parity-requests/products/inventory-transfer-read-after-shipment.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
+      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, draft and in-transit shipment tracking, and transfer readback after shipment consumption, then cancels/deletes the created order, shipments, transfer, products, and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

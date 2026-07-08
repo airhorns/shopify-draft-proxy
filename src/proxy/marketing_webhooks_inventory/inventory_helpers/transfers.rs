@@ -526,12 +526,26 @@ impl DraftProxy {
     }
 
     fn inventory_transfer_full_json(&self, record: &InventoryTransferRecord) -> Value {
+        let has_shipped_line = record.line_items.iter().any(|line_item| {
+            let (shipped, _) = self.transfer_line_shipment_quantities(&record.id, line_item, None);
+            shipped > 0
+        });
+        let status = if record.status == "READY_TO_SHIP" && has_shipped_line {
+            "IN_PROGRESS"
+        } else {
+            record.status.as_str()
+        };
         let nodes = record
             .line_items
             .iter()
             .map(|line_item| {
-                let shippable = if record.status == "READY_TO_SHIP" {
-                    line_item.quantity
+                let (shipped, picked) =
+                    self.transfer_line_shipment_quantities(&record.id, line_item, None);
+                let remaining = self
+                    .remaining_transfer_record_line_quantity(&record.id, line_item, None)
+                    .max(0);
+                let shippable = if matches!(status, "READY_TO_SHIP" | "IN_PROGRESS") {
+                    remaining
                 } else {
                     0
                 };
@@ -540,9 +554,9 @@ impl DraftProxy {
                     "inventoryItem": { "id": line_item.inventory_item_id },
                     "totalQuantity": line_item.quantity,
                     "shippableQuantity": shippable,
-                    "shippedQuantity": 0,
-                    "processableQuantity": line_item.quantity,
-                    "pickedForShipmentQuantity": 0
+                    "shippedQuantity": shipped,
+                    "processableQuantity": remaining,
+                    "pickedForShipmentQuantity": picked
                 })
             })
             .collect::<Vec<_>>();
@@ -550,7 +564,7 @@ impl DraftProxy {
             "id": record.id,
             "name": record.name,
             "dateCreated": record.created_at,
-            "status": record.status,
+            "status": status,
             "origin": {
                 "id": record.origin_location_id,
                 "name": self.inventory_location_display_name(&record.origin_location_id)
