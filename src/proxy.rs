@@ -849,6 +849,48 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
     records
 }
 
+fn saved_search_semantic_key(record: &SavedSearchRecord) -> (String, String, String) {
+    (
+        record.resource_type.clone(),
+        record.name.clone(),
+        record.query.clone(),
+    )
+}
+
+fn effective_saved_search_records(
+    base: &OrderedRecords<SavedSearchRecord>,
+    staged: &StagedRecords<SavedSearchRecord>,
+) -> Vec<SavedSearchRecord> {
+    let mut records = Vec::new();
+    let mut observed_keys = BTreeSet::new();
+    for (id, record) in base
+        .order
+        .iter()
+        .filter_map(|id| base.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) {
+            continue;
+        }
+        let effective = staged.get(id).unwrap_or(record);
+        observed_keys.insert(saved_search_semantic_key(effective));
+        records.push(effective.clone());
+    }
+    for (id, record) in staged
+        .order
+        .iter()
+        .filter_map(|id| staged.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) || base.records.contains_key(id) {
+            continue;
+        }
+        if !observed_keys.insert(saved_search_semantic_key(record)) {
+            continue;
+        }
+        records.push(record.clone());
+    }
+    records
+}
+
 fn product_variant_position(variant: &ProductVariantRecord) -> Option<i64> {
     variant.extra_fields.get("position").and_then(Value::as_i64)
 }
@@ -1736,7 +1778,7 @@ impl Store {
 
     fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
         let base = self.saved_search_base_with_defaults(resource_type);
-        effective_records(&base, &self.staged.saved_searches)
+        effective_saved_search_records(&base, &self.staged.saved_searches)
             .into_iter()
             .filter(|record| record.resource_type == resource_type)
             .collect()
