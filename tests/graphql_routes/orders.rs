@@ -239,6 +239,144 @@ fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Va
 }
 
 #[test]
+fn fulfillment_order_supported_actions_follow_assignment_and_status() {
+    let mut proxy = snapshot_proxy();
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSupportedActionsOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-supported-actions@example.test",
+                "lineItems": [{
+                    "title": "Supported actions line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order = &order["fulfillmentOrders"]["nodes"][0];
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitMerchantManagedFulfillmentOrder($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                status
+                supportedActions { action }
+                lineItems(first: 5) { nodes { id remainingQuantity } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "splits": [{
+                "fulfillmentOrderId": fulfillment_order_id,
+                "fulfillmentOrderLineItems": [{
+                    "id": fulfillment_order_line_item_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([])
+    );
+    let split_order = &split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["fulfillmentOrder"];
+    assert_eq!(split_order["status"], json!("OPEN"));
+    let split_actions = split_order["supportedActions"].as_array().unwrap();
+    assert!(
+        split_actions
+            .iter()
+            .all(|action| action["action"] != json!("REPORT_PROGRESS")),
+        "merchant-managed fulfillment order advertised REPORT_PROGRESS: {split_actions:?}"
+    );
+
+    let create_fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FullyFulfillMerchantManagedOrder($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+
+    let closed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadClosedMerchantManagedFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) {
+              nodes { id status supportedActions { action } }
+            }
+          }
+          fulfillmentOrder(id: $fulfillmentOrderId) {
+            id
+            status
+            supportedActions { action }
+          }
+        }
+        "#,
+        json!({
+            "orderId": order_id,
+            "fulfillmentOrderId": fulfillment_order_id
+        }),
+    ));
+    assert_eq!(
+        closed_read.body["data"]["fulfillmentOrder"]["status"],
+        json!("CLOSED")
+    );
+    assert_eq!(
+        closed_read.body["data"]["fulfillmentOrder"]["supportedActions"],
+        json!([])
+    );
+    assert_eq!(
+        closed_read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["supportedActions"],
+        json!([])
+    );
+}
+
+#[test]
 fn fulfillment_create_rejects_non_positive_line_item_quantity_with_indexed_path() {
     let mut proxy = snapshot_proxy();
     let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
