@@ -88,13 +88,14 @@ pub(in crate::proxy) fn order_refunded_shipping_amount(order: &Value) -> f64 {
 }
 
 pub(in crate::proxy) fn order_shipping_refundable_amount(order: &Value) -> f64 {
-    order_shipping_lines(order)
+    let charged = order_shipping_lines(order)
         .iter()
         .filter_map(|line| {
             money_set_amount(&line["originalPriceSet"])
                 .or_else(|| money_set_amount(&line["priceSet"]))
         })
-        .sum()
+        .sum::<f64>();
+    (charged - order_refunded_shipping_amount(order)).max(0.0)
 }
 
 pub(in crate::proxy) fn order_line_item_by_id(order: &Value, line_item_id: &str) -> Option<Value> {
@@ -509,10 +510,13 @@ pub(in crate::proxy) fn update_order_after_refund(
     let total_refunded = order_refunded_amount(&order) + refund_amount;
     let total_refunded_shipping = order_refunded_shipping_amount(&order) + shipping_refund_amount;
     let received = order_received_amount(&order);
+    let net_payment = (received - total_refunded).max(0.0);
     order["totalRefundedSet"] =
         money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
     order["totalRefundedShippingSet"] =
         money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
+    order["netPaymentSet"] =
+        money_bag_from_amount(net_payment, shop_currency, presentment_currency);
     order["displayFinancialStatus"] = if total_refunded + 0.005 >= received && received > 0.0 {
         json!("REFUNDED")
     } else {
