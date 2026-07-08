@@ -1753,8 +1753,11 @@ impl Store {
         resource_type: &str,
     ) -> OrderedRecords<SavedSearchRecord> {
         let mut base = OrderedRecords::default();
-        for record in default_saved_searches(resource_type) {
-            base.insert(record.id.clone(), record);
+        let has_base_records = self.has_base_saved_searches_for_resource(resource_type);
+        if !has_base_records {
+            for record in default_saved_searches(resource_type) {
+                base.insert(record.id.clone(), record);
+            }
         }
         for record in self.base.saved_searches.ordered_values() {
             if record.resource_type == resource_type {
@@ -1762,6 +1765,14 @@ impl Store {
             }
         }
         base
+    }
+
+    fn has_base_saved_searches_for_resource(&self, resource_type: &str) -> bool {
+        self.base
+            .saved_searches
+            .ordered_values()
+            .iter()
+            .any(|record| record.resource_type == resource_type)
     }
 
     fn saved_search_by_id(&self, id: &str) -> Option<SavedSearchRecord> {
@@ -1773,7 +1784,11 @@ impl Store {
             .get(id)
             .cloned()
             .or_else(|| self.base.saved_searches.get(id).cloned())
-            .or_else(|| default_saved_search_by_id(id))
+            .or_else(|| {
+                let record = default_saved_search_by_id(id)?;
+                (!self.has_base_saved_searches_for_resource(&record.resource_type))
+                    .then_some(record)
+            })
     }
 
     fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
@@ -1790,8 +1805,10 @@ impl Store {
 
     fn delete_saved_search(&mut self, id: &str) -> bool {
         let had_staged = self.staged.saved_searches.remove_staged(id).is_some();
-        let has_base =
-            self.base.saved_searches.get(id).is_some() || default_saved_search_by_id(id).is_some();
+        let has_default = default_saved_search_by_id(id)
+            .map(|record| !self.has_base_saved_searches_for_resource(&record.resource_type))
+            .unwrap_or(false);
+        let has_base = self.base.saved_searches.get(id).is_some() || has_default;
         if has_base {
             self.staged.saved_searches.tombstone(id.to_string());
         }

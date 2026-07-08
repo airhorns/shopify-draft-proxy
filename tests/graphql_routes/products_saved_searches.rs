@@ -10932,6 +10932,97 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
 }
 
 #[test]
+fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "draftOrderSavedSearches": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/SavedSearch/3634390630706",
+                                    "legacyResourceId": "3634390630706",
+                                    "name": "Open",
+                                    "query": "status:open",
+                                    "resourceType": "DRAFT_ORDER",
+                                    "searchTerms": ""
+                                },
+                                {
+                                    "id": "gid://shopify/SavedSearch/4008890630450",
+                                    "legacyResourceId": "4008890630450",
+                                    "name": "Open and invoice sent",
+                                    "query": "status:open_and_invoice_sent",
+                                    "resourceType": "DRAFT_ORDER",
+                                    "searchTerms": ""
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/3634390630706",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/4008890630450"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DraftOrderSavedSearches {
+          draftOrderSavedSearches(first: 20) {
+            nodes {
+              id
+              legacyResourceId
+              name
+              query
+              resourceType
+              searchTerms
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["draftOrderSavedSearches"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/SavedSearch/3634390630706",
+                "legacyResourceId": "3634390630706",
+                "name": "Open",
+                "query": "status:open",
+                "resourceType": "DRAFT_ORDER",
+                "searchTerms": ""
+            },
+            {
+                "id": "gid://shopify/SavedSearch/4008890630450",
+                "legacyResourceId": "4008890630450",
+                "name": "Open and invoice sent",
+                "query": "status:open_and_invoice_sent",
+                "resourceType": "DRAFT_ORDER",
+                "searchTerms": ""
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "cold saved-search root should forward upstream for live base rows"
+    );
+}
+
+#[test]
 fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
