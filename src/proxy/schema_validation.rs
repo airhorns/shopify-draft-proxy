@@ -4193,7 +4193,7 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([
             ("description".to_string(), input_field(named("String"))),
             ("fixedValue".to_string(), input_field(named("MoneyInput"))),
-            ("percentage".to_string(), input_field(named("Float"))),
+            ("percentValue".to_string(), input_field(named("Float"))),
         ]),
     );
     schema.mutation_fields.insert(

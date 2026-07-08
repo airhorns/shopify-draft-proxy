@@ -2899,6 +2899,12 @@ impl DraftProxy {
         let per_unit = resolved_object_field(&discount, "fixedValue")
             .as_ref()
             .and_then(oe_money_obj_cents)
+            .or_else(|| {
+                resolved_number_field(&discount, "percentValue").map(|percent| {
+                    let unit = oe_int(&session["lines"][index], "unitCents");
+                    ((unit as f64 * percent) / 100.0).round() as i64
+                })
+            })
             .unwrap_or(0);
         let seq = oe_next_seq(&mut session);
         let app_id = shopify_gid(
