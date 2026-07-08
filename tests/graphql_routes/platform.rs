@@ -6607,7 +6607,7 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
                     "savedSearches": {},
                     "savedSearchOrder": [],
                     "shop": {
-                        "id": "gid://shopify/Shop/seed",
+                        "id": "gid://shopify/Shop/92891250994",
                         "myshopifyDomain": "seeded-policy-shop.myshopify.com",
                         "primaryDomain": { "host": "policies.example.com" },
                         "shopPolicies": [
@@ -6616,7 +6616,7 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
                                 "title": "Contact",
                                 "body": "<p>Contact</p>",
                                 "type": "CONTACT_INFORMATION",
-                                "url": "https://checkout.shopify.com/seed/policies/111.html?locale=en",
+                                "url": "https://checkout.shopify.com/92891250994/policies/111.html?locale=en",
                                 "createdAt": "2026-01-01T00:00:00Z",
                                 "updatedAt": "2026-01-01T00:00:00Z"
                             },
@@ -6625,7 +6625,7 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
                                 "title": "Privacy policy",
                                 "body": "<p>Old</p>",
                                 "type": "PRIVACY_POLICY",
-                                "url": "https://checkout.shopify.com/seed/policies/222.html?locale=en",
+                                "url": "https://checkout.shopify.com/92891250994/policies/222.html?locale=en",
                                 "createdAt": "2026-01-02T00:00:00Z",
                                 "updatedAt": "2026-01-02T00:00:00Z"
                             }
@@ -6673,7 +6673,7 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
             "id": "gid://shopify/ShopPolicy/222",
             "title": "Privacy Policy",
             "body": "<p>New</p>",
-            "url": "https://policies.example.com/policies/222.html?locale=en",
+            "url": "https://checkout.shopify.com/92891250994/policies/222.html?locale=en",
             "createdAt": "2026-01-02T00:00:00Z"
         })
     );
@@ -6694,14 +6694,14 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
                 "type": "CONTACT_INFORMATION",
                 "title": "Contact",
                 "body": "<p>Contact</p>",
-                "url": "https://checkout.shopify.com/seed/policies/111.html?locale=en"
+                "url": "https://checkout.shopify.com/92891250994/policies/111.html?locale=en"
             },
             {
                 "id": "gid://shopify/ShopPolicy/222",
                 "type": "PRIVACY_POLICY",
                 "title": "Privacy Policy",
                 "body": "<p>New</p>",
-                "url": "https://policies.example.com/policies/222.html?locale=en"
+                "url": "https://checkout.shopify.com/92891250994/policies/222.html?locale=en"
             }
         ])
     );
