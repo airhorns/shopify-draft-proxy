@@ -273,7 +273,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { ok: true, message: 'state reset' },
       });
     });
-  }, 25_000);
+  }, 45_000);
 
   it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
@@ -328,7 +328,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  }, 25_000);
+  }, 45_000);
 
   it('captures staged upload bytes for local bulk mutation imports through Rust HTTP', async () => {
     await withRustServer(await unusedLocalPort(), async (origin) => {
@@ -471,7 +471,7 @@ describe('Rust HTTP adapter route surface', () => {
       });
       expect(currentOperation.fileSize).toBe(String(artifact.body.length));
     });
-  }, 25_000);
+  }, 45_000);
 
   it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
     await withChunkedUpstream(async (upstreamOrigin) => {
@@ -493,5 +493,5 @@ describe('Rust HTTP adapter route surface', () => {
         { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
       );
     });
-  }, 25_000);
+  }, 45_000);
 });

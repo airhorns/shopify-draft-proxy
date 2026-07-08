@@ -1,0 +1,81 @@
+mutation OrderEditMoneyMathAddLineItemDiscount(
+  $id: ID!
+  $lineItemId: ID!
+  $discount: OrderEditAppliedDiscountInput!
+) {
+  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+    addedDiscountStagedChange {
+      id
+      description
+    }
+    calculatedOrder {
+      id
+      subtotalLineItemsQuantity
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          quantity
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      hasStagedLineItemDiscount
+      calculatedDiscountAllocations {
+        allocatedAmountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountApplication {
+          id
+          description
+        }
+      }
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountedUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

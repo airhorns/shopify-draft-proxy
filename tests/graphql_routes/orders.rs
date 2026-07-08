@@ -12030,6 +12030,381 @@ fn order_edit_commit_recomputes_derived_statuses_and_totals_after_added_item() {
 }
 
 #[test]
+fn order_edit_keeps_tax_in_calculated_current_and_historical_money() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateTaxedOrderForEdit($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalTaxSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) {
+                nodes {
+                  taxLines {
+                    title
+                    rate
+                    priceSet { shopMoney { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-edit-taxed@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Taxed edit line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "100.00", "currencyCode": "USD" } },
+                    "taxLines": [{
+                        "title": "State tax",
+                        "rate": 0.13,
+                        "priceSet": { "shopMoney": { "amount": "26.00", "currencyCode": "USD" } }
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let created_order = &create.body["data"]["orderCreate"]["order"];
+    assert_eq!(
+        created_order["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "200.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        created_order["totalTaxSet"]["shopMoney"],
+        json!({ "amount": "26.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        created_order["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "226.0", "currencyCode": "USD" })
+    );
+    let order_id = created_order["id"].clone();
+
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginTaxedOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 1) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order = &begin.body["data"]["orderEditBegin"]["calculatedOrder"];
+    assert_eq!(
+        calculated_order["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "200.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        calculated_order["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "226.0", "currencyCode": "USD" })
+    );
+    let calculated_order_id = calculated_order["id"].clone();
+    let calculated_line_id = calculated_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let set_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetTaxedOrderEditQuantity($id: ID!, $lineItemId: ID!) {
+          orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: 1) {
+            calculatedOrder {
+              subtotalLineItemsQuantity
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            calculatedLineItem {
+              quantity
+              discountedUnitPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": calculated_order_id.clone(), "lineItemId": calculated_line_id }),
+    ));
+    assert_eq!(
+        set_quantity.body["data"]["orderEditSetQuantity"]["userErrors"],
+        json!([])
+    );
+    let set_quantity_payload = &set_quantity.body["data"]["orderEditSetQuantity"];
+    assert_eq!(
+        set_quantity_payload["calculatedOrder"]["subtotalLineItemsQuantity"],
+        json!(1)
+    );
+    assert_eq!(
+        set_quantity_payload["calculatedOrder"]["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        set_quantity_payload["calculatedOrder"]["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "113.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        set_quantity_payload["calculatedLineItem"]["discountedUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+
+    let commit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitTaxedOrderEdit($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              currentSubtotalPriceSet { shopMoney { amount currencyCode } }
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              currentTotalTaxSet { shopMoney { amount currencyCode } }
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalTaxSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              currentTaxLines {
+                title
+                rate
+                priceSet { shopMoney { amount currencyCode } }
+              }
+              lineItems(first: 1) {
+                nodes {
+                  quantity
+                  currentQuantity
+                  taxLines {
+                    title
+                    rate
+                    priceSet { shopMoney { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": calculated_order_id }),
+    ));
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    let committed = &commit.body["data"]["orderEditCommit"]["order"];
+    assert_eq!(
+        committed["currentSubtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["totalTaxSet"]["shopMoney"],
+        json!({ "amount": "26.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["currentTotalTaxSet"]["shopMoney"],
+        json!({ "amount": "13.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "200.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "226.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "113.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        committed["currentTaxLines"],
+        json!([{
+            "title": "State tax",
+            "rate": 0.13,
+            "priceSet": { "shopMoney": { "amount": "13.0", "currencyCode": "USD" } }
+        }])
+    );
+    assert_eq!(
+        committed["lineItems"]["nodes"][0],
+        json!({
+            "quantity": 2,
+            "currentQuantity": 1,
+            "taxLines": [{
+                "title": "State tax",
+                "rate": 0.13,
+                "priceSet": { "shopMoney": { "amount": "26.0", "currencyCode": "USD" } }
+            }]
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadTaxedEditedOrder($id: ID!) {
+          order(id: $id) {
+            currentSubtotalPriceSet { shopMoney { amount currencyCode } }
+            currentTotalPriceSet { shopMoney { amount currencyCode } }
+            currentTotalTaxSet { shopMoney { amount currencyCode } }
+            subtotalPriceSet { shopMoney { amount currencyCode } }
+            totalTaxSet { shopMoney { amount currencyCode } }
+            totalPriceSet { shopMoney { amount currencyCode } }
+            currentTaxLines {
+              title
+              rate
+              priceSet { shopMoney { amount currencyCode } }
+            }
+            lineItems(first: 1) {
+              nodes {
+                quantity
+                currentQuantity
+                taxLines {
+                  title
+                  rate
+                  priceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["order"],
+        json!({
+            "currentSubtotalPriceSet": { "shopMoney": { "amount": "100.0", "currencyCode": "USD" } },
+            "currentTotalPriceSet": { "shopMoney": { "amount": "113.0", "currencyCode": "USD" } },
+            "currentTotalTaxSet": { "shopMoney": { "amount": "13.0", "currencyCode": "USD" } },
+            "subtotalPriceSet": { "shopMoney": { "amount": "200.0", "currencyCode": "USD" } },
+            "totalTaxSet": { "shopMoney": { "amount": "26.0", "currencyCode": "USD" } },
+            "totalPriceSet": { "shopMoney": { "amount": "226.0", "currencyCode": "USD" } },
+            "currentTaxLines": [{
+                "title": "State tax",
+                "rate": 0.13,
+                "priceSet": { "shopMoney": { "amount": "13.0", "currencyCode": "USD" } }
+            }],
+            "lineItems": { "nodes": [{
+                "quantity": 2,
+                "currentQuantity": 1,
+                "taxLines": [{
+                    "title": "State tax",
+                    "rate": 0.13,
+                    "priceSet": { "shopMoney": { "amount": "26.0", "currencyCode": "USD" } }
+                }]
+            }] }
+        })
+    );
+}
+
+#[test]
+fn order_edit_line_item_discount_subtotal_is_net_of_discount() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountableOrderForEdit($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-edit-discount@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Discountable edit line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "100.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginDiscountableOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              lineItems(first: 1) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order = &begin.body["data"]["orderEditBegin"]["calculatedOrder"];
+    let calculated_order_id = calculated_order["id"].clone();
+    let calculated_line_id = calculated_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let discount = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountOrderEditLine(
+          $id: ID!
+          $lineItemId: ID!
+          $discount: OrderEditAppliedDiscountInput!
+        ) {
+          orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+            calculatedOrder {
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            calculatedLineItem {
+              discountedUnitPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id,
+            "lineItemId": calculated_line_id,
+            "discount": {
+                "description": "Line item discount",
+                "fixedValue": { "amount": "20.00", "currencyCode": "USD" }
+            }
+        }),
+    ));
+    assert_eq!(
+        discount.body["data"]["orderEditAddLineItemDiscount"]["userErrors"],
+        json!([])
+    );
+    let payload = &discount.body["data"]["orderEditAddLineItemDiscount"];
+    assert_eq!(
+        payload["calculatedOrder"]["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "80.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        payload["calculatedOrder"]["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "80.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        payload["calculatedLineItem"]["discountedUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "80.0", "currencyCode": "USD" })
+    );
+}
+
+#[test]
 fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

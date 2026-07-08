@@ -8424,6 +8424,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-money-math',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-money-math-conformance.ts',
+    purpose:
+      'orderEdit calculated and committed money arithmetic for taxed line items and fixed line-item discounts, including downstream totalTaxSet/currentTaxLines and subtotalPriceSet netting.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-money-math.json`,
+      'config/parity-specs/orders/orderEdit-money-math.json',
+      'config/parity-requests/orders/orderEdit-money-math-addLineItemDiscount.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-begin.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-commit.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-create.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-read.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-setQuantity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders, commits one taxed quantity edit and one fixed line-item discount edit, then cancels both orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-lifecycle-noop-rehome',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.ts',

@@ -2672,6 +2672,7 @@ impl DraftProxy {
             "unitCents": unit,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
@@ -2838,6 +2839,7 @@ impl DraftProxy {
             "unitCents": price_cents,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
