@@ -8,6 +8,26 @@ fn json_string(value: &Value, context: &str) -> String {
         .to_string()
 }
 
+fn query_location(query: &str, needle: &str) -> Value {
+    let offset = query
+        .find(needle)
+        .unwrap_or_else(|| panic!("query should contain {needle:?}"));
+    let mut line = 1usize;
+    let mut column = 1usize;
+    for (index, ch) in query.char_indices() {
+        if index == offset {
+            return json!([{ "line": line, "column": column }]);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    json!([{ "line": line, "column": column }])
+}
+
 fn upstream_code_basic_fixed_amount_discount(
     redeem_code_id: &str,
     title: &str,
@@ -7605,6 +7625,24 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
         normalized_handle.body["data"]["translationsRegister"]["translations"][0]["value"],
         json!("bad-value-with-spaces")
     );
+    let non_ascii_handle = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": resource_id.as_str(), "translations": [{ "locale": "fr", "key": "handle", "value": "日本", "translatableContentDigest": handle_digest }] }),
+    ));
+    assert_eq!(
+        non_ascii_handle.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+    let non_ascii_value = non_ascii_handle.body["data"]["translationsRegister"]["translations"][0]
+        ["value"]
+        .as_str()
+        .unwrap();
+    assert!(non_ascii_value.starts_with("localized-"));
+    assert!(!non_ascii_value.contains('/'));
+    assert_ne!(
+        non_ascii_value,
+        "store-localization/generic-dynamic-content-translation"
+    );
 
     let unknown_market = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
@@ -9582,6 +9620,132 @@ fn gift_card_configuration_and_create_limit_use_base_configuration() {
 }
 
 #[test]
+fn gift_card_transaction_payload_selection_errors_use_request_locations_and_paths() {
+    let mut proxy = cad_snapshot_proxy();
+    let named_query = r#"mutation RenamedGiftCardTxn {
+  aliasedCredit: giftCardCredit(
+    id: "gid://shopify/GiftCard/1"
+    creditInput: { creditAmount: { amount: "1.00", currencyCode: CAD } }
+  ) {
+    badGiftCard: giftCard { id }
+    userErrors { field code message }
+  }
+}"#;
+    let named = proxy.process_request(json_graphql_request(named_query, json!({})));
+    assert_eq!(named.status, 200);
+    assert_eq!(
+        named.body,
+        json!({
+            "errors": [{
+                "message": "Field 'giftCard' doesn't exist on type 'GiftCardCreditPayload'",
+                "locations": query_location(named_query, "badGiftCard: giftCard"),
+                "path": ["mutation RenamedGiftCardTxn", "aliasedCredit", "badGiftCard"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "GiftCardCreditPayload",
+                    "fieldName": "giftCard"
+                }
+            }]
+        })
+    );
+
+    let anonymous_query = r#"mutation {
+  giftCardDebit(
+    id: "gid://shopify/GiftCard/1"
+    debitInput: { debitAmount: { amount: "1.00", currencyCode: CAD } }
+  ) {
+    giftCard { id }
+    userErrors { field code message }
+  }
+}"#;
+    let anonymous = proxy.process_request(json_graphql_request(anonymous_query, json!({})));
+    assert_eq!(anonymous.status, 200);
+    assert_eq!(
+        anonymous.body,
+        json!({
+            "errors": [{
+                "message": "Field 'giftCard' doesn't exist on type 'GiftCardDebitPayload'",
+                "locations": query_location(anonymous_query, "giftCard { id }"),
+                "path": ["giftCardDebit", "giftCard"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "GiftCardDebitPayload",
+                    "fieldName": "giftCard"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn gift_card_recipient_id_errors_use_request_locations_and_paths() {
+    let mut proxy = cad_snapshot_proxy();
+    let create_query = r#"mutation CustomRecipientCreate {
+  createAlias: giftCardCreate(
+    input: {
+      initialValue: "10"
+      recipientAttributes: { preferredName: "A" }
+    }
+  ) {
+    giftCard { id }
+    userErrors { field code message }
+  }
+}"#;
+    let create = proxy.process_request(json_graphql_request(create_query, json!({})));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+                "locations": query_location(create_query, "recipientAttributes"),
+                "path": [
+                    "mutation CustomRecipientCreate",
+                    "createAlias",
+                    "input",
+                    "recipientAttributes",
+                    "id"
+                ],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "id",
+                    "argumentType": "ID!",
+                    "inputObjectType": "GiftCardRecipientInput"
+                }
+            }]
+        })
+    );
+
+    let update_query = r#"mutation {
+  updateAlias: giftCardUpdate(
+    id: "gid://shopify/GiftCard/1"
+    input: { recipientAttributes: { message: "Hi" } }
+  ) {
+    giftCard { id }
+    userErrors { field message }
+  }
+}"#;
+    let update = proxy.process_request(json_graphql_request(update_query, json!({})));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+                "locations": query_location(update_query, "recipientAttributes"),
+                "path": ["updateAlias", "input", "recipientAttributes", "id"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "id",
+                    "argumentType": "ID!",
+                    "inputObjectType": "GiftCardRecipientInput"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
 fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation() {
     let hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&hits);
@@ -9604,7 +9768,7 @@ fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation()
                 body: json!({
                     "data": {
                         "giftCardConfiguration": {
-                            "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+                            "issueLimit": { "amount": "5000.0", "currencyCode": "CAD" },
                             "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
                         }
                     }
@@ -9614,7 +9778,7 @@ fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation()
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreateInitialValueLimit {
-          boundarySuccess: giftCardCreate(input: { initialValue: "3000.0" }) {
+          aboveFallbackSuccess: giftCardCreate(input: { initialValue: "4000.0" }) {
             giftCard {
               id
               initialValue { amount currencyCode }
@@ -9622,7 +9786,7 @@ fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation()
             }
             userErrors { field code message }
           }
-          overByCent: giftCardCreate(input: { initialValue: "3000.01" }) {
+          overByCent: giftCardCreate(input: { initialValue: "5000.01" }) {
             giftCard { id }
             userErrors { field code message }
           }
@@ -9635,11 +9799,11 @@ fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation()
     assert_eq!(
         response.body["data"],
         json!({
-            "boundarySuccess": {
+            "aboveFallbackSuccess": {
                 "giftCard": {
                     "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
-                    "initialValue": { "amount": "3000.0", "currencyCode": "CAD" },
-                    "balance": { "amount": "3000.0", "currencyCode": "CAD" }
+                    "initialValue": { "amount": "4000.0", "currencyCode": "CAD" },
+                    "balance": { "amount": "4000.0", "currencyCode": "CAD" }
                 },
                 "userErrors": []
             },
@@ -9648,7 +9812,7 @@ fn gift_card_create_live_hybrid_hydrates_configuration_before_limit_validation()
                 "userErrors": [{
                     "field": ["input", "initialValue"],
                     "code": "GIFT_CARD_LIMIT_EXCEEDED",
-                    "message": "can't exceed $3,000.00 CAD"
+                    "message": "can't exceed $5,000.00 CAD"
                 }]
             }
         })

@@ -88,6 +88,11 @@ refreshes that timestamp. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state. An empty
 `translationKeys` list matches no rows and returns Shopify's no-op
 `translations: null, userErrors: []` payload.
+For `handle` translations, normalization lowercases ASCII alphanumerics,
+collapses separators to single dashes, trims edge dashes, and uses a
+deterministic `localized-<hash>` fallback derived from the submitted value when
+normalization would otherwise be empty. The fallback avoids reusing a
+fixture-derived handle for unrelated non-ASCII or punctuation-only values.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation, and market existence wins before locale enablement or

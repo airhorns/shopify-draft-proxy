@@ -239,6 +239,144 @@ fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Va
 }
 
 #[test]
+fn fulfillment_order_supported_actions_follow_assignment_and_status() {
+    let mut proxy = snapshot_proxy();
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSupportedActionsOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-supported-actions@example.test",
+                "lineItems": [{
+                    "title": "Supported actions line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order = &order["fulfillmentOrders"]["nodes"][0];
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitMerchantManagedFulfillmentOrder($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                status
+                supportedActions { action }
+                lineItems(first: 5) { nodes { id remainingQuantity } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "splits": [{
+                "fulfillmentOrderId": fulfillment_order_id,
+                "fulfillmentOrderLineItems": [{
+                    "id": fulfillment_order_line_item_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([])
+    );
+    let split_order = &split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["fulfillmentOrder"];
+    assert_eq!(split_order["status"], json!("OPEN"));
+    let split_actions = split_order["supportedActions"].as_array().unwrap();
+    assert!(
+        split_actions
+            .iter()
+            .all(|action| action["action"] != json!("REPORT_PROGRESS")),
+        "merchant-managed fulfillment order advertised REPORT_PROGRESS: {split_actions:?}"
+    );
+
+    let create_fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FullyFulfillMerchantManagedOrder($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+
+    let closed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadClosedMerchantManagedFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) {
+              nodes { id status supportedActions { action } }
+            }
+          }
+          fulfillmentOrder(id: $fulfillmentOrderId) {
+            id
+            status
+            supportedActions { action }
+          }
+        }
+        "#,
+        json!({
+            "orderId": order_id,
+            "fulfillmentOrderId": fulfillment_order_id
+        }),
+    ));
+    assert_eq!(
+        closed_read.body["data"]["fulfillmentOrder"]["status"],
+        json!("CLOSED")
+    );
+    assert_eq!(
+        closed_read.body["data"]["fulfillmentOrder"]["supportedActions"],
+        json!([])
+    );
+    assert_eq!(
+        closed_read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["supportedActions"],
+        json!([])
+    );
+}
+
+#[test]
 fn fulfillment_create_rejects_non_positive_line_item_quantity_with_indexed_path() {
     let mut proxy = snapshot_proxy();
     let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
@@ -791,6 +929,76 @@ fn return_process_payload_and_reads_close_processed_return() {
     );
 }
 
+#[test]
+fn return_close_and_process_closed_at_use_request_clock_on_readback() {
+    let clock = Arc::new(Mutex::new(utc_time(1_782_993_600)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let close_setup = stage_open_return_for_removal(&mut proxy);
+
+    set_clock(&clock, 1_783_080_000);
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnCloseClockedTimestamp($id: ID!) {
+          returnClose(id: $id) {
+            return { id status closedAt order { id updatedAt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": close_setup.return_id.clone() }),
+    ));
+    assert_eq!(close.status, 200);
+    let close_payload = &close.body["data"]["returnClose"];
+    assert_eq!(close_payload["userErrors"], json!([]));
+    assert_eq!(close_payload["return"]["status"], json!("CLOSED"));
+    assert_eq!(
+        close_payload["return"]["closedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_ne!(
+        close_payload["return"]["order"]["updatedAt"],
+        json!("2024-01-01T00:00:03.000Z")
+    );
+
+    let close_read = read_return_timestamp_state(
+        &mut proxy,
+        close_setup.return_id.clone(),
+        close_setup.order_id.clone(),
+    );
+    assert_eq!(
+        close_read["return"]["closedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        close_read["order"]["returns"]["nodes"][0]["closedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_ne!(
+        close_read["order"]["updatedAt"],
+        json!("2024-01-01T00:00:03.000Z")
+    );
+
+    let process_setup = stage_open_return_for_removal(&mut proxy);
+    set_clock(&clock, 1_783_166_400);
+    let processed = return_process_for_test(
+        &mut proxy,
+        process_setup.return_id.clone(),
+        process_setup.return_line_item_id,
+    );
+    assert_eq!(processed["userErrors"], json!([]));
+
+    let process_read =
+        read_return_timestamp_state(&mut proxy, process_setup.return_id, process_setup.order_id);
+    assert_eq!(
+        process_read["return"]["closedAt"],
+        json!("2026-07-04T12:00:00Z")
+    );
+    assert_eq!(
+        process_read["order"]["returns"]["nodes"][0]["closedAt"],
+        json!("2026-07-04T12:00:00Z")
+    );
+}
+
 fn stage_requested_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSetup {
     let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(proxy);
     let response = proxy.process_request(json_graphql_request(
@@ -1319,6 +1527,31 @@ fn read_return_removal_state(proxy: &mut DraftProxy, return_id: Value, order_id:
                       }
                     }
                   }
+                }
+              }
+            }
+            "#,
+            json!({ "returnId": return_id, "orderId": order_id }),
+        ))
+        .body["data"]
+        .clone()
+}
+
+fn read_return_timestamp_state(proxy: &mut DraftProxy, return_id: Value, order_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query ReadReturnTimestampState($returnId: ID!, $orderId: ID!) {
+              return(id: $returnId) {
+                id
+                status
+                closedAt
+              }
+              order(id: $orderId) {
+                id
+                updatedAt
+                returns(first: 5) {
+                  nodes { id status closedAt order { id updatedAt } }
                 }
               }
             }
@@ -5594,6 +5827,89 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
 }
 
 #[test]
+fn draft_order_create_reserve_inventory_until_uses_proxy_clock_boundary() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let past = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithPastReserveUntil($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "past-reserve@example.test",
+                "reserveInventoryUntil": "2025-06-01T00:00:00Z",
+                "lineItems": [{
+                    "title": "Past reserve line",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00"
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(past.status, 200);
+    assert_eq!(
+        past.body["data"]["draftOrderCreate"],
+        json!({
+            "draftOrder": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Reserve until can't be in the past"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let future = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithFutureReserveUntil($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id reserveInventoryUntil }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "future-reserve@example.test",
+                "reserveInventoryUntil": "2026-07-08T00:00:00Z",
+                "lineItems": [{
+                    "title": "Future reserve line",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00"
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(future.status, 200);
+    assert_eq!(
+        future.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        future.body["data"]["draftOrderCreate"]["draftOrder"]["reserveInventoryUntil"],
+        json!("2026-07-08T00:00:00Z")
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["operationName"],
+        json!("draftOrderCreate")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CreateDraftWithFutureReserveUntil"));
+}
+
+#[test]
 fn draft_orders_count_applies_query_filter_like_connection() {
     let mut proxy = snapshot_proxy();
 
@@ -7712,6 +8028,138 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
         })
     );
     assert_eq!(upstream_hits.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn payment_customization_metafield_timestamps_use_request_clock_on_create_update_and_readback() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = payment_customization_function_proxy(
+        vec![payment_customization_function_metadata(
+            "gid://shopify/ShopifyFunction/payment-a",
+            "payment-a",
+        )],
+        Arc::clone(&upstream_hits),
+    )
+    .with_clock({
+        let clock = Arc::clone(&clock);
+        move || *clock.lock().unwrap()
+    });
+    let app_request = |query: &str, variables: serde_json::Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
+
+    let create = proxy.process_request(app_request(
+        r#"
+        mutation PaymentCustomizationMetafieldClockedCreate($input: PaymentCustomizationInput!) {
+          paymentCustomizationCreate(paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              metafields(first: 5) {
+                edges { node { namespace key type value createdAt updatedAt } }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Clocked payment customization",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{
+                    "namespace": "$app:foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "baz"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let create_payload = &create.body["data"]["paymentCustomizationCreate"];
+    assert_eq!(create_payload["userErrors"], json!([]));
+    let customization_id = create_payload["paymentCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let created_metafield =
+        &create_payload["paymentCustomization"]["metafields"]["edges"][0]["node"];
+    assert_eq!(
+        created_metafield["createdAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        created_metafield["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_166_400);
+    let update = proxy.process_request(app_request(
+        r#"
+        mutation PaymentCustomizationMetafieldClockedUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+          paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              metafields(first: 5) {
+                edges { node { namespace key type value createdAt updatedAt } }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "id": customization_id,
+            "input": {
+                "metafields": [{
+                    "namespace": "$app:foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "qux"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let update_payload = &update.body["data"]["paymentCustomizationUpdate"];
+    assert_eq!(update_payload["userErrors"], json!([]));
+    let updated_metafield =
+        &update_payload["paymentCustomization"]["metafields"]["edges"][0]["node"];
+    assert_eq!(updated_metafield["value"], json!("qux"));
+    assert_eq!(
+        updated_metafield["createdAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        updated_metafield["updatedAt"],
+        json!("2026-07-04T12:00:00Z")
+    );
+
+    let read = proxy.process_request(app_request(
+        r#"
+        query PaymentCustomizationMetafieldClockedRead($id: ID!) {
+          paymentCustomization(id: $id) {
+            metafields(first: 5) {
+              edges { node { namespace key type value createdAt updatedAt } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": update_payload["paymentCustomization"]["id"].clone() }),
+    ));
+    assert_eq!(read.status, 200);
+    let read_metafield =
+        &read.body["data"]["paymentCustomization"]["metafields"]["edges"][0]["node"];
+    assert_eq!(read_metafield["value"], json!("qux"));
+    assert_eq!(read_metafield["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(read_metafield["updatedAt"], json!("2026-07-04T12:00:00Z"));
 }
 
 #[test]
@@ -12947,17 +13395,17 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         json!({
             "order": {
                 "email": "refund-guardrail@example.test",
-                "currency": "CAD",
+                "currency": "EUR",
                 "lineItems": [{
                     "title": "Refund guardrail item",
                     "quantity": 1,
-                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "EUR" } }
                 }],
                 "transactions": [{
                     "kind": "SALE",
                     "status": "SUCCESS",
                     "gateway": "manual",
-                    "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                    "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "EUR" } }
                 }]
             }
         }),
@@ -13026,9 +13474,15 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
     assert_eq!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0],
         json!({
-            "field": null,
-            "message": "Refund amount $15.00 is greater than net payment received $10.00"
+            "field": ["transactions"],
+            "message": "Refund amount 15.00 EUR is greater than net payment received 10.00 EUR"
         })
+    );
+    assert!(
+        !over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"]
+            .as_str()
+            .expect("over-refund userError message")
+            .contains('$')
     );
     assert_ne!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],

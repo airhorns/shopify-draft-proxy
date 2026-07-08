@@ -348,20 +348,58 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
 pub(in crate::proxy) fn refund_amount_validation_error(
     input: &BTreeMap<String, ResolvedValue>,
     order: &Value,
+    shop_currency_code: &str,
 ) -> Option<Value> {
     let refund_amount = refund_input_total_amount(input, order);
     let refundable = (order_received_amount(order) - order_refunded_amount(order)).max(0.0);
     if refund_amount > refundable + 0.005 {
+        let currency = order_currency(order, shop_currency_code);
         return Some(user_error_omit_code(
-            Value::Null,
+            refund_amount_validation_field(input),
             &format!(
-                "Refund amount ${:.2} is greater than net payment received ${:.2}",
-                refund_amount, refundable
+                "Refund amount {} is greater than net payment received {}",
+                refund_amount_validation_money_text(refund_amount, &currency),
+                refund_amount_validation_money_text(refundable, &currency)
             ),
             None,
         ));
     }
     None
+}
+
+fn refund_amount_validation_field(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    if !resolved_object_list_field(input, "transactions").is_empty() {
+        return json!(["transactions"]);
+    }
+
+    let line_items = resolved_object_list_field(input, "refundLineItems");
+    if let Some((index, _)) = line_items
+        .iter()
+        .enumerate()
+        .find(|(_, line_input)| line_input.contains_key("subtotal"))
+    {
+        return json!(["refundLineItems", index.to_string(), "subtotal"]);
+    }
+    if !line_items.is_empty() {
+        return json!(["refundLineItems"]);
+    }
+
+    if resolved_object_field(input, "shipping").is_some() {
+        return json!(["shipping"]);
+    }
+
+    json!(["transactions"])
+}
+
+fn refund_amount_validation_money_text(amount: f64, currency_code: &str) -> String {
+    let amount = format!("{amount:.2}");
+    if currency_code == "USD" {
+        format!("${amount}")
+    } else if currency_code.is_empty() {
+        amount
+    } else {
+        format!("{amount} {currency_code}")
+    }
 }
 
 pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
@@ -940,7 +978,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(error) = refund_amount_validation_error(&input, &order) {
+        if let Some(error) = refund_amount_validation_error(&input, &order, &shop_currency_code) {
             return (
                 refund_input_error(field, Some(order), error, &shop_currency_code),
                 Vec::new(),
@@ -2020,8 +2058,14 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record =
-            payment_customization_record(&id, &input, api_client_id, resolved_function.as_ref());
+        let timestamp = self.next_mutation_timestamp();
+        let record = payment_customization_record(
+            &id,
+            &input,
+            api_client_id,
+            resolved_function.as_ref(),
+            &timestamp,
+        );
         self.store
             .staged
             .payment_customizations
@@ -2114,7 +2158,9 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input, api_client_id);
+            let timestamp = self.next_mutation_timestamp();
+            let metafields =
+                payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store

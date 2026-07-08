@@ -5473,6 +5473,98 @@ fn product_feed_delete_removes_staged_feed_from_reads_and_node() {
 }
 
 #[test]
+fn product_feed_create_rejects_invalid_country_and_stages_valid_enum_members() {
+    let mut proxy = snapshot_proxy();
+
+    let create = r#"
+        mutation ProductFeedCreateValidation($input: ProductFeedInput) {
+          productFeedCreate(input: $input) {
+            productFeed { id country language status }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let invalid_country = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": { "country": "ZZ", "language": "EN" } }),
+    ));
+    assert_eq!(invalid_country.status, 200);
+    assert_eq!(
+        invalid_country.body["data"]["productFeedCreate"],
+        json!({
+            "productFeed": Value::Null,
+            "userErrors": [{
+                "field": ["country"],
+                "message": "Country is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
+
+    let empty_after_invalid = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductFeedsAfterInvalidCreates {
+          productFeeds(first: 10) { nodes { id country language status } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(empty_after_invalid.status, 200);
+    assert_eq!(
+        empty_after_invalid.body["data"]["productFeeds"]["nodes"],
+        json!([])
+    );
+
+    let valid = proxy.process_request(json_graphql_request(
+        create,
+        json!({ "input": { "country": "US", "language": "FIL" } }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["productFeedCreate"],
+        json!({
+            "productFeed": {
+                "id": "gid://shopify/ProductFeed/US-FIL",
+                "country": "US",
+                "language": "FIL",
+                "status": "ACTIVE"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductFeedsAfterValidCreate($id: ID!) {
+          productFeed(id: $id) { id country language status }
+          productFeeds(first: 10) { nodes { id country language status } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-FIL" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["productFeed"],
+        json!({
+            "id": "gid://shopify/ProductFeed/US-FIL",
+            "country": "US",
+            "language": "FIL",
+            "status": "ACTIVE"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["productFeeds"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductFeed/US-FIL",
+            "country": "US",
+            "language": "FIL",
+            "status": "ACTIVE"
+        }])
+    );
+}
+
+#[test]
 fn combined_listing_update_stages_children_and_captured_validation_branches() {
     let mut proxy = snapshot_proxy();
     let (parent_id, parent_variant_id) =
@@ -8235,7 +8327,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                             "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
                         },
                         "shop": {
-                            "id": "gid://shopify/Shop/upstream",
+                            "id": "gid://shopify/Shop/63755419881",
                             "name": "Upstream Shop",
                             "myshopifyDomain": "upstream-shop.myshopify.com",
                             "primaryDomain": { "host": "policies.upstream.example" },
@@ -8247,7 +8339,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                                     "title": "Privacy Policy",
                                     "body": "<p>Old upstream privacy</p>",
                                     "type": "PRIVACY_POLICY",
-                                    "url": "https://upstream-shop.myshopify.com/policies/2002.html?locale=en",
+                                    "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en",
                                     "createdAt": "2026-02-03T04:05:06Z",
                                     "updatedAt": "2026-02-03T04:05:06Z"
                                 }
@@ -8287,7 +8379,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     assert_eq!(
         response.body["data"]["publishablePublish"]["shop"],
         json!({
-            "id": "gid://shopify/Shop/upstream",
+            "id": "gid://shopify/Shop/63755419881",
             "name": "Upstream Shop",
             "myshopifyDomain": "upstream-shop.myshopify.com",
             "currencyCode": "CAD",
@@ -8307,7 +8399,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     });
     assert_eq!(
         state.body["baseState"]["shop"]["id"],
-        json!("gid://shopify/Shop/upstream")
+        json!("gid://shopify/Shop/63755419881")
     );
     assert_eq!(state.body["baseState"]["publicationCount"], json!(5));
     assert_eq!(
@@ -8343,7 +8435,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
             "id": "gid://shopify/ShopPolicy/2002",
             "title": "Privacy Policy",
             "body": "<p>Updated privacy</p>",
-            "url": "https://policies.upstream.example/policies/2002.html?locale=en",
+            "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en",
             "createdAt": "2026-02-03T04:05:06Z"
         })
     );
@@ -8368,7 +8460,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                 "type": "PRIVACY_POLICY",
                 "title": "Privacy Policy",
                 "body": "<p>Updated privacy</p>",
-                "url": "https://policies.upstream.example/policies/2002.html?locale=en"
+                "url": "https://checkout.shopify.com/63755419881/policies/2002.html?locale=en"
             }
         ])
     );
@@ -10836,6 +10928,97 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
                 }
             }
         })
+    );
+}
+
+#[test]
+fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "draftOrderSavedSearches": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/SavedSearch/3634390630706",
+                                    "legacyResourceId": "3634390630706",
+                                    "name": "Open",
+                                    "query": "status:open",
+                                    "resourceType": "DRAFT_ORDER",
+                                    "searchTerms": ""
+                                },
+                                {
+                                    "id": "gid://shopify/SavedSearch/4008890630450",
+                                    "legacyResourceId": "4008890630450",
+                                    "name": "Open and invoice sent",
+                                    "query": "status:open_and_invoice_sent",
+                                    "resourceType": "DRAFT_ORDER",
+                                    "searchTerms": ""
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/3634390630706",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/4008890630450"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DraftOrderSavedSearches {
+          draftOrderSavedSearches(first: 20) {
+            nodes {
+              id
+              legacyResourceId
+              name
+              query
+              resourceType
+              searchTerms
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["draftOrderSavedSearches"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/SavedSearch/3634390630706",
+                "legacyResourceId": "3634390630706",
+                "name": "Open",
+                "query": "status:open",
+                "resourceType": "DRAFT_ORDER",
+                "searchTerms": ""
+            },
+            {
+                "id": "gid://shopify/SavedSearch/4008890630450",
+                "legacyResourceId": "4008890630450",
+                "name": "Open and invoice sent",
+                "query": "status:open_and_invoice_sent",
+                "resourceType": "DRAFT_ORDER",
+                "searchTerms": ""
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "cold saved-search root should forward upstream for live base rows"
     );
 }
 

@@ -2131,6 +2131,7 @@ impl DraftProxy {
             if let Some(assigned_location) = self.default_fulfillment_assigned_location() {
                 fulfillment_order["assignedLocation"] = assigned_location;
             }
+            set_fulfillment_order_status_from_lines(&mut fulfillment_order);
             vec![fulfillment_order]
         };
         let shipping_lines = resolved_object_list_field(order_input, "shippingLines")

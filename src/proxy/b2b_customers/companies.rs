@@ -1,5 +1,11 @@
 use super::*;
 
+fn b2b_company_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
 pub(in crate::proxy) fn b2b_company_payload(
     company: Option<&Value>,
     user_errors: Vec<Value>,
@@ -402,6 +408,57 @@ impl B2bOrderAggregate {
 
     fn total_spent(&self) -> Value {
         money_value(&format_money_amount(self.total), &self.currency_code)
+    }
+}
+
+fn b2b_parse_company_timestamp(timestamp: &str) -> Option<time::OffsetDateTime> {
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339).ok()
+}
+
+fn b2b_distance_of_time_in_words(from: time::OffsetDateTime, to: time::OffsetDateTime) -> String {
+    let seconds = (to - from).whole_seconds().saturating_abs();
+    let minutes = ((seconds as f64) / 60.0).round() as i64;
+
+    match minutes {
+        0 | 1 => match seconds {
+            0..=4 => "less than 5 seconds".to_string(),
+            5..=9 => "less than 10 seconds".to_string(),
+            10..=19 => "less than 20 seconds".to_string(),
+            20..=39 => "half a minute".to_string(),
+            40..=59 => "less than a minute".to_string(),
+            _ => "1 minute".to_string(),
+        },
+        2..=44 => b2b_counted_duration(minutes, "minute"),
+        45..=89 => "about 1 hour".to_string(),
+        90..=1439 => format!(
+            "about {}",
+            b2b_counted_duration(((minutes as f64) / 60.0).round() as i64, "hour")
+        ),
+        1440..=2519 => "1 day".to_string(),
+        2520..=43199 => b2b_counted_duration(((minutes as f64) / 1440.0).round() as i64, "day"),
+        43200..=86399 => "about 1 month".to_string(),
+        86400..=525599 => {
+            b2b_counted_duration(((minutes as f64) / 43200.0).round() as i64, "month")
+        }
+        _ => {
+            let years = minutes / 525600;
+            let remainder = minutes % 525600;
+            if remainder < 131400 {
+                format!("about {}", b2b_counted_duration(years, "year"))
+            } else if remainder < 394200 {
+                format!("over {}", b2b_counted_duration(years, "year"))
+            } else {
+                format!("almost {}", b2b_counted_duration(years + 1, "year"))
+            }
+        }
+    }
+}
+
+fn b2b_counted_duration(count: i64, unit: &str) -> String {
+    if count == 1 {
+        format!("1 {unit}")
+    } else {
+        format!("{count} {unit}s")
     }
 }
 
@@ -1065,10 +1122,12 @@ impl DraftProxy {
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
+        let created_at = b2b_company_timestamp(self.current_time());
         let mut company = json!({
             "__typename": "Company",
             "id": id,
             "name": name,
+            "createdAt": created_at,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "customerSince": resolved_string_field(&company_input, "customerSince").map(Value::String).unwrap_or(Value::Null),
             "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null),
@@ -3110,15 +3169,12 @@ impl DraftProxy {
                 order_aggregate.count,
                 &selection.selection,
             )),
-            "lifetimeDuration" => {
-                Some(company.get("lifetimeDuration").cloned().unwrap_or_else(|| {
-                    if order_aggregate.count > 0 {
-                        json!("less than 5 seconds")
-                    } else {
-                        Value::Null
-                    }
-                }))
-            }
+            "lifetimeDuration" => Some(
+                company
+                    .get("lifetimeDuration")
+                    .cloned()
+                    .unwrap_or_else(|| self.b2b_company_lifetime_duration(company)),
+            ),
             "mainContact" => Some(self.b2b_selected_reference_json(
                 company,
                 "mainContactId",
@@ -3130,6 +3186,19 @@ impl DraftProxy {
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),
         })
+    }
+
+    fn b2b_company_lifetime_duration(&self, company: &Value) -> Value {
+        let Some(start) = company
+            .get("customerSince")
+            .and_then(Value::as_str)
+            .or_else(|| company.get("createdAt").and_then(Value::as_str))
+            .and_then(b2b_parse_company_timestamp)
+        else {
+            return Value::Null;
+        };
+
+        json!(b2b_distance_of_time_in_words(start, self.current_time()))
     }
 
     fn b2b_company_contact_selected_json(

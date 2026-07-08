@@ -996,6 +996,7 @@ pub(in crate::proxy) fn draft_order_staged_sort_key(
 pub(in crate::proxy) fn draft_order_input_user_errors(
     input: &BTreeMap<String, ResolvedValue>,
     update: bool,
+    now: time::OffsetDateTime,
 ) -> Option<Vec<Value>> {
     let tags = list_string_field(input, "tags");
     let long_tag_errors = tags
@@ -1085,7 +1086,7 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
     }
     if resolved_string_field(input, "reserveInventoryUntil")
         .as_deref()
-        .is_some_and(|value| value < "2024-01-01T00:00:00Z")
+        .is_some_and(|value| draft_order_reserve_inventory_until_is_past(value, now))
     {
         return Some(vec![user_error_omit_code(
             Value::Null,
@@ -1094,6 +1095,11 @@ pub(in crate::proxy) fn draft_order_input_user_errors(
         )]);
     }
     None
+}
+
+fn draft_order_reserve_inventory_until_is_past(value: &str, now: time::OffsetDateTime) -> bool {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .is_ok_and(|reserve_until| reserve_until < now)
 }
 
 pub(in crate::proxy) fn draft_order_unavailable_variant_user_errors(
@@ -1405,7 +1411,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if let Some(user_errors) = draft_order_input_user_errors(&input, false) {
+        if let Some(user_errors) = draft_order_input_user_errors(&input, false, self.current_time())
+        {
             return selected_json(
                 &json!({ "draftOrder": Value::Null, "userErrors": user_errors }),
                 &field.selection,
@@ -1460,7 +1467,8 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if let Some(user_errors) = draft_order_input_user_errors(&input, true) {
+        if let Some(user_errors) = draft_order_input_user_errors(&input, true, self.current_time())
+        {
             return selected_json(
                 &json!({ "draftOrder": Value::Null, "userErrors": user_errors }),
                 &field.selection,
@@ -1518,7 +1526,8 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if let Some(user_errors) = draft_order_input_user_errors(&input, false) {
+        if let Some(user_errors) = draft_order_input_user_errors(&input, false, self.current_time())
+        {
             return selected_json(
                 &json!({ "calculatedDraftOrder": Value::Null, "userErrors": user_errors }),
                 &field.selection,

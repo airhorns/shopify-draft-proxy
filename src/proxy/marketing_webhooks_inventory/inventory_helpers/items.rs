@@ -206,10 +206,7 @@ impl DraftProxy {
                         &json!({
                             "id": variant_id,
                             "inventoryQuantity": inventory_quantity,
-                            "product": {
-                                "id": product_id,
-                                "totalInventory": self.inventory_total_all("available")
-                            }
+                            "product": self.inventory_product_json(&product_id)
                         }),
                         &selection.selection,
                     ),
@@ -1091,20 +1088,35 @@ impl DraftProxy {
         self.stamp_inventory_quantity(inventory_item_id, &location_id, "available", &updated_at);
     }
 
-    fn inventory_total_all(&self, name: &str) -> i64 {
+    fn inventory_product_total(&self, product_id: &str, name: &str) -> i64 {
         self.store
-            .staged
-            .inventory_levels
+            .product_variants_for_product(product_id)
             .iter()
-            .filter(|((item_id, location_id), _)| {
-                !self
-                    .store
-                    .staged
-                    .inactive_inventory_levels
-                    .contains(&(item_id.clone(), location_id.clone()))
-            })
-            .map(|(_, quantities)| quantities.get(name).copied().unwrap_or(0))
+            .filter(|variant| variant.inventory_item.tracked)
+            .map(|variant| self.inventory_total(&variant.inventory_item.id, name))
             .sum()
+    }
+
+    fn inventory_product_tracks_inventory(&self, product_id: &str) -> bool {
+        let variants = self.store.product_variants_for_product(product_id);
+        if variants.is_empty() {
+            self.store
+                .product_by_id(product_id)
+                .map(|product| product.tracks_inventory)
+                .unwrap_or(false)
+        } else {
+            variants
+                .iter()
+                .any(|variant| variant.inventory_item.tracked)
+        }
+    }
+
+    fn inventory_product_json(&self, product_id: &str) -> Value {
+        json!({
+            "id": product_id,
+            "totalInventory": self.inventory_product_total(product_id, "available"),
+            "tracksInventory": self.inventory_product_tracks_inventory(product_id)
+        })
     }
 
     pub(super) fn inventory_product_selected_json(
@@ -1112,14 +1124,7 @@ impl DraftProxy {
         product_id: &str,
         selections: &[SelectedField],
     ) -> Value {
-        selected_json(
-            &json!({
-                "id": product_id,
-                "totalInventory": self.inventory_total_all("available"),
-                "tracksInventory": true
-            }),
-            selections,
-        )
+        selected_json(&self.inventory_product_json(product_id), selections)
     }
 
     fn hydrate_inventory_quantity_rows(

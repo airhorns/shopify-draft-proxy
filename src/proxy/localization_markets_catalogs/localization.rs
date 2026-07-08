@@ -526,6 +526,21 @@ impl DraftProxy {
         !self.market_localizable_resource_ids().is_empty()
     }
 
+    pub(in crate::proxy) fn market_localizable_resources_by_ids_should_fetch_upstream(
+        &self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let resource_ids = resolved_string_list_arg(variables, "resourceIds");
+        resource_ids.is_empty()
+            || resource_ids.iter().any(|resource_id| {
+                !self
+                    .store
+                    .staged
+                    .localization_resources
+                    .contains_key(resource_id)
+            })
+    }
+
     fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
         !resource_id.is_empty()
             && (self

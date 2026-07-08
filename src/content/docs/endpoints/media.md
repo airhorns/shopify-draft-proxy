@@ -48,8 +48,17 @@ Local staged mutations:
   saved searches into the saved-search model instead of fabricating an empty
   connection. Staged FILE saved searches appear in combined `files` /
   `fileSavedSearches` reads, and `files(savedSearchId:)` resolves the saved
-  search query before applying local filters. Unknown saved-search ids match no
-  staged files rather than returning the full file set.
+  search query before applying local filters. When a LiveHybrid
+  `files(savedSearchId:)` read references a saved search not already known to
+  local state, the proxy reads that `SavedSearch` from upstream with `node(id:)`
+  and hydrates it only if Shopify reports a FILE saved search. Unresolvable
+  saved-search IDs and saved searches for other resource types return Shopify's
+  top-level `RESOURCE_NOT_FOUND` shape instead of a successful empty
+  connection. When a captured LiveHybrid read observes the real Shopify row for
+  the same staged FILE saved-search flow, the connection de-duplicates by
+  resource type, name, and normalized query so the real row and synthetic row do
+  not both appear. Unknown saved-search ids match no staged files rather than
+  returning the full file set.
 - `stagedUploadsCreate` returns inert draft-proxy target metadata so clients can
   observe the mutation payload shape without the proxy creating cloud storage
   objects. Returned URLs use `shopify-draft-proxy.local` placeholders. The JS

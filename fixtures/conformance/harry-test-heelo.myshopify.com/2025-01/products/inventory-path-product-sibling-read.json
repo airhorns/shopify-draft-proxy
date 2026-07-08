@@ -1,0 +1,330 @@
+{
+  "scenario": "inventory-path-product-sibling-read",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-07T03:44:42.016Z",
+  "locationCreate": {
+    "variables": {
+      "input": {
+        "name": "Inventory path product sibling 1783395879236",
+        "fulfillsOnlineOrders": true,
+        "address": {
+          "address1": "30 Product Sibling St",
+          "city": "Boston",
+          "provinceCode": "MA",
+          "countryCode": "US",
+          "zip": "02112"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "locationAdd": {
+          "location": {
+            "id": "gid://shopify/Location/113828626738",
+            "name": "Inventory path product sibling 1783395879236",
+            "isActive": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "untrackedProductSet": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Inventory path untracked product 1783395879236",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [
+              {
+                "name": "Default Title"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Default Title"
+              }
+            ],
+            "inventoryItem": {
+              "tracked": false,
+              "requiresShipping": true
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10233290719538",
+            "title": "Inventory path untracked product 1783395879236",
+            "status": "DRAFT",
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51432091975986",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53537232191794",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "stockedProductSet": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Inventory path stocked other product 1783395879236",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [
+              {
+                "name": "Default Title"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Default Title"
+              }
+            ],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/113828626738",
+                "name": "available",
+                "quantity": 11
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10233290752306",
+            "title": "Inventory path stocked other product 1783395879236",
+            "status": "DRAFT",
+            "totalInventory": 11,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51432092008754",
+                  "inventoryQuantity": 11,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53537232224562",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSiblingRead": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53537232191794",
+      "productId": "gid://shopify/Product/10233290719538"
+    },
+    "response": {
+      "data": {
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53537232191794",
+          "tracked": false
+        },
+        "product": {
+          "id": "gid://shopify/Product/10233290719538",
+          "totalInventory": 0,
+          "tracksInventory": false
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "untrackedProductDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10233290719538",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "stockedProductDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10233290752306",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationCleanup": {
+      "deactivate": {
+        "errors": [
+          {
+            "message": "Directive @idempotent is not defined",
+            "locations": [
+              {
+                "line": 3,
+                "column": 49
+              }
+            ],
+            "path": ["mutation InventoryPathProductSiblingLocationDeactivate", "locationDeactivate"],
+            "extensions": {
+              "code": "undefinedDirective",
+              "directiveName": "idempotent"
+            }
+          },
+          {
+            "message": "Variable $idempotencyKey is declared by InventoryPathProductSiblingLocationDeactivate but not used",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["mutation InventoryPathProductSiblingLocationDeactivate"],
+            "extensions": {
+              "code": "variableNotUsed",
+              "variableName": "idempotencyKey"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "data": {
+          "locationDelete": {
+            "deletedLocationId": null,
+            "locationDeleteUserErrors": [
+              {
+                "field": ["locationId"],
+                "message": "The location cannot be deleted while it is active.",
+                "code": "LOCATION_IS_ACTIVE"
+              },
+              {
+                "field": ["locationId"],
+                "message": "The location cannot be deleted while it has inventory.",
+                "code": "LOCATION_HAS_INVENTORY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

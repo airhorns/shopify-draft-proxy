@@ -19,6 +19,7 @@ pub(in crate::proxy) fn payment_customization_record(
     input: &BTreeMap<String, ResolvedValue>,
     api_client_id: Option<&str>,
     resolved_function: Option<&Value>,
+    timestamp: &str,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
@@ -39,7 +40,7 @@ pub(in crate::proxy) fn payment_customization_record(
     });
     payment_customization_set_metafields(
         &mut record,
-        payment_customization_metafields(input, api_client_id),
+        payment_customization_metafields(input, api_client_id, timestamp, None),
     );
     record
 }
@@ -47,6 +48,8 @@ pub(in crate::proxy) fn payment_customization_record(
 pub(in crate::proxy) fn payment_customization_metafields(
     input: &BTreeMap<String, ResolvedValue>,
     api_client_id: Option<&str>,
+    timestamp: &str,
+    existing_record: Option<&Value>,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
@@ -55,17 +58,48 @@ pub(in crate::proxy) fn payment_customization_metafields(
             let namespace = resolved_string_field(&metafield, "namespace")
                 .map(|namespace| canonical_app_metafield_namespace(Some(&namespace), api_client_id))
                 .unwrap_or_default();
+            let key = resolved_string_field(&metafield, "key").unwrap_or_default();
+            let existing_metafield =
+                payment_customization_existing_metafield(existing_record, &namespace, &key);
+            let id = existing_metafield
+                .and_then(|metafield| metafield["id"].as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    shopify_gid(
+                        "Metafield",
+                        format_args!("payment-customization-{}", index + 1),
+                    )
+                });
+            let created_at = existing_metafield
+                .and_then(|metafield| metafield["createdAt"].as_str())
+                .unwrap_or(timestamp);
             json!({
-                "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
+                "id": id,
                 "namespace": namespace,
-                "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
+                "key": key,
                 "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
                 "value": resolved_string_field(&metafield, "value").unwrap_or_default(),
-                "createdAt": format!("2024-01-01T00:00:{:02}.000Z", (index as u64 + 1) % 60),
-                "updatedAt": format!("2024-01-01T00:00:{:02}.000Z", (index as u64 + 1) % 60)
+                "createdAt": created_at,
+                "updatedAt": timestamp
             })
         })
         .collect()
+}
+
+fn payment_customization_existing_metafield<'a>(
+    record: Option<&'a Value>,
+    namespace: &str,
+    key: &str,
+) -> Option<&'a Value> {
+    record?
+        .get("metafields")?
+        .get("nodes")?
+        .as_array()?
+        .iter()
+        .find(|metafield| {
+            metafield["namespace"].as_str() == Some(namespace)
+                && metafield["key"].as_str() == Some(key)
+        })
 }
 
 pub(in crate::proxy) fn payment_customization_set_metafields(

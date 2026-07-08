@@ -3482,7 +3482,8 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
 
 #[test]
 fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
-    let mut proxy = snapshot_proxy();
+    let clock = Arc::new(Mutex::new(utc_time(1704067200)));
+    let mut proxy = snapshot_proxy_with_clock(clock.clone());
     restore_shop_currency(&mut proxy, "USD");
 
     let create_company = proxy.process_request(json_graphql_request(
@@ -3546,7 +3547,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
         company["orderSummary"],
         json!({ "total": 0, "precision": "EXACT" })
     );
-    assert_eq!(company["lifetimeDuration"], Value::Null);
+    assert_eq!(company["lifetimeDuration"], json!("less than 5 seconds"));
     assert_eq!(
         company["locations"]["nodes"][0]["totalSpent"],
         json!({ "amount": "0.0", "currencyCode": "USD" })
@@ -3563,6 +3564,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
         json!([])
     );
 
+    set_clock(&clock, 1704067245);
     let create_order = proxy.process_request(json_graphql_request(
         r#"
         mutation B2BAggregatesOrderCreate($order: OrderCreateOrderInput!) {
@@ -3691,7 +3693,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
     );
     assert_eq!(
         read.body["data"]["company"]["lifetimeDuration"],
-        json!("less than 5 seconds")
+        json!("less than a minute")
     );
     assert_eq!(
         read.body["data"]["companyLocation"]["totalSpent"],
@@ -3732,7 +3734,7 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
     );
     assert_eq!(
         company_node["lifetimeDuration"],
-        json!("less than 5 seconds")
+        json!("less than a minute")
     );
     assert_eq!(location_node["__typename"], json!("CompanyLocation"));
     assert_eq!(
@@ -3748,6 +3750,55 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
     assert_eq!(
         location_node["catalogs"]["nodes"],
         json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
+    );
+
+    set_clock(&clock, 1711929600);
+    let create_with_customer_since = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLifetimeDurationCustomerSince($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              createdAt
+              customerSince
+              lifetimeDuration
+              ordersCount { count precision }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": {
+                    "name": "Customer Since Duration Co",
+                    "customerSince": "2024-01-01T00:00:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_with_customer_since.status, 200);
+    assert_eq!(
+        create_with_customer_since.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_since_company =
+        &create_with_customer_since.body["data"]["companyCreate"]["company"];
+    assert_eq!(
+        customer_since_company["createdAt"],
+        json!("2024-04-01T00:00:00Z")
+    );
+    assert_eq!(
+        customer_since_company["customerSince"],
+        json!("2024-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        customer_since_company["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        customer_since_company["lifetimeDuration"],
+        json!("3 months")
     );
 }
 

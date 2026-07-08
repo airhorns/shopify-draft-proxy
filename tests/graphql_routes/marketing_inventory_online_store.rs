@@ -1601,6 +1601,54 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
+fn marketing_delete_all_external_allocates_unique_job_ids() {
+    let mut proxy = snapshot_proxy();
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingDeleteAllExternalFirst {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal {
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingDeleteAllExternalSecond {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal {
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let first_payload = &first.body["data"]["deleteAllExternal"];
+    let second_payload = &second.body["data"]["deleteAllExternal"];
+    assert_eq!(first_payload["userErrors"], json!([]));
+    assert_eq!(second_payload["userErrors"], json!([]));
+    assert_eq!(first_payload["job"]["done"], json!(false));
+    assert_eq!(second_payload["job"]["done"], json!(false));
+
+    let first_job_id = first_payload["job"]["id"].as_str().expect("first job id");
+    let second_job_id = second_payload["job"]["id"].as_str().expect("second job id");
+    assert!(first_job_id.starts_with("gid://shopify/Job/"));
+    assert!(second_job_id.starts_with("gid://shopify/Job/"));
+    assert!(first_job_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(second_job_id.contains("shopify-draft-proxy=synthetic"));
+    assert_ne!(first_job_id, second_job_id);
+    assert_ne!(first_job_id, "gid://shopify/Job/marketing-delete-all-local");
+    assert_ne!(
+        second_job_id,
+        "gid://shopify/Job/marketing-delete-all-local"
+    );
+}
+
+#[test]
 fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_values() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(
@@ -2784,6 +2832,130 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     assert_eq!(
         blocked_move.body["data"]["inventoryMoveQuantities"]["userErrors"],
         json!([{"field": ["input", "changes", "0"], "message": "The quantities can't be moved between different locations."}])
+    );
+}
+
+#[test]
+fn inventory_path_product_sibling_uses_product_scoped_inventory_and_tracking() {
+    let mut proxy = inventory_seed_proxy();
+    let location_id = add_inventory_test_location(&mut proxy, "Product sibling stock");
+
+    let untracked_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryPathUntrackedProduct($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              variants(first: 1) { nodes { inventoryItem { id tracked } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory path untracked product",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": false, "requiresShipping": true }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        untracked_setup.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    let untracked_product_id = untracked_setup.body["data"]["productSet"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let untracked_inventory_item_id = untracked_setup.body["data"]["productSet"]["product"]
+        ["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let stocked_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryPathStockedOtherProduct($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              title
+              status
+              totalInventory
+              tracksInventory
+              variants(first: 1) {
+                nodes {
+                  id
+                  inventoryQuantity
+                  inventoryItem {
+                    id
+                    tracked
+                    requiresShipping
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory path stocked other product",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": true, "requiresShipping": true },
+                    "inventoryQuantities": [{
+                        "locationId": location_id,
+                        "name": "available",
+                        "quantity": 11
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        stocked_setup.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryPathProductSibling($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) { id tracked }
+          product(id: $productId) { id totalInventory tracksInventory }
+        }
+        "#,
+        json!({
+            "inventoryItemId": untracked_inventory_item_id,
+            "productId": untracked_product_id
+        }),
+    ));
+    assert_eq!(read.body["data"]["inventoryItem"]["tracked"], json!(false));
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({
+            "id": untracked_product_id,
+            "totalInventory": 0,
+            "tracksInventory": false
+        })
     );
 }
 
@@ -6633,6 +6805,126 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
             json!("inventoryTransferMarkAsReadyToShip"),
             json!("inventoryTransferCancel")
         ]
+    );
+}
+
+#[test]
+fn inventory_transfer_read_quantities_reflect_in_transit_shipment_consumption() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Shipment Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Shipment Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-SHIPMENT-READ");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
+
+    let create_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReadyTransferForShipment($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let transfer =
+        &create_response.body["data"]["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"];
+    assert_eq!(transfer["status"], json!("READY_TO_SHIP"));
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        transfer["lineItems"]["nodes"][0],
+        json!({
+            "id": transfer["lineItems"]["nodes"][0]["id"],
+            "totalQuantity": 2,
+            "shippableQuantity": 2,
+            "shippedQuantity": 0,
+            "processableQuantity": 2,
+            "pickedForShipmentQuantity": 0
+        })
+    );
+
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipOneTransferUnit($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItemTotalQuantity
+              lineItems(first: 10) { nodes { quantity inventoryItem { id } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "movementId": transfer_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query TransferAfterShipment($id: ID!) {
+          inventoryTransfer(id: $id) {
+            status
+            lineItems(first: 10) {
+              nodes {
+                totalQuantity
+                shippableQuantity
+                shippedQuantity
+                processableQuantity
+                pickedForShipmentQuantity
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryTransfer"]["status"],
+        json!("IN_PROGRESS")
+    );
+    assert_eq!(
+        read.body["data"]["inventoryTransfer"]["lineItems"]["nodes"][0],
+        json!({
+            "totalQuantity": 2,
+            "shippableQuantity": 1,
+            "shippedQuantity": 1,
+            "processableQuantity": 1,
+            "pickedForShipmentQuantity": 0
+        })
     );
 }
 
@@ -12288,6 +12580,198 @@ fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
 }
 
 #[test]
+fn media_files_live_hybrid_saved_search_id_preserves_upstream_matches_when_search_is_cold() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let is_saved_search_hydrate = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaFileSavedSearchHydrate"));
+            captured_bodies.lock().unwrap().push(body);
+            if is_saved_search_hydrate {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "node": {
+                                "__typename": "SavedSearch",
+                                "id": "gid://shopify/SavedSearch/990",
+                                "name": "Ready upstream files",
+                                "query": "filename:ready-upstream-match.jpg",
+                                "resourceType": "FILE"
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/990",
+                                "alt": "Ready upstream match",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-upstream-match.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-upstream-match.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/990",
+                                "endCursor": "cursor:gid://shopify/MediaImage/990"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesByColdSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"savedSearchId": "gid://shopify/SavedSearch/990"}),
+    ));
+
+    let captured_upstream_bodies = upstream_bodies.lock().unwrap().clone();
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/990",
+                "alt": "Ready upstream match",
+                "fileStatus": "READY",
+                "filename": "ready-upstream-match.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/ready-upstream-match.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/990",
+                "endCursor": "cursor:gid://shopify/MediaImage/990"
+            }
+        }),
+        "response body: {}; upstream bodies: {}",
+        read.body,
+        Value::Array(captured_upstream_bodies.clone())
+    );
+    assert_eq!(
+        captured_upstream_bodies.len(),
+        2,
+        "files(savedSearchId:) cold read should forward upstream and hydrate the saved search"
+    );
+    assert!(captured_upstream_bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileSavedSearchHydrate")));
+    assert_eq!(
+        captured_upstream_bodies[1]["variables"]["id"],
+        json!("gid://shopify/SavedSearch/990")
+    );
+}
+
+#[test]
+fn media_files_saved_search_id_rejects_unknown_and_wrong_resource_type_without_sentinel() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownFileSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"savedSearchId": "gid://shopify/SavedSearch/0"}),
+    ));
+
+    assert_eq!(unknown.body["data"], Value::Null);
+    assert_eq!(
+        unknown.body["errors"][0]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        unknown.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(unknown.body["errors"][0]["path"], json!(["files"]));
+
+    let create_product_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSavedSearchForFiles($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Not files",
+            "query": "title:example"
+        }}),
+    ));
+    assert_eq!(
+        create_product_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let product_saved_search_id = create_product_search.body["data"]["savedSearchCreate"]
+        ["savedSearch"]["id"]
+        .as_str()
+        .expect("saved search id")
+        .to_string();
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        r#"
+        query WrongTypeFileSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"savedSearchId": product_saved_search_id}),
+    ));
+
+    assert_eq!(wrong_type.body["data"], Value::Null);
+    assert_eq!(
+        wrong_type.body["errors"][0]["message"],
+        json!("The saved search with the ID 1 could not be found.")
+    );
+    assert_eq!(
+        wrong_type.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(wrong_type.body["errors"][0]["path"], json!(["files"]));
+}
+
+#[test]
 fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
     let mut proxy = snapshot_proxy();
 
@@ -12441,6 +12925,128 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
     assert_eq!(
         read.body["data"]["files"]["nodes"],
         json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
+    );
+}
+
+#[test]
+fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "savedSearchFiles": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": Value::Null,
+                                "endCursor": Value::Null
+                            }
+                        },
+                        "fileSavedSearches": {
+                            "nodes": [{
+                                "id": "gid://shopify/SavedSearch/4080031203634",
+                                "name": "Alpha files",
+                                "query": "filename:alpha-file.pdf",
+                                "resourceType": "FILE"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/SavedSearch/4080031203634",
+                                "endCursor": "cursor:gid://shopify/SavedSearch/4080031203634"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create_files = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchDedupCreateFiles($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id filename contentType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "alt": "Alpha file",
+            "contentType": "FILE",
+            "filename": "alpha-file.pdf",
+            "originalSource": "https://cdn.example.com/alpha-file.pdf"
+        }]}),
+    ));
+    assert_eq!(
+        create_files.body["data"]["fileCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileSavedSearchDedupCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "FILE",
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf"
+        }}),
+    ));
+    assert_eq!(
+        create_saved_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let saved_search_id = create_saved_search.body["data"]["savedSearchCreate"]["savedSearch"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileSavedSearchDedupRead($savedSearchId: ID!) {
+          savedSearchFiles: files(first: 10, savedSearchId: $savedSearchId) {
+            nodes { filename contentType }
+          }
+          fileSavedSearches(first: 10) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"savedSearchId": saved_search_id}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["savedSearchFiles"]["nodes"],
+        json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
+    );
+    assert_eq!(
+        read.body["data"]["fileSavedSearches"]["nodes"],
+        json!([{
+            "id": "gid://shopify/SavedSearch/4080031203634",
+            "name": "Alpha files",
+            "query": "filename:alpha-file.pdf",
+            "resourceType": "FILE"
+        }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "LiveHybrid read should forward once before overlaying staged state"
     );
 }
 

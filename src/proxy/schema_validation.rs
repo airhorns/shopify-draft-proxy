@@ -1083,6 +1083,15 @@ fn enum_value_allowed(schema: &AdminInputSchema, type_name: &str, provided: &str
     })
 }
 
+pub(in crate::proxy) fn public_admin_enum_value_allowed(
+    api_version: &str,
+    type_name: &str,
+    provided: &str,
+) -> bool {
+    public_admin_input_schema(api_version)
+        .is_some_and(|schema| enum_value_allowed(schema, type_name, provided))
+}
+
 fn enum_expected_message(
     schema: &AdminInputSchema,
     type_name: &str,
@@ -2398,7 +2407,7 @@ fn inline_argument_location(
     inline_argument_value_location(query, field, argument_name).unwrap_or(field.location)
 }
 
-fn inline_input_field_name_location(
+pub(in crate::proxy) fn inline_input_field_name_location(
     query: &str,
     field_location: SourceLocation,
     target_depth: i32,
