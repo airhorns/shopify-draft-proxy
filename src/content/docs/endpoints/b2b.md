@@ -91,7 +91,10 @@ selected through the Shopify `Count` object shape. `companies(first:, query:)`
 and `companiesCount` are answered from the local B2B graph only after company
 state has been staged or hydrated in the current session. Cold LiveHybrid
 company connection/count reads forward upstream unchanged so real store
-companies are visible before local B2B writes occur.
+companies are visible before local B2B writes occur. `Company.lifetimeDuration`
+is derived from staged `customerSince`, falling back to the staged `createdAt`
+timestamp from company creation, and is returned even when the staged company
+has no orders.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
