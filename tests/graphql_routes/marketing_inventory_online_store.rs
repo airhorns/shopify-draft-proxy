@@ -12532,6 +12532,198 @@ fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
 }
 
 #[test]
+fn media_files_live_hybrid_saved_search_id_preserves_upstream_matches_when_search_is_cold() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let is_saved_search_hydrate = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaFileSavedSearchHydrate"));
+            captured_bodies.lock().unwrap().push(body);
+            if is_saved_search_hydrate {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "node": {
+                                "__typename": "SavedSearch",
+                                "id": "gid://shopify/SavedSearch/990",
+                                "name": "Ready upstream files",
+                                "query": "filename:ready-upstream-match.jpg",
+                                "resourceType": "FILE"
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "files": {
+                            "nodes": [{
+                                "__typename": "MediaImage",
+                                "id": "gid://shopify/MediaImage/990",
+                                "alt": "Ready upstream match",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-01T00:00:00Z",
+                                "fileStatus": "READY",
+                                "filename": "ready-upstream-match.jpg",
+                                "image": {
+                                    "url": "https://cdn.example.com/ready-upstream-match.jpg",
+                                    "width": 1200,
+                                    "height": 800
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor:gid://shopify/MediaImage/990",
+                                "endCursor": "cursor:gid://shopify/MediaImage/990"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFilesByColdSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes {
+              id
+              alt
+              fileStatus
+              filename
+              ... on MediaImage { image { url width height } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"savedSearchId": "gid://shopify/SavedSearch/990"}),
+    ));
+
+    let captured_upstream_bodies = upstream_bodies.lock().unwrap().clone();
+    assert_eq!(
+        read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/990",
+                "alt": "Ready upstream match",
+                "fileStatus": "READY",
+                "filename": "ready-upstream-match.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/ready-upstream-match.jpg",
+                    "width": 1200,
+                    "height": 800
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/990",
+                "endCursor": "cursor:gid://shopify/MediaImage/990"
+            }
+        }),
+        "response body: {}; upstream bodies: {}",
+        read.body,
+        Value::Array(captured_upstream_bodies.clone())
+    );
+    assert_eq!(
+        captured_upstream_bodies.len(),
+        2,
+        "files(savedSearchId:) cold read should forward upstream and hydrate the saved search"
+    );
+    assert!(captured_upstream_bodies[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("MediaFileSavedSearchHydrate")));
+    assert_eq!(
+        captured_upstream_bodies[1]["variables"]["id"],
+        json!("gid://shopify/SavedSearch/990")
+    );
+}
+
+#[test]
+fn media_files_saved_search_id_rejects_unknown_and_wrong_resource_type_without_sentinel() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownFileSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"savedSearchId": "gid://shopify/SavedSearch/0"}),
+    ));
+
+    assert_eq!(unknown.body["data"], Value::Null);
+    assert_eq!(
+        unknown.body["errors"][0]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        unknown.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(unknown.body["errors"][0]["path"], json!(["files"]));
+
+    let create_product_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSavedSearchForFiles($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Not files",
+            "query": "title:example"
+        }}),
+    ));
+    assert_eq!(
+        create_product_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let product_saved_search_id = create_product_search.body["data"]["savedSearchCreate"]
+        ["savedSearch"]["id"]
+        .as_str()
+        .expect("saved search id")
+        .to_string();
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        r#"
+        query WrongTypeFileSavedSearch($savedSearchId: ID!) {
+          files(first: 5, savedSearchId: $savedSearchId) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"savedSearchId": product_saved_search_id}),
+    ));
+
+    assert_eq!(wrong_type.body["data"], Value::Null);
+    assert_eq!(
+        wrong_type.body["errors"][0]["message"],
+        json!("The saved search with the ID 1 could not be found.")
+    );
+    assert_eq!(
+        wrong_type.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(wrong_type.body["errors"][0]["path"], json!(["files"]));
+}
+
+#[test]
 fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
     let mut proxy = snapshot_proxy();
 
