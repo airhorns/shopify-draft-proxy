@@ -1728,7 +1728,7 @@ impl DraftProxy {
         {
             return payment_capture_error(
                 order,
-                json!(["parent_transaction_id"]),
+                json!(["parentTransactionId"]),
                 "Parent transaction must be a successful authorization",
                 Some("INVALID_TRANSACTION_STATE"),
             );
@@ -1758,7 +1758,7 @@ impl DraftProxy {
         let parent_amount = money_set_presentment_or_shop_amount_value(&parent_amount_set);
         let capturable_amount = (parent_amount - already_captured).max(0.0);
         if requested_amount_value > capturable_amount + 0.000_001 {
-            let message = if parent_amount_set.get("presentmentMoney").is_some() {
+            let message = if requires_currency {
                 format!(
                     "Cannot capture more than the authorized {} for this payment.",
                     format_money_amount(capturable_amount)
@@ -1766,7 +1766,7 @@ impl DraftProxy {
             } else {
                 "Amount exceeds capturable amount".to_string()
             };
-            let field = if parent_amount_set.get("presentmentMoney").is_some() {
+            let field = if requires_currency {
                 Value::Null
             } else {
                 json!(["amount"])

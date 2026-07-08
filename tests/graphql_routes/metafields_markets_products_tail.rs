@@ -1682,6 +1682,172 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         read_by_key("decimal_truncated")["compareDigest"],
         json!(sha256_hex("1.123456789"))
     );
+
+    assert_metafield_reference_and_references_project_locally_staged_targets();
+}
+
+fn assert_metafield_reference_and_references_project_locally_staged_targets() {
+    let mut proxy = snapshot_proxy();
+
+    let owner = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Reference owner"}}),
+    ));
+    assert_eq!(owner.status, 200);
+    assert_eq!(owner.body["data"]["productCreate"]["userErrors"], json!([]));
+    let owner_id = owner.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let target = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Referenced product"}}),
+    ));
+    assert_eq!(target.status, 200);
+    assert_eq!(
+        target.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let target_id = target.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetReferenceMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "featured", "type": "product_reference", "value": target_id},
+            {"ownerId": owner_id, "namespace": "custom", "key": "related", "type": "list.product_reference", "value": json!([target_id]).to_string()}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceMetafields($id: ID!) {
+          product(id: $id) {
+            featured: metafield(namespace: "custom", key: "featured") {
+              key
+              reference {
+                __typename
+                ... on Product { id title }
+              }
+            }
+            related: metafield(namespace: "custom", key: "related") {
+              key
+              references(first: 10) {
+                nodes {
+                  __typename
+                  ... on Product { id title }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let product = &read.body["data"]["product"];
+    assert_eq!(
+        product["featured"]["reference"],
+        json!({"__typename": "Product", "id": target_id, "title": "Referenced product"})
+    );
+    assert_eq!(
+        product["related"]["references"],
+        json!({
+            "nodes": [{"__typename": "Product", "id": target_id, "title": "Referenced product"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": target_id,
+                "endCursor": target_id
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceTarget($product: ProductDeleteInput!) {
+          productDelete(product: $product) {
+            deletedProductId
+          }
+        }
+        "#,
+        json!({"product": {"id": target_id}}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(target_id)
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMissingReferenceMetafields($id: ID!) {
+          product(id: $id) {
+            featured: metafield(namespace: "custom", key: "featured") {
+              key
+              reference { __typename ... on Product { id } }
+            }
+            related: metafield(namespace: "custom", key: "related") {
+              key
+              references(first: 10) {
+                nodes { __typename ... on Product { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(missing.status, 200);
+    let featured = missing.body["data"]["product"]["featured"]
+        .as_object()
+        .expect("featured metafield should be an object");
+    assert!(featured.contains_key("reference"));
+    assert_eq!(featured["reference"], Value::Null);
+    let related = missing.body["data"]["product"]["related"]
+        .as_object()
+        .expect("related metafield should be an object");
+    assert!(related.contains_key("references"));
+    assert_eq!(
+        related["references"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }
 
 #[test]
