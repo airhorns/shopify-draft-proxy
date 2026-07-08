@@ -13085,17 +13085,17 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         json!({
             "order": {
                 "email": "refund-guardrail@example.test",
-                "currency": "CAD",
+                "currency": "EUR",
                 "lineItems": [{
                     "title": "Refund guardrail item",
                     "quantity": 1,
-                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "EUR" } }
                 }],
                 "transactions": [{
                     "kind": "SALE",
                     "status": "SUCCESS",
                     "gateway": "manual",
-                    "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                    "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "EUR" } }
                 }]
             }
         }),
@@ -13164,9 +13164,15 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
     assert_eq!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0],
         json!({
-            "field": null,
-            "message": "Refund amount $15.00 is greater than net payment received $10.00"
+            "field": ["transactions"],
+            "message": "Refund amount 15.00 EUR is greater than net payment received 10.00 EUR"
         })
+    );
+    assert!(
+        !over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"]
+            .as_str()
+            .expect("over-refund userError message")
+            .contains('$')
     );
     assert_ne!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
