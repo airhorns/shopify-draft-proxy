@@ -1601,6 +1601,54 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
+fn marketing_delete_all_external_allocates_unique_job_ids() {
+    let mut proxy = snapshot_proxy();
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingDeleteAllExternalFirst {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal {
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingDeleteAllExternalSecond {
+          deleteAllExternal: marketingActivitiesDeleteAllExternal {
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let first_payload = &first.body["data"]["deleteAllExternal"];
+    let second_payload = &second.body["data"]["deleteAllExternal"];
+    assert_eq!(first_payload["userErrors"], json!([]));
+    assert_eq!(second_payload["userErrors"], json!([]));
+    assert_eq!(first_payload["job"]["done"], json!(false));
+    assert_eq!(second_payload["job"]["done"], json!(false));
+
+    let first_job_id = first_payload["job"]["id"].as_str().expect("first job id");
+    let second_job_id = second_payload["job"]["id"].as_str().expect("second job id");
+    assert!(first_job_id.starts_with("gid://shopify/Job/"));
+    assert!(second_job_id.starts_with("gid://shopify/Job/"));
+    assert!(first_job_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(second_job_id.contains("shopify-draft-proxy=synthetic"));
+    assert_ne!(first_job_id, second_job_id);
+    assert_ne!(first_job_id, "gid://shopify/Job/marketing-delete-all-local");
+    assert_ne!(
+        second_job_id,
+        "gid://shopify/Job/marketing-delete-all-local"
+    );
+}
+
+#[test]
 fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_values() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(
