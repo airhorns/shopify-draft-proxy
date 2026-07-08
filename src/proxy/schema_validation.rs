@@ -1083,6 +1083,15 @@ fn enum_value_allowed(schema: &AdminInputSchema, type_name: &str, provided: &str
     })
 }
 
+pub(in crate::proxy) fn public_admin_enum_value_allowed(
+    api_version: &str,
+    type_name: &str,
+    provided: &str,
+) -> bool {
+    public_admin_input_schema(api_version)
+        .is_some_and(|schema| enum_value_allowed(schema, type_name, provided))
+}
+
 fn enum_expected_message(
     schema: &AdminInputSchema,
     type_name: &str,
