@@ -402,6 +402,10 @@ fn refund_amount_validation_money_text(amount: f64, currency_code: &str) -> Stri
     }
 }
 
+fn capture_authorized_amount_error_text(amount: f64) -> String {
+    format!("{:.2}", (amount * 100.0).round() / 100.0)
+}
+
 pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
     let highest = order_transactions(order)
         .iter()
@@ -1728,9 +1732,9 @@ impl DraftProxy {
         {
             return payment_capture_error(
                 order,
-                json!(["parent_transaction_id"]),
+                json!(["parentTransactionId"]),
                 "Parent transaction must be a successful authorization",
-                Some("INVALID_TRANSACTION_STATE"),
+                None,
             );
         }
         if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
@@ -1758,20 +1762,11 @@ impl DraftProxy {
         let parent_amount = money_set_presentment_or_shop_amount_value(&parent_amount_set);
         let capturable_amount = (parent_amount - already_captured).max(0.0);
         if requested_amount_value > capturable_amount + 0.000_001 {
-            let message = if parent_amount_set.get("presentmentMoney").is_some() {
-                format!(
-                    "Cannot capture more than the authorized {} for this payment.",
-                    format_money_amount(capturable_amount)
-                )
-            } else {
-                "Amount exceeds capturable amount".to_string()
-            };
-            let field = if parent_amount_set.get("presentmentMoney").is_some() {
-                Value::Null
-            } else {
-                json!(["amount"])
-            };
-            return payment_capture_error(order, field, message, Some("OVER_CAPTURE"));
+            let message = format!(
+                "Cannot capture more than the authorized {} for this payment.",
+                capture_authorized_amount_error_text(capturable_amount)
+            );
+            return payment_capture_error(order, Value::Null, message, Some("OVER_CAPTURE"));
         }
         let remaining_amount = if final_capture {
             0.0
