@@ -7625,6 +7625,24 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
         normalized_handle.body["data"]["translationsRegister"]["translations"][0]["value"],
         json!("bad-value-with-spaces")
     );
+    let non_ascii_handle = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
+        json!({ "resourceId": resource_id.as_str(), "translations": [{ "locale": "fr", "key": "handle", "value": "日本", "translatableContentDigest": handle_digest }] }),
+    ));
+    assert_eq!(
+        non_ascii_handle.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+    let non_ascii_value = non_ascii_handle.body["data"]["translationsRegister"]["translations"][0]
+        ["value"]
+        .as_str()
+        .unwrap();
+    assert!(non_ascii_value.starts_with("localized-"));
+    assert!(!non_ascii_value.contains('/'));
+    assert_ne!(
+        non_ascii_value,
+        "store-localization/generic-dynamic-content-translation"
+    );
 
     let unknown_market = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,

@@ -1,4 +1,6 @@
 use super::*;
+use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     user_error_typed("CatalogUserError", field, message, Some(code))
@@ -1740,10 +1742,20 @@ pub(in crate::proxy) fn normalize_localized_handle(value: &str) -> String {
     }
     let normalized = normalized.trim_matches('-').to_string();
     if normalized.is_empty() {
-        "store-localization/generic-dynamic-content-translation".to_string()
+        localized_handle_hash_fallback(value)
     } else {
         normalized
     }
+}
+
+fn localized_handle_hash_fallback(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    let mut fallback = String::with_capacity("localized-".len() + 24);
+    fallback.push_str("localized-");
+    for byte in digest.iter().take(12) {
+        write!(&mut fallback, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    fallback
 }
 
 pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
@@ -1773,6 +1785,23 @@ pub(in crate::proxy) fn market_localization_error(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_localized_handle_uses_valid_deterministic_fallback_for_empty_ascii_slug() {
+        let japanese_market = normalize_localized_handle("日本");
+        let tokyo_market = normalize_localized_handle("東京");
+
+        assert_ne!(
+            japanese_market,
+            "store-localization/generic-dynamic-content-translation"
+        );
+        assert!(!japanese_market.contains('/'));
+        assert!(japanese_market
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'));
+        assert_eq!(japanese_market, normalize_localized_handle("日本"));
+        assert_ne!(japanese_market, tokyo_market);
+    }
 
     // The `priceListFixedPricesByProductUpdate` validation suite is covered
     // end-to-end against recorded Shopify responses by the markets parity specs

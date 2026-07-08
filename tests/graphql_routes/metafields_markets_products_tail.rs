@@ -4355,6 +4355,34 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         slug.body["data"]["marketCreate"]["market"]["handle"],
         json!("north-south-eu")
     );
+    let mut non_ascii_handle_proxy = snapshot_proxy();
+    let japanese_market = non_ascii_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "日本"}}),
+    ));
+    let tokyo_market = non_ascii_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "東京"}}),
+    ));
+    assert_eq!(
+        japanese_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        tokyo_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let japanese_handle = japanese_market.body["data"]["marketCreate"]["market"]["handle"]
+        .as_str()
+        .unwrap();
+    let tokyo_handle = tokyo_market.body["data"]["marketCreate"]["market"]["handle"]
+        .as_str()
+        .unwrap();
+    for handle in [japanese_handle, tokyo_handle] {
+        assert!(handle.starts_with("localized-"));
+        assert!(!handle.contains('/'));
+    }
+    assert_ne!(japanese_handle, tokyo_handle);
 
     let mut duplicate_name_proxy = snapshot_proxy();
     let _ = duplicate_name_proxy.process_request(json_graphql_request(
