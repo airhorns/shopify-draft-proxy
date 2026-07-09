@@ -1012,15 +1012,18 @@ pub(in crate::proxy) fn order_create_financial_status(
     input: &BTreeMap<String, ResolvedValue>,
     transactions: &[Value],
     total: f64,
-) -> String {
+) -> Option<String> {
     if let Some(status) = resolved_string_field(input, "financialStatus") {
-        return status;
+        return Some(status);
+    }
+    if transactions.is_empty() {
+        return None;
     }
     if transactions
         .iter()
         .any(|transaction| transaction["kind"] == "AUTHORIZATION")
     {
-        return "AUTHORIZED".to_string();
+        return Some("AUTHORIZED".to_string());
     }
     let received = transactions
         .iter()
@@ -1028,11 +1031,11 @@ pub(in crate::proxy) fn order_create_financial_status(
         .filter(|transaction| transaction["status"] == "SUCCESS")
         .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
-    if received <= 0.0 || received + 0.005 >= total {
+    Some(if received <= 0.0 || received + 0.005 >= total {
         "PAID".to_string()
     } else {
         "PARTIALLY_PAID".to_string()
-    }
+    })
 }
 
 pub(in crate::proxy) fn order_create_payment_fields(
