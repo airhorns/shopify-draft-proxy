@@ -13483,6 +13483,166 @@ fn refund_create_stages_refund_and_downstream_order_reads() {
 }
 
 #[test]
+fn refund_create_recomputes_sequential_refund_order_money_rollups() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRefundableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes { id }
+              }
+              transactions {
+                id
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "sequential-refund-rollups@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Refund rollup item",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "45.00", "currencyCode": "USD" } }
+                }],
+                "shippingLines": [{
+                    "title": "Ground",
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "100.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order = &create.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let line_item_id = order["lineItems"]["nodes"][0]["id"].clone();
+    let parent_transaction_id = order["transactions"][0]["id"].clone();
+
+    let refund_query = r#"
+        mutation Refund($input: RefundInput!) {
+          refundCreate(input: $input) {
+            order {
+              id
+              netPaymentSet { shopMoney { amount currencyCode } }
+              totalRefundedSet { shopMoney { amount currencyCode } }
+              totalRefundedShippingSet { shopMoney { amount currencyCode } }
+              displayFinancialStatus
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let refund_variables = |amount: &str| {
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "refundLineItems": [{
+                    "lineItemId": line_item_id.clone(),
+                    "quantity": 1,
+                    "restockType": "NO_RESTOCK"
+                }],
+                "shipping": { "fullRefund": true },
+                "transactions": [{
+                    "parentId": parent_transaction_id.clone(),
+                    "kind": "REFUND",
+                    "amount": amount
+                }]
+            }
+        })
+    };
+
+    let first = proxy.process_request(json_graphql_request(
+        refund_query,
+        refund_variables("55.00"),
+    ));
+    assert_eq!(first.status, 200);
+    assert_eq!(first.body["data"]["refundCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        first.body["data"]["refundCreate"]["order"]["netPaymentSet"]["shopMoney"],
+        json!({ "amount": "45.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        first.body["data"]["refundCreate"]["order"]["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "55.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        first.body["data"]["refundCreate"]["order"]["totalRefundedShippingSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        first.body["data"]["refundCreate"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_REFUNDED")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        refund_query,
+        refund_variables("45.00"),
+    ));
+    assert_eq!(second.status, 200);
+    assert_eq!(second.body["data"]["refundCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        second.body["data"]["refundCreate"]["order"]["netPaymentSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        second.body["data"]["refundCreate"]["order"]["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        second.body["data"]["refundCreate"]["order"]["totalRefundedShippingSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        second.body["data"]["refundCreate"]["order"]["displayFinancialStatus"],
+        json!("REFUNDED")
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSequentialRefundRollups($id: ID!) {
+          order(id: $id) {
+            netPaymentSet { shopMoney { amount currencyCode } }
+            totalRefundedSet { shopMoney { amount currencyCode } }
+            totalRefundedShippingSet { shopMoney { amount currencyCode } }
+            refunds { id }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    let downstream_order = &downstream.body["data"]["order"];
+    assert_eq!(
+        downstream_order["netPaymentSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        downstream_order["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        downstream_order["totalRefundedShippingSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "USD" })
+    );
+    assert_eq!(downstream_order["refunds"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
