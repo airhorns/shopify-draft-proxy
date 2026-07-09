@@ -1491,6 +1491,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
       'config/parity-requests/products/publication-created-read.graphql',
+      'config/parity-requests/products/publication-products-connection-read.graphql',
       'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
