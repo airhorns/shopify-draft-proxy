@@ -222,10 +222,14 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let mut staged_ids = Vec::new();
+        let operation_path = parsed_document(query, variables)
+            .and_then(|document| document.operation_name.map(|_| document.operation_path));
 
         for field in fields {
             if matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate") {
-                if let Some(error) = gift_card_missing_recipient_id_error(field) {
+                if let Some(error) =
+                    gift_card_missing_recipient_id_error(query, field, operation_path.as_deref())
+                {
                     return ok_json(json!({ "errors": [error] }));
                 }
                 if self
@@ -242,7 +246,9 @@ impl DraftProxy {
                 }
             }
             if matches!(field.name.as_str(), "giftCardCredit" | "giftCardDebit") {
-                if let Some(error) = gift_card_transaction_payload_selection_error(field) {
+                if let Some(error) =
+                    gift_card_transaction_payload_selection_error(field, operation_path.as_deref())
+                {
                     return ok_json(json!({ "errors": [error] }));
                 }
             }
@@ -1998,7 +2004,19 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
     })
 }
 
-fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> Option<Value> {
+fn gift_card_error_path(operation_path: Option<&str>, segments: Vec<Value>) -> Value {
+    let mut path = Vec::new();
+    if let Some(operation_path) = operation_path {
+        path.push(json!(operation_path));
+    }
+    path.extend(segments);
+    Value::Array(path)
+}
+
+fn gift_card_transaction_payload_selection_error(
+    field: &RootFieldSelection,
+    operation_path: Option<&str>,
+) -> Option<Value> {
     let selected = field
         .selection
         .iter()
@@ -2008,19 +2026,16 @@ fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> 
         "giftCardDebit" => "GiftCardDebitPayload",
         _ => return None,
     };
-    let operation_name = match field.name.as_str() {
-        "giftCardCredit" => "mutation GiftCardCreditPayloadGiftCardRejected",
-        "giftCardDebit" => "mutation GiftCardDebitPayloadGiftCardRejected",
-        _ => return None,
-    };
     Some(json!({
         "message": format!("Field 'giftCard' doesn't exist on type '{}'", type_name),
-        "locations": [{ "line": 7, "column": 7 }],
-        "path": [
-            operation_name,
-            field.name.clone(),
-            selected.response_key.clone()
-        ],
+        "locations": graphql_locations(selected.location),
+        "path": gift_card_error_path(
+            operation_path,
+            vec![
+                json!(field.response_key.clone()),
+                json!(selected.response_key.clone())
+            ]
+        ),
         "extensions": {
             "code": "undefinedField",
             "typeName": type_name,
@@ -2029,27 +2044,35 @@ fn gift_card_transaction_payload_selection_error(field: &RootFieldSelection) -> 
     }))
 }
 
-fn gift_card_missing_recipient_id_error(field: &RootFieldSelection) -> Option<Value> {
+fn gift_card_missing_recipient_id_error(
+    query: &str,
+    field: &RootFieldSelection,
+    operation_path: Option<&str>,
+) -> Option<Value> {
     let input = resolved_object_field(&field.arguments, "input")?;
     let recipient = resolved_object_field(&input, "recipientAttributes")?;
     if recipient.contains_key("id") {
         return None;
     }
-    let (operation_name, line, column) = match field.name.as_str() {
-        "giftCardCreate" => ("mutation GiftCardRecipientValidationCreateMissingId", 4, 57),
-        "giftCardUpdate" => ("mutation GiftCardRecipientValidationUpdateMissingId", 5, 37),
+    match field.name.as_str() {
+        "giftCardCreate" | "giftCardUpdate" => {}
         _ => return None,
-    };
+    }
+    let location =
+        inline_input_field_name_location(query, field.location, 2, "recipientAttributes")
+            .unwrap_or(field.location);
     Some(json!({
         "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
-        "locations": [{ "line": line, "column": column }],
-        "path": [
-            operation_name,
-            field.response_key.clone(),
-            "input",
-            "recipientAttributes",
-            "id"
-        ],
+        "locations": graphql_locations(location),
+        "path": gift_card_error_path(
+            operation_path,
+            vec![
+                json!(field.response_key.clone()),
+                json!("input"),
+                json!("recipientAttributes"),
+                json!("id")
+            ]
+        ),
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
             "argumentName": "id",

@@ -7946,7 +7946,7 @@ fn carrier_services_connection_combines_filters_and_honors_sort_reverse() {
 }
 
 #[test]
-fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_fields() {
+fn delivery_settings_roots_return_snapshot_defaults_with_aliases_and_selected_fields() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -7980,6 +7980,83 @@ fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_f
             }
         })
     );
+}
+
+#[test]
+fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["variables"], json!({}));
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.contains("deliverySettings"));
+            assert!(query.contains("deliveryPromiseSettings"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliverySettingsAlias": {
+                            "legacyModeProfiles": true,
+                            "legacyModeBlocked": {
+                                "blocked": true,
+                                "reasons": ["NO_MARKETS"]
+                            }
+                        },
+                        "deliveryPromiseSettingsAlias": {
+                            "deliveryDatesEnabled": true,
+                            "processingTime": {
+                                "min": 1,
+                                "max": 3
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliverySettingsRead {
+          deliverySettingsAlias: deliverySettings {
+            legacyModeProfiles
+            legacyModeBlocked { blocked reasons }
+          }
+          deliveryPromiseSettingsAlias: deliveryPromiseSettings {
+            deliveryDatesEnabled
+            processingTime
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "deliverySettingsAlias": {
+                    "legacyModeProfiles": true,
+                    "legacyModeBlocked": {
+                        "blocked": true,
+                        "reasons": ["NO_MARKETS"]
+                    }
+                },
+                "deliveryPromiseSettingsAlias": {
+                    "deliveryDatesEnabled": true,
+                    "processingTime": {
+                        "min": 1,
+                        "max": 3
+                    }
+                }
+            }
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]

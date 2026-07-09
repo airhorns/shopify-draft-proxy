@@ -447,6 +447,65 @@ const inventoryShipmentCreateMutation = `#graphql
   }
 `;
 
+const inventoryShipmentCreateInTransitMutation = `#graphql
+  mutation InventoryShipmentCreateInTransitParity($input: InventoryShipmentCreateInput!) {
+    inventoryShipmentCreateInTransit(input: $input) {
+      inventoryShipment {
+        id
+        name
+        status
+        lineItemTotalQuantity
+        totalAcceptedQuantity
+        totalReceivedQuantity
+        totalRejectedQuantity
+        tracking {
+          trackingNumber
+          company
+          trackingUrl
+          arrivesAt
+        }
+        lineItems(first: 10) {
+          nodes {
+            id
+            quantity
+            acceptedQuantity
+            rejectedQuantity
+            unreceivedQuantity
+            inventoryItem {
+              id
+              sku
+              tracked
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const inventoryTransferReadAfterShipmentQuery = `#graphql
+  query InventoryTransferReadAfterShipmentParity($id: ID!) {
+    inventoryTransfer(id: $id) {
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+  }
+`;
+
 const inventoryShipmentDeleteMutation = `#graphql
   mutation InventoryDefaultCarrierShipmentDelete($id: ID!) {
     inventoryShipmentDelete(id: $id) {
@@ -738,7 +797,9 @@ let defaultProductIdForCleanup: string | null = null;
 let shipmentProductIdForCleanup: string | null = null;
 let orderIdForCleanup: string | null = null;
 let shipmentIdForCleanup: string | null = null;
+let inTransitShipmentIdForCleanup: string | null = null;
 let transferIdForCleanup: string | null = null;
+let inTransitTransferIdForCleanup: string | null = null;
 let shipmentLocationIdsForCleanup: string[] = [];
 let cleanupDestinationLocationId: string | null = null;
 
@@ -876,13 +937,117 @@ try {
     'inventoryShipmentCreate',
   );
 
+  const transferReadAfterDraftShipmentVariables = { id: transferIdForCleanup };
+  const transferReadAfterDraftShipment = await runGraphqlAllowGraphqlErrors(
+    inventoryTransferReadAfterShipmentQuery,
+    transferReadAfterDraftShipmentVariables,
+  );
+
+  const inTransitTransferCreateVariables = {
+    input: {
+      originLocationId: shipmentProduct.originLocation.id,
+      destinationLocationId: shipmentProduct.destinationLocation.id,
+      referenceName: `inventory-default-carrier-in-transit-${runId}`,
+      note: 'inventory default carrier in-transit conformance',
+      tags: ['inventory-default-carrier', 'in-transit'],
+      lineItems: [
+        {
+          inventoryItemId: shipmentProduct.inventoryItemId,
+          quantity: 1,
+        },
+      ],
+    },
+  };
+  upstreamCalls.push(
+    await hydrateCall(parityRunnerInventoryHydrateNodesQuery, [shipmentProduct.inventoryItemId]),
+    await hydrateCall(productHydrateNodesQuery, [
+      shipmentProduct.originLocation.id,
+      shipmentProduct.destinationLocation.id,
+      shipmentProduct.inventoryItemId,
+    ]),
+  );
+  const inTransitTransferCreate = await runGraphqlAllowGraphqlErrors(
+    inventoryTransferCreateMutation,
+    inTransitTransferCreateVariables,
+  );
+  expectNoUserErrors(
+    inTransitTransferCreate,
+    ['data', 'inventoryTransferCreate', 'userErrors'],
+    'in-transit inventoryTransferCreate',
+  );
+  inTransitTransferIdForCleanup = readStringPath(
+    inTransitTransferCreate,
+    ['data', 'inventoryTransferCreate', 'inventoryTransfer', 'id'],
+    'in-transit inventoryTransferCreate',
+  );
+
+  const inTransitTransferReadyVariables = {
+    id: inTransitTransferIdForCleanup,
+  };
+  const inTransitTransferReady = await runGraphqlAllowGraphqlErrors(
+    inventoryTransferMarkReadyMutation,
+    inTransitTransferReadyVariables,
+  );
+  expectNoUserErrors(
+    inTransitTransferReady,
+    ['data', 'inventoryTransferMarkAsReadyToShip', 'userErrors'],
+    'in-transit inventoryTransferMarkAsReadyToShip',
+  );
+  upstreamCalls.push(await hydrateCall(parityRunnerInventoryHydrateNodesQuery, [shipmentProduct.inventoryItemId]));
+
+  const shipmentCreateInTransitVariables = {
+    input: {
+      movementId: inTransitTransferIdForCleanup,
+      trackingInput: {
+        trackingNumber: `JP-IN-TRANSIT-${runId}`,
+        company: 'Japan Post',
+        trackingUrl: 'https://www.post.japanpost.jp/',
+        arrivesAt: '2026-07-01T12:00:00Z',
+      },
+      lineItems: [
+        {
+          inventoryItemId: shipmentProduct.inventoryItemId,
+          quantity: 1,
+        },
+      ],
+    },
+  };
+  const shipmentCreateInTransit = await runGraphqlAllowGraphqlErrors(
+    inventoryShipmentCreateInTransitMutation,
+    shipmentCreateInTransitVariables,
+  );
+  expectNoUserErrors(
+    shipmentCreateInTransit,
+    ['data', 'inventoryShipmentCreateInTransit', 'userErrors'],
+    'inventoryShipmentCreateInTransit',
+  );
+  inTransitShipmentIdForCleanup = readStringPath(
+    shipmentCreateInTransit,
+    ['data', 'inventoryShipmentCreateInTransit', 'inventoryShipment', 'id'],
+    'inventoryShipmentCreateInTransit',
+  );
+
+  const transferReadAfterShipmentVariables = { id: inTransitTransferIdForCleanup };
+  const transferReadAfterShipment = await runGraphqlAllowGraphqlErrors(
+    inventoryTransferReadAfterShipmentQuery,
+    transferReadAfterShipmentVariables,
+  );
+
   const cleanup: JsonRecord = {};
   cleanup['orderCancel'] = await cancelOrder(orderIdForCleanup);
   orderIdForCleanup = null;
+  cleanup['inTransitShipmentDelete'] = await runGraphqlAllowGraphqlErrors(inventoryShipmentDeleteMutation, {
+    id: inTransitShipmentIdForCleanup,
+  });
+  inTransitShipmentIdForCleanup = null;
   cleanup['shipmentDelete'] = await runGraphqlAllowGraphqlErrors(inventoryShipmentDeleteMutation, {
     id: shipmentIdForCleanup,
   });
   shipmentIdForCleanup = null;
+  cleanup['inTransitTransferCancel'] = await runGraphqlAllowGraphqlErrors(inventoryTransferCancelMutation, {
+    id: inTransitTransferIdForCleanup,
+  });
+  inTransitTransferIdForCleanup = null;
   cleanup['transferCancel'] = await runGraphqlAllowGraphqlErrors(inventoryTransferCancelMutation, {
     id: transferIdForCleanup,
   });
@@ -939,6 +1104,26 @@ try {
         variables: shipmentCreateVariables,
         response: shipmentCreate,
       },
+      transferReadAfterDraftShipment: {
+        variables: transferReadAfterDraftShipmentVariables,
+        response: transferReadAfterDraftShipment,
+      },
+      inTransitTransferCreate: {
+        variables: inTransitTransferCreateVariables,
+        response: inTransitTransferCreate,
+      },
+      inTransitTransferReady: {
+        variables: inTransitTransferReadyVariables,
+        response: inTransitTransferReady,
+      },
+      shipmentCreateInTransit: {
+        variables: shipmentCreateInTransitVariables,
+        response: shipmentCreateInTransit,
+      },
+      transferReadAfterShipment: {
+        variables: transferReadAfterShipmentVariables,
+        response: transferReadAfterShipment,
+      },
     },
     cleanup,
     upstreamCalls,
@@ -959,12 +1144,34 @@ try {
     ),
   );
 } finally {
+  if (inTransitShipmentIdForCleanup) {
+    try {
+      await runGraphqlAllowGraphqlErrors(inventoryShipmentDeleteMutation, { id: inTransitShipmentIdForCleanup });
+    } catch (error) {
+      console.warn(
+        `In-transit shipment cleanup failed for ${inTransitShipmentIdForCleanup}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
   if (shipmentIdForCleanup) {
     try {
       await runGraphqlAllowGraphqlErrors(inventoryShipmentDeleteMutation, { id: shipmentIdForCleanup });
     } catch (error) {
       console.warn(
         `Shipment cleanup failed for ${shipmentIdForCleanup}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  if (inTransitTransferIdForCleanup) {
+    try {
+      await runGraphqlAllowGraphqlErrors(inventoryTransferCancelMutation, { id: inTransitTransferIdForCleanup });
+    } catch (error) {
+      console.warn(
+        `In-transit transfer cleanup failed for ${inTransitTransferIdForCleanup}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }

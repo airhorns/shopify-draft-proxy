@@ -1196,7 +1196,9 @@ impl DraftProxy {
             resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
         let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
         self.owner_metafield(owner_id, &namespace, &key)
-            .map(|metafield| selected_json(&metafield, &selection.selection))
+            .map(|metafield| {
+                self.selected_reference_value_record_json(&metafield, &selection.selection)
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -1213,7 +1215,7 @@ impl DraftProxy {
             return self.selected_owner_metafield(owner_id, selection);
         }
         if let Some(metafield) = base_owner_metafield(base, &namespace, &key) {
-            return selected_json(&metafield, &selection.selection);
+            return self.selected_reference_value_record_json(&metafield, &selection.selection);
         }
         base.get(selection.response_key.as_str())
             .or_else(|| base.get(selection.name.as_str()))
@@ -1248,7 +1250,9 @@ impl DraftProxy {
         selected_typed_connection_with_page_info(
             &records_for_output,
             &selection.selection,
-            selected_json,
+            |metafield, selections| {
+                self.selected_reference_value_record_json(metafield, selections)
+            },
             |metafield| metafield_cursor(metafield).unwrap_or_default(),
             page_info,
         )
@@ -1494,6 +1498,142 @@ impl DraftProxy {
                 .push(metafield);
         }
     }
+
+    pub(in crate::proxy) fn selected_reference_value_record_json(
+        &self,
+        record: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "reference" => Some(self.selected_scalar_reference_json(record, selection)),
+            "references" => Some(self.selected_reference_connection_json(record, selection)),
+            _ => record
+                .get(&selection.name)
+                .map(|value| nullable_selected_json(value, &selection.selection)),
+        })
+    }
+
+    fn selected_scalar_reference_json(&self, record: &Value, selection: &SelectedField) -> Value {
+        if let Some(existing) = record.get("reference") {
+            return nullable_selected_json(existing, &selection.selection);
+        }
+        let Some(id) = scalar_reference_id(record) else {
+            return Value::Null;
+        };
+        self.selected_reference_node_json(&id, &selection.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    fn selected_reference_connection_json(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        if let Some(existing) = record.get("references").filter(|value| value.is_object()) {
+            return project_seeded_connection(existing, &selection.arguments, &selection.selection);
+        }
+        let ids = list_reference_ids(record)
+            .into_iter()
+            .filter(|id| self.selected_reference_node_json(id, &[]).is_some())
+            .collect::<Vec<_>>();
+        let (ids, page_info) = connection_window(&ids, &selection.arguments, |id| id.clone());
+        selected_typed_connection_with_page_info(
+            &ids,
+            &selection.selection,
+            |id, selections| {
+                self.selected_reference_node_json(id, selections)
+                    .unwrap_or(Value::Null)
+            },
+            |id| id.clone(),
+            page_info,
+        )
+    }
+
+    fn selected_reference_node_json(
+        &self,
+        id: &str,
+        selections: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => {
+                let product = self.store.product_by_id(id)?;
+                let variants = self.store.product_variants_for_product(id);
+                Some(self.product_owner_json_with_store_currency(product, &variants, selections))
+            }
+            Some("ProductVariant") => {
+                let variant = self.store.product_variant_by_id(id)?;
+                let variant = self.variant_with_inventory_levels(variant);
+                let base = self.product_variant_json_with_current_publication_context(
+                    &variant,
+                    self.store.product_by_id(&variant.product_id),
+                    selections,
+                );
+                Some(self.owner_metafield_overlay_owner_json(
+                    "productVariant",
+                    id,
+                    selections,
+                    base,
+                ))
+            }
+            Some("Collection") => self.store.collection_by_id(id).map(|record| {
+                self.owner_metafield_overlay_owner_json(
+                    "collection",
+                    id,
+                    selections,
+                    selected_json(record, selections),
+                )
+            }),
+            Some("Customer") => self.store.staged.customers.get(id).map(|record| {
+                self.owner_metafield_overlay_owner_json(
+                    "customer",
+                    id,
+                    selections,
+                    selected_json(record, selections),
+                )
+            }),
+            Some("Order") => self.store.staged.orders.get(id).map(|record| {
+                self.owner_metafield_overlay_owner_json(
+                    "order",
+                    id,
+                    selections,
+                    selected_json(record, selections),
+                )
+            }),
+            Some("Company") => self.store.staged.b2b_companies.get(id).map(|record| {
+                self.owner_metafield_overlay_owner_json(
+                    "company",
+                    id,
+                    selections,
+                    selected_json(record, selections),
+                )
+            }),
+            Some("Shop") => {
+                let shop = self.store.effective_shop();
+                if shop.get("id").and_then(Value::as_str) != Some(id) {
+                    return None;
+                }
+                Some(self.owner_metafield_overlay_owner_json(
+                    "shop",
+                    id,
+                    selections,
+                    selected_json(&shop, selections),
+                ))
+            }
+            Some("Metaobject") => {
+                let record = self.metaobject_by_id(id)?;
+                let record = self.project_metaobject_against_definition(&record);
+                Some(self.selected_metaobject(&record, selections))
+            }
+            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => self
+                .store
+                .staged
+                .media_files
+                .get(id)
+                .filter(|_| !self.store.staged.media_files.is_tombstoned(id))
+                .map(|record| selected_json(record, selections)),
+            _ => None,
+        }
+    }
 }
 
 impl DraftProxy {
@@ -1575,6 +1715,59 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
         "__typename": metafield_owner_gid_resource_type(owner_id),
         "id": owner_id
     })
+}
+
+fn reference_type_allows_node_resolution(field_type: &str) -> bool {
+    field_type == "mixed_reference" || field_type.ends_with("_reference")
+}
+
+fn scalar_reference_id(record: &Value) -> Option<String> {
+    let field_type = record.get("type").and_then(Value::as_str)?;
+    if field_type.starts_with("list.") || !reference_type_allows_node_resolution(field_type) {
+        return None;
+    }
+    record
+        .get("value")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn list_reference_ids(record: &Value) -> Vec<String> {
+    let Some(inner_type) = record
+        .get("type")
+        .and_then(Value::as_str)
+        .and_then(|field_type| field_type.strip_prefix("list."))
+    else {
+        return Vec::new();
+    };
+    if !reference_type_allows_node_resolution(inner_type) {
+        return Vec::new();
+    }
+    record
+        .get("jsonValue")
+        .and_then(reference_id_array)
+        .or_else(|| {
+            record
+                .get("value")
+                .and_then(Value::as_str)
+                .and_then(|value| serde_json::from_str::<Value>(value).ok())
+                .as_ref()
+                .and_then(reference_id_array)
+        })
+        .unwrap_or_default()
+}
+
+fn reference_id_array(value: &Value) -> Option<Vec<String>> {
+    Some(
+        value
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
 }
 
 pub(super) fn owner_metafields_connection_keys(

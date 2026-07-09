@@ -1,0 +1,11 @@
+query InventoryPathProductSiblingRead($inventoryItemId: ID!, $productId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+  }
+  product(id: $productId) {
+    id
+    totalInventory
+    tracksInventory
+  }
+}

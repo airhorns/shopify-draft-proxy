@@ -2558,17 +2558,8 @@ fn metaobject_record_from_definition_with_options(
     record
 }
 
-fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
-    if let Some(values) = value.as_array() {
-        Value::Array(
-            values
-                .iter()
-                .map(|item| selected_json(item, selection))
-                .collect(),
-        )
-    } else {
-        nullable_selected_json(value, selection)
-    }
+fn metaobject_value_is_field_record(value: &Value) -> bool {
+    value.get("key").is_some() && value.get("type").is_some() && value.get("value").is_some()
 }
 
 fn metaobject_nodes_from_upstream_data(data: &serde_json::Map<String, Value>) -> Vec<Value> {
@@ -2914,7 +2905,9 @@ impl DraftProxy {
                 "metaobjectDefinition" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_definition_by_id(&id)
-                        .map(|definition| selected_json(&definition, &field.selection))
+                        .map(|definition| {
+                            self.selected_metaobject_definition(&definition, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
                 "metaobjectDefinitionByType" => {
@@ -2923,7 +2916,9 @@ impl DraftProxy {
                         request,
                     );
                     self.metaobject_definition_by_type(&meta_type)
-                        .map(|definition| selected_json(&definition, &field.selection))
+                        .map(|definition| {
+                            self.selected_metaobject_definition(&definition, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
                 "metaobjectDefinitions" => self.metaobject_definition_connection(field),
@@ -3965,7 +3960,32 @@ impl DraftProxy {
         )
     }
 
-    fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
+    fn selected_metaobject_value(&self, value: &Value, selection: &[SelectedField]) -> Value {
+        if let Some(values) = value.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|item| {
+                        if metaobject_value_is_field_record(item) {
+                            self.selected_reference_value_record_json(item, selection)
+                        } else {
+                            selected_json(item, selection)
+                        }
+                    })
+                    .collect(),
+            )
+        } else if metaobject_value_is_field_record(value) {
+            self.selected_reference_value_record_json(value, selection)
+        } else {
+            nullable_selected_json(value, selection)
+        }
+    }
+
+    pub(in crate::proxy) fn selected_metaobject(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
             "field" => {
                 let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
@@ -3978,7 +3998,7 @@ impl DraftProxy {
                     })
                     .cloned()
                     .unwrap_or(Value::Null);
-                Some(nullable_selected_json(&value, &field.selection))
+                Some(self.selected_metaobject_value(&value, &field.selection))
             }
             "definition" => {
                 let meta_type = record
@@ -3987,13 +4007,15 @@ impl DraftProxy {
                     .unwrap_or_default();
                 Some(
                     self.metaobject_definition_by_type(meta_type)
-                        .map(|definition| selected_json(&definition, &field.selection))
+                        .map(|definition| {
+                            self.selected_metaobject_definition(&definition, &field.selection)
+                        })
                         .unwrap_or(Value::Null),
                 )
             }
             _ => record
                 .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
+                .map(|value| self.selected_metaobject_value(value, &field.selection)),
         })
     }
 
@@ -4009,7 +4031,7 @@ impl DraftProxy {
             }
             _ => payload
                 .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
+                .map(|value| self.selected_metaobject_value(value, &field.selection)),
         })
     }
 
@@ -4020,7 +4042,7 @@ impl DraftProxy {
     /// `publishable` capability all follow the live definition. Stored field VALUES
     /// are preserved verbatim. When no local definition is staged for the type (e.g.
     /// an upstream-hydrated entry), the record is returned unchanged.
-    fn project_metaobject_against_definition(&self, record: &Value) -> Value {
+    pub(in crate::proxy) fn project_metaobject_against_definition(&self, record: &Value) -> Value {
         let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
             return record.clone();
         };
@@ -4384,6 +4406,73 @@ impl DraftProxy {
             .cloned()
     }
 
+    fn metaobject_definition_with_derived_fields(&self, definition: &Value) -> Value {
+        let mut definition = definition.clone();
+        definition["metaobjectsCount"] = json!(self
+            .metaobject_definition_child_metaobjects(&definition)
+            .len());
+        definition
+    }
+
+    fn selected_metaobject_definition(
+        &self,
+        definition: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let definition = self.metaobject_definition_with_derived_fields(definition);
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "metaobjects" => {
+                Some(self.metaobject_definition_metaobjects_connection(&definition, field))
+            }
+            _ => selected_field_json(&definition, field),
+        })
+    }
+
+    fn metaobject_definition_child_metaobjects(&self, definition: &Value) -> Vec<Value> {
+        let meta_type = definition
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let mut records =
+            self.store
+                .staged
+                .metaobjects
+                .values()
+                .filter(|record| {
+                    record.get("type").and_then(Value::as_str) == Some(meta_type)
+                        && !self.store.staged.metaobjects.is_tombstoned(
+                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                        )
+                })
+                .map(|record| self.project_metaobject_against_definition(record))
+                .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            metaobject_staged_sort_key(left, None)
+                .cmp(&metaobject_staged_sort_key(right, None))
+                .then_with(|| metaobject_cursor(left).cmp(&metaobject_cursor(right)))
+        });
+        records
+    }
+
+    fn metaobject_definition_metaobjects_connection(
+        &self,
+        definition: &Value,
+        field: &SelectedField,
+    ) -> Value {
+        let mut records = self.metaobject_definition_child_metaobjects(definition);
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, &field.arguments, metaobject_cursor);
+        selected_typed_connection_with_page_info(
+            &records,
+            &field.selection,
+            |record, selection| self.selected_metaobject(record, selection),
+            metaobject_cursor,
+            page_info,
+        )
+    }
+
     fn hydrate_metaobject_definition_by_type(
         &mut self,
         request: &Request,
@@ -4448,10 +4537,11 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .cmp(&right.get("type").and_then(Value::as_str))
         });
-        selected_connection_json_with_args(
-            records,
+        selected_typed_connection_with_args(
+            &records,
             &field.arguments,
             &field.selection,
+            |definition, selection| self.selected_metaobject_definition(definition, selection),
             |definition| {
                 format!(
                     "cursor:{}",
@@ -4587,6 +4677,185 @@ impl DraftProxy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(|_| panic!("metaobject definition tests should stay local"))
+    }
+
+    fn graphql_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    fn create_metaobject_definition(proxy: &mut DraftProxy, meta_type: &str) -> Value {
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+              metaobjectDefinitionCreate(definition: $definition) {
+                metaobjectDefinition { id type metaobjectsCount }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"definition": {
+                "type": meta_type,
+                "name": "Definition Child Article",
+                "displayNameKey": "title",
+                "fieldDefinitions": [
+                    {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                    {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+                ]
+            }}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()
+    }
+
+    fn create_metaobject(
+        proxy: &mut DraftProxy,
+        meta_type: &str,
+        handle: &str,
+        title: &str,
+    ) -> Value {
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateEntry($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id handle type displayName }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"metaobject": {
+                "type": meta_type,
+                "handle": handle,
+                "fields": [
+                    {"key": "title", "value": title},
+                    {"key": "body", "value": "Body"}
+                ]
+            }}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+    }
+
+    #[test]
+    fn metaobject_definition_children_connection_windows_staged_entries() {
+        let mut proxy = test_proxy();
+        let meta_type = "definition_children_article";
+        let definition = create_metaobject_definition(&mut proxy, meta_type);
+        let first = create_metaobject(&mut proxy, meta_type, "alpha-entry", "Alpha Entry");
+        let second = create_metaobject(&mut proxy, meta_type, "bravo-entry", "Bravo Entry");
+
+        let first_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitionChildren($id: ID!, $type: String!) {
+              byId: metaobjectDefinition(id: $id) {
+                metaobjectsCount
+                metaobjects(first: 1) {
+                  nodes {
+                    id
+                    handle
+                    type
+                    displayName
+                    fields { key value definition { key name } }
+                  }
+                  edges { cursor node { id handle } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+              byType: metaobjectDefinitionByType(type: $type) {
+                metaobjectsCount
+                metaobjects(first: 2) {
+                  nodes { id handle }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            "#,
+            json!({"id": definition["id"], "type": meta_type}),
+        ));
+
+        assert_eq!(first_page.status, 200);
+        let by_id = &first_page.body["data"]["byId"];
+        let first_connection = &by_id["metaobjects"];
+        assert_eq!(by_id["metaobjectsCount"], json!(2));
+        assert_eq!(first_connection["nodes"][0]["id"], first["id"]);
+        assert_eq!(first_connection["nodes"][0]["handle"], json!("alpha-entry"));
+        assert_eq!(
+            first_connection["nodes"][0]["fields"][0]["definition"]["name"],
+            json!("Title")
+        );
+        assert_eq!(
+            first_connection["edges"][0]["cursor"],
+            metaobject_cursor(&first)
+        );
+        assert_eq!(
+            first_connection["pageInfo"],
+            json!({
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": metaobject_cursor(&first),
+                "endCursor": metaobject_cursor(&first)
+            })
+        );
+
+        let by_type_connection = &first_page.body["data"]["byType"]["metaobjects"];
+        assert_eq!(
+            first_page.body["data"]["byType"]["metaobjectsCount"],
+            json!(2)
+        );
+        assert_eq!(by_type_connection["nodes"][0]["id"], first["id"]);
+        assert_eq!(by_type_connection["nodes"][1]["id"], second["id"]);
+        assert_eq!(by_type_connection["pageInfo"]["hasNextPage"], json!(false));
+
+        let second_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitionChildrenAfter($id: ID!, $after: String!) {
+              metaobjectDefinition(id: $id) {
+                metaobjects(first: 1, after: $after) {
+                  nodes { id handle }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            "#,
+            json!({"id": definition["id"], "after": metaobject_cursor(&first)}),
+        ));
+
+        assert_eq!(second_page.status, 200);
+        let second_connection = &second_page.body["data"]["metaobjectDefinition"]["metaobjects"];
+        assert_eq!(second_connection["nodes"][0]["id"], second["id"]);
+        assert_eq!(
+            second_connection["pageInfo"],
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": metaobject_cursor(&second),
+                "endCursor": metaobject_cursor(&second)
+            })
+        );
+    }
 
     #[test]
     fn metaobject_definition_from_record_preserves_real_or_unknown_access() {

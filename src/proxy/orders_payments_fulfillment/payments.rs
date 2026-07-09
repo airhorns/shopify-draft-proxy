@@ -88,19 +88,83 @@ pub(in crate::proxy) fn order_refunded_shipping_amount(order: &Value) -> f64 {
 }
 
 pub(in crate::proxy) fn order_shipping_refundable_amount(order: &Value) -> f64 {
-    order_shipping_lines(order)
+    let charged = order_shipping_lines(order)
         .iter()
         .filter_map(|line| {
             money_set_amount(&line["originalPriceSet"])
                 .or_else(|| money_set_amount(&line["priceSet"]))
         })
-        .sum()
+        .sum::<f64>();
+    (charged - order_refunded_shipping_amount(order)).max(0.0)
 }
 
 pub(in crate::proxy) fn order_line_item_by_id(order: &Value, line_item_id: &str) -> Option<Value> {
     order_line_items(order)
         .into_iter()
         .find(|line| line["id"].as_str() == Some(line_item_id))
+}
+
+fn refund_line_items(refund: &Value) -> Vec<Value> {
+    if let Some(nodes) = refund["refundLineItems"]["nodes"].as_array() {
+        return nodes.clone();
+    }
+    refund["refundLineItems"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn refund_line_item_line_id(refund_line_item: &Value) -> Option<&str> {
+    refund_line_item["lineItem"]["id"]
+        .as_str()
+        .or_else(|| refund_line_item["lineItemId"].as_str())
+}
+
+fn refunded_quantities_by_line_id(order: &Value) -> BTreeMap<String, i64> {
+    let mut quantities = BTreeMap::new();
+    for refund in order["refunds"].as_array().into_iter().flatten() {
+        for refund_line_item in refund_line_items(refund) {
+            let Some(line_item_id) = refund_line_item_line_id(&refund_line_item) else {
+                continue;
+            };
+            let quantity = refund_line_item["quantity"].as_i64().unwrap_or(0).max(0);
+            *quantities.entry(line_item_id.to_string()).or_insert(0) += quantity;
+        }
+    }
+    quantities
+}
+
+fn line_item_refundable_quantity_before_refunds(line: &Value) -> i64 {
+    line["currentQuantity"]
+        .as_i64()
+        .or_else(|| line["quantity"].as_i64())
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn sync_order_refundable_quantities(order: &mut Value) {
+    let refunded_quantities = refunded_quantities_by_line_id(order);
+    let sync_line = |line: &mut Value| {
+        let line_item_id = line["id"].as_str().unwrap_or_default();
+        let already_refunded = refunded_quantities
+            .get(line_item_id)
+            .copied()
+            .unwrap_or_default();
+        let refundable_quantity = line_item_refundable_quantity_before_refunds(line)
+            .saturating_sub(already_refunded)
+            .max(0);
+        line["refundableQuantity"] = json!(refundable_quantity);
+    };
+
+    if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+        for line in nodes {
+            sync_line(line);
+        }
+    } else if let Some(lines) = order["lineItems"].as_array_mut() {
+        for line in lines {
+            sync_line(line);
+        }
+    }
 }
 
 pub(in crate::proxy) fn order_transaction_by_id(
@@ -233,6 +297,7 @@ pub(in crate::proxy) fn refund_order_with_defaults(
     if !order.get("transactions").is_some_and(Value::is_array) {
         order["transactions"] = json!(order_transactions(&order));
     }
+    sync_order_refundable_quantities(&mut order);
     order
 }
 
@@ -330,8 +395,9 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
-        let refundable_quantity = line["currentQuantity"]
+        let refundable_quantity = line["refundableQuantity"]
             .as_i64()
+            .or_else(|| line["currentQuantity"].as_i64())
             .or_else(|| line["quantity"].as_i64())
             .unwrap_or(0);
         if quantity > refundable_quantity {
@@ -348,20 +414,62 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
 pub(in crate::proxy) fn refund_amount_validation_error(
     input: &BTreeMap<String, ResolvedValue>,
     order: &Value,
+    shop_currency_code: &str,
 ) -> Option<Value> {
     let refund_amount = refund_input_total_amount(input, order);
     let refundable = (order_received_amount(order) - order_refunded_amount(order)).max(0.0);
     if refund_amount > refundable + 0.005 {
+        let currency = order_currency(order, shop_currency_code);
         return Some(user_error_omit_code(
-            Value::Null,
+            refund_amount_validation_field(input),
             &format!(
-                "Refund amount ${:.2} is greater than net payment received ${:.2}",
-                refund_amount, refundable
+                "Refund amount {} is greater than net payment received {}",
+                refund_amount_validation_money_text(refund_amount, &currency),
+                refund_amount_validation_money_text(refundable, &currency)
             ),
             None,
         ));
     }
     None
+}
+
+fn refund_amount_validation_field(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    if !resolved_object_list_field(input, "transactions").is_empty() {
+        return json!(["transactions"]);
+    }
+
+    let line_items = resolved_object_list_field(input, "refundLineItems");
+    if let Some((index, _)) = line_items
+        .iter()
+        .enumerate()
+        .find(|(_, line_input)| line_input.contains_key("subtotal"))
+    {
+        return json!(["refundLineItems", index.to_string(), "subtotal"]);
+    }
+    if !line_items.is_empty() {
+        return json!(["refundLineItems"]);
+    }
+
+    if resolved_object_field(input, "shipping").is_some() {
+        return json!(["shipping"]);
+    }
+
+    json!(["transactions"])
+}
+
+fn refund_amount_validation_money_text(amount: f64, currency_code: &str) -> String {
+    let amount = format!("{amount:.2}");
+    if currency_code == "USD" {
+        format!("${amount}")
+    } else if currency_code.is_empty() {
+        amount
+    } else {
+        format!("{amount} {currency_code}")
+    }
+}
+
+fn capture_authorized_amount_error_text(amount: f64) -> String {
+    format!("{:.2}", (amount * 100.0).round() / 100.0)
 }
 
 pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
@@ -471,10 +579,13 @@ pub(in crate::proxy) fn update_order_after_refund(
     let total_refunded = order_refunded_amount(&order) + refund_amount;
     let total_refunded_shipping = order_refunded_shipping_amount(&order) + shipping_refund_amount;
     let received = order_received_amount(&order);
+    let net_payment = (received - total_refunded).max(0.0);
     order["totalRefundedSet"] =
         money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
     order["totalRefundedShippingSet"] =
         money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
+    order["netPaymentSet"] =
+        money_bag_from_amount(net_payment, shop_currency, presentment_currency);
     order["displayFinancialStatus"] = if total_refunded + 0.005 >= received && received > 0.0 {
         json!("REFUNDED")
     } else {
@@ -489,6 +600,7 @@ pub(in crate::proxy) fn update_order_after_refund(
     if order.get("returns").is_none_or(Value::is_null) {
         order["returns"] = order_connection(Vec::new());
     }
+    sync_order_refundable_quantities(&mut order);
     order
 }
 
@@ -940,7 +1052,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(error) = refund_amount_validation_error(&input, &order) {
+        if let Some(error) = refund_amount_validation_error(&input, &order, &shop_currency_code) {
             return (
                 refund_input_error(field, Some(order), error, &shop_currency_code),
                 Vec::new(),
@@ -1435,6 +1547,10 @@ impl DraftProxy {
         // layered on top so a payment-field selection still receives the complete
         // order shape rather than the totals-only subset.
         let mut order = self.build_order_create_record(&id, &order_record_input);
+        if transaction_inputs.is_empty() {
+            self.store.staged.orders.insert(id, order.clone());
+            return order;
+        }
         let shop_currency_code = self.store.shop_currency_code();
         let amount_set = transaction_amount_set.unwrap_or_else(|| {
             order_money_set_with_presentment_fallback(
@@ -1690,9 +1806,9 @@ impl DraftProxy {
         {
             return payment_capture_error(
                 order,
-                json!(["parent_transaction_id"]),
+                json!(["parentTransactionId"]),
                 "Parent transaction must be a successful authorization",
-                Some("INVALID_TRANSACTION_STATE"),
+                None,
             );
         }
         if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
@@ -1720,20 +1836,11 @@ impl DraftProxy {
         let parent_amount = money_set_presentment_or_shop_amount_value(&parent_amount_set);
         let capturable_amount = (parent_amount - already_captured).max(0.0);
         if requested_amount_value > capturable_amount + 0.000_001 {
-            let message = if parent_amount_set.get("presentmentMoney").is_some() {
-                format!(
-                    "Cannot capture more than the authorized {} for this payment.",
-                    format_money_amount(capturable_amount)
-                )
-            } else {
-                "Amount exceeds capturable amount".to_string()
-            };
-            let field = if parent_amount_set.get("presentmentMoney").is_some() {
-                Value::Null
-            } else {
-                json!(["amount"])
-            };
-            return payment_capture_error(order, field, message, Some("OVER_CAPTURE"));
+            let message = format!(
+                "Cannot capture more than the authorized {} for this payment.",
+                capture_authorized_amount_error_text(capturable_amount)
+            );
+            return payment_capture_error(order, Value::Null, message, Some("OVER_CAPTURE"));
         }
         let remaining_amount = if final_capture {
             0.0
@@ -2020,8 +2127,14 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record =
-            payment_customization_record(&id, &input, api_client_id, resolved_function.as_ref());
+        let timestamp = self.next_mutation_timestamp();
+        let record = payment_customization_record(
+            &id,
+            &input,
+            api_client_id,
+            resolved_function.as_ref(),
+            &timestamp,
+        );
         self.store
             .staged
             .payment_customizations
@@ -2114,7 +2227,9 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input, api_client_id);
+            let timestamp = self.next_mutation_timestamp();
+            let metafields =
+                payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store

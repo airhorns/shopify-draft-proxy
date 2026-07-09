@@ -72,6 +72,11 @@ presence relations; rejects captured status/enabled mismatches, incompatible
 price inclusions, invalid or unsupported country regions, duplicate region
 codes, invalid names, duplicate names, and generated-handle collisions; and
 retains original raw mutations for commit replay on successful staging.
+Generated market handles normalize ASCII letters and digits to lowercase
+dash-separated handles. When a name or explicit handle contains no ASCII
+alphanumerics after normalization, the local fallback is a deterministic
+`localized-<hash>` handle derived from the original value rather than a
+fixture-specific slug.
 Staged country-region nodes are stored as `MarketRegionCountry` records with a
 stable synthesized `id`, deterministic ISO country `name`, `code`, and
 `__typename`, so mutation payloads and downstream `market` / `markets` overlay
@@ -180,9 +185,12 @@ market-localizable resource state or staged market-scoped translations; unknown
 IDs return `null`. `marketLocalizableResources` lists observed localizable
 resources with selected `nodes`, `edges`, stable ID cursors, selected
 `pageInfo`, and standard cursor windows. `marketLocalizableResourcesByIds`
-projects only the observed requested `resourceIds` and omits unresolved IDs.
-In LiveHybrid mode, plural and ByIds reads forward upstream until a localizable
-resource has been observed; unrelated staged market, catalog, price-list, or
+projects observed requested `resourceIds` locally and omits unresolved IDs when
+served from local state. In LiveHybrid mode, ByIds reads forward upstream
+whenever any requested resource ID has not been observed yet, then stage returned
+resources for later local reads. The plural `marketLocalizableResources`
+connection forwards until a localizable resource has been observed and is then
+limited to the observed set; unrelated staged market, catalog, price-list, or
 web-presence state does not force a local empty resource connection.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed

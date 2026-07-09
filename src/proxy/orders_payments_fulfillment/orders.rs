@@ -909,6 +909,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
+        "refundableQuantity": quantity,
         "sku": resolved_string_field(input, "sku").unwrap_or_default(),
         "variantTitle": resolved_string_field(input, "variantTitle"),
         "variantId": variant_id,
@@ -1012,15 +1013,18 @@ pub(in crate::proxy) fn order_create_financial_status(
     input: &BTreeMap<String, ResolvedValue>,
     transactions: &[Value],
     total: f64,
-) -> String {
+) -> Option<String> {
     if let Some(status) = resolved_string_field(input, "financialStatus") {
-        return status;
+        return Some(status);
+    }
+    if transactions.is_empty() {
+        return None;
     }
     if transactions
         .iter()
         .any(|transaction| transaction["kind"] == "AUTHORIZATION")
     {
-        return "AUTHORIZED".to_string();
+        return Some("AUTHORIZED".to_string());
     }
     let received = transactions
         .iter()
@@ -1028,11 +1032,11 @@ pub(in crate::proxy) fn order_create_financial_status(
         .filter(|transaction| transaction["status"] == "SUCCESS")
         .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
-    if received <= 0.0 || received + 0.005 >= total {
+    Some(if received <= 0.0 || received + 0.005 >= total {
         "PAID".to_string()
     } else {
         "PARTIALLY_PAID".to_string()
-    }
+    })
 }
 
 pub(in crate::proxy) fn order_create_payment_fields(
@@ -2131,6 +2135,7 @@ impl DraftProxy {
             if let Some(assigned_location) = self.default_fulfillment_assigned_location() {
                 fulfillment_order["assignedLocation"] = assigned_location;
             }
+            set_fulfillment_order_status_from_lines(&mut fulfillment_order);
             vec![fulfillment_order]
         };
         let shipping_lines = resolved_object_list_field(order_input, "shippingLines")
@@ -2671,6 +2676,7 @@ impl DraftProxy {
             "unitCents": unit,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
@@ -2837,6 +2843,7 @@ impl DraftProxy {
             "unitCents": price_cents,
             "histQty": quantity,
             "curQty": quantity,
+            "taxLines": [],
             "discounts": []
         });
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
@@ -2898,6 +2905,12 @@ impl DraftProxy {
         let per_unit = resolved_object_field(&discount, "fixedValue")
             .as_ref()
             .and_then(oe_money_obj_cents)
+            .or_else(|| {
+                resolved_number_field(&discount, "percentValue").map(|percent| {
+                    let unit = oe_int(&session["lines"][index], "unitCents");
+                    ((unit as f64 * percent) / 100.0).round() as i64
+                })
+            })
             .unwrap_or(0);
         let seq = oe_next_seq(&mut session);
         let app_id = shopify_gid(

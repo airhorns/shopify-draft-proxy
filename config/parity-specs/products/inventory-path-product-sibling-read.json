@@ -1,0 +1,112 @@
+{
+  "scenarioId": "inventory-path-product-sibling-read",
+  "operationNames": ["locationAdd", "productSet", "inventoryItem", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "derived-field-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-path-product-sibling-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-path-product-sibling-location.graphql",
+    "variablesCapturePath": "$.locationCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-add-setup-user-errors",
+        "capturePath": "$.locationCreate.response.data.locationAdd.userErrors",
+        "proxyPath": "$.data.locationAdd.userErrors"
+      },
+      {
+        "name": "untracked-product-setup-user-errors",
+        "capturePath": "$.untrackedProductSet.response.data.productSet.userErrors",
+        "proxyPath": "$.data.productSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-path-product-sibling-product-set.graphql",
+          "variablesCapturePath": "$.untrackedProductSet.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "stocked-other-product-setup-user-errors",
+        "capturePath": "$.stockedProductSet.response.data.productSet.userErrors",
+        "proxyPath": "$.data.productSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-path-product-sibling-product-set.graphql",
+          "variables": {
+            "synchronous": true,
+            "input": {
+              "title": {
+                "fromCapturePath": "$.stockedProductSet.variables.input.title"
+              },
+              "status": "DRAFT",
+              "productOptions": [
+                {
+                  "name": "Title",
+                  "position": 1,
+                  "values": [{ "name": "Default Title" }]
+                }
+              ],
+              "variants": [
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                  "inventoryItem": {
+                    "tracked": true,
+                    "requiresShipping": true
+                  },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 11
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "inventory-path-product-sibling-read",
+        "capturePath": "$.productSiblingRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-path-product-sibling-read.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "untracked-product-setup-user-errors",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "productId": {
+              "fromProxyResponse": "untracked-product-setup-user-errors",
+              "path": "$.data.productSet.product.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different setup inventory item IDs."
+          },
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Live Shopify and the local draft proxy allocate different setup product IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture creates an untracked product plus a separate stocked tracked product through public productSet requests, then reads the untracked product through an inventory-led request that selects both inventoryItem and sibling product. The strict read target proves product.totalInventory stays scoped to the selected product and product.tracksInventory follows tracked variant state instead of a store-wide inventory sum."
+}

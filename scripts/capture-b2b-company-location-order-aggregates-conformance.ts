@@ -203,6 +203,39 @@ const aggregateReadDocument = `#graphql
         total: count
         precision
       }
+      orders(first: 1) {
+        nodes {
+          id
+          name
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      draftOrders(first: 1) {
+        nodes {
+          id
+          name
+          status
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
       lifetimeDuration
     }
     companyLocation(id: $locationId) {
@@ -223,6 +256,27 @@ const aggregateReadDocument = `#graphql
       orderSummary: ordersCount {
         total: count
         precision
+      }
+      orders(first: 1) {
+        nodes {
+          id
+          name
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      draftOrders(first: 1) {
+        nodes {
+          id
+          name
+          status
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
       }
       catalogs(first: 5) {
         nodes {
@@ -516,6 +570,10 @@ function assertAggregateRead(step: CaptureStep, catalogTitle: string): void {
   const location = asRecord(data?.['companyLocation']);
   const companyNode = asRecord(data?.['companyNode']);
   const locationNode = asRecord(data?.['locationNode']);
+  const companyOrders = readArrayAtPath(company, ['orders', 'nodes']);
+  const companyDraftOrders = readArrayAtPath(company, ['draftOrders', 'nodes']);
+  const locationOrders = readArrayAtPath(location, ['orders', 'nodes']);
+  const locationDraftOrders = readArrayAtPath(location, ['draftOrders', 'nodes']);
   const catalogNodes = readArrayAtPath(location, ['catalogs', 'nodes']);
   const nodeCatalogNodes = readArrayAtPath(locationNode, ['catalogs', 'nodes']);
   const hasCatalog = catalogNodes.some((node) => asRecord(node)?.['title'] === catalogTitle);
@@ -527,12 +585,24 @@ function assertAggregateRead(step: CaptureStep, catalogTitle: string): void {
     readPath(company, ['spend', 'value']) === '25.0' &&
     readPath(company, ['ordersCount', 'count']) === 1 &&
     readPath(company, ['orderSummary', 'total']) === 1 &&
+    companyOrders.length === 1 &&
+    readPath(companyOrders, ['0', 'currentTotalPriceSet', 'shopMoney', 'amount']) === '25.0' &&
+    readPath(companyOrders, ['0', 'currentTotalPriceSet', 'shopMoney', 'currencyCode']) === 'CAD' &&
+    readPath(company, ['orders', 'pageInfo', 'hasPreviousPage']) === false &&
+    companyDraftOrders.length === 1 &&
+    readPath(companyDraftOrders, ['0', 'status']) === 'COMPLETED' &&
+    readPath(companyDraftOrders, ['0', 'totalPriceSet', 'shopMoney', 'amount']) === '25.0' &&
+    readPath(companyDraftOrders, ['0', 'totalPriceSet', 'shopMoney', 'currencyCode']) === 'CAD' &&
+    readPath(company, ['draftOrders', 'pageInfo', 'hasPreviousPage']) === false &&
     readPath(location, ['totalSpent', 'amount']) === '25.0' &&
     readPath(location, ['totalSpent', 'currencyCode']) === 'CAD' &&
     readPath(location, ['locationSpend', 'value']) === '25.0' &&
     readPath(location, ['currency']) === 'CAD' &&
     readPath(location, ['ordersCount', 'count']) === 1 &&
     readPath(location, ['orderSummary', 'total']) === 1 &&
+    locationOrders.length === 1 &&
+    locationDraftOrders.length === 1 &&
+    readPath(locationDraftOrders, ['0', 'status']) === 'COMPLETED' &&
     hasCatalog &&
     readPath(companyNode, ['totalSpent', 'amount']) === '25.0' &&
     readPath(companyNode, ['ordersCount', 'count']) === 1 &&
@@ -583,7 +653,13 @@ function specPayload(): JsonRecord {
       'node',
     ],
     scenarioStatus: 'captured',
-    assertionKinds: ['payload-shape', 'downstream-read-parity', 'aggregate-derivation', 'local-staging'],
+    assertionKinds: [
+      'payload-shape',
+      'downstream-read-parity',
+      'aggregate-derivation',
+      'connection-windowing',
+      'local-staging',
+    ],
     liveCaptureFiles: [fixturePath],
     runtimeTestFiles: ['tests/graphql_routes/b2b.rs'],
     proxyRequest: {
@@ -593,7 +669,7 @@ function specPayload(): JsonRecord {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'Live Shopify 2025-01 capture for B2B Company and CompanyLocation aggregate/relation reads after a disposable company, completed B2B draft order, and company-location catalogCreate. The replay earns every setup object through public GraphQL requests, then verifies totalSpent, ordersCount aliases, lifetimeDuration, location currency, catalogs, and generic node reads from staged state.',
+      'Live Shopify 2025-01 capture for B2B Company and CompanyLocation aggregate/relation reads after a disposable company, completed B2B draft order, and company-location catalogCreate. The replay earns every setup object through public GraphQL requests, then verifies totalSpent, ordersCount aliases, nested orders/draftOrders connections, lifetimeDuration, location currency, catalogs, and generic node reads from staged state.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [],
@@ -692,6 +768,58 @@ function specPayload(): JsonRecord {
               path: '$.companyLocation.id',
               matcher: 'shopify-gid:CompanyLocation',
               reason: 'Live Shopify and local staging allocate different company location IDs.',
+            },
+            {
+              path: '$.company.lifetimeDuration',
+              matcher: 'non-empty-string',
+              reason:
+                'Shopify computes lifetimeDuration from wall-clock indexing time; local replay computes it from the deterministic proxy clock.',
+            },
+            {
+              path: '$.companyNode.lifetimeDuration',
+              matcher: 'non-empty-string',
+              reason:
+                'Shopify computes lifetimeDuration from wall-clock indexing time; local replay computes it from the deterministic proxy clock.',
+            },
+            {
+              path: '$.company.orders.nodes[*].id',
+              matcher: 'shopify-gid:Order',
+              reason: 'Live Shopify and local staging allocate different order IDs.',
+            },
+            {
+              path: '$.company.orders.nodes[*].name',
+              matcher: 'non-empty-string',
+              reason: 'Live Shopify and local staging allocate order names from different store counters.',
+            },
+            {
+              path: '$.companyLocation.orders.nodes[*].id',
+              matcher: 'shopify-gid:Order',
+              reason: 'Live Shopify and local staging allocate different order IDs.',
+            },
+            {
+              path: '$.companyLocation.orders.nodes[*].name',
+              matcher: 'non-empty-string',
+              reason: 'Live Shopify and local staging allocate order names from different store counters.',
+            },
+            {
+              path: '$.company.draftOrders.nodes[*].id',
+              matcher: 'shopify-gid:DraftOrder',
+              reason: 'Live Shopify and local staging allocate different draft order IDs.',
+            },
+            {
+              path: '$.company.draftOrders.nodes[*].name',
+              matcher: 'non-empty-string',
+              reason: 'Live Shopify and local staging allocate draft order names from different store counters.',
+            },
+            {
+              path: '$.companyLocation.draftOrders.nodes[*].id',
+              matcher: 'shopify-gid:DraftOrder',
+              reason: 'Live Shopify and local staging allocate different draft order IDs.',
+            },
+            {
+              path: '$.companyLocation.draftOrders.nodes[*].name',
+              matcher: 'non-empty-string',
+              reason: 'Live Shopify and local staging allocate draft order names from different store counters.',
             },
             {
               path: '$.companyLocation.catalogs.nodes[*].id',
@@ -826,7 +954,7 @@ try {
     storeDomain,
     apiVersion,
     notes:
-      'Captured from live Shopify Admin GraphQL. The scenario creates a disposable B2B company/location/contact, completes one B2B draft order as paid, creates one CompanyLocationCatalog, reads aggregate/relation fields after indexing, then records best-effort cleanup attempts.',
+      'Captured from live Shopify Admin GraphQL. The scenario creates a disposable B2B company/location/contact, completes one B2B draft order as paid, creates one CompanyLocationCatalog, reads aggregate/relation fields and nested order/draft-order connections after indexing, then records best-effort cleanup attempts.',
     operations: {
       companyCreate,
       draftOrderCreate,

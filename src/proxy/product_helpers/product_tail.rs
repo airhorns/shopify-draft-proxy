@@ -580,7 +580,9 @@ impl DraftProxy {
         };
         // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
         // values outside those enums at the resolver with a field-scoped INVALID userError.
-        if !is_valid_product_feed_country(&country) {
+        let api_version = admin_graphql_version(&request.path)
+            .unwrap_or_else(|| latest_supported_admin_graphql_version().unwrap_or("2026-04"));
+        if !is_valid_product_feed_country(api_version, &country) {
             self.record_failed_mutation(request, query, variables, "productFeedCreate");
             return selected_json(
                 &json!({
@@ -590,7 +592,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if !is_valid_product_feed_language(&language) {
+        if !is_valid_product_feed_language(api_version, &language) {
             self.record_failed_mutation(request, query, variables, "productFeedCreate");
             return selected_json(
                 &json!({
@@ -1811,21 +1813,12 @@ fn product_full_sync_updated_at_range_invalid(
     updated_at_since > before_updated_at
 }
 
-/// ProductFeed `country` is a Shopify `CountryCode` — an ISO 3166-1 alpha-2 code
-/// (two uppercase letters). Anything else is rejected at the resolver.
-fn is_valid_product_feed_country(code: &str) -> bool {
-    code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_uppercase())
+fn is_valid_product_feed_country(api_version: &str, code: &str) -> bool {
+    // Shopify exposes ZZ in some CountryCode schemas for generic unknown-region use, but
+    // productFeedCreate rejects it as an invalid feed country.
+    code != "ZZ" && public_admin_enum_value_allowed(api_version, "CountryCode", code)
 }
 
-/// ProductFeed `language` is a Shopify `LanguageCode` — an ISO 639-1 alpha-2 code,
-/// optionally with an alpha-2 region suffix (e.g. `EN`, `ZH_CN`).
-fn is_valid_product_feed_language(code: &str) -> bool {
-    let mut parts = code.split('_');
-    let valid_segment =
-        |segment: &str| segment.len() == 2 && segment.bytes().all(|byte| byte.is_ascii_uppercase());
-    match (parts.next(), parts.next(), parts.next()) {
-        (Some(language), None, None) => valid_segment(language),
-        (Some(language), Some(region), None) => valid_segment(language) && valid_segment(region),
-        _ => false,
-    }
+fn is_valid_product_feed_language(api_version: &str, code: &str) -> bool {
+    public_admin_enum_value_allowed(api_version, "LanguageCode", code)
 }

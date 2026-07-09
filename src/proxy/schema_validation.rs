@@ -1083,6 +1083,15 @@ fn enum_value_allowed(schema: &AdminInputSchema, type_name: &str, provided: &str
     })
 }
 
+pub(in crate::proxy) fn public_admin_enum_value_allowed(
+    api_version: &str,
+    type_name: &str,
+    provided: &str,
+) -> bool {
+    public_admin_input_schema(api_version)
+        .is_some_and(|schema| enum_value_allowed(schema, type_name, provided))
+}
+
 fn enum_expected_message(
     schema: &AdminInputSchema,
     type_name: &str,
@@ -2398,7 +2407,7 @@ fn inline_argument_location(
     inline_argument_value_location(query, field, argument_name).unwrap_or(field.location)
 }
 
-fn inline_input_field_name_location(
+pub(in crate::proxy) fn inline_input_field_name_location(
     query: &str,
     field_location: SourceLocation,
     target_depth: i32,
@@ -3787,6 +3796,10 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    schema.enum_values.insert(
+        "DraftOrderEmailTemplate".to_string(),
+        vec!["DRAFT_ORDER_INVOICE".to_string()],
+    );
     // This local-runtime abandonment helper models the internal delivery activity
     // state map exposed by captured fixtures, whose transition values include
     // states not present in the public introspected AbandonmentDeliveryState enum.
@@ -3820,7 +3833,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
                 "presentmentCurrencyCode".to_string(),
                 mutation_arg(named("CurrencyCode")),
             ),
-            ("templateName".to_string(), mutation_arg(named("String"))),
+            (
+                "templateName".to_string(),
+                mutation_arg(named("DraftOrderEmailTemplate")),
+            ),
         ]),
     );
     schema.insert_strict_input_object(
@@ -4177,7 +4193,7 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([
             ("description".to_string(), input_field(named("String"))),
             ("fixedValue".to_string(), input_field(named("MoneyInput"))),
-            ("percentage".to_string(), input_field(named("Float"))),
+            ("percentValue".to_string(), input_field(named("Float"))),
         ]),
     );
     schema.mutation_fields.insert(

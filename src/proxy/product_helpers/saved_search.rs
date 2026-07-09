@@ -853,11 +853,11 @@ impl DraftProxy {
     ) -> Response {
         let fields = root_fields(query, variables).unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid
-            && fields.iter().any(|field| field.name == "fileSavedSearches")
+            && fields.iter().any(|field| is_saved_search_root(&field.name))
         {
             let mut response = (self.upstream_transport)(request.clone());
             if (200..300).contains(&response.status) {
-                self.hydrate_file_saved_searches_from_response_data(
+                self.hydrate_saved_searches_from_response_data(
                     request,
                     &fields,
                     &response.body["data"],
@@ -891,7 +891,7 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    fn hydrate_file_saved_searches_from_response_data(
+    fn hydrate_saved_searches_from_response_data(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
@@ -899,14 +899,16 @@ impl DraftProxy {
     ) {
         let api_client_id = saved_search_request_api_client_id(request);
         for field in fields {
-            if field.name != "fileSavedSearches" {
+            if !is_saved_search_root(&field.name) {
                 continue;
             }
+            let resource_type = saved_search_resource_type(&field.name);
             let Some(connection) = data.get(&field.response_key) else {
                 continue;
             };
             for node in connection_nodes(connection) {
-                let Some(record) = saved_search_record_from_node(&node, "FILE", &api_client_id)
+                let Some(record) =
+                    saved_search_record_from_node(&node, resource_type, &api_client_id)
                 else {
                     continue;
                 };

@@ -1,0 +1,178 @@
+{
+  "scenarioId": "order-edit-line-discount-percent-value",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-07-08T14:20:34.782Z",
+  "source": "live-shopify-admin-graphql",
+  "variables": {
+    "id": "gid://shopify/Order/8913637245234"
+  },
+  "steps": {
+    "begin": {
+      "variables": {
+        "id": "gid://shopify/Order/8913637245234"
+      },
+      "response": {
+        "data": {
+          "orderEditBegin": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/115216613682",
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "200.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "200.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CalculatedLineItem/19811835674930",
+                    "title": "Percent discount base line 20260708142032",
+                    "quantity": 2
+                  }
+                ]
+              },
+              "shippingLines": []
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "addPercentLineItemDiscount": {
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/115216613682",
+        "lineItemId": "gid://shopify/CalculatedLineItem/19811835674930",
+        "discount": {
+          "description": "Ten percent off",
+          "percentValue": 10
+        }
+      },
+      "response": {
+        "data": {
+          "orderEditAddLineItemDiscount": {
+            "addedDiscountStagedChange": {
+              "id": "gid://shopify/OrderStagedChangeAddLineItemDiscount/260086497586",
+              "description": "Ten percent off"
+            },
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/115216613682",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "180.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "calculatedLineItem": {
+              "id": "gid://shopify/CalculatedLineItem/19811835674930",
+              "hasStagedLineItemDiscount": true,
+              "calculatedDiscountAllocations": [
+                {
+                  "allocatedAmountSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountApplication": {
+                    "id": "gid://shopify/CalculatedManualDiscountApplication/5eb6ddfa-6247-4cf7-a59a-ba88866f9545",
+                    "description": "Ten percent off"
+                  }
+                }
+              ],
+              "discountedUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "90.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderEditHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8913637245234"
+      },
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8913637245234",
+              "name": "#1759",
+              "merchantEditable": true,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19811835674930",
+                    "title": "Percent discount base line 20260708142032",
+                    "quantity": 2,
+                    "currentQuantity": 2,
+                    "sku": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "100.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

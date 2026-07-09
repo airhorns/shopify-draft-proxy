@@ -44,7 +44,27 @@ fragment MetaobjectReadFields on Metaobject {
   }
 }
 
-query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {
+  metaobjects(first: 10) {
+    edges {
+      cursor
+      node {
+        ...MetaobjectReadFields
+      }
+    }
+    nodes {
+      ...MetaobjectReadFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!, $definitionId: ID!) {
   catalog: metaobjects(type: $type, first: 10) {
     edges {
       cursor
@@ -67,5 +87,11 @@ query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: St
   }
   byHandle: metaobjectByHandle(handle: $handle) {
     ...MetaobjectReadFields
+  }
+  definition: metaobjectDefinition(id: $definitionId) {
+    ...MetaobjectDefinitionReadFields
+  }
+  byTypeDefinition: metaobjectDefinitionByType(type: $type) {
+    ...MetaobjectDefinitionReadFields
   }
 }

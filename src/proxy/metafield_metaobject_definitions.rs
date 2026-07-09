@@ -1173,21 +1173,120 @@ impl DraftProxy {
 
     fn metafield_definition_with_derived_fields(&self, definition: Value) -> Value {
         let mut definition = public_metafield_definition_value(definition);
+        definition["metafieldsCount"] = json!(self
+            .metafield_definition_child_metafields(&definition)
+            .len());
+        definition
+    }
+
+    fn selected_metafield_definition(
+        &self,
+        definition: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let definition = self.metafield_definition_with_derived_fields(definition.clone());
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "metafields" => {
+                Some(self.metafield_definition_metafields_connection(&definition, field))
+            }
+            _ => selected_field_json(&definition, field),
+        })
+    }
+
+    fn metafield_definition_child_metafields(&self, definition: &Value) -> Vec<Value> {
+        let owner_type = definition["ownerType"].as_str().unwrap_or_default();
+        let namespace = definition["namespace"].as_str().unwrap_or_default();
+        let key = definition["key"].as_str().unwrap_or_default();
+        let effective_definition = self.metafield_definition_with_nested_count(definition);
+        let mut records = self
+            .store
+            .staged
+            .owner_metafields
+            .iter()
+            .flat_map(|(owner_id, metafields)| {
+                metafields.iter().filter_map(|metafield| {
+                    if self.store.staged.deleted_owner_metafields.contains(&(
+                        owner_id.clone(),
+                        namespace.to_string(),
+                        key.to_string(),
+                    )) {
+                        return None;
+                    }
+                    let metafield_owner_type = metafield
+                        .get("ownerType")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| owner_type_from_gid(owner_id));
+                    if metafield_owner_type != owner_type
+                        || metafield.get("namespace").and_then(Value::as_str) != Some(namespace)
+                        || metafield.get("key").and_then(Value::as_str) != Some(key)
+                    {
+                        return None;
+                    }
+                    let mut record = metafield.clone();
+                    record["definition"] = effective_definition.clone();
+                    Some(record)
+                })
+            })
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            resource_id_tail_sort_value(left.get("id").and_then(Value::as_str))
+                .cmp(&resource_id_tail_sort_value(
+                    right.get("id").and_then(Value::as_str),
+                ))
+                .then_with(|| value_id_cursor(left).cmp(&value_id_cursor(right)))
+        });
+        records
+    }
+
+    fn metafield_definition_with_nested_count(&self, definition: &Value) -> Value {
+        let mut definition = public_metafield_definition_value(definition.clone());
+        let owner_type = definition["ownerType"].as_str().unwrap_or_default();
         let namespace = definition["namespace"].as_str().unwrap_or_default();
         let key = definition["key"].as_str().unwrap_or_default();
         let count = self
             .store
             .staged
             .owner_metafields
-            .values()
-            .flatten()
-            .filter(|metafield| {
-                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-                    && metafield.get("key").and_then(Value::as_str) == Some(key)
+            .iter()
+            .flat_map(|(owner_id, metafields)| {
+                metafields.iter().filter(move |metafield| {
+                    !self.store.staged.deleted_owner_metafields.contains(&(
+                        owner_id.clone(),
+                        namespace.to_string(),
+                        key.to_string(),
+                    )) && metafield
+                        .get("ownerType")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| owner_type_from_gid(owner_id))
+                        == owner_type
+                        && metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                        && metafield.get("key").and_then(Value::as_str) == Some(key)
+                })
             })
             .count();
         definition["metafieldsCount"] = json!(count);
         definition
+    }
+
+    fn metafield_definition_metafields_connection(
+        &self,
+        definition: &Value,
+        field: &SelectedField,
+    ) -> Value {
+        let mut records = self.metafield_definition_child_metafields(definition);
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
+        selected_typed_connection_with_page_info(
+            &records,
+            &field.selection,
+            selected_json,
+            value_id_cursor,
+            page_info,
+        )
     }
 
     /// A cold
@@ -1248,12 +1347,11 @@ impl DraftProxy {
                                 ))
                                 .cloned()
                         }
-                        .map(|definition| self.metafield_definition_with_derived_fields(definition))
+                        .map(|definition| {
+                            self.selected_metafield_definition(&definition, &field.selection)
+                        })
                         .unwrap_or(Value::Null);
-                    data.insert(
-                        field.response_key,
-                        nullable_selected_json(&definition, &field.selection),
-                    );
+                    data.insert(field.response_key, definition);
                 }
                 "metafieldDefinitions" => {
                     let owner_type = resolved_string_field(&field.arguments, "ownerType")
@@ -1285,7 +1383,6 @@ impl DraftProxy {
                                 })
                         })
                         .cloned()
-                        .map(|definition| self.metafield_definition_with_derived_fields(definition))
                         .collect::<Vec<_>>();
                     if pinned_status.as_deref() == Some("PINNED") {
                         definitions.retain(|definition| {
@@ -1310,7 +1407,9 @@ impl DraftProxy {
                                     resolved_string_field(&field.arguments, "query").as_deref(),
                                 )
                             },
-                            selected_json,
+                            |definition, selection| {
+                                self.selected_metafield_definition(definition, selection)
+                            },
                             value_id_cursor,
                         ),
                     );
@@ -3059,6 +3158,18 @@ mod tests {
         .with_upstream_transport(|_| panic!("metafield definition tests should stay local"))
     }
 
+    fn snapshot_test_proxy() -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(|_| panic!("metafield definition tests should stay local"))
+    }
+
     fn graphql_request(query: &str, variables: Value) -> Request {
         Request {
             method: "POST".to_string(),
@@ -3094,6 +3205,74 @@ mod tests {
             json!([])
         );
         response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"].clone()
+    }
+
+    fn create_product_owner(proxy: &mut DraftProxy, title: &str) -> (String, String) {
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateProduct($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product {
+                  id
+                  variants(first: 1) { nodes { id } }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({"product": {"title": title}}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        let product_id = response.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("productCreate should stage a product id")
+            .to_string();
+        let variant_id = response.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]
+            ["id"]
+            .as_str()
+            .expect("productCreate should stage an initial variant id")
+            .to_string();
+        (product_id, variant_id)
+    }
+
+    fn set_owner_metafield(
+        proxy: &mut DraftProxy,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+        value: &str,
+        metafield_type: Option<&str>,
+    ) -> Value {
+        let mut metafield = json!({
+            "ownerId": owner_id,
+            "namespace": namespace,
+            "key": key,
+            "value": value
+        });
+        if let Some(metafield_type) = metafield_type {
+            metafield["type"] = json!(metafield_type);
+        }
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { id namespace key ownerType type value owner { __typename id } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"metafields": [metafield]}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metafieldsSet"]["metafields"][0].clone()
     }
 
     fn definition_keys(connection: &Value) -> Vec<String> {
@@ -3218,5 +3397,121 @@ mod tests {
             definition_keys(&response.body["data"]["nameDescending"]),
             vec!["beta", "gamma", "alpha"]
         );
+    }
+
+    #[test]
+    fn metafield_definition_children_connection_windows_matching_owner_metafields() {
+        let mut proxy = snapshot_test_proxy();
+        let namespace = "definition_children";
+        let definition = create_definition(&mut proxy, namespace, "specs", "Specs");
+        let (first_product_id, variant_id) = create_product_owner(&mut proxy, "First child owner");
+        let (second_product_id, _) = create_product_owner(&mut proxy, "Second child owner");
+
+        let first_metafield = set_owner_metafield(
+            &mut proxy,
+            &first_product_id,
+            namespace,
+            "specs",
+            "alpha",
+            None,
+        );
+        let second_metafield = set_owner_metafield(
+            &mut proxy,
+            &second_product_id,
+            namespace,
+            "specs",
+            "bravo",
+            None,
+        );
+        set_owner_metafield(
+            &mut proxy,
+            &variant_id,
+            namespace,
+            "specs",
+            "variant value",
+            Some("single_line_text_field"),
+        );
+
+        let first_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitionMetafields($id: ID!) {
+              metafieldDefinition(id: $id) {
+                metafieldsCount
+                metafields(first: 1) {
+                  nodes {
+                    id
+                    namespace
+                    key
+                    ownerType
+                    type
+                    value
+                    owner { __typename id }
+                    definition { id namespace key ownerType }
+                  }
+                  edges { cursor node { id value } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            "#,
+            json!({"id": definition["id"]}),
+        ));
+
+        assert_eq!(first_page.status, 200);
+        let read_definition = &first_page.body["data"]["metafieldDefinition"];
+        assert_eq!(read_definition["metafieldsCount"], json!(2));
+        let first_connection = &read_definition["metafields"];
+        assert_eq!(first_connection["nodes"][0]["id"], first_metafield["id"]);
+        assert_eq!(first_connection["nodes"][0]["ownerType"], json!("PRODUCT"));
+        assert_eq!(
+            first_connection["nodes"][0]["owner"]["id"],
+            json!(first_product_id)
+        );
+        assert_eq!(
+            first_connection["nodes"][0]["definition"]["key"],
+            json!("specs")
+        );
+        assert_eq!(
+            first_connection["edges"][0]["node"]["value"],
+            json!("alpha")
+        );
+        let after = first_connection["edges"][0]["cursor"]
+            .as_str()
+            .expect("metafield edge should expose a cursor")
+            .to_string();
+        assert_eq!(
+            first_connection["pageInfo"],
+            json!({
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": after,
+                "endCursor": after
+            })
+        );
+
+        let second_page = proxy.process_request(graphql_request(
+            r#"
+            query ReadDefinitionMetafieldsAfter($id: ID!, $after: String!) {
+              metafieldDefinition(id: $id) {
+                metafields(first: 1, after: $after) {
+                  nodes { id ownerType value }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            "#,
+            json!({"id": definition["id"], "after": after}),
+        ));
+
+        assert_eq!(second_page.status, 200);
+        let second_connection = &second_page.body["data"]["metafieldDefinition"]["metafields"];
+        assert_eq!(second_connection["nodes"][0]["id"], second_metafield["id"]);
+        assert_eq!(second_connection["nodes"][0]["ownerType"], json!("PRODUCT"));
+        assert_eq!(second_connection["nodes"][0]["value"], json!("bravo"));
+        assert_eq!(
+            second_connection["pageInfo"]["hasPreviousPage"],
+            json!(true)
+        );
+        assert_eq!(second_connection["pageInfo"]["hasNextPage"], json!(false));
     }
 }

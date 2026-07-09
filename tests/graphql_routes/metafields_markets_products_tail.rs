@@ -1682,6 +1682,172 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         read_by_key("decimal_truncated")["compareDigest"],
         json!(sha256_hex("1.123456789"))
     );
+
+    assert_metafield_reference_and_references_project_locally_staged_targets();
+}
+
+fn assert_metafield_reference_and_references_project_locally_staged_targets() {
+    let mut proxy = snapshot_proxy();
+
+    let owner = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Reference owner"}}),
+    ));
+    assert_eq!(owner.status, 200);
+    assert_eq!(owner.body["data"]["productCreate"]["userErrors"], json!([]));
+    let owner_id = owner.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let target = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldReferenceProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Referenced product"}}),
+    ));
+    assert_eq!(target.status, 200);
+    assert_eq!(
+        target.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let target_id = target.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetReferenceMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "featured", "type": "product_reference", "value": target_id},
+            {"ownerId": owner_id, "namespace": "custom", "key": "related", "type": "list.product_reference", "value": json!([target_id]).to_string()}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceMetafields($id: ID!) {
+          product(id: $id) {
+            featured: metafield(namespace: "custom", key: "featured") {
+              key
+              reference {
+                __typename
+                ... on Product { id title }
+              }
+            }
+            related: metafield(namespace: "custom", key: "related") {
+              key
+              references(first: 10) {
+                nodes {
+                  __typename
+                  ... on Product { id title }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let product = &read.body["data"]["product"];
+    assert_eq!(
+        product["featured"]["reference"],
+        json!({"__typename": "Product", "id": target_id, "title": "Referenced product"})
+    );
+    assert_eq!(
+        product["related"]["references"],
+        json!({
+            "nodes": [{"__typename": "Product", "id": target_id, "title": "Referenced product"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": target_id,
+                "endCursor": target_id
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceTarget($product: ProductDeleteInput!) {
+          productDelete(product: $product) {
+            deletedProductId
+          }
+        }
+        "#,
+        json!({"product": {"id": target_id}}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(target_id)
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMissingReferenceMetafields($id: ID!) {
+          product(id: $id) {
+            featured: metafield(namespace: "custom", key: "featured") {
+              key
+              reference { __typename ... on Product { id } }
+            }
+            related: metafield(namespace: "custom", key: "related") {
+              key
+              references(first: 10) {
+                nodes { __typename ... on Product { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(missing.status, 200);
+    let featured = missing.body["data"]["product"]["featured"]
+        .as_object()
+        .expect("featured metafield should be an object");
+    assert!(featured.contains_key("reference"));
+    assert_eq!(featured["reference"], Value::Null);
+    let related = missing.body["data"]["product"]["related"]
+        .as_object()
+        .expect("related metafield should be an object");
+    assert!(related.contains_key("references"));
+    assert_eq!(
+        related["references"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }
 
 #[test]
@@ -4355,6 +4521,34 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
         slug.body["data"]["marketCreate"]["market"]["handle"],
         json!("north-south-eu")
     );
+    let mut non_ascii_handle_proxy = snapshot_proxy();
+    let japanese_market = non_ascii_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "日本"}}),
+    ));
+    let tokyo_market = non_ascii_handle_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "東京"}}),
+    ));
+    assert_eq!(
+        japanese_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        tokyo_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let japanese_handle = japanese_market.body["data"]["marketCreate"]["market"]["handle"]
+        .as_str()
+        .unwrap();
+    let tokyo_handle = tokyo_market.body["data"]["marketCreate"]["market"]["handle"]
+        .as_str()
+        .unwrap();
+    for handle in [japanese_handle, tokyo_handle] {
+        assert!(handle.starts_with("localized-"));
+        assert!(!handle.contains('/'));
+    }
+    assert_ne!(japanese_handle, tokyo_handle);
 
     let mut duplicate_name_proxy = snapshot_proxy();
     let _ = duplicate_name_proxy.process_request(json_graphql_request(
@@ -8325,6 +8519,7 @@ fn market_localizations_register_remove_current_runtime_helpers_stage_and_valida
 #[test]
 fn market_localizable_resource_connections_cold_read_ignores_market_overlay_state() {
     let resource_id = "gid://shopify/Metafield/100";
+    let other_resource_id = "gid://shopify/Metafield/200";
     let upstream_calls = Arc::new(Mutex::new(0usize));
     let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
     let mut proxy =
@@ -8337,32 +8532,63 @@ fn market_localizable_resource_connections_cold_read_ignores_market_overlay_stat
                 query.contains("marketLocalizableResources"),
                 "unexpected upstream query: {query}"
             );
-            let resource = json!({
-                "resourceId": resource_id,
-                "marketLocalizableContent": [
-                    {"key": "title", "value": "Title", "digest": "digest-title"}
-                ],
-                "marketLocalizations": []
-            });
+            let requested_ids = body["variables"]["resourceIds"]
+                .as_array()
+                .map(|ids| ids.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+                .unwrap_or_else(|| vec![resource_id]);
+            let resources = requested_ids
+                .into_iter()
+                .map(|requested_id| {
+                    json!({
+                        "resourceId": requested_id,
+                        "marketLocalizableContent": [
+                            {
+                                "key": "title",
+                                "value": if requested_id == resource_id { "Title" } else { "Other title" },
+                                "digest": if requested_id == resource_id { "digest-title" } else { "digest-other-title" }
+                            }
+                        ]
+                    })
+                })
+                .collect::<Vec<_>>();
+            let edges = resources
+                .iter()
+                .map(|resource| {
+                    json!({
+                        "cursor": resource["resourceId"],
+                        "node": resource
+                    })
+                })
+                .collect::<Vec<_>>();
+            let start_cursor = resources
+                .first()
+                .and_then(|resource| resource["resourceId"].as_str())
+                .unwrap_or_default();
+            let end_cursor = resources
+                .last()
+                .and_then(|resource| resource["resourceId"].as_str())
+                .unwrap_or_default();
             let connection = json!({
-                "nodes": [resource.clone()],
-                "edges": [{"cursor": resource_id, "node": resource}],
+                "nodes": resources,
+                "edges": edges,
                 "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": resource_id,
-                    "endCursor": resource_id
+                    "startCursor": start_cursor,
+                    "endCursor": end_cursor
                 }
             });
+            let mut data = serde_json::Map::new();
+            if query.contains("marketLocalizableResources(") {
+                data.insert("marketLocalizableResources".to_string(), connection.clone());
+            }
+            if query.contains("marketLocalizableResourcesByIds") {
+                data.insert("marketLocalizableResourcesByIds".to_string(), connection);
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({
-                    "data": {
-                        "marketLocalizableResources": connection.clone(),
-                        "marketLocalizableResourcesByIds": connection
-                    }
-                }),
+                body: json!({ "data": data }),
             }
         });
 
@@ -8382,9 +8608,6 @@ fn market_localizable_resource_connections_cold_read_ignores_market_overlay_stat
     let read = proxy.process_request(json_graphql_request(
         r#"
         query RustMarketLocalizableColdGateRead($resourceIds: [ID!]!) {
-          marketLocalizableResources(first: 5, resourceType: METAFIELD) {
-            nodes { resourceId marketLocalizableContent { key value digest } }
-          }
           marketLocalizableResourcesByIds(first: 5, resourceIds: $resourceIds) {
             nodes { resourceId marketLocalizableContent { key value digest } }
           }
@@ -8399,12 +8622,42 @@ fn market_localizable_resource_connections_cold_read_ignores_market_overlay_stat
         "unrelated staged market state must not force local-empty resource reads"
     );
     assert_eq!(
-        read.body["data"]["marketLocalizableResources"]["nodes"][0]["resourceId"],
-        json!(resource_id)
-    );
-    assert_eq!(
         read.body["data"]["marketLocalizableResourcesByIds"]["nodes"][0]["resourceId"],
         json!(resource_id)
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizableByIdsUnobservedRead($resourceIds: [ID!]!) {
+          marketLocalizableResourcesByIds(first: 10, resourceIds: $resourceIds) {
+            nodes { resourceId marketLocalizableContent { key value digest } }
+          }
+        }
+        "#,
+        json!({"resourceIds": [resource_id, other_resource_id]}),
+    ));
+    assert_eq!(second.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        2,
+        "ByIds must fetch upstream again when any requested id is unobserved"
+    );
+    assert_eq!(
+        second.body["data"]["marketLocalizableResourcesByIds"]["nodes"],
+        json!([
+            {
+                "resourceId": resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Title", "digest": "digest-title"}
+                ]
+            },
+            {
+                "resourceId": other_resource_id,
+                "marketLocalizableContent": [
+                    {"key": "title", "value": "Other title", "digest": "digest-other-title"}
+                ]
+            }
+        ])
     );
 }
 

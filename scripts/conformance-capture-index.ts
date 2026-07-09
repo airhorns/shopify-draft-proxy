@@ -334,6 +334,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-cold-company-location-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-cold-company-location-hydration-conformance.mts',
+    purpose:
+      'Cold B2B companies passthrough plus real non-synthetic CompanyLocation hydration for companyLocationUpdate and companyLocationTaxSettingsUpdate.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-cold-company-location-hydration.json`,
+      'config/parity-specs/b2b/b2b-cold-company-location-hydration.json',
+      'config/parity-requests/b2b/b2b-cold-companies-read.graphql',
+      'config/parity-requests/b2b/b2b-cold-company-location-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company/location, captures a cold companies read and hydrate-backed mutations, then deletes the company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-buyer-experience-configuration',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-buyer-experience-configuration-conformance.mts',
@@ -813,7 +831,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-b2b-company-location-order-aggregates-conformance.ts',
     purpose:
-      'B2B Company and CompanyLocation totalSpent/ordersCount/lifetimeDuration/currency/catalog aggregate reads after a completed B2B draft order and company-location catalogCreate.',
+      'B2B Company and CompanyLocation totalSpent/ordersCount/lifetimeDuration/currency/catalog aggregate reads plus nested orders/draftOrders connections after a completed B2B draft order and company-location catalogCreate.',
     requiredAuthScopes: [
       'read_companies',
       'write_companies',
@@ -833,10 +851,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/b2b/b2b-company-location-order-aggregates-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable B2B company/location/contact, one completed paid B2B draft order, and one CompanyLocationCatalog; records aggregate readback after indexing, then cancels/deletes the completed order, deletes the catalog, and attempts company deletion.',
+      'Creates a disposable B2B company/location/contact, one completed paid B2B draft order, and one CompanyLocationCatalog; records aggregate and nested order/draft-order connection readback after indexing, then cancels/deletes the completed order, deletes the catalog, and attempts company deletion.',
     expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
     notes:
-      'The live 2025-01/2026-04 CompanyLocation schema exposes catalogs, currency, ordersCount, and totalSpent; orderCount and market remain local runtime compatibility coverage because the live conformance schema does not expose those fields.',
+      'The live 2025-01/2026-04 CompanyLocation schema exposes catalogs, currency, orders, draftOrders, ordersCount, and totalSpent; orderCount and market remain local runtime compatibility coverage because the live conformance schema does not expose those fields.',
   },
   {
     domain: 'b2b',
@@ -1473,6 +1491,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
       'config/parity-requests/products/publication-created-read.graphql',
+      'config/parity-requests/products/publication-products-connection-read.graphql',
       'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
@@ -2371,6 +2390,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-path-product-sibling-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-path-product-sibling-read-conformance.ts',
+    purpose:
+      'Inventory-led product sibling readback for product.totalInventory and product.tracksInventory with an unrelated stocked product present.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-path-product-sibling-read.json`,
+      'config/parity-specs/products/inventory-path-product-sibling-read.json',
+      'config/parity-requests/products/inventory-path-product-sibling-location.graphql',
+      'config/parity-requests/products/inventory-path-product-sibling-product-set.graphql',
+      'config/parity-requests/products/inventory-path-product-sibling-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable location, an untracked product, and a separate stocked tracked product, records the inventory-led sibling product read, then deletes the products and location best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-transfers',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-transfer-conformance.ts',
@@ -2433,9 +2478,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-default-location-order-create.graphql',
       'config/parity-requests/products/inventory-default-location-item-read.graphql',
       'config/parity-requests/products/inventory-shipment-create-carrier.graphql',
+      'config/parity-requests/products/inventory-shipment-create-in-transit.graphql',
+      'config/parity-requests/products/inventory-transfer-read-after-shipment.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
+      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, draft and in-transit shipment tracking, and transfer readback after shipment consumption, then cancels/deletes the created order, shipments, transfer, products, and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3939,7 +3986,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-metaobject-read-conformance.mts',
     purpose: 'Metaobject definition/entry reads and minimal disposable seed behavior.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
-    fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects/metaobjects-read.json'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjects-read.json`,
+      'config/parity-specs/metaobjects/metaobjects-read.json',
+      'config/parity-requests/metaobjects/metaobjects-read.graphql',
+      'config/parity-requests/metaobjects/metaobjects-read-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-read-entry-create.graphql',
+    ],
     cleanupBehavior: 'Deletes seeded metaobject entries/definitions after read capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -7402,7 +7455,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'location-address-code-derivation',
     scriptPath: 'scripts/capture-location-address-code-derivation-conformance.mts',
     purpose:
-      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode, including an AE/DU branch outside the old tiny lookup table, plus immediate read-after-write behavior.',
+      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode, including AE/DU and TH branches outside the old tiny lookup table, plus immediate read-after-write behavior.',
     requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-address-code-derivation.json`,
@@ -7412,7 +7465,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/store-properties/location-address-code-derivation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable non-online-fulfilling GB, AU, AE, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
+      'Creates disposable non-online-fulfilling GB, AU, AE, TH, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8338,6 +8391,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-line-discount-percent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-edit-line-discount-percent-conformance.ts',
+    purpose:
+      'Order-edit line-item percentValue discount live parity: applies a percentage discount to a disposable non-taxable order line and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-line-discount-percent-value.json',
+      'config/parity-specs/orders/orderEditAddLineItemDiscount-percentValue.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with a non-taxable custom line, applies a percent line discount in an order-edit session, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-zero-removal',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-zero-removal-conformance.ts',
@@ -8374,6 +8443,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable paid, balance-due, and closed orders, commits order edits including notifyCustomer payload branches, then cancels created orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-money-math',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-money-math-conformance.ts',
+    purpose:
+      'orderEdit calculated and committed money arithmetic for taxed line items and fixed line-item discounts, including downstream totalTaxSet/currentTaxLines and subtotalPriceSet netting.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-money-math.json`,
+      'config/parity-specs/orders/orderEdit-money-math.json',
+      'config/parity-requests/orders/orderEdit-money-math-addLineItemDiscount.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-begin.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-commit.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-create.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-read.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-setQuantity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders, commits one taxed quantity edit and one fixed line-item discount edit, then cancels both orders in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8921,6 +9012,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Uses safety-first validation branches; review manually before any customer-visible send path.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-magic-title-not-canned',
+    scriptPath: 'scripts/capture-draft-order-magic-title-conformance.ts',
+    purpose:
+      'draftOrderCreate treats the formerly magic invoice-error line title as ordinary submitted input instead of returning a canned draft.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-create-magic-title-not-canned.json`,
+      'config/parity-specs/orders/draftOrderCreate-magic-title-not-canned.json',
+      'config/parity-requests/orders/draftOrderCreate-magic-title-create.graphql',
+      'config/parity-requests/orders/draftOrderCreate-magic-title-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order whose first line title is the formerly magic audit value, records create/read payloads, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'draft-orders',

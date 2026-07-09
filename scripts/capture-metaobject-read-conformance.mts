@@ -33,57 +33,9 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 
 const outputPath = path.join(outputDir, 'metaobjects-read.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
-  type: `codex_har_240_${runId}`,
-  handle: `codex-har-240-${runId}`,
+  type: `draft_proxy_metaobject_read_${runId}`,
+  handle: `draft-proxy-metaobject-read-${runId}`,
 };
-
-const definitionReadFields = `#graphql
-  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {
-    id
-    type
-    name
-    description
-    displayNameKey
-    access {
-      admin
-      storefront
-    }
-    capabilities {
-      publishable {
-        enabled
-      }
-      translatable {
-        enabled
-      }
-      renderable {
-        enabled
-      }
-      onlineStore {
-        enabled
-      }
-    }
-    fieldDefinitions {
-      key
-      name
-      description
-      required
-      type {
-        name
-        category
-      }
-      validations {
-        name
-        value
-      }
-    }
-    hasThumbnailField
-    metaobjectsCount
-    standardTemplate {
-      type
-      name
-    }
-  }
-`;
 
 const entryReadFields = `#graphql
   fragment MetaobjectReadFields on Metaobject {
@@ -129,6 +81,120 @@ const entryReadFields = `#graphql
           category
         }
       }
+    }
+  }
+`;
+
+const definitionReadFields = `#graphql
+  ${entryReadFields}
+  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {
+    id
+    type
+    name
+    description
+    displayNameKey
+    access {
+      admin
+      storefront
+    }
+    capabilities {
+      publishable {
+        enabled
+      }
+      translatable {
+        enabled
+      }
+      renderable {
+        enabled
+      }
+      onlineStore {
+        enabled
+      }
+    }
+    fieldDefinitions {
+      key
+      name
+      description
+      required
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    hasThumbnailField
+    metaobjectsCount
+    standardTemplate {
+      type
+      name
+    }
+    metaobjects(first: 10) {
+      edges {
+        cursor
+        node {
+          ...MetaobjectReadFields
+        }
+      }
+      nodes {
+        ...MetaobjectReadFields
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const definitionCatalogReadFields = `#graphql
+  fragment MetaobjectDefinitionCatalogReadFields on MetaobjectDefinition {
+    id
+    type
+    name
+    description
+    displayNameKey
+    access {
+      admin
+      storefront
+    }
+    capabilities {
+      publishable {
+        enabled
+      }
+      translatable {
+        enabled
+      }
+      renderable {
+        enabled
+      }
+      onlineStore {
+        enabled
+      }
+    }
+    fieldDefinitions {
+      key
+      name
+      description
+      required
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    hasThumbnailField
+    metaobjectsCount
+    standardTemplate {
+      type
+      name
     }
   }
 `;
@@ -272,17 +338,17 @@ const entryCreateMutation = `#graphql
 `;
 
 const definitionCatalogQuery = `#graphql
-  ${definitionReadFields}
+  ${definitionCatalogReadFields}
   query MetaobjectDefinitionCatalog {
     metaobjectDefinitions(first: 50, reverse: true) {
       edges {
         cursor
         node {
-          ...MetaobjectDefinitionReadFields
+          ...MetaobjectDefinitionCatalogReadFields
         }
       }
       nodes {
-        ...MetaobjectDefinitionReadFields
+        ...MetaobjectDefinitionCatalogReadFields
       }
       pageInfo {
         hasNextPage
@@ -575,8 +641,8 @@ try {
     {
       definition: {
         type: seed.type,
-        name: `Codex HAR-240 ${runId}`,
-        description: 'Temporary HAR-240 conformance definition for metaobject read fixture capture.',
+        name: `Draft proxy metaobject read ${runId}`,
+        description: 'Temporary conformance definition for metaobject read fixture capture.',
         capabilities: {
           publishable: {
             enabled: true,
@@ -590,14 +656,14 @@ try {
           {
             key: 'title',
             name: 'Title',
-            description: 'Display title for HAR-240 fixture capture.',
+            description: 'Display title for metaobject read fixture capture.',
             type: 'single_line_text_field',
             required: true,
           },
           {
             key: 'body',
             name: 'Body',
-            description: 'Body text for HAR-240 fixture capture.',
+            description: 'Body text for metaobject read fixture capture.',
             type: 'multi_line_text_field',
             required: false,
           },
@@ -628,11 +694,11 @@ try {
         fields: [
           {
             key: 'title',
-            value: `HAR-240 title ${runId}`,
+            value: `Metaobject read title ${runId}`,
           },
           {
             key: 'body',
-            value: `HAR-240 body ${runId}`,
+            value: `Metaobject read body ${runId}`,
           },
         ],
       },
@@ -667,7 +733,7 @@ try {
       setup:
         'Creates one temporary metaobject definition and one temporary metaobject entry on the disposable conformance shop, then deletes both before writing the successful fixture.',
       paritySpecs:
-        'No parity spec is checked in for this fixture yet because the local proxy has no executable metaobject snapshot/read model to compare against without inventing data.',
+        'The checked-in parity spec replays setup through public GraphQL mutations and compares readback payloads against this Shopify capture.',
     },
     schema,
     noData: noDataCaptures,
