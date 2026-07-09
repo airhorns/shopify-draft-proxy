@@ -6269,6 +6269,228 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
 }
 
 #[test]
+fn publication_products_connection_paginates_and_projects_product_fields() {
+    let first_product_id = "gid://shopify/Product/publication-products-alpha";
+    let second_product_id = "gid://shopify/Product/publication-products-bravo";
+    let mut first_product = seed_product(first_product_id);
+    first_product.title = "Alpha publication product".to_string();
+    first_product.handle = "alpha-publication-product".to_string();
+    first_product.vendor = "Acme".to_string();
+    first_product.tags = vec!["alpha".to_string(), "publication".to_string()];
+    let mut second_product = seed_product(second_product_id);
+    second_product.title = "Bravo publication product".to_string();
+    second_product.handle = "bravo-publication-product".to_string();
+    second_product.vendor = "Bravo Co".to_string();
+    second_product.tags = vec!["bravo".to_string()];
+    let mut proxy = snapshot_proxy().with_base_products(vec![first_product, second_product]);
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePublicationProductsTarget($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
+
+    let add_products = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddPublicationProducts($id: ID!, $input: PublicationUpdateInput!) {
+          publicationUpdate(id: $id, input: $input) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": publication_id,
+            "input": { "publishablesToAdd": [first_product_id, second_product_id] }
+        }),
+    ));
+    assert_eq!(
+        add_products.body["data"]["publicationUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PublicationProductsFirstPage($publicationId: ID!, $first: Int!) {
+          publication(id: $publicationId) {
+            id
+            includedProductsCount { count precision }
+            products(first: $first) {
+              nodes {
+                id
+                handle
+                status
+                vendor
+                tags
+                publishedOnPublication(publicationId: $publicationId)
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  handle
+                  status
+                  vendor
+                  tags
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+          publishedProductsCount(publicationId: $publicationId) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({ "publicationId": publication_id, "first": 1 }),
+    ));
+    assert_eq!(first_page.status, 200, "first page: {}", first_page.body);
+    assert_eq!(
+        first_page.body["data"]["publication"]["includedProductsCount"],
+        json!({ "count": 2, "precision": "EXACT" }),
+        "first page: {}",
+        first_page.body
+    );
+    assert_eq!(
+        first_page.body["data"]["publishedProductsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        first_page.body["data"]["publication"]["products"],
+        json!({
+            "nodes": [{
+                "id": first_product_id,
+                "handle": "alpha-publication-product",
+                "status": "ACTIVE",
+                "vendor": "Acme",
+                "tags": ["alpha", "publication"],
+                "publishedOnPublication": true
+            }],
+            "edges": [{
+                "cursor": first_product_id,
+                "node": {
+                    "id": first_product_id,
+                    "handle": "alpha-publication-product",
+                    "status": "ACTIVE",
+                    "vendor": "Acme",
+                    "tags": ["alpha", "publication"]
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PublicationProductsAfter($publicationId: ID!, $first: Int!, $after: String!) {
+          publication(id: $publicationId) {
+            products(first: $first, after: $after) {
+              nodes { id handle status vendor tags }
+              edges { cursor node { id handle status vendor tags } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "publicationId": publication_id,
+            "first": 1,
+            "after": first_page.body["data"]["publication"]["products"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["publication"]["products"],
+        json!({
+            "nodes": [{
+                "id": second_product_id,
+                "handle": "bravo-publication-product",
+                "status": "ACTIVE",
+                "vendor": "Bravo Co",
+                "tags": ["bravo"]
+            }],
+            "edges": [{
+                "cursor": second_product_id,
+                "node": {
+                    "id": second_product_id,
+                    "handle": "bravo-publication-product",
+                    "status": "ACTIVE",
+                    "vendor": "Bravo Co",
+                    "tags": ["bravo"]
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": second_product_id,
+                "endCursor": second_product_id
+            }
+        })
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"
+        query PublicationProductsBefore($publicationId: ID!, $last: Int!, $before: String!) {
+          publication(id: $publicationId) {
+            products(last: $last, before: $before) {
+              nodes { id handle }
+              edges { cursor node { id handle } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "publicationId": publication_id,
+            "last": 1,
+            "before": second_product_id
+        }),
+    ));
+    assert_eq!(
+        before_page.body["data"]["publication"]["products"],
+        json!({
+            "nodes": [{
+                "id": first_product_id,
+                "handle": "alpha-publication-product"
+            }],
+            "edges": [{
+                "cursor": first_product_id,
+                "node": {
+                    "id": first_product_id,
+                    "handle": "alpha-publication-product"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_product_id,
+                "endCursor": first_product_id
+            }
+        })
+    );
+}
+
+#[test]
 fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     let mut proxy = snapshot_proxy();
     let undefined_publication_fields = proxy.process_request(json_graphql_request(

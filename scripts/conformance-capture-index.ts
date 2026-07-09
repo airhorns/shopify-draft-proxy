@@ -1491,6 +1491,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
       'config/parity-requests/products/publication-created-read.graphql',
+      'config/parity-requests/products/publication-products-connection-read.graphql',
       'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
@@ -3985,7 +3986,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-metaobject-read-conformance.mts',
     purpose: 'Metaobject definition/entry reads and minimal disposable seed behavior.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
-    fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects/metaobjects-read.json'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjects-read.json`,
+      'config/parity-specs/metaobjects/metaobjects-read.json',
+      'config/parity-requests/metaobjects/metaobjects-read.graphql',
+      'config/parity-requests/metaobjects/metaobjects-read-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-read-entry-create.graphql',
+    ],
     cleanupBehavior: 'Deletes seeded metaobject entries/definitions after read capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -8384,6 +8391,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-line-discount-percent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-edit-line-discount-percent-conformance.ts',
+    purpose:
+      'Order-edit line-item percentValue discount live parity: applies a percentage discount to a disposable non-taxable order line and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-line-discount-percent-value.json',
+      'config/parity-specs/orders/orderEditAddLineItemDiscount-percentValue.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with a non-taxable custom line, applies a percent line discount in an order-edit session, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-zero-removal',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-zero-removal-conformance.ts',
@@ -8420,6 +8443,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable paid, balance-due, and closed orders, commits order edits including notifyCustomer payload branches, then cancels created orders in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-money-math',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-money-math-conformance.ts',
+    purpose:
+      'orderEdit calculated and committed money arithmetic for taxed line items and fixed line-item discounts, including downstream totalTaxSet/currentTaxLines and subtotalPriceSet netting.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-money-math.json`,
+      'config/parity-specs/orders/orderEdit-money-math.json',
+      'config/parity-requests/orders/orderEdit-money-math-addLineItemDiscount.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-begin.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-commit.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-create.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-read.graphql',
+      'config/parity-requests/orders/orderEdit-money-math-setQuantity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders, commits one taxed quantity edit and one fixed line-item discount edit, then cancels both orders in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

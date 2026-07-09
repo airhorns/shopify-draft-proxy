@@ -1,0 +1,47 @@
+query PublicationProductsConnectionRead(
+  $publicationId: ID!
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+) {
+  publication(id: $publicationId) {
+    id
+    includedProductsCount {
+      count
+      precision
+    }
+    products(first: $first, after: $after, last: $last, before: $before) {
+      nodes {
+        id
+        title
+        handle
+        status
+        totalInventory
+        tracksInventory
+        publishedOnPublication(publicationId: $publicationId)
+      }
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  publishedProductsCount(publicationId: $publicationId) {
+    count
+    precision
+  }
+}

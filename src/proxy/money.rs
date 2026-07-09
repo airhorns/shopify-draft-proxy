@@ -125,7 +125,10 @@ pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
 }
 
 pub(in crate::proxy) fn format_money_amount(amount: f64) -> String {
-    let rounded = (amount * 100.0).round() / 100.0;
+    let mut rounded = (amount * 100.0).round() / 100.0;
+    if rounded == 0.0 {
+        rounded = 0.0;
+    }
     normalize_money_amount(&format!("{rounded:.2}"))
 }
 
