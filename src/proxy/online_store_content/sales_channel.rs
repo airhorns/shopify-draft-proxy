@@ -32,8 +32,7 @@ impl DraftProxy {
                     | "scriptTag"
                     | "webPixel"
                     | "serverPixel"
-                    | "urlRedirect"
-                    | "theme" => {
+                    | "urlRedirect" => {
                         if field.name == "urlRedirect" {
                             self.url_redirect_query_data(std::slice::from_ref(field))
                                 .get(&field.response_key)
@@ -50,6 +49,17 @@ impl DraftProxy {
                                 .unwrap_or(Value::Null)
                         }
                     }
+                    "theme" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.store
+                            .staged
+                            .online_store_integrations
+                            .get(&id)
+                            .map(|record| {
+                                selected_online_store_theme_json(record, &field.selection)
+                            })
+                            .unwrap_or(Value::Null)
+                    }
                     "urlRedirects" | "urlRedirectsCount" => self
                         .url_redirect_query_data(std::slice::from_ref(field))
                         .get(&field.response_key)
@@ -57,22 +67,29 @@ impl DraftProxy {
                         .unwrap_or(Value::Null),
                     "themes" => {
                         let roles = resolved_string_list_arg(&field.arguments, "roles");
+                        self.online_store_theme_connection_value(field, |record| {
+                            roles.is_empty()
+                                || record
+                                    .get("role")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|role| {
+                                        roles.iter().any(|expected| expected == role)
+                                    })
+                        })
+                    }
+                    "scriptTags" => {
+                        let src = resolved_string_field(&field.arguments, "src");
                         self.online_store_integration_connection_value(
                             field,
-                            is_online_store_theme_record,
+                            is_online_store_script_tag_record,
                             |record| {
-                                roles.is_empty()
-                                    || record.get("role").and_then(Value::as_str).is_some_and(
-                                        |role| roles.iter().any(|expected| expected == role),
-                                    )
+                                src.as_ref().is_none_or(|expected| {
+                                    record.get("src").and_then(Value::as_str)
+                                        == Some(expected.as_str())
+                                })
                             },
                         )
                     }
-                    "scriptTags" => self.online_store_integration_connection_value(
-                        field,
-                        is_online_store_script_tag_record,
-                        |_| true,
-                    ),
                     "mobilePlatformApplications" => self.online_store_integration_connection_value(
                         field,
                         is_mobile_platform_application_record,
@@ -271,6 +288,37 @@ impl DraftProxy {
             &field.arguments,
             &field.selection,
             value_id_cursor,
+        )
+    }
+
+    fn online_store_theme_connection_value<F>(
+        &self,
+        field: &RootFieldSelection,
+        include: F,
+    ) -> Value
+    where
+        F: Fn(&Value) -> bool,
+    {
+        let mut records = self
+            .store
+            .staged
+            .online_store_integrations
+            .values()
+            .filter(|record| is_online_store_theme_record(record))
+            .filter(|record| include(record))
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by_key(value_id_cursor);
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
+        selected_typed_connection_with_page_info(
+            &records,
+            &field.selection,
+            selected_online_store_theme_json,
+            value_id_cursor,
+            page_info,
         )
     }
 
@@ -1453,4 +1501,97 @@ fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
         _ => return None,
     }
     Some((id, record))
+}
+
+fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]) -> Value {
+    let mut projected = selected_json(record, selections);
+    let Some(fields) = projected.as_object_mut() else {
+        return projected;
+    };
+    for selection in selections {
+        if selection.name != "files"
+            || !online_store_theme_selection_type_condition_matches(
+                selection.type_condition.as_deref(),
+            )
+        {
+            continue;
+        }
+        fields.insert(
+            selection.response_key.clone(),
+            selected_online_store_theme_files_json(record, selection),
+        );
+    }
+    projected
+}
+
+fn online_store_theme_selection_type_condition_matches(type_condition: Option<&str>) -> bool {
+    matches!(
+        type_condition,
+        None | Some("OnlineStoreTheme" | "Node" | "HasPublishedTranslations")
+    )
+}
+
+fn selected_online_store_theme_files_json(theme: &Value, selection: &SelectedField) -> Value {
+    let filename_patterns = resolved_string_list_arg(&selection.arguments, "filenames");
+    let nodes = theme_file_nodes(theme)
+        .into_iter()
+        .filter(|file| {
+            filename_patterns.is_empty()
+                || file
+                    .get("filename")
+                    .and_then(Value::as_str)
+                    .is_some_and(|filename| {
+                        filename_patterns
+                            .iter()
+                            .any(|pattern| theme_filename_matches(pattern, filename))
+                    })
+        })
+        .collect::<Vec<_>>();
+    let (nodes, page_info) = connection_window(&nodes, &selection.arguments, theme_file_cursor);
+    selected_typed_connection_with_page_info(
+        &nodes,
+        &selection.selection,
+        selected_json,
+        theme_file_cursor,
+        page_info,
+    )
+}
+
+fn theme_file_cursor(file: &Value) -> String {
+    file.get("filename")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn theme_filename_matches(pattern: &str, filename: &str) -> bool {
+    if !pattern.contains('*') {
+        return filename == pattern;
+    }
+
+    let parts = pattern.split('*').collect::<Vec<_>>();
+    let mut remainder = filename;
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        if index == 0 && !pattern.starts_with('*') {
+            let Some(next_remainder) = remainder.strip_prefix(part) else {
+                return false;
+            };
+            remainder = next_remainder;
+            continue;
+        }
+        let Some(position) = remainder.find(part) else {
+            return false;
+        };
+        remainder = &remainder[position + part.len()..];
+    }
+
+    if !pattern.ends_with('*') {
+        if let Some(last_part) = parts.iter().rev().find(|part| !part.is_empty()) {
+            return filename.ends_with(last_part);
+        }
+    }
+    true
 }
