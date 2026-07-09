@@ -10393,8 +10393,11 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         Value::Null
     );
     assert_eq!(
-        over_capture.body["data"]["orderCapture"]["userErrors"][0]["field"],
-        json!(["amount"])
+        over_capture.body["data"]["orderCapture"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Cannot capture more than the authorized 25.00 for this payment."
+        }])
     );
 
     let first_capture = capture_proxy.process_request(json_graphql_request(
@@ -11033,8 +11036,8 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
         ),
         json!({
             "input": {
-                "id": order_a_id,
-                "parentTransactionId": parent_a_id,
+                "id": order_a_id.clone(),
+                "parentTransactionId": parent_a_id.clone(),
                 "amount": "42.00",
                 "currency": "CAD"
             }
@@ -11055,6 +11058,30 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
     assert_eq!(
         capture_a.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
         json!("PAID")
+    );
+    let non_authorization_parent = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_a_id,
+                "parentTransactionId": capture_a.body["data"]["orderCapture"]["transaction"]["id"].clone(),
+                "amount": "5.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        non_authorization_parent.body["data"]["orderCapture"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        non_authorization_parent.body["data"]["orderCapture"]["userErrors"],
+        json!([{
+            "field": ["parentTransactionId"],
+            "message": "Parent transaction must be a successful authorization"
+        }])
     );
 
     let create_b = proxy.process_request(json_graphql_request(
@@ -11100,8 +11127,11 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
         Value::Null
     );
     assert_eq!(
-        over_capture_b.body["data"]["orderCapture"]["userErrors"][0]["field"],
-        json!(["amount"])
+        over_capture_b.body["data"]["orderCapture"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Cannot capture more than the authorized 20.00 for this payment."
+        }])
     );
 
     let void_b = proxy.process_request(json_graphql_request(
