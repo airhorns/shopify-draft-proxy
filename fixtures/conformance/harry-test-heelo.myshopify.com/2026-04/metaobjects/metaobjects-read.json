@@ -1,16 +1,16 @@
 {
-  "capturedAt": "2026-04-25T22:40:47.517Z",
+  "capturedAt": "2026-07-08T14:42:20.411Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "seed": {
-    "type": "codex_har_240_1777156845370",
-    "handle": "codex-har-240-1777156845370",
-    "definitionId": "gid://shopify/MetaobjectDefinition/17537171762",
-    "entryId": "gid://shopify/Metaobject/185593102642"
+    "type": "draft_proxy_metaobject_read_1783521738167",
+    "handle": "draft-proxy-metaobject-read-1783521738167",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19689046322",
+    "entryId": "gid://shopify/Metaobject/204511478066"
   },
   "safety": {
     "setup": "Creates one temporary metaobject definition and one temporary metaobject entry on the disposable conformance shop, then deletes both before writing the successful fixture.",
-    "paritySpecs": "No parity spec is checked in for this fixture yet because the local proxy has no executable metaobject snapshot/read model to compare against without inventing data."
+    "paritySpecs": "The checked-in parity spec replays setup through public GraphQL mutations and compares readback payloads against this Shopify capture."
   },
   "schema": {
     "name": "schema",
@@ -366,9 +366,9 @@
     {
       "name": "missing-definition-by-type",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionByMissingType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
+        "query": "#graphql\n  #graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n    metaobjects(first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query MetaobjectDefinitionByMissingType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
         "variables": {
-          "type": "codex_har_240_1777156845370"
+          "type": "draft_proxy_metaobject_read_1783521738167"
         }
       },
       "status": 200,
@@ -378,7 +378,7 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 11,
+            "requestedQueryCost": 93,
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
@@ -392,7 +392,7 @@
     {
       "name": "missing-definition-by-id",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionByMissingId($id: ID!) {\n    metaobjectDefinition(id: $id) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
+        "query": "#graphql\n  #graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n    metaobjects(first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query MetaobjectDefinitionByMissingId($id: ID!) {\n    metaobjectDefinition(id: $id) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
         "variables": {
           "id": "gid://shopify/MetaobjectDefinition/0"
         }
@@ -404,7 +404,7 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 11,
+            "requestedQueryCost": 93,
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
@@ -420,7 +420,7 @@
       "request": {
         "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectsByMissingType($type: String!) {\n    metaobjects(type: $type, first: 5) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
         "variables": {
-          "type": "codex_har_240_1777156845370"
+          "type": "draft_proxy_metaobject_read_1783521738167"
         }
       },
       "status": 200,
@@ -456,8 +456,8 @@
         "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectByMissingHandle($handle: MetaobjectHandleInput!) {\n    metaobjectByHandle(handle: $handle) {\n      ...MetaobjectReadFields\n    }\n  }\n",
         "variables": {
           "handle": {
-            "type": "codex_har_240_1777156845370",
-            "handle": "codex-har-240-1777156845370-missing"
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "handle": "draft-proxy-metaobject-read-1783521738167-missing"
           }
         }
       },
@@ -510,12 +510,12 @@
     {
       "name": "setup-metaobject-definition-create",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation CreateMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        ...MetaobjectDefinitionReadFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "query": "#graphql\n  #graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n    metaobjects(first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  mutation CreateMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        ...MetaobjectDefinitionReadFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "codex_har_240_1777156845370",
-            "name": "Codex HAR-240 1777156845370",
-            "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "name": "Draft proxy metaobject read 1783521738167",
+            "description": "Temporary conformance definition for metaobject read fixture capture.",
             "capabilities": {
               "publishable": {
                 "enabled": true
@@ -529,14 +529,14 @@
               {
                 "key": "title",
                 "name": "Title",
-                "description": "Display title for HAR-240 fixture capture.",
+                "description": "Display title for metaobject read fixture capture.",
                 "type": "single_line_text_field",
                 "required": true
               },
               {
                 "key": "body",
                 "name": "Body",
-                "description": "Body text for HAR-240 fixture capture.",
+                "description": "Body text for metaobject read fixture capture.",
                 "type": "multi_line_text_field",
                 "required": false
               }
@@ -549,10 +549,10 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "id": "gid://shopify/MetaobjectDefinition/19689046322",
+              "type": "draft_proxy_metaobject_read_1783521738167",
+              "name": "Draft proxy metaobject read 1783521738167",
+              "description": "Temporary conformance definition for metaobject read fixture capture.",
               "displayNameKey": "title",
               "access": {
                 "admin": "PUBLIC_READ_WRITE",
@@ -576,7 +576,7 @@
                 {
                   "key": "title",
                   "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
+                  "description": "Display title for metaobject read fixture capture.",
                   "required": true,
                   "type": {
                     "name": "single_line_text_field",
@@ -587,7 +587,7 @@
                 {
                   "key": "body",
                   "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
+                  "description": "Body text for metaobject read fixture capture.",
                   "required": false,
                   "type": {
                     "name": "multi_line_text_field",
@@ -598,18 +598,28 @@
               ],
               "hasThumbnailField": false,
               "metaobjectsCount": 0,
-              "standardTemplate": null
+              "standardTemplate": null,
+              "metaobjects": {
+                "edges": [],
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
             },
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 20,
-            "actualQueryCost": 20,
+            "requestedQueryCost": 102,
+            "actualQueryCost": 26,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1980,
+              "currentlyAvailable": 1974,
               "restoreRate": 100
             }
           }
@@ -622,8 +632,8 @@
         "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectReadFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har_240_1777156845370",
-            "handle": "codex-har-240-1777156845370",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "handle": "draft-proxy-metaobject-read-1783521738167",
             "capabilities": {
               "publishable": {
                 "status": "ACTIVE"
@@ -632,11 +642,11 @@
             "fields": [
               {
                 "key": "title",
-                "value": "HAR-240 title 1777156845370"
+                "value": "Metaobject read title 1783521738167"
               },
               {
                 "key": "body",
-                "value": "HAR-240 body 1777156845370"
+                "value": "Metaobject read body 1783521738167"
               }
             ]
           }
@@ -647,11 +657,11 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/185593102642",
-              "handle": "codex-har-240-1777156845370",
-              "type": "codex_har_240_1777156845370",
-              "displayName": "HAR-240 title 1777156845370",
-              "updatedAt": "2026-04-25T22:40:46Z",
+              "id": "gid://shopify/Metaobject/204511478066",
+              "handle": "draft-proxy-metaobject-read-1783521738167",
+              "type": "draft_proxy_metaobject_read_1783521738167",
+              "displayName": "Metaobject read title 1783521738167",
+              "updatedAt": "2026-07-08T14:42:19Z",
               "capabilities": {
                 "publishable": {
                   "status": "ACTIVE"
@@ -662,8 +672,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
+                  "value": "Metaobject read title 1783521738167",
+                  "jsonValue": "Metaobject read title 1783521738167",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -677,8 +687,8 @@
                 {
                   "key": "body",
                   "type": "multi_line_text_field",
-                  "value": "HAR-240 body 1777156845370",
-                  "jsonValue": "HAR-240 body 1777156845370",
+                  "value": "Metaobject read body 1783521738167",
+                  "jsonValue": "Metaobject read body 1783521738167",
                   "definition": {
                     "key": "body",
                     "name": "Body",
@@ -693,8 +703,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
+                "value": "Metaobject read title 1783521738167",
+                "jsonValue": "Metaobject read title 1783521738167",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -715,7 +725,7 @@
             "actualQueryCost": 19,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -727,7 +737,7 @@
     {
       "name": "definition-catalog",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionCatalog {\n    metaobjectDefinitions(first: 50, reverse: true) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectDefinitionReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectDefinitionReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionCatalogReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionCatalog {\n    metaobjectDefinitions(first: 50, reverse: true) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectDefinitionCatalogReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectDefinitionCatalogReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
         "variables": {}
       },
       "status": 200,
@@ -736,12 +746,12 @@
           "metaobjectDefinitions": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
+                "cursor": "eyJsYXN0X2lkIjoxOTY4OTA0NjMyMiwibGFzdF92YWx1ZSI6IjE5Njg5MDQ2MzIyIn0=",
                 "node": {
-                  "id": "gid://shopify/MetaobjectDefinition/17537171762",
-                  "type": "codex_har_240_1777156845370",
-                  "name": "Codex HAR-240 1777156845370",
-                  "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+                  "id": "gid://shopify/MetaobjectDefinition/19689046322",
+                  "type": "draft_proxy_metaobject_read_1783521738167",
+                  "name": "Draft proxy metaobject read 1783521738167",
+                  "description": "Temporary conformance definition for metaobject read fixture capture.",
                   "displayNameKey": "title",
                   "access": {
                     "admin": "PUBLIC_READ_WRITE",
@@ -765,7 +775,7 @@
                     {
                       "key": "title",
                       "name": "Title",
-                      "description": "Display title for HAR-240 fixture capture.",
+                      "description": "Display title for metaobject read fixture capture.",
                       "required": true,
                       "type": {
                         "name": "single_line_text_field",
@@ -776,7 +786,7 @@
                     {
                       "key": "body",
                       "name": "Body",
-                      "description": "Body text for HAR-240 fixture capture.",
+                      "description": "Body text for metaobject read fixture capture.",
                       "required": false,
                       "type": {
                         "name": "multi_line_text_field",
@@ -789,14 +799,558 @@
                   "metaobjectsCount": 1,
                   "standardTemplate": null
                 }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxOTMzODkyMDI0MiwibGFzdF92YWx1ZSI6IjE5MzM4OTIwMjQyIn0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/19338920242",
+                  "type": "shopify--material",
+                  "name": "Material",
+                  "description": "Defines a product's primary material, such as cotton or wool",
+                  "displayNameKey": "label",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": true
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "label",
+                      "name": "Label",
+                      "description": null,
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": [
+                        {
+                          "name": "max",
+                          "value": "255"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "taxonomy_reference",
+                      "name": "Base material",
+                      "description": "Base values map to standards for better search and organization",
+                      "required": true,
+                      "type": {
+                        "name": "product_taxonomy_value_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": [
+                        {
+                          "name": "product_taxonomy_attribute_handle",
+                          "value": "material"
+                        }
+                      ]
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 0,
+                  "standardTemplate": {
+                    "type": "shopify--material",
+                    "name": "Material"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODA4ODI5Njc1NCwibGFzdF92YWx1ZSI6IjE4MDg4Mjk2NzU0In0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/18088296754",
+                  "type": "todo",
+                  "name": "Todo",
+                  "description": "A single todo list item, stored as a metaobject.",
+                  "displayNameKey": "title",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": false
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "done",
+                      "name": "Done",
+                      "description": "Whether the todo is completed.",
+                      "required": false,
+                      "type": {
+                        "name": "boolean",
+                        "category": "TRUE_FALSE"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "position",
+                      "name": "Position",
+                      "description": "Sort order — lower shows first.",
+                      "required": false,
+                      "type": {
+                        "name": "number_integer",
+                        "category": "NUMBER"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "title",
+                      "name": "Title",
+                      "description": "What needs doing.",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 3,
+                  "standardTemplate": null
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODA0ODA1NzY1MCwibGFzdF92YWx1ZSI6IjE4MDQ4MDU3NjUwIn0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/18048057650",
+                  "type": "batch",
+                  "name": "Production Batch",
+                  "description": "A single production run of a product, with its lab tests and traceability info.",
+                  "displayNameKey": "batch_number",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": false
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "batch_number",
+                      "name": "Batch Number",
+                      "description": "e.g. LOT-2026-0142",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "expiry_date",
+                      "name": "Expiry Date",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "date",
+                        "category": "DATE_TIME"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "lab_tests",
+                      "name": "Lab Tests",
+                      "description": "All lab tests run on this batch",
+                      "required": false,
+                      "type": {
+                        "name": "list.metaobject_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": [
+                        {
+                          "name": "metaobject_definition_id",
+                          "value": "gid://shopify/MetaobjectDefinition/18048024882"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "manufacturing_notes",
+                      "name": "Manufacturing Notes",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "product",
+                      "name": "Product",
+                      "description": "The product this batch was produced for",
+                      "required": true,
+                      "type": {
+                        "name": "product_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "production_date",
+                      "name": "Production Date",
+                      "description": null,
+                      "required": true,
+                      "type": {
+                        "name": "date",
+                        "category": "DATE_TIME"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "quantity_produced",
+                      "name": "Quantity Produced",
+                      "description": "Units produced in this batch",
+                      "required": false,
+                      "type": {
+                        "name": "number_integer",
+                        "category": "NUMBER"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "status",
+                      "name": "Status",
+                      "description": "released, quarantined, or recalled",
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 1,
+                  "standardTemplate": null
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxODA0ODAyNDg4MiwibGFzdF92YWx1ZSI6IjE4MDQ4MDI0ODgyIn0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/18048024882",
+                  "type": "lab_test",
+                  "name": "Lab Test",
+                  "description": "A single quality-control test performed on a production batch.",
+                  "displayNameKey": "test_name",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": false
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "acceptable_range",
+                      "name": "Acceptable Range",
+                      "description": "Spec / acceptance criteria (e.g. '4.5 – 6.0')",
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "lab_report",
+                      "name": "Lab Report",
+                      "description": "PDF or image of the full lab report",
+                      "required": false,
+                      "type": {
+                        "name": "file_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "notes",
+                      "name": "Notes",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "pass_fail",
+                      "name": "Passed",
+                      "description": "Whether the result is within the acceptable range",
+                      "required": true,
+                      "type": {
+                        "name": "boolean",
+                        "category": "TRUE_FALSE"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "result_value",
+                      "name": "Result",
+                      "description": "Measured value (e.g. '5.4', '<10 CFU/g')",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "test_date",
+                      "name": "Test Date",
+                      "description": null,
+                      "required": true,
+                      "type": {
+                        "name": "date",
+                        "category": "DATE_TIME"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "test_name",
+                      "name": "Test Name",
+                      "description": "e.g. pH, Microbial, Viscosity, Heavy Metals",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "tested_by",
+                      "name": "Tested By",
+                      "description": "Lab or technician that ran the test",
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 2,
+                  "standardTemplate": null
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxNzg4MzMwMDE0NiwibGFzdF92YWx1ZSI6IjE3ODgzMzAwMTQ2In0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/17883300146",
+                  "type": "har_810_short_key_1778039087501",
+                  "name": "short_key",
+                  "description": null,
+                  "displayNameKey": "ab",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": false
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "ab",
+                      "name": "ab",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": []
+                    }
+                  ],
+                  "hasThumbnailField": false,
+                  "metaobjectsCount": 0,
+                  "standardTemplate": null
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxNzg4MDI4NTQ5MCwibGFzdF92YWx1ZSI6IjE3ODgwMjg1NDkwIn0=",
+                "node": {
+                  "id": "gid://shopify/MetaobjectDefinition/17880285490",
+                  "type": "shopify--color-pattern",
+                  "name": "Color",
+                  "description": "Defines the primary color or pattern, such as blue or striped",
+                  "displayNameKey": "label",
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ"
+                  },
+                  "capabilities": {
+                    "publishable": {
+                      "enabled": false
+                    },
+                    "translatable": {
+                      "enabled": true
+                    },
+                    "renderable": {
+                      "enabled": false
+                    },
+                    "onlineStore": {
+                      "enabled": false
+                    }
+                  },
+                  "fieldDefinitions": [
+                    {
+                      "key": "label",
+                      "name": "Label",
+                      "description": null,
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      },
+                      "validations": [
+                        {
+                          "name": "max",
+                          "value": "255"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "color",
+                      "name": "Color",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "color",
+                        "category": "COLOR"
+                      },
+                      "validations": []
+                    },
+                    {
+                      "key": "image",
+                      "name": "Image",
+                      "description": null,
+                      "required": false,
+                      "type": {
+                        "name": "file_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": [
+                        {
+                          "name": "file_type_options",
+                          "value": "[\"Image\"]"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "color_taxonomy_reference",
+                      "name": "Base color",
+                      "description": "Base values map to standards for better search and organization",
+                      "required": true,
+                      "type": {
+                        "name": "list.product_taxonomy_value_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": [
+                        {
+                          "name": "product_taxonomy_attribute_handle",
+                          "value": "color"
+                        },
+                        {
+                          "name": "list.min",
+                          "value": "1"
+                        },
+                        {
+                          "name": "list.max",
+                          "value": "4"
+                        }
+                      ]
+                    },
+                    {
+                      "key": "pattern_taxonomy_reference",
+                      "name": "Base pattern",
+                      "description": "Base values map to standards for better search and organization",
+                      "required": true,
+                      "type": {
+                        "name": "product_taxonomy_value_reference",
+                        "category": "REFERENCE"
+                      },
+                      "validations": [
+                        {
+                          "name": "product_taxonomy_attribute_handle",
+                          "value": "pattern"
+                        }
+                      ]
+                    }
+                  ],
+                  "hasThumbnailField": true,
+                  "metaobjectsCount": 0,
+                  "standardTemplate": {
+                    "type": "shopify--color-pattern",
+                    "name": "Color"
+                  }
+                }
               }
             ],
             "nodes": [
               {
-                "id": "gid://shopify/MetaobjectDefinition/17537171762",
-                "type": "codex_har_240_1777156845370",
-                "name": "Codex HAR-240 1777156845370",
-                "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+                "id": "gid://shopify/MetaobjectDefinition/19689046322",
+                "type": "draft_proxy_metaobject_read_1783521738167",
+                "name": "Draft proxy metaobject read 1783521738167",
+                "description": "Temporary conformance definition for metaobject read fixture capture.",
                 "displayNameKey": "title",
                 "access": {
                   "admin": "PUBLIC_READ_WRITE",
@@ -820,7 +1374,7 @@
                   {
                     "key": "title",
                     "name": "Title",
-                    "description": "Display title for HAR-240 fixture capture.",
+                    "description": "Display title for metaobject read fixture capture.",
                     "required": true,
                     "type": {
                       "name": "single_line_text_field",
@@ -831,7 +1385,7 @@
                   {
                     "key": "body",
                     "name": "Body",
-                    "description": "Body text for HAR-240 fixture capture.",
+                    "description": "Body text for metaobject read fixture capture.",
                     "required": false,
                     "type": {
                       "name": "multi_line_text_field",
@@ -843,23 +1397,549 @@
                 "hasThumbnailField": false,
                 "metaobjectsCount": 1,
                 "standardTemplate": null
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/19338920242",
+                "type": "shopify--material",
+                "name": "Material",
+                "description": "Defines a product's primary material, such as cotton or wool",
+                "displayNameKey": "label",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "PUBLIC_READ"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": true
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "label",
+                    "name": "Label",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": [
+                      {
+                        "name": "max",
+                        "value": "255"
+                      }
+                    ]
+                  },
+                  {
+                    "key": "taxonomy_reference",
+                    "name": "Base material",
+                    "description": "Base values map to standards for better search and organization",
+                    "required": true,
+                    "type": {
+                      "name": "product_taxonomy_value_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": [
+                      {
+                        "name": "product_taxonomy_attribute_handle",
+                        "value": "material"
+                      }
+                    ]
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 0,
+                "standardTemplate": {
+                  "type": "shopify--material",
+                  "name": "Material"
+                }
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/18088296754",
+                "type": "todo",
+                "name": "Todo",
+                "description": "A single todo list item, stored as a metaobject.",
+                "displayNameKey": "title",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "done",
+                    "name": "Done",
+                    "description": "Whether the todo is completed.",
+                    "required": false,
+                    "type": {
+                      "name": "boolean",
+                      "category": "TRUE_FALSE"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "position",
+                    "name": "Position",
+                    "description": "Sort order — lower shows first.",
+                    "required": false,
+                    "type": {
+                      "name": "number_integer",
+                      "category": "NUMBER"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "title",
+                    "name": "Title",
+                    "description": "What needs doing.",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 3,
+                "standardTemplate": null
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/18048057650",
+                "type": "batch",
+                "name": "Production Batch",
+                "description": "A single production run of a product, with its lab tests and traceability info.",
+                "displayNameKey": "batch_number",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "batch_number",
+                    "name": "Batch Number",
+                    "description": "e.g. LOT-2026-0142",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "expiry_date",
+                    "name": "Expiry Date",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "date",
+                      "category": "DATE_TIME"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "lab_tests",
+                    "name": "Lab Tests",
+                    "description": "All lab tests run on this batch",
+                    "required": false,
+                    "type": {
+                      "name": "list.metaobject_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": [
+                      {
+                        "name": "metaobject_definition_id",
+                        "value": "gid://shopify/MetaobjectDefinition/18048024882"
+                      }
+                    ]
+                  },
+                  {
+                    "key": "manufacturing_notes",
+                    "name": "Manufacturing Notes",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "product",
+                    "name": "Product",
+                    "description": "The product this batch was produced for",
+                    "required": true,
+                    "type": {
+                      "name": "product_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "production_date",
+                    "name": "Production Date",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "date",
+                      "category": "DATE_TIME"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "quantity_produced",
+                    "name": "Quantity Produced",
+                    "description": "Units produced in this batch",
+                    "required": false,
+                    "type": {
+                      "name": "number_integer",
+                      "category": "NUMBER"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "status",
+                    "name": "Status",
+                    "description": "released, quarantined, or recalled",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 1,
+                "standardTemplate": null
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/18048024882",
+                "type": "lab_test",
+                "name": "Lab Test",
+                "description": "A single quality-control test performed on a production batch.",
+                "displayNameKey": "test_name",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "acceptable_range",
+                    "name": "Acceptable Range",
+                    "description": "Spec / acceptance criteria (e.g. '4.5 – 6.0')",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "lab_report",
+                    "name": "Lab Report",
+                    "description": "PDF or image of the full lab report",
+                    "required": false,
+                    "type": {
+                      "name": "file_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "notes",
+                    "name": "Notes",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "pass_fail",
+                    "name": "Passed",
+                    "description": "Whether the result is within the acceptable range",
+                    "required": true,
+                    "type": {
+                      "name": "boolean",
+                      "category": "TRUE_FALSE"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "result_value",
+                    "name": "Result",
+                    "description": "Measured value (e.g. '5.4', '<10 CFU/g')",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "test_date",
+                    "name": "Test Date",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "date",
+                      "category": "DATE_TIME"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "test_name",
+                    "name": "Test Name",
+                    "description": "e.g. pH, Microbial, Viscosity, Heavy Metals",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "tested_by",
+                    "name": "Tested By",
+                    "description": "Lab or technician that ran the test",
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 2,
+                "standardTemplate": null
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/17883300146",
+                "type": "har_810_short_key_1778039087501",
+                "name": "short_key",
+                "description": null,
+                "displayNameKey": "ab",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "ab",
+                    "name": "ab",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 0,
+                "standardTemplate": null
+              },
+              {
+                "id": "gid://shopify/MetaobjectDefinition/17880285490",
+                "type": "shopify--color-pattern",
+                "name": "Color",
+                "description": "Defines the primary color or pattern, such as blue or striped",
+                "displayNameKey": "label",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "PUBLIC_READ"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": true
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "label",
+                    "name": "Label",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": [
+                      {
+                        "name": "max",
+                        "value": "255"
+                      }
+                    ]
+                  },
+                  {
+                    "key": "color",
+                    "name": "Color",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "color",
+                      "category": "COLOR"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "image",
+                    "name": "Image",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "file_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": [
+                      {
+                        "name": "file_type_options",
+                        "value": "[\"Image\"]"
+                      }
+                    ]
+                  },
+                  {
+                    "key": "color_taxonomy_reference",
+                    "name": "Base color",
+                    "description": "Base values map to standards for better search and organization",
+                    "required": true,
+                    "type": {
+                      "name": "list.product_taxonomy_value_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": [
+                      {
+                        "name": "product_taxonomy_attribute_handle",
+                        "value": "color"
+                      },
+                      {
+                        "name": "list.min",
+                        "value": "1"
+                      },
+                      {
+                        "name": "list.max",
+                        "value": "4"
+                      }
+                    ]
+                  },
+                  {
+                    "key": "pattern_taxonomy_reference",
+                    "name": "Base pattern",
+                    "description": "Base values map to standards for better search and organization",
+                    "required": true,
+                    "type": {
+                      "name": "product_taxonomy_value_reference",
+                      "category": "REFERENCE"
+                    },
+                    "validations": [
+                      {
+                        "name": "product_taxonomy_attribute_handle",
+                        "value": "pattern"
+                      }
+                    ]
+                  }
+                ],
+                "hasThumbnailField": true,
+                "metaobjectsCount": 0,
+                "standardTemplate": {
+                  "type": "shopify--color-pattern",
+                  "name": "Color"
+                }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0="
+              "startCursor": "eyJsYXN0X2lkIjoxOTY4OTA0NjMyMiwibGFzdF92YWx1ZSI6IjE5Njg5MDQ2MzIyIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxNzg4MDI4NTQ5MCwibGFzdF92YWx1ZSI6IjE3ODgwMjg1NDkwIn0="
             }
           }
         },
         "extensions": {
           "cost": {
             "requestedQueryCost": 156,
-            "actualQueryCost": 8,
+            "actualQueryCost": 39,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1991,
+              "currentlyAvailable": 1959,
               "restoreRate": 100
             }
           }
@@ -869,19 +1949,19 @@
     {
       "name": "definition-detail",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionDetail($id: ID!) {\n    metaobjectDefinition(id: $id) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
+        "query": "#graphql\n  #graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n    metaobjects(first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query MetaobjectDefinitionDetail($id: ID!) {\n    metaobjectDefinition(id: $id) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17537171762"
+          "id": "gid://shopify/MetaobjectDefinition/19689046322"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17537171762",
-            "type": "codex_har_240_1777156845370",
-            "name": "Codex HAR-240 1777156845370",
-            "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+            "id": "gid://shopify/MetaobjectDefinition/19689046322",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "name": "Draft proxy metaobject read 1783521738167",
+            "description": "Temporary conformance definition for metaobject read fixture capture.",
             "displayNameKey": "title",
             "access": {
               "admin": "PUBLIC_READ_WRITE",
@@ -905,7 +1985,7 @@
               {
                 "key": "title",
                 "name": "Title",
-                "description": "Display title for HAR-240 fixture capture.",
+                "description": "Display title for metaobject read fixture capture.",
                 "required": true,
                 "type": {
                   "name": "single_line_text_field",
@@ -916,7 +1996,7 @@
               {
                 "key": "body",
                 "name": "Body",
-                "description": "Body text for HAR-240 fixture capture.",
+                "description": "Body text for metaobject read fixture capture.",
                 "required": false,
                 "type": {
                   "name": "multi_line_text_field",
@@ -927,120 +2007,80 @@
             ],
             "hasThumbnailField": false,
             "metaobjectsCount": 1,
-            "standardTemplate": null
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 11,
-            "actualQueryCost": 11,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "definition-by-type",
-      "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query MetaobjectDefinitionByType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
-        "variables": {
-          "type": "codex_har_240_1777156845370"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionByType": {
-            "id": "gid://shopify/MetaobjectDefinition/17537171762",
-            "type": "codex_har_240_1777156845370",
-            "name": "Codex HAR-240 1777156845370",
-            "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-            "displayNameKey": "title",
-            "access": {
-              "admin": "PUBLIC_READ_WRITE",
-              "storefront": "NONE"
-            },
-            "capabilities": {
-              "publishable": {
-                "enabled": true
-              },
-              "translatable": {
-                "enabled": false
-              },
-              "renderable": {
-                "enabled": false
-              },
-              "onlineStore": {
-                "enabled": false
-              }
-            },
-            "fieldDefinitions": [
-              {
-                "key": "title",
-                "name": "Title",
-                "description": "Display title for HAR-240 fixture capture.",
-                "required": true,
-                "type": {
-                  "name": "single_line_text_field",
-                  "category": "TEXT"
-                },
-                "validations": []
-              },
-              {
-                "key": "body",
-                "name": "Body",
-                "description": "Body text for HAR-240 fixture capture.",
-                "required": false,
-                "type": {
-                  "name": "multi_line_text_field",
-                  "category": "TEXT"
-                },
-                "validations": []
-              }
-            ],
-            "hasThumbnailField": false,
-            "metaobjectsCount": 1,
-            "standardTemplate": null
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 11,
-            "actualQueryCost": 11,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "entries-by-type",
-      "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectsByType($type: String!) {\n    metaobjects(type: $type, first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
-        "variables": {
-          "type": "codex_har_240_1777156845370"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjects": {
-            "edges": [
-              {
-                "cursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
-                "node": {
-                  "id": "gid://shopify/Metaobject/185593102642",
-                  "handle": "codex-har-240-1777156845370",
-                  "type": "codex_har_240_1777156845370",
-                  "displayName": "HAR-240 title 1777156845370",
-                  "updatedAt": "2026-04-25T22:40:46Z",
+            "standardTemplate": null,
+            "metaobjects": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+                  "node": {
+                    "id": "gid://shopify/Metaobject/204511478066",
+                    "handle": "draft-proxy-metaobject-read-1783521738167",
+                    "type": "draft_proxy_metaobject_read_1783521738167",
+                    "displayName": "Metaobject read title 1783521738167",
+                    "updatedAt": "2026-07-08T14:42:19Z",
+                    "capabilities": {
+                      "publishable": {
+                        "status": "ACTIVE"
+                      },
+                      "onlineStore": null
+                    },
+                    "fields": [
+                      {
+                        "key": "title",
+                        "type": "single_line_text_field",
+                        "value": "Metaobject read title 1783521738167",
+                        "jsonValue": "Metaobject read title 1783521738167",
+                        "definition": {
+                          "key": "title",
+                          "name": "Title",
+                          "required": true,
+                          "type": {
+                            "name": "single_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      },
+                      {
+                        "key": "body",
+                        "type": "multi_line_text_field",
+                        "value": "Metaobject read body 1783521738167",
+                        "jsonValue": "Metaobject read body 1783521738167",
+                        "definition": {
+                          "key": "body",
+                          "name": "Body",
+                          "required": false,
+                          "type": {
+                            "name": "multi_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      }
+                    ],
+                    "titleField": {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Metaobject read title 1783521738167",
+                      "jsonValue": "Metaobject read title 1783521738167",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metaobject/204511478066",
+                  "handle": "draft-proxy-metaobject-read-1783521738167",
+                  "type": "draft_proxy_metaobject_read_1783521738167",
+                  "displayName": "Metaobject read title 1783521738167",
+                  "updatedAt": "2026-07-08T14:42:19Z",
                   "capabilities": {
                     "publishable": {
                       "status": "ACTIVE"
@@ -1051,8 +2091,8 @@
                     {
                       "key": "title",
                       "type": "single_line_text_field",
-                      "value": "HAR-240 title 1777156845370",
-                      "jsonValue": "HAR-240 title 1777156845370",
+                      "value": "Metaobject read title 1783521738167",
+                      "jsonValue": "Metaobject read title 1783521738167",
                       "definition": {
                         "key": "title",
                         "name": "Title",
@@ -1066,8 +2106,8 @@
                     {
                       "key": "body",
                       "type": "multi_line_text_field",
-                      "value": "HAR-240 body 1777156845370",
-                      "jsonValue": "HAR-240 body 1777156845370",
+                      "value": "Metaobject read body 1783521738167",
+                      "jsonValue": "Metaobject read body 1783521738167",
                       "definition": {
                         "key": "body",
                         "name": "Body",
@@ -1082,8 +2122,318 @@
                   "titleField": {
                     "key": "title",
                     "type": "single_line_text_field",
-                    "value": "HAR-240 title 1777156845370",
-                    "jsonValue": "HAR-240 title 1777156845370",
+                    "value": "Metaobject read title 1783521738167",
+                    "jsonValue": "Metaobject read title 1783521738167",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ=="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 93,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1953,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "definition-by-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n    metaobjects(first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query MetaobjectDefinitionByType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      ...MetaobjectDefinitionReadFields\n    }\n  }\n",
+        "variables": {
+          "type": "draft_proxy_metaobject_read_1783521738167"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": {
+            "id": "gid://shopify/MetaobjectDefinition/19689046322",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "name": "Draft proxy metaobject read 1783521738167",
+            "description": "Temporary conformance definition for metaobject read fixture capture.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Display title for metaobject read fixture capture.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body text for metaobject read fixture capture.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 1,
+            "standardTemplate": null,
+            "metaobjects": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+                  "node": {
+                    "id": "gid://shopify/Metaobject/204511478066",
+                    "handle": "draft-proxy-metaobject-read-1783521738167",
+                    "type": "draft_proxy_metaobject_read_1783521738167",
+                    "displayName": "Metaobject read title 1783521738167",
+                    "updatedAt": "2026-07-08T14:42:19Z",
+                    "capabilities": {
+                      "publishable": {
+                        "status": "ACTIVE"
+                      },
+                      "onlineStore": null
+                    },
+                    "fields": [
+                      {
+                        "key": "title",
+                        "type": "single_line_text_field",
+                        "value": "Metaobject read title 1783521738167",
+                        "jsonValue": "Metaobject read title 1783521738167",
+                        "definition": {
+                          "key": "title",
+                          "name": "Title",
+                          "required": true,
+                          "type": {
+                            "name": "single_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      },
+                      {
+                        "key": "body",
+                        "type": "multi_line_text_field",
+                        "value": "Metaobject read body 1783521738167",
+                        "jsonValue": "Metaobject read body 1783521738167",
+                        "definition": {
+                          "key": "body",
+                          "name": "Body",
+                          "required": false,
+                          "type": {
+                            "name": "multi_line_text_field",
+                            "category": "TEXT"
+                          }
+                        }
+                      }
+                    ],
+                    "titleField": {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Metaobject read title 1783521738167",
+                      "jsonValue": "Metaobject read title 1783521738167",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metaobject/204511478066",
+                  "handle": "draft-proxy-metaobject-read-1783521738167",
+                  "type": "draft_proxy_metaobject_read_1783521738167",
+                  "displayName": "Metaobject read title 1783521738167",
+                  "updatedAt": "2026-07-08T14:42:19Z",
+                  "capabilities": {
+                    "publishable": {
+                      "status": "ACTIVE"
+                    },
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Metaobject read title 1783521738167",
+                      "jsonValue": "Metaobject read title 1783521738167",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "Metaobject read body 1783521738167",
+                      "jsonValue": "Metaobject read body 1783521738167",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "titleField": {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Metaobject read title 1783521738167",
+                    "jsonValue": "Metaobject read title 1783521738167",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ=="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 93,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1944,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "entries-by-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectsByType($type: String!) {\n    metaobjects(type: $type, first: 10) {\n      edges {\n        cursor\n        node {\n          ...MetaobjectReadFields\n        }\n      }\n      nodes {\n        ...MetaobjectReadFields\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "draft_proxy_metaobject_read_1783521738167"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjects": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+                "node": {
+                  "id": "gid://shopify/Metaobject/204511478066",
+                  "handle": "draft-proxy-metaobject-read-1783521738167",
+                  "type": "draft_proxy_metaobject_read_1783521738167",
+                  "displayName": "Metaobject read title 1783521738167",
+                  "updatedAt": "2026-07-08T14:42:19Z",
+                  "capabilities": {
+                    "publishable": {
+                      "status": "ACTIVE"
+                    },
+                    "onlineStore": null
+                  },
+                  "fields": [
+                    {
+                      "key": "title",
+                      "type": "single_line_text_field",
+                      "value": "Metaobject read title 1783521738167",
+                      "jsonValue": "Metaobject read title 1783521738167",
+                      "definition": {
+                        "key": "title",
+                        "name": "Title",
+                        "required": true,
+                        "type": {
+                          "name": "single_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    },
+                    {
+                      "key": "body",
+                      "type": "multi_line_text_field",
+                      "value": "Metaobject read body 1783521738167",
+                      "jsonValue": "Metaobject read body 1783521738167",
+                      "definition": {
+                        "key": "body",
+                        "name": "Body",
+                        "required": false,
+                        "type": {
+                          "name": "multi_line_text_field",
+                          "category": "TEXT"
+                        }
+                      }
+                    }
+                  ],
+                  "titleField": {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Metaobject read title 1783521738167",
+                    "jsonValue": "Metaobject read title 1783521738167",
                     "definition": {
                       "key": "title",
                       "name": "Title",
@@ -1099,11 +2449,11 @@
             ],
             "nodes": [
               {
-                "id": "gid://shopify/Metaobject/185593102642",
-                "handle": "codex-har-240-1777156845370",
-                "type": "codex_har_240_1777156845370",
-                "displayName": "HAR-240 title 1777156845370",
-                "updatedAt": "2026-04-25T22:40:46Z",
+                "id": "gid://shopify/Metaobject/204511478066",
+                "handle": "draft-proxy-metaobject-read-1783521738167",
+                "type": "draft_proxy_metaobject_read_1783521738167",
+                "displayName": "Metaobject read title 1783521738167",
+                "updatedAt": "2026-07-08T14:42:19Z",
                 "capabilities": {
                   "publishable": {
                     "status": "ACTIVE"
@@ -1114,8 +2464,8 @@
                   {
                     "key": "title",
                     "type": "single_line_text_field",
-                    "value": "HAR-240 title 1777156845370",
-                    "jsonValue": "HAR-240 title 1777156845370",
+                    "value": "Metaobject read title 1783521738167",
+                    "jsonValue": "Metaobject read title 1783521738167",
                     "definition": {
                       "key": "title",
                       "name": "Title",
@@ -1129,8 +2479,8 @@
                   {
                     "key": "body",
                     "type": "multi_line_text_field",
-                    "value": "HAR-240 body 1777156845370",
-                    "jsonValue": "HAR-240 body 1777156845370",
+                    "value": "Metaobject read body 1783521738167",
+                    "jsonValue": "Metaobject read body 1783521738167",
                     "definition": {
                       "key": "body",
                       "name": "Body",
@@ -1145,8 +2495,8 @@
                 "titleField": {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
+                  "value": "Metaobject read title 1783521738167",
+                  "jsonValue": "Metaobject read title 1783521738167",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -1162,8 +2512,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ=="
+              "startCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMDQ1MTE0NzgwNjYsImxhc3RfdmFsdWUiOiIyMDQ1MTE0NzgwNjYifQ=="
             }
           }
         },
@@ -1173,7 +2523,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1950,
               "restoreRate": 100
             }
           }
@@ -1185,18 +2535,18 @@
       "request": {
         "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectDetail($id: ID!) {\n    metaobject(id: $id) {\n      ...MetaobjectReadFields\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/185593102642"
+          "id": "gid://shopify/Metaobject/204511478066"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobject": {
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": "codex-har-240-1777156845370",
-            "type": "codex_har_240_1777156845370",
-            "displayName": "HAR-240 title 1777156845370",
-            "updatedAt": "2026-04-25T22:40:46Z",
+            "id": "gid://shopify/Metaobject/204511478066",
+            "handle": "draft-proxy-metaobject-read-1783521738167",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "displayName": "Metaobject read title 1783521738167",
+            "updatedAt": "2026-07-08T14:42:19Z",
             "capabilities": {
               "publishable": {
                 "status": "ACTIVE"
@@ -1207,8 +2557,8 @@
               {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
+                "value": "Metaobject read title 1783521738167",
+                "jsonValue": "Metaobject read title 1783521738167",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -1222,8 +2572,8 @@
               {
                 "key": "body",
                 "type": "multi_line_text_field",
-                "value": "HAR-240 body 1777156845370",
-                "jsonValue": "HAR-240 body 1777156845370",
+                "value": "Metaobject read body 1783521738167",
+                "jsonValue": "Metaobject read body 1783521738167",
                 "definition": {
                   "key": "body",
                   "name": "Body",
@@ -1238,8 +2588,8 @@
             "titleField": {
               "key": "title",
               "type": "single_line_text_field",
-              "value": "HAR-240 title 1777156845370",
-              "jsonValue": "HAR-240 title 1777156845370",
+              "value": "Metaobject read title 1783521738167",
+              "jsonValue": "Metaobject read title 1783521738167",
               "definition": {
                 "key": "title",
                 "name": "Title",
@@ -1258,7 +2608,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1951,
               "restoreRate": 100
             }
           }
@@ -1271,8 +2621,8 @@
         "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectByHandle($handle: MetaobjectHandleInput!) {\n    metaobjectByHandle(handle: $handle) {\n      ...MetaobjectReadFields\n    }\n  }\n",
         "variables": {
           "handle": {
-            "type": "codex_har_240_1777156845370",
-            "handle": "codex-har-240-1777156845370"
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "handle": "draft-proxy-metaobject-read-1783521738167"
           }
         }
       },
@@ -1280,11 +2630,11 @@
       "response": {
         "data": {
           "metaobjectByHandle": {
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": "codex-har-240-1777156845370",
-            "type": "codex_har_240_1777156845370",
-            "displayName": "HAR-240 title 1777156845370",
-            "updatedAt": "2026-04-25T22:40:46Z",
+            "id": "gid://shopify/Metaobject/204511478066",
+            "handle": "draft-proxy-metaobject-read-1783521738167",
+            "type": "draft_proxy_metaobject_read_1783521738167",
+            "displayName": "Metaobject read title 1783521738167",
+            "updatedAt": "2026-07-08T14:42:19Z",
             "capabilities": {
               "publishable": {
                 "status": "ACTIVE"
@@ -1295,8 +2645,8 @@
               {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
+                "value": "Metaobject read title 1783521738167",
+                "jsonValue": "Metaobject read title 1783521738167",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -1310,8 +2660,8 @@
               {
                 "key": "body",
                 "type": "multi_line_text_field",
-                "value": "HAR-240 body 1777156845370",
-                "jsonValue": "HAR-240 body 1777156845370",
+                "value": "Metaobject read body 1783521738167",
+                "jsonValue": "Metaobject read body 1783521738167",
                 "definition": {
                   "key": "body",
                   "name": "Body",
@@ -1326,8 +2676,8 @@
             "titleField": {
               "key": "title",
               "type": "single_line_text_field",
-              "value": "HAR-240 title 1777156845370",
-              "jsonValue": "HAR-240 title 1777156845370",
+              "value": "Metaobject read title 1783521738167",
+              "jsonValue": "Metaobject read title 1783521738167",
               "definition": {
                 "key": "title",
                 "name": "Title",
@@ -1346,7 +2696,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1952,
               "restoreRate": 100
             }
           }
@@ -1360,14 +2710,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/185593102642"
+          "id": "gid://shopify/Metaobject/204511478066"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/185593102642",
+            "deletedId": "gid://shopify/Metaobject/204511478066",
             "userErrors": []
           }
         },
@@ -1377,7 +2727,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1952,
               "restoreRate": 100
             }
           }
@@ -1389,14 +2739,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17537171762"
+          "id": "gid://shopify/MetaobjectDefinition/19689046322"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17537171762",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19689046322",
             "userErrors": []
           }
         },
@@ -1406,7 +2756,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1955,
               "restoreRate": 100
             }
           }
@@ -1414,796 +2764,5 @@
       }
     }
   ],
-  "upstreamCalls": [
-    {
-      "operationName": "MetaobjectDefinitionsReadCatalog",
-      "variables": {},
-      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinitions": {
-              "edges": [
-                {
-                  "cursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
-                  "node": {
-                    "id": "gid://shopify/MetaobjectDefinition/17537171762",
-                    "type": "codex_har_240_1777156845370",
-                    "name": "Codex HAR-240 1777156845370",
-                    "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-                    "displayNameKey": "title",
-                    "access": {
-                      "admin": "PUBLIC_READ_WRITE",
-                      "storefront": "NONE"
-                    },
-                    "capabilities": {
-                      "publishable": {
-                        "enabled": true
-                      },
-                      "translatable": {
-                        "enabled": false
-                      },
-                      "renderable": {
-                        "enabled": false
-                      },
-                      "onlineStore": {
-                        "enabled": false
-                      }
-                    },
-                    "fieldDefinitions": [
-                      {
-                        "key": "title",
-                        "name": "Title",
-                        "description": "Display title for HAR-240 fixture capture.",
-                        "required": true,
-                        "type": {
-                          "name": "single_line_text_field",
-                          "category": "TEXT"
-                        },
-                        "validations": []
-                      },
-                      {
-                        "key": "body",
-                        "name": "Body",
-                        "description": "Body text for HAR-240 fixture capture.",
-                        "required": false,
-                        "type": {
-                          "name": "multi_line_text_field",
-                          "category": "TEXT"
-                        },
-                        "validations": []
-                      }
-                    ],
-                    "hasThumbnailField": false,
-                    "metaobjectsCount": 1,
-                    "standardTemplate": null
-                  }
-                }
-              ],
-              "nodes": [
-                {
-                  "id": "gid://shopify/MetaobjectDefinition/17537171762",
-                  "type": "codex_har_240_1777156845370",
-                  "name": "Codex HAR-240 1777156845370",
-                  "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-                  "displayNameKey": "title",
-                  "access": {
-                    "admin": "PUBLIC_READ_WRITE",
-                    "storefront": "NONE"
-                  },
-                  "capabilities": {
-                    "publishable": {
-                      "enabled": true
-                    },
-                    "translatable": {
-                      "enabled": false
-                    },
-                    "renderable": {
-                      "enabled": false
-                    },
-                    "onlineStore": {
-                      "enabled": false
-                    }
-                  },
-                  "fieldDefinitions": [
-                    {
-                      "key": "title",
-                      "name": "Title",
-                      "description": "Display title for HAR-240 fixture capture.",
-                      "required": true,
-                      "type": {
-                        "name": "single_line_text_field",
-                        "category": "TEXT"
-                      },
-                      "validations": []
-                    },
-                    {
-                      "key": "body",
-                      "name": "Body",
-                      "description": "Body text for HAR-240 fixture capture.",
-                      "required": false,
-                      "type": {
-                        "name": "multi_line_text_field",
-                        "category": "TEXT"
-                      },
-                      "validations": []
-                    }
-                  ],
-                  "hasThumbnailField": false,
-                  "metaobjectsCount": 1,
-                  "standardTemplate": null
-                }
-              ],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoxNzUzNzE3MTc2MiwibGFzdF92YWx1ZSI6IjE3NTM3MTcxNzYyIn0="
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectDefinitionsReadDetail",
-      "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17537171762"
-      },
-      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadDetail($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-              "displayNameKey": "title",
-              "access": {
-                "admin": "PUBLIC_READ_WRITE",
-                "storefront": "NONE"
-              },
-              "capabilities": {
-                "publishable": {
-                  "enabled": true
-                },
-                "translatable": {
-                  "enabled": false
-                },
-                "renderable": {
-                  "enabled": false
-                },
-                "onlineStore": {
-                  "enabled": false
-                }
-              },
-              "fieldDefinitions": [
-                {
-                  "key": "title",
-                  "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                },
-                {
-                  "key": "body",
-                  "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
-                  "required": false,
-                  "type": {
-                    "name": "multi_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                }
-              ],
-              "hasThumbnailField": false,
-              "metaobjectsCount": 1,
-              "standardTemplate": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectDefinitionsReadByType",
-      "variables": {
-        "type": "codex_har_240_1777156845370"
-      },
-      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinitionByType": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-              "displayNameKey": "title",
-              "access": {
-                "admin": "PUBLIC_READ_WRITE",
-                "storefront": "NONE"
-              },
-              "capabilities": {
-                "publishable": {
-                  "enabled": true
-                },
-                "translatable": {
-                  "enabled": false
-                },
-                "renderable": {
-                  "enabled": false
-                },
-                "onlineStore": {
-                  "enabled": false
-                }
-              },
-              "fieldDefinitions": [
-                {
-                  "key": "title",
-                  "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                },
-                {
-                  "key": "body",
-                  "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
-                  "required": false,
-                  "type": {
-                    "name": "multi_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                }
-              ],
-              "hasThumbnailField": false,
-              "metaobjectsCount": 1,
-              "standardTemplate": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectDefinitionsReadDetail",
-      "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/0"
-      },
-      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadDetail($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinition": null
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectDefinitionsReadByType",
-      "variables": {
-        "type": "codex_har_351_missing_definition_type"
-      },
-      "query": "fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nquery MetaobjectDefinitionsReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionParityFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinitionByType": null
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectsReadParity",
-      "variables": {
-        "id": "gid://shopify/Metaobject/185593102642",
-        "handle": {
-          "type": "codex_har_240_1777156845370",
-          "handle": "codex-har-240-1777156845370"
-        },
-        "type": "codex_har_240_1777156845370"
-      },
-      "query": "fragment MetaobjectReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  detail: metaobject(id: $id) {\n    ...MetaobjectReadFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectReadFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "catalog": {
-              "edges": [
-                {
-                  "cursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
-                  "node": {
-                    "id": "gid://shopify/Metaobject/185593102642",
-                    "handle": "codex-har-240-1777156845370",
-                    "type": "codex_har_240_1777156845370",
-                    "displayName": "HAR-240 title 1777156845370",
-                    "updatedAt": "2026-04-25T22:40:46Z",
-                    "capabilities": {
-                      "publishable": {
-                        "status": "ACTIVE"
-                      },
-                      "onlineStore": null
-                    },
-                    "fields": [
-                      {
-                        "key": "title",
-                        "type": "single_line_text_field",
-                        "value": "HAR-240 title 1777156845370",
-                        "jsonValue": "HAR-240 title 1777156845370",
-                        "definition": {
-                          "key": "title",
-                          "name": "Title",
-                          "required": true,
-                          "type": {
-                            "name": "single_line_text_field",
-                            "category": "TEXT"
-                          }
-                        }
-                      },
-                      {
-                        "key": "body",
-                        "type": "multi_line_text_field",
-                        "value": "HAR-240 body 1777156845370",
-                        "jsonValue": "HAR-240 body 1777156845370",
-                        "definition": {
-                          "key": "body",
-                          "name": "Body",
-                          "required": false,
-                          "type": {
-                            "name": "multi_line_text_field",
-                            "category": "TEXT"
-                          }
-                        }
-                      }
-                    ],
-                    "titleField": {
-                      "key": "title",
-                      "type": "single_line_text_field",
-                      "value": "HAR-240 title 1777156845370",
-                      "jsonValue": "HAR-240 title 1777156845370",
-                      "definition": {
-                        "key": "title",
-                        "name": "Title",
-                        "required": true,
-                        "type": {
-                          "name": "single_line_text_field",
-                          "category": "TEXT"
-                        }
-                      }
-                    }
-                  }
-                }
-              ],
-              "nodes": [
-                {
-                  "id": "gid://shopify/Metaobject/185593102642",
-                  "handle": "codex-har-240-1777156845370",
-                  "type": "codex_har_240_1777156845370",
-                  "displayName": "HAR-240 title 1777156845370",
-                  "updatedAt": "2026-04-25T22:40:46Z",
-                  "capabilities": {
-                    "publishable": {
-                      "status": "ACTIVE"
-                    },
-                    "onlineStore": null
-                  },
-                  "fields": [
-                    {
-                      "key": "title",
-                      "type": "single_line_text_field",
-                      "value": "HAR-240 title 1777156845370",
-                      "jsonValue": "HAR-240 title 1777156845370",
-                      "definition": {
-                        "key": "title",
-                        "name": "Title",
-                        "required": true,
-                        "type": {
-                          "name": "single_line_text_field",
-                          "category": "TEXT"
-                        }
-                      }
-                    },
-                    {
-                      "key": "body",
-                      "type": "multi_line_text_field",
-                      "value": "HAR-240 body 1777156845370",
-                      "jsonValue": "HAR-240 body 1777156845370",
-                      "definition": {
-                        "key": "body",
-                        "name": "Body",
-                        "required": false,
-                        "type": {
-                          "name": "multi_line_text_field",
-                          "category": "TEXT"
-                        }
-                      }
-                    }
-                  ],
-                  "titleField": {
-                    "key": "title",
-                    "type": "single_line_text_field",
-                    "value": "HAR-240 title 1777156845370",
-                    "jsonValue": "HAR-240 title 1777156845370",
-                    "definition": {
-                      "key": "title",
-                      "name": "Title",
-                      "required": true,
-                      "type": {
-                        "name": "single_line_text_field",
-                        "category": "TEXT"
-                      }
-                    }
-                  }
-                }
-              ],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ==",
-                "endCursor": "eyJsYXN0X2lkIjoxODU1OTMxMDI2NDIsImxhc3RfdmFsdWUiOiIxODU1OTMxMDI2NDIifQ=="
-              }
-            },
-            "detail": {
-              "id": "gid://shopify/Metaobject/185593102642",
-              "handle": "codex-har-240-1777156845370",
-              "type": "codex_har_240_1777156845370",
-              "displayName": "HAR-240 title 1777156845370",
-              "updatedAt": "2026-04-25T22:40:46Z",
-              "capabilities": {
-                "publishable": {
-                  "status": "ACTIVE"
-                },
-                "onlineStore": null
-              },
-              "fields": [
-                {
-                  "key": "title",
-                  "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
-                  "definition": {
-                    "key": "title",
-                    "name": "Title",
-                    "required": true,
-                    "type": {
-                      "name": "single_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                },
-                {
-                  "key": "body",
-                  "type": "multi_line_text_field",
-                  "value": "HAR-240 body 1777156845370",
-                  "jsonValue": "HAR-240 body 1777156845370",
-                  "definition": {
-                    "key": "body",
-                    "name": "Body",
-                    "required": false,
-                    "type": {
-                      "name": "multi_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                }
-              ],
-              "titleField": {
-                "key": "title",
-                "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
-                "definition": {
-                  "key": "title",
-                  "name": "Title",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  }
-                }
-              }
-            },
-            "byHandle": {
-              "id": "gid://shopify/Metaobject/185593102642",
-              "handle": "codex-har-240-1777156845370",
-              "type": "codex_har_240_1777156845370",
-              "displayName": "HAR-240 title 1777156845370",
-              "updatedAt": "2026-04-25T22:40:46Z",
-              "capabilities": {
-                "publishable": {
-                  "status": "ACTIVE"
-                },
-                "onlineStore": null
-              },
-              "fields": [
-                {
-                  "key": "title",
-                  "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
-                  "definition": {
-                    "key": "title",
-                    "name": "Title",
-                    "required": true,
-                    "type": {
-                      "name": "single_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                },
-                {
-                  "key": "body",
-                  "type": "multi_line_text_field",
-                  "value": "HAR-240 body 1777156845370",
-                  "jsonValue": "HAR-240 body 1777156845370",
-                  "definition": {
-                    "key": "body",
-                    "name": "Body",
-                    "required": false,
-                    "type": {
-                      "name": "multi_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                }
-              ],
-              "titleField": {
-                "key": "title",
-                "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
-                "definition": {
-                  "key": "title",
-                  "name": "Title",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectsReadParity",
-      "variables": {
-        "id": "gid://shopify/Metaobject/0",
-        "handle": {
-          "type": "codex_har_240_1777156845370_missing",
-          "handle": "codex-har-240-1777156845370-missing"
-        },
-        "type": "codex_har_240_1777156845370_missing"
-      },
-      "query": "fragment MetaobjectReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  detail: metaobject(id: $id) {\n    ...MetaobjectReadFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectReadFields\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "catalog": {
-              "edges": [],
-              "nodes": [],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-              }
-            },
-            "detail": null,
-            "byHandle": null
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectHydrateById",
-      "variables": {
-        "id": "gid://shopify/Metaobject/185593102642"
-      },
-      "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobject": {
-              "id": "gid://shopify/Metaobject/185593102642",
-              "handle": "codex-har-240-1777156845370",
-              "type": "codex_har_240_1777156845370",
-              "displayName": "HAR-240 title 1777156845370",
-              "updatedAt": "2026-04-25T22:40:46Z",
-              "capabilities": {
-                "publishable": {
-                  "status": "ACTIVE"
-                },
-                "onlineStore": null
-              },
-              "fields": [
-                {
-                  "key": "title",
-                  "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
-                  "definition": {
-                    "key": "title",
-                    "name": "Title",
-                    "required": true,
-                    "type": {
-                      "name": "single_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                },
-                {
-                  "key": "body",
-                  "type": "multi_line_text_field",
-                  "value": "HAR-240 body 1777156845370",
-                  "jsonValue": "HAR-240 body 1777156845370",
-                  "definition": {
-                    "key": "body",
-                    "name": "Body",
-                    "required": false,
-                    "type": {
-                      "name": "multi_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                }
-              ],
-              "titleField": {
-                "key": "title",
-                "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
-                "definition": {
-                  "key": "title",
-                  "name": "Title",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  }
-                }
-              }
-            },
-            "definition": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-              "displayNameKey": "title",
-              "access": {
-                "admin": "PUBLIC_READ_WRITE",
-                "storefront": "NONE"
-              },
-              "capabilities": {
-                "publishable": {
-                  "enabled": true
-                },
-                "translatable": {
-                  "enabled": false
-                },
-                "renderable": {
-                  "enabled": false
-                },
-                "onlineStore": {
-                  "enabled": false
-                }
-              },
-              "fieldDefinitions": [
-                {
-                  "key": "title",
-                  "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                },
-                {
-                  "key": "body",
-                  "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
-                  "required": false,
-                  "type": {
-                    "name": "multi_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                }
-              ],
-              "hasThumbnailField": false,
-              "metaobjectsCount": 1,
-              "standardTemplate": null
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MetaobjectDefinitionHydrateByType",
-      "variables": {
-        "type": "codex_har_240_1777156845370"
-      },
-      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "metaobjectDefinitionByType": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
-              "displayNameKey": "title",
-              "access": {
-                "admin": "PUBLIC_READ_WRITE",
-                "storefront": "NONE"
-              },
-              "capabilities": {
-                "publishable": {
-                  "enabled": true
-                },
-                "translatable": {
-                  "enabled": false
-                },
-                "renderable": {
-                  "enabled": false
-                },
-                "onlineStore": {
-                  "enabled": false
-                }
-              },
-              "fieldDefinitions": [
-                {
-                  "key": "title",
-                  "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
-                  "required": true,
-                  "type": {
-                    "name": "single_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                },
-                {
-                  "key": "body",
-                  "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
-                  "required": false,
-                  "type": {
-                    "name": "multi_line_text_field",
-                    "category": "TEXT"
-                  },
-                  "validations": []
-                }
-              ],
-              "hasThumbnailField": false,
-              "metaobjectsCount": 1,
-              "standardTemplate": null
-            }
-          }
-        }
-      }
-    }
-  ]
+  "upstreamCalls": []
 }

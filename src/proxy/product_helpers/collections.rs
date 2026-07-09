@@ -142,6 +142,28 @@ fn collection_products_connection_json(
     )
 }
 
+fn publication_products_connection_json(
+    products: Vec<CollectionProductEntry>,
+    selection: &SelectedField,
+    shop_currency_code: &str,
+) -> Value {
+    selected_typed_connection_with_args(
+        &products,
+        &selection.arguments,
+        &selection.selection,
+        |entry, selections| {
+            product_json_with_variants_and_currency_and_publication_context(
+                &entry.product,
+                &entry.variants,
+                selections,
+                shop_currency_code,
+                entry.published_on_current_publication,
+            )
+        },
+        collection_product_cursor,
+    )
+}
+
 fn collection_product_sort_plan(
     collection: &Value,
     sort_key: Option<&str>,
@@ -798,27 +820,56 @@ impl DraftProxy {
         let Some(record) = self.store.staged.publications.get(&id) else {
             return Value::Null;
         };
-        let mut record = record.clone();
-        let product_count = self.publication_resource_count(Some(&id), "Product");
+        let product_entries = self.publication_product_entries(&id);
+        let product_count = product_entries.len();
         let collection_count = self.publication_resource_count(Some(&id), "Collection");
-        let product_nodes: Vec<Value> = self
-            .publication_resource_ids(Some(&id), "Product")
+        let shop_currency_code = self.store.shop_currency_code();
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "products" => Some(publication_products_connection_json(
+                    product_entries.clone(),
+                    selection,
+                    &shop_currency_code,
+                )),
+                "includedProductsCount" | "publishedProductsCount" => {
+                    Some(selected_count_json(product_count, &selection.selection))
+                }
+                "collectionsCount" => {
+                    Some(selected_count_json(collection_count, &selection.selection))
+                }
+                "channel" => {
+                    let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
+                    if channel.is_object() {
+                        channel["productsCount"] = count_object(product_count);
+                    }
+                    Some(nullable_selected_json(&channel, &selection.selection))
+                }
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn publication_product_entries(&self, publication_id: &str) -> Vec<CollectionProductEntry> {
+        self.publication_resource_ids(Some(publication_id), "Product")
             .into_iter()
-            .map(|resource_id| {
-                let title = self
-                    .product_record_by_id(&resource_id)
-                    .map(|product| product.title.clone())
-                    .unwrap_or_default();
-                json!({ "id": resource_id, "title": title })
+            .enumerate()
+            .filter_map(|(position, resource_id)| {
+                let product = self.product_record_by_id(&resource_id)?.clone();
+                let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
+                Some(CollectionProductEntry {
+                    position,
+                    product,
+                    variants,
+                    published_on_current_publication,
+                })
             })
-            .collect();
-        record["products"] = json!({ "nodes": product_nodes });
-        record["publishedProductsCount"] = count_object(product_count);
-        record["collectionsCount"] = count_object(collection_count);
-        if let Some(channel) = record.get_mut("channel") {
-            channel["productsCount"] = count_object(product_count);
-        }
-        selected_json(&record, &field.selection)
+            .collect()
     }
 
     fn channel_root_value(&self, field: &RootFieldSelection) -> Value {

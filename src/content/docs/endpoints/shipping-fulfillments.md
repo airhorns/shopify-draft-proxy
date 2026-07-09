@@ -193,11 +193,13 @@ location records; missing or inactive destinations return the local
 assigned-location id/name from that stored location rather than from fixture
 constants.
 
-Delivery settings and delivery promise settings are read-only in the captured
-empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
-write slices for create/update/remove, validation, variant dissociation, async
-removal payloads, and downstream null reads after removal. Custom profiles are
-fully staged from create/update inputs covered by the delivery-profile parity
+Delivery settings and delivery promise settings are read-only in snapshot mode
+and return the captured empty/no-feature shape there. Live modes forward those
+shop-wide settings reads upstream so the app sees the real merchant
+configuration. Delivery profiles have fixture-backed read and bounded write
+slices for create/update/remove, validation, variant dissociation, async removal
+payloads, and downstream null reads after removal. Custom profiles are fully
+staged from create/update inputs covered by the delivery-profile parity
 requests. In LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing
 default profile and stage proxy-modelable updates without writing to Shopify at
 runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name

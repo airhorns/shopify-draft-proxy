@@ -8172,6 +8172,82 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
 }
 
 #[test]
+fn online_store_script_tags_src_filter_limits_staged_connection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateScriptTagsForSrcFilter {
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src } userErrors { field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS }) { scriptTag { id src } userErrors { field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["second"]["userErrors"], json!([]));
+    let first_id = create.body["data"]["first"]["scriptTag"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = create.body["data"]["second"]["scriptTag"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadScriptTagsBySrc {
+          all: scriptTags(first: 10) {
+            nodes { id src }
+          }
+          matching: scriptTags(src: "https://cdn.example.test/second.js", first: 10) {
+            nodes { id src }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          missing: scriptTags(src: "https://cdn.example.test/missing.js", first: 10) {
+            nodes { id src }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["all"]["nodes"],
+        json!([
+            {"id": first_id, "src": "https://cdn.example.test/first.js"},
+            {"id": second_id, "src": "https://cdn.example.test/second.js"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["matching"],
+        json!({
+            "nodes": [{"id": second_id, "src": "https://cdn.example.test/second.js"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": second_id,
+                "endCursor": second_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["missing"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+}
+
+#[test]
 fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     let theme_id = "gid://shopify/OnlineStoreTheme/701";
     let script_tag_id = "gid://shopify/ScriptTag/702";
@@ -9411,6 +9487,167 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
 }
 
 #[test]
+fn online_store_theme_files_filter_and_paginate_staged_connection() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateThemeForFileConnectionRead {
+          themeCreate(source: "https://example.com/theme.zip", name: "File connection theme") { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedThemeFilesForConnectionRead {
+          index: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "index" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log('app')" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "console.log('theme')" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(upsert.body["data"]["index"]["userErrors"], json!([]));
+    assert_eq!(upsert.body["data"]["app"]["userErrors"], json!([]));
+    assert_eq!(upsert.body["data"]["theme"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadThemeFilesFirstPage {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
+            files(filenames: ["assets/app.js", "assets/theme.js"], first: 1) {
+              nodes { filename body { ... on OnlineStoreThemeFileBodyText { content } } }
+              edges { cursor node { filename } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          themes(first: 10) {
+            nodes {
+              id
+              files(filenames: ["assets/*.js"], first: 1) {
+                nodes { filename }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["theme"]["files"],
+        json!({
+            "nodes": [{"filename": "assets/app.js", "body": {"content": "console.log('app')"}}],
+            "edges": [{"cursor": "assets/app.js", "node": {"filename": "assets/app.js"}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "assets/app.js",
+                "endCursor": "assets/app.js"
+            }
+        })
+    );
+    assert_eq!(
+        first_page.body["data"]["themes"]["nodes"][0]["files"],
+        json!({
+            "nodes": [{"filename": "assets/app.js"}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "assets/app.js",
+                "endCursor": "assets/app.js"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadThemeFilesSecondPage($after: String!) {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
+            files(filenames: ["assets/app.js", "assets/theme.js"], first: 1, after: $after) {
+              nodes { filename }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeWindow: files(filenames: ["templates/index.json", "assets/app.js", "assets/theme.js"], last: 1, before: "assets/theme.js") {
+              nodes { filename }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["theme"]["files"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["theme"]["files"],
+        json!({
+            "nodes": [{"filename": "assets/theme.js"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "assets/theme.js",
+                "endCursor": "assets/theme.js"
+            }
+        })
+    );
+    assert_eq!(
+        second_page.body["data"]["theme"]["beforeWindow"],
+        json!({
+            "nodes": [{"filename": "assets/app.js"}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "assets/app.js",
+                "endCursor": "assets/app.js"
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteFilteredThemeFile {
+          themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/app.js"]) {
+            deletedThemeFiles { filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete.body["data"]["themeFilesDelete"],
+        json!({"deletedThemeFiles": [{"filename": "assets/app.js"}], "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadThemeFilesAfterDelete {
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
+            files(filenames: ["assets/app.js", "assets/theme.js"], first: 10) {
+              nodes { filename }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["theme"]["files"],
+        json!({
+            "nodes": [{"filename": "assets/theme.js"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "assets/theme.js",
+                "endCursor": "assets/theme.js"
+            }
+        })
+    );
+}
+
+#[test]
 fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() {
     let mut proxy = snapshot_proxy();
 
@@ -9867,6 +10104,176 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
     );
     assert_eq!(after_delete.body["data"]["detail"], Value::Null);
     assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+
+    assert_metaobject_reference_and_references_project_locally_staged_targets();
+}
+
+fn assert_metaobject_reference_and_references_project_locally_staged_targets() {
+    let mut proxy = snapshot_proxy();
+
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "reference_card",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}),
+            json!({"key": "featured", "name": "Featured", "type": "product_reference", "required": false}),
+            json!({"key": "related", "name": "Related", "type": "list.product_reference", "required": false}),
+        ],
+    );
+
+    let target = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobjectReferenceProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Metaobject referenced product"}}),
+    ));
+    assert_eq!(target.status, 200);
+    assert_eq!(
+        target.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let target_id = target.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id field(key: "featured") { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "reference_card",
+            "handle": "reference-card",
+            "fields": [
+                {"key": "title", "value": "Reference card"},
+                {"key": "featured", "value": target_id},
+                {"key": "related", "value": json!([target_id]).to_string()}
+            ]
+        }}),
+    ));
+    assert_eq!(created.status, 200);
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let metaobject_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceMetaobject($id: ID!) {
+          metaobject(id: $id) {
+            featured: field(key: "featured") {
+              key
+              reference {
+                __typename
+                ... on Product { id title }
+              }
+            }
+            related: field(key: "related") {
+              key
+              references(first: 10) {
+                nodes {
+                  __typename
+                  ... on Product { id title }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": metaobject_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let metaobject = &read.body["data"]["metaobject"];
+    assert_eq!(
+        metaobject["featured"]["reference"],
+        json!({"__typename": "Product", "id": target_id, "title": "Metaobject referenced product"})
+    );
+    assert_eq!(
+        metaobject["related"]["references"],
+        json!({
+            "nodes": [{"__typename": "Product", "id": target_id, "title": "Metaobject referenced product"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": target_id,
+                "endCursor": target_id
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobjectReferenceTarget($product: ProductDeleteInput!) {
+          productDelete(product: $product) {
+            deletedProductId
+          }
+        }
+        "#,
+        json!({"product": {"id": target_id}}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(target_id)
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMissingReferenceMetaobject($id: ID!) {
+          metaobject(id: $id) {
+            featured: field(key: "featured") {
+              key
+              reference { __typename ... on Product { id } }
+            }
+            related: field(key: "related") {
+              key
+              references(first: 10) {
+                nodes { __typename ... on Product { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": metaobject_id}),
+    ));
+    assert_eq!(missing.status, 200);
+    let featured = missing.body["data"]["metaobject"]["featured"]
+        .as_object()
+        .expect("featured field should be an object");
+    assert!(featured.contains_key("reference"));
+    assert_eq!(featured["reference"], Value::Null);
+    let related = missing.body["data"]["metaobject"]["related"]
+        .as_object()
+        .expect("related field should be an object");
+    assert!(related.contains_key("references"));
+    assert_eq!(
+        related["references"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }
 
 #[test]

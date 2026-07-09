@@ -22,8 +22,9 @@ The supported fields are limited to the captured 2026-04 definition payload:
 - `capabilities.publishable.enabled`, `translatable.enabled`, `renderable.enabled`, and `onlineStore.enabled`
 - ordered `fieldDefinitions` with `key`, `name`, `description`, `required`, `type.name`, `type.category`, and `validations`
 - `hasThumbnailField`, `metaobjectsCount`, and `standardTemplate.type` / `standardTemplate.name`
+- definition-scoped `metaobjects(first:, after:, last:, before:)`, derived from locally staged entries of the effective definition type with the same staged node projection used by `metaobjects(type:)`
 
-Snapshot mode reads these roots from the normalized `metaobjectDefinitions` state bucket and returns `null` for absent singular ID/type lookups. Empty catalogs return non-null connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
+Snapshot mode reads these roots from the normalized `metaobjectDefinitions` state bucket and returns `null` for absent singular ID/type lookups. Empty catalogs and definition-scoped child connections return non-null connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Definition `metaobjectsCount` is derived from the same staged child set as the definition-scoped connection.
 
 Live-hybrid mode uses cassette-backed passthrough for cold definition reads. When local staged, deleted, or hydrated definition state exists, the proxy serves definitions from local state so supported mutations preserve read-after-write behavior; when no local definition exists, upstream no-data/null responses are returned unchanged rather than replaced with fabricated definitions.
 
@@ -65,6 +66,8 @@ Metaobject field relationships are modeled for the fixture-backed local subset. 
 The local model derives relationships from effective staged/snapshot metaobject field values at read time. Create, update, upsert, delete, and schema projection therefore affect downstream `reference`, `references`, and `referencedBy` reads without runtime Shopify writes. When no fields reference a target metaobject, `referencedBy` remains a Shopify-like empty connection.
 
 Reference connection cursors are intentionally stable synthetic cursor values in local mode. Cold live-hybrid reference reads passthrough verbatim, so their cassette parity specs no longer carry cursor expected-difference rules.
+
+For non-metaobject reference field types whose target is known to the local proxy state, selected `reference` and `references(first:)` project the target node through the same serializers used by root reads. Unresolved scalar references return explicit `null`; unresolved list references return the selected empty connection shape. `referencedBy` relationship edges remain limited to metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields.
 
 ### Supported definition mutation roots
 
@@ -170,7 +173,7 @@ Strict create/update userError parity for invalid metaobject field values lives 
 - `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. Definition reads, definition mutation roots, entry reads, and entry row mutation roots satisfy that bar for the supported slices documented above.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
-- The current metaobject reference value validator covers the modeled GID families and local `mixed_reference` definition constraints. Relationship-edge reads remain modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Do not infer support for metafield-backed references, file/page/order/article/product-taxonomy relationship edges, mixed-reference relationship edges, or broader cross-owner relationship traversal from value-validation evidence alone.
+- The current metaobject reference value validator covers the modeled GID families and local `mixed_reference` definition constraints. `referencedBy` relationship-edge reads remain modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Do not infer support for metafield-backed references, file/page/order/article/product-taxonomy relationship edges, mixed-reference relationship edges, or broader cross-owner relationship traversal from value-validation evidence alone.
 
 ### Schema-change lifecycle behavior
 
@@ -184,7 +187,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 
 ### Unsupported and validation-only boundaries
 
-- Metaobject relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and mixed/file/page/order/article/product-taxonomy reference edges need separate conformance evidence before support is widened.
+- Metaobject `referencedBy` relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and mixed/file/page/order/article/product-taxonomy reverse relationship edges need separate conformance evidence before support is widened.
 - Broader bulk delete selection semantics still need additional live conformance before widening beyond the local ids/type branches. Captured evidence covers the `where.type` branch and confirms Shopify returns an async job while immediate downstream reads already hide selected rows and report the definition's `metaobjectsCount` as zero. Edge-case evidence covers empty `where.ids`, unknown `where.type`, known-empty `where.type`, and invalid combined selectors.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 

@@ -1,0 +1,70 @@
+mutation OrderEditMoneyMathCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentSubtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          title
+          quantity
+          currentQuantity
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          taxLines {
+            title
+            rate
+            priceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

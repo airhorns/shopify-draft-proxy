@@ -10,7 +10,13 @@
     "node"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity", "aggregate-derivation", "local-staging"],
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "aggregate-derivation",
+    "connection-windowing",
+    "local-staging"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-location-order-aggregates.json"
   ],
@@ -21,7 +27,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify 2025-01 capture for B2B Company and CompanyLocation aggregate/relation reads after a disposable company, completed B2B draft order, and company-location catalogCreate. The replay earns every setup object through public GraphQL requests, then verifies totalSpent, ordersCount aliases, lifetimeDuration, location currency, catalogs, and generic node reads from staged state.",
+  "notes": "Live Shopify 2025-01 capture for B2B Company and CompanyLocation aggregate/relation reads after a disposable company, completed B2B draft order, and company-location catalogCreate. The replay earns every setup object through public GraphQL requests, then verifies totalSpent, ordersCount aliases, nested orders/draftOrders connections, lifetimeDuration, location currency, catalogs, and generic node reads from staged state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -146,6 +152,56 @@
             "path": "$.companyLocation.id",
             "matcher": "shopify-gid:CompanyLocation",
             "reason": "Live Shopify and local staging allocate different company location IDs."
+          },
+          {
+            "path": "$.company.lifetimeDuration",
+            "matcher": "non-empty-string",
+            "reason": "Shopify computes lifetimeDuration from wall-clock indexing time; local replay computes it from the deterministic proxy clock."
+          },
+          {
+            "path": "$.companyNode.lifetimeDuration",
+            "matcher": "non-empty-string",
+            "reason": "Shopify computes lifetimeDuration from wall-clock indexing time; local replay computes it from the deterministic proxy clock."
+          },
+          {
+            "path": "$.company.orders.nodes[*].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and local staging allocate different order IDs."
+          },
+          {
+            "path": "$.company.orders.nodes[*].name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and local staging allocate order names from different store counters."
+          },
+          {
+            "path": "$.companyLocation.orders.nodes[*].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and local staging allocate different order IDs."
+          },
+          {
+            "path": "$.companyLocation.orders.nodes[*].name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and local staging allocate order names from different store counters."
+          },
+          {
+            "path": "$.company.draftOrders.nodes[*].id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          },
+          {
+            "path": "$.company.draftOrders.nodes[*].name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and local staging allocate draft order names from different store counters."
+          },
+          {
+            "path": "$.companyLocation.draftOrders.nodes[*].id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          },
+          {
+            "path": "$.companyLocation.draftOrders.nodes[*].name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and local staging allocate draft order names from different store counters."
           },
           {
             "path": "$.companyLocation.catalogs.nodes[*].id",

@@ -2,7 +2,7 @@
   "scenarioId": "publication-update-delete-contract",
   "operationNames": ["publicationCreate", "publicationUpdate", "publicationDelete"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/publication-mutation-contract.json"
   ],
@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Admin GraphQL 2026-04 publicationUpdate/delete contract capture. The scenario creates a local publication through the public mutation, seeds the disposable captured Product through the public parity seed surface, then verifies Product add/remove success, ProductVariant-only and Product+ProductVariant top-level RESOURCE_NOT_FOUND behavior, missing Product validation, the 51-item update limit, not-found publication errors, and delete payload shape.",
+  "notes": "Live Admin GraphQL 2026-04 publicationUpdate/delete contract capture. The scenario creates a local publication through the public mutation, hydrates disposable captured Products through the proxy's public read-through path, then verifies Product add/remove success, Publication.products connection pagination/projection/count readback, ProductVariant-only and Product+ProductVariant top-level RESOURCE_NOT_FOUND behavior, missing Product validation, the 51-item update limit, not-found publication errors, and delete payload shape.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -72,6 +72,146 @@
                 }
               ],
               "autoPublish": true
+            }
+          }
+        }
+      },
+      {
+        "name": "publication-update-add-second-product",
+        "capturePath": "$.cases.updateAddSecondProduct.response.payload.data.publicationUpdate",
+        "proxyPath": "$.data.publicationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationUpdate-contract.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "input": {
+              "publishablesToAdd": [
+                {
+                  "fromCapturePath": "$.setup.secondProduct.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "publication-products-first-page-connection",
+        "capturePath": "$.cases.publicationProductsFirstPage.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+          },
+          {
+            "path": "$.publication.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-products-connection-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "first": 1
+          }
+        }
+      },
+      {
+        "name": "publication-products-after-page-connection",
+        "capturePath": "$.cases.publicationProductsAfterPage.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+          },
+          {
+            "path": "$.publication.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-products-connection-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "first": 1,
+            "after": {
+              "fromProxyResponse": "publication-products-first-page-connection",
+              "path": "$.data.publication.products.pageInfo.endCursor"
+            }
+          }
+        }
+      },
+      {
+        "name": "publication-products-before-page-connection",
+        "capturePath": "$.cases.publicationProductsBeforePage.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+          },
+          {
+            "path": "$.publication.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          },
+          {
+            "path": "$.publication.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque and differ from the proxy's deterministic product-id cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-products-connection-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "publicationId": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            },
+            "last": 1,
+            "before": {
+              "fromProxyResponse": "publication-products-after-page-connection",
+              "path": "$.data.publication.products.pageInfo.startCursor"
             }
           }
         }

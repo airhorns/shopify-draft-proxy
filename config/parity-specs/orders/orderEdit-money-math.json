@@ -1,0 +1,323 @@
+{
+  "scenarioId": "order-edit-money-math",
+  "operationNames": [
+    "orderCreate",
+    "orderEditBegin",
+    "orderEditSetQuantity",
+    "orderEditAddLineItemDiscount",
+    "orderEditCommit",
+    "order"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["money-math-parity", "downstream-read-parity", "state-validation"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-money-math.json"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEdit-money-math-create.graphql",
+    "variablesCapturePath": "$.cases.taxed.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 Shopify Admin GraphQL capture for order-edit money arithmetic. The taxed branch creates a disposable 2x $100 order with a $26 line tax, edits quantity down to 1, commits, and asserts calculated/committed/downstream totalPriceSet includes the recomputed $13 tax while totalTaxSet/currentTaxLines remain consistent. The discount branch creates a disposable $100 zero-tax order, adds a $20 line-item discount, commits, and asserts calculated/committed/downstream subtotalPriceSet is net of the line discount. Evidence trail: registered capture script scripts/capture-order-edit-money-math-conformance.ts writes this fixture and request files through capture-index entry order-edit-money-math; tests/graphql_routes/orders.rs keeps the local regression paths executable.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "taxed-create-money",
+        "capturePath": "$.cases.taxed.create.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].currentQuantity",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "taxed-begin-total-includes-tax",
+        "capturePath": "$.cases.taxed.begin.response.payload.data.orderEditBegin",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.calculatedOrder.subtotalPriceSet",
+          "$.calculatedOrder.totalPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].title",
+          "$.calculatedOrder.lineItems.nodes[0].quantity",
+          "$.calculatedOrder.lineItems.nodes[0].originalUnitPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].discountedUnitPriceSet"
+        ]
+      },
+      {
+        "name": "taxed-set-quantity-recomputes-taxed-total",
+        "capturePath": "$.cases.taxed.setQuantity.response.payload.data.orderEditSetQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "taxed-begin-total-includes-tax",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromProxyResponse": "taxed-begin-total-includes-tax",
+              "path": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.calculatedOrder.subtotalLineItemsQuantity",
+          "$.calculatedOrder.subtotalPriceSet",
+          "$.calculatedOrder.totalPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].title",
+          "$.calculatedOrder.lineItems.nodes[0].quantity",
+          "$.calculatedOrder.lineItems.nodes[0].originalUnitPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].discountedUnitPriceSet",
+          "$.calculatedLineItem.title",
+          "$.calculatedLineItem.quantity",
+          "$.calculatedLineItem.originalUnitPriceSet",
+          "$.calculatedLineItem.discountedUnitPriceSet"
+        ]
+      },
+      {
+        "name": "taxed-commit-money-and-tax-lines",
+        "capturePath": "$.cases.taxed.commit.response.payload.data.orderEditCommit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-commit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "taxed-begin-total-includes-tax",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "order edit money math taxed commit"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.currentTaxLines",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].currentQuantity",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "taxed-downstream-money-and-tax-lines",
+        "capturePath": "$.cases.taxed.downstreamRead.response.payload.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.subtotalPriceSet",
+          "$.currentSubtotalPriceSet",
+          "$.totalTaxSet",
+          "$.currentTotalTaxSet",
+          "$.totalPriceSet",
+          "$.currentTotalPriceSet",
+          "$.currentTaxLines",
+          "$.lineItems.nodes[0].title",
+          "$.lineItems.nodes[0].quantity",
+          "$.lineItems.nodes[0].currentQuantity",
+          "$.lineItems.nodes[0].originalUnitPriceSet",
+          "$.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "discount-create-money",
+        "capturePath": "$.cases.discount.create.response.payload.data.orderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-create.graphql",
+          "variablesCapturePath": "$.cases.discount.create.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].currentQuantity",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "discount-begin-gross-control",
+        "capturePath": "$.cases.discount.begin.response.payload.data.orderEditBegin",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-begin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "discount-create-money",
+              "path": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.calculatedOrder.subtotalPriceSet",
+          "$.calculatedOrder.totalPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].title",
+          "$.calculatedOrder.lineItems.nodes[0].quantity",
+          "$.calculatedOrder.lineItems.nodes[0].originalUnitPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].discountedUnitPriceSet"
+        ]
+      },
+      {
+        "name": "discount-add-line-item-subtotal-net",
+        "capturePath": "$.cases.discount.addLineItemDiscount.response.payload.data.orderEditAddLineItemDiscount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-addLineItemDiscount.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "discount-begin-gross-control",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromProxyResponse": "discount-begin-gross-control",
+              "path": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "discount": {
+              "description": "order edit money math line discount",
+              "fixedValue": {
+                "amount": "20.00",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditAddLineItemDiscount",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.addedDiscountStagedChange.description",
+          "$.calculatedOrder.subtotalLineItemsQuantity",
+          "$.calculatedOrder.subtotalPriceSet",
+          "$.calculatedOrder.totalPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].title",
+          "$.calculatedOrder.lineItems.nodes[0].quantity",
+          "$.calculatedOrder.lineItems.nodes[0].originalUnitPriceSet",
+          "$.calculatedOrder.lineItems.nodes[0].discountedUnitPriceSet",
+          "$.calculatedLineItem.title",
+          "$.calculatedLineItem.quantity",
+          "$.calculatedLineItem.hasStagedLineItemDiscount",
+          "$.calculatedLineItem.calculatedDiscountAllocations",
+          "$.calculatedLineItem.originalUnitPriceSet",
+          "$.calculatedLineItem.discountedUnitPriceSet"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.calculatedLineItem.calculatedDiscountAllocations[0].discountApplication.id",
+            "matcher": "shopify-gid:CalculatedManualDiscountApplication",
+            "reason": "Shopify and the proxy allocate independent opaque calculated discount application IDs."
+          }
+        ]
+      },
+      {
+        "name": "discount-commit-subtotal-net",
+        "capturePath": "$.cases.discount.commit.response.payload.data.orderEditCommit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-commit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "discount-begin-gross-control",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "order edit money math discount commit"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.currentTaxLines",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].currentQuantity",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "discount-downstream-subtotal-net",
+        "capturePath": "$.cases.discount.downstreamRead.response.payload.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-money-math-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "discount-create-money",
+              "path": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.subtotalPriceSet",
+          "$.currentSubtotalPriceSet",
+          "$.totalTaxSet",
+          "$.currentTotalTaxSet",
+          "$.totalPriceSet",
+          "$.currentTotalPriceSet",
+          "$.currentTaxLines",
+          "$.lineItems.nodes[0].title",
+          "$.lineItems.nodes[0].quantity",
+          "$.lineItems.nodes[0].currentQuantity",
+          "$.lineItems.nodes[0].originalUnitPriceSet",
+          "$.lineItems.nodes[0].taxLines"
+        ]
+      }
+    ]
+  }
+}
