@@ -45,6 +45,49 @@ fragment MetaobjectReadFields on Metaobject {
 }
 
 fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  hasThumbnailField
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
   metaobjects(first: 10) {
     edges {
       cursor
@@ -64,34 +107,17 @@ fragment MetaobjectDefinitionReadFields on MetaobjectDefinition {
   }
 }
 
-query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!, $definitionId: ID!) {
-  catalog: metaobjects(type: $type, first: 10) {
-    edges {
-      cursor
-      node {
-        ...MetaobjectReadFields
-      }
+mutation CreateMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      ...MetaobjectDefinitionReadFields
     }
-    nodes {
-      ...MetaobjectReadFields
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
     }
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-      startCursor
-      endCursor
-    }
-  }
-  detail: metaobject(id: $id) {
-    ...MetaobjectReadFields
-  }
-  byHandle: metaobjectByHandle(handle: $handle) {
-    ...MetaobjectReadFields
-  }
-  definition: metaobjectDefinition(id: $definitionId) {
-    ...MetaobjectDefinitionReadFields
-  }
-  byTypeDefinition: metaobjectDefinitionByType(type: $type) {
-    ...MetaobjectDefinitionReadFields
   }
 }

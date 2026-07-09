@@ -22,8 +22,9 @@ The supported fields are limited to the captured 2026-04 definition payload:
 - `capabilities.publishable.enabled`, `translatable.enabled`, `renderable.enabled`, and `onlineStore.enabled`
 - ordered `fieldDefinitions` with `key`, `name`, `description`, `required`, `type.name`, `type.category`, and `validations`
 - `hasThumbnailField`, `metaobjectsCount`, and `standardTemplate.type` / `standardTemplate.name`
+- definition-scoped `metaobjects(first:, after:, last:, before:)`, derived from locally staged entries of the effective definition type with the same staged node projection used by `metaobjects(type:)`
 
-Snapshot mode reads these roots from the normalized `metaobjectDefinitions` state bucket and returns `null` for absent singular ID/type lookups. Empty catalogs return non-null connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
+Snapshot mode reads these roots from the normalized `metaobjectDefinitions` state bucket and returns `null` for absent singular ID/type lookups. Empty catalogs and definition-scoped child connections return non-null connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Definition `metaobjectsCount` is derived from the same staged child set as the definition-scoped connection.
 
 Live-hybrid mode uses cassette-backed passthrough for cold definition reads. When local staged, deleted, or hydrated definition state exists, the proxy serves definitions from local state so supported mutations preserve read-after-write behavior; when no local definition exists, upstream no-data/null responses are returned unchanged rather than replaced with fabricated definitions.
 
