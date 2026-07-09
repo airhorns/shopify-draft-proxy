@@ -10104,6 +10104,176 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
     );
     assert_eq!(after_delete.body["data"]["detail"], Value::Null);
     assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+
+    assert_metaobject_reference_and_references_project_locally_staged_targets();
+}
+
+fn assert_metaobject_reference_and_references_project_locally_staged_targets() {
+    let mut proxy = snapshot_proxy();
+
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "reference_card",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}),
+            json!({"key": "featured", "name": "Featured", "type": "product_reference", "required": false}),
+            json!({"key": "related", "name": "Related", "type": "list.product_reference", "required": false}),
+        ],
+    );
+
+    let target = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobjectReferenceProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Metaobject referenced product"}}),
+    ));
+    assert_eq!(target.status, 200);
+    assert_eq!(
+        target.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let target_id = target.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id field(key: "featured") { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "reference_card",
+            "handle": "reference-card",
+            "fields": [
+                {"key": "title", "value": "Reference card"},
+                {"key": "featured", "value": target_id},
+                {"key": "related", "value": json!([target_id]).to_string()}
+            ]
+        }}),
+    ));
+    assert_eq!(created.status, 200);
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let metaobject_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceMetaobject($id: ID!) {
+          metaobject(id: $id) {
+            featured: field(key: "featured") {
+              key
+              reference {
+                __typename
+                ... on Product { id title }
+              }
+            }
+            related: field(key: "related") {
+              key
+              references(first: 10) {
+                nodes {
+                  __typename
+                  ... on Product { id title }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": metaobject_id}),
+    ));
+    assert_eq!(read.status, 200);
+    let metaobject = &read.body["data"]["metaobject"];
+    assert_eq!(
+        metaobject["featured"]["reference"],
+        json!({"__typename": "Product", "id": target_id, "title": "Metaobject referenced product"})
+    );
+    assert_eq!(
+        metaobject["related"]["references"],
+        json!({
+            "nodes": [{"__typename": "Product", "id": target_id, "title": "Metaobject referenced product"}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": target_id,
+                "endCursor": target_id
+            }
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobjectReferenceTarget($product: ProductDeleteInput!) {
+          productDelete(product: $product) {
+            deletedProductId
+          }
+        }
+        "#,
+        json!({"product": {"id": target_id}}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(target_id)
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMissingReferenceMetaobject($id: ID!) {
+          metaobject(id: $id) {
+            featured: field(key: "featured") {
+              key
+              reference { __typename ... on Product { id } }
+            }
+            related: field(key: "related") {
+              key
+              references(first: 10) {
+                nodes { __typename ... on Product { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": metaobject_id}),
+    ));
+    assert_eq!(missing.status, 200);
+    let featured = missing.body["data"]["metaobject"]["featured"]
+        .as_object()
+        .expect("featured field should be an object");
+    assert!(featured.contains_key("reference"));
+    assert_eq!(featured["reference"], Value::Null);
+    let related = missing.body["data"]["metaobject"]["related"]
+        .as_object()
+        .expect("related field should be an object");
+    assert!(related.contains_key("references"));
+    assert_eq!(
+        related["references"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }
 
 #[test]

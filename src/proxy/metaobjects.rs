@@ -2558,17 +2558,8 @@ fn metaobject_record_from_definition_with_options(
     record
 }
 
-fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
-    if let Some(values) = value.as_array() {
-        Value::Array(
-            values
-                .iter()
-                .map(|item| selected_json(item, selection))
-                .collect(),
-        )
-    } else {
-        nullable_selected_json(value, selection)
-    }
+fn metaobject_value_is_field_record(value: &Value) -> bool {
+    value.get("key").is_some() && value.get("type").is_some() && value.get("value").is_some()
 }
 
 fn metaobject_nodes_from_upstream_data(data: &serde_json::Map<String, Value>) -> Vec<Value> {
@@ -3969,7 +3960,32 @@ impl DraftProxy {
         )
     }
 
-    fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
+    fn selected_metaobject_value(&self, value: &Value, selection: &[SelectedField]) -> Value {
+        if let Some(values) = value.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|item| {
+                        if metaobject_value_is_field_record(item) {
+                            self.selected_reference_value_record_json(item, selection)
+                        } else {
+                            selected_json(item, selection)
+                        }
+                    })
+                    .collect(),
+            )
+        } else if metaobject_value_is_field_record(value) {
+            self.selected_reference_value_record_json(value, selection)
+        } else {
+            nullable_selected_json(value, selection)
+        }
+    }
+
+    pub(in crate::proxy) fn selected_metaobject(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
             "field" => {
                 let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
@@ -3982,7 +3998,7 @@ impl DraftProxy {
                     })
                     .cloned()
                     .unwrap_or(Value::Null);
-                Some(nullable_selected_json(&value, &field.selection))
+                Some(self.selected_metaobject_value(&value, &field.selection))
             }
             "definition" => {
                 let meta_type = record
@@ -3999,7 +4015,7 @@ impl DraftProxy {
             }
             _ => record
                 .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
+                .map(|value| self.selected_metaobject_value(value, &field.selection)),
         })
     }
 
@@ -4015,7 +4031,7 @@ impl DraftProxy {
             }
             _ => payload
                 .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
+                .map(|value| self.selected_metaobject_value(value, &field.selection)),
         })
     }
 
@@ -4026,7 +4042,7 @@ impl DraftProxy {
     /// `publishable` capability all follow the live definition. Stored field VALUES
     /// are preserved verbatim. When no local definition is staged for the type (e.g.
     /// an upstream-hydrated entry), the record is returned unchanged.
-    fn project_metaobject_against_definition(&self, record: &Value) -> Value {
+    pub(in crate::proxy) fn project_metaobject_against_definition(&self, record: &Value) -> Value {
         let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
             return record.clone();
         };
