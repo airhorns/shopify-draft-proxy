@@ -10,6 +10,7 @@ const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS: usize = 1;
 const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH: usize = 1;
 const SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS: &[&str] =
     &["collections", "images", "media", "metafields", "variants"];
+const SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS: &[&str] = &["media", "metafields"];
 
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
@@ -167,9 +168,15 @@ impl DraftProxy {
                 .map(|media| selected_json(media, &child_node_selection))
                 .collect(),
             "metafields" => self
-                .bulk_product_metafield_nodes(product, selection)
+                .bulk_owner_metafield_nodes(
+                    &product.id,
+                    product.extra_fields.get("metafields"),
+                    selection,
+                )
                 .into_iter()
-                .map(|metafield| selected_json(&metafield, &child_node_selection))
+                .map(|metafield| {
+                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
+                })
                 .collect(),
             "variants" => variants
                 .iter()
@@ -185,9 +192,10 @@ impl DraftProxy {
         }
     }
 
-    fn bulk_product_metafield_nodes(
+    fn bulk_owner_metafield_nodes(
         &self,
-        product: &ProductRecord,
+        owner_id: &str,
+        base_metafields: Option<&Value>,
         selection: &SelectedField,
     ) -> Vec<Value> {
         let namespace = resolved_string_field(&selection.arguments, "namespace");
@@ -196,21 +204,19 @@ impl DraftProxy {
             .store
             .staged
             .owner_metafields
-            .get(&product.id)
+            .get(owner_id)
             .is_some_and(|metafields| !metafields.is_empty())
             || self
                 .store
                 .staged
                 .deleted_owner_metafields
                 .iter()
-                .any(|(owner_id, _, _)| owner_id == &product.id);
+                .any(|(deleted_owner_id, _, _)| deleted_owner_id == owner_id);
 
         let mut records = if has_local_effects {
-            self.owner_metafields(&product.id, namespace.as_deref(), keys.as_deref())
+            self.owner_metafields(owner_id, namespace.as_deref(), keys.as_deref())
         } else {
-            let mut records = product
-                .extra_fields
-                .get("metafields")
+            let mut records = base_metafields
                 .map(connection_nodes)
                 .unwrap_or_default()
                 .into_iter()
@@ -260,21 +266,69 @@ impl DraftProxy {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let node_selection = edge_node_selection(&field.selection);
         let variant_selection = bulk_jsonl_node_selection(&node_selection);
+        let nested_connections = node_selection
+            .iter()
+            .filter(|selection| {
+                product_variant_bulk_child_connection_supported(&selection.name)
+                    && field_is_selected(&selection.selection, "edges")
+            })
+            .collect::<Vec<_>>();
         let mut rows = Vec::new();
+        let mut root_object_count = 0;
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
+                root_object_count += 1;
                 rows.push(self.product_variant_json_with_current_publication_context(
                     &variant,
                     Some(&product),
                     &variant_selection,
                 ));
+
+                for selection in &nested_connections {
+                    for child in
+                        self.bulk_jsonl_product_variant_child_rows(&product, &variant, selection)
+                    {
+                        rows.push(bulk_jsonl_child_node(child, &variant.id));
+                    }
+                }
             }
         }
 
-        let root_object_count = rows.len();
         BulkOperationRunQueryResult {
             jsonl: values_to_jsonl(rows),
             root_object_count,
+        }
+    }
+
+    fn bulk_jsonl_product_variant_child_rows(
+        &self,
+        product: &ProductRecord,
+        variant: &ProductVariantRecord,
+        selection: &SelectedField,
+    ) -> Vec<Value> {
+        let child_node_selection = edge_node_selection(&selection.selection);
+        let child_node_selection = bulk_jsonl_node_selection(&child_node_selection);
+        if child_node_selection.is_empty() {
+            return Vec::new();
+        }
+
+        match selection.name.as_str() {
+            "media" => variant_attached_media_nodes(variant, Some(product))
+                .iter()
+                .map(|media| selected_json(media, &child_node_selection))
+                .collect(),
+            "metafields" => self
+                .bulk_owner_metafield_nodes(
+                    &variant.id,
+                    variant.extra_fields.get("metafields"),
+                    selection,
+                )
+                .into_iter()
+                .map(|metafield| {
+                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
+                })
+                .collect(),
+            _ => Vec::new(),
         }
     }
 
@@ -1264,6 +1318,248 @@ mod tests {
     }
 
     #[test]
+    fn product_variants_bulk_query_jsonl_materializes_supported_nested_child_connections() {
+        let product_id = "gid://shopify/Product/variant-children";
+        let media_id = "gid://shopify/MediaImage/variant-child";
+        let mut product = seed_product(product_id, "Variant children", "variant-children");
+        product.media = vec![json!({
+            "id": media_id,
+            "__typename": "MediaImage",
+            "alt": "Variant media alt",
+            "mediaContentType": "IMAGE",
+            "status": "READY"
+        })];
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![product])
+        .with_upstream_transport(|request| {
+            if request.body.contains("OwnerMetafieldsHydrateNodes") {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({ "data": { "nodes": [] } }),
+                };
+            }
+            panic!("variant child bulk test should stay local")
+        });
+        let variant = create_variant(&mut proxy, product_id, "VARIANT-CHILD-SKU");
+        let variant_id = variant["id"].as_str().unwrap().to_string();
+
+        let append_media = proxy.process_request(test_request(
+            r#"
+            mutation AppendVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+              productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+                productVariants { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "variantMedia": [{
+                    "variantId": variant_id,
+                    "mediaIds": [media_id]
+                }]
+            }),
+        ));
+        assert_eq!(append_media.status, 200);
+        assert_eq!(
+            append_media.body["data"]["productVariantAppendMedia"]["userErrors"],
+            json!([])
+        );
+
+        let metafields = proxy.process_request(test_request(
+            r#"
+            mutation StageVariantChildMetafield($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { id namespace key value }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": variant_id,
+                    "namespace": "custom",
+                    "key": "care",
+                    "type": "single_line_text_field",
+                    "value": "wash cold"
+                }]
+            }),
+        ));
+        assert_eq!(metafields.status, 200);
+        assert_eq!(
+            metafields.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        let metafield_id = metafields.body["data"]["metafieldsSet"]["metafields"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RunNestedVariantBulkQuery($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status objectCount rootObjectCount }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": r#"
+                {
+                  productVariants(query: "sku:VARIANT-CHILD-SKU") {
+                    edges {
+                      node {
+                        id
+                        sku
+                        media {
+                          edges { node { id alt } }
+                        }
+                        metafields(first: 5, namespace: "custom") {
+                          edges { node { id namespace key value } }
+                        }
+                      }
+                    }
+                  }
+                }
+                "#
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
+        assert_eq!(artifact.status, 200);
+        let rows = artifact
+            .body
+            .as_str()
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().any(|row| {
+            row == &json!({
+                "id": variant_id,
+                "sku": "VARIANT-CHILD-SKU"
+            })
+        }));
+        assert!(rows.iter().any(|row| {
+            row == &json!({
+                "id": media_id,
+                "alt": "Variant media alt",
+                "__parentId": variant_id
+            })
+        }));
+        assert!(rows.iter().any(|row| {
+            row == &json!({
+                "id": metafield_id,
+                "namespace": "custom",
+                "key": "care",
+                "value": "wash cold",
+                "__parentId": variant_id
+            })
+        }));
+
+        let current = proxy.process_request(test_request(
+            r#"
+            query CurrentNestedVariantBulkQuery {
+              currentBulkOperation(type: QUERY) {
+                objectCount
+                rootObjectCount
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["objectCount"],
+            json!("3")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["rootObjectCount"],
+            json!("1")
+        );
+    }
+
+    #[test]
+    fn product_variants_bulk_query_rejects_unsupported_nested_child_connections() {
+        let mut proxy = test_proxy();
+        create_variant(
+            &mut proxy,
+            "gid://shopify/Product/1",
+            "UNSUPPORTED-VARIANT-CHILD-SKU",
+        );
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RunUnsupportedVariantChildBulkQuery($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": r#"
+                {
+                  productVariants(query: "sku:UNSUPPORTED-VARIANT-CHILD-SKU") {
+                    edges {
+                      node {
+                        id
+                        sellingPlanGroups {
+                          edges { node { id } }
+                        }
+                      }
+                    }
+                  }
+                }
+                "#
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([{
+                "field": ["query"],
+                "message": "Unsupported nested product variant connection in local bulk query: sellingPlanGroups. Supported nested product variant connections: media, metafields.",
+                "code": "INVALID"
+            }])
+        );
+
+        let current = proxy.process_request(test_request(
+            r#"
+            query CurrentBulkQueryAfterUnsupportedVariantChild {
+              currentBulkOperation(type: QUERY) { id }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(current.body["data"]["currentBulkOperation"], Value::Null);
+    }
+
+    #[test]
     fn products_bulk_query_jsonl_materializes_supported_nested_child_connections() {
         let product_id = "gid://shopify/Product/nested-children";
         let media_id = "gid://shopify/MediaImage/nested-child";
@@ -1671,35 +1967,81 @@ fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
 fn bulk_operation_run_query_local_support_user_errors(query_text: &str) -> Option<Vec<Value>> {
     let document = parsed_document(query_text, &BTreeMap::new())?;
     let field = document.root_fields.first()?;
-    if field.name != "products" {
-        return None;
-    }
+    let (object_label, supported_connections) = match field.name.as_str() {
+        "products" => ("product", SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS),
+        "productVariants" => (
+            "product variant",
+            SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS,
+        ),
+        _ => return None,
+    };
 
     let node_selection = edge_node_selection(&field.selection);
-    let mut unsupported = Vec::new();
-    for selection in node_selection {
-        if !field_is_selected(&selection.selection, "edges")
-            || product_bulk_child_connection_supported(&selection.name)
-        {
-            continue;
-        }
-        if !unsupported.iter().any(|name| name == &selection.name) {
-            unsupported.push(selection.name);
-        }
-    }
+    let unsupported =
+        unsupported_local_bulk_nested_connection_paths(&node_selection, supported_connections);
     if unsupported.is_empty() {
         return None;
     }
 
     Some(vec![bulk_operation_run_query_user_error(&format!(
-        "Unsupported nested product connection in local bulk query: {}. Supported nested product connections: {}.",
+        "Unsupported nested {object_label} connection in local bulk query: {}. Supported nested {object_label} connections: {}.",
         unsupported.join(", "),
-        SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS.join(", ")
+        supported_connections.join(", ")
     ))])
 }
 
 fn product_bulk_child_connection_supported(name: &str) -> bool {
     SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS.contains(&name)
+}
+
+fn product_variant_bulk_child_connection_supported(name: &str) -> bool {
+    SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS.contains(&name)
+}
+
+fn unsupported_local_bulk_nested_connection_paths(
+    selection: &[SelectedField],
+    supported_direct_connections: &[&str],
+) -> Vec<String> {
+    let mut unsupported = Vec::new();
+    let mut path = Vec::new();
+    collect_unsupported_local_bulk_nested_connection_paths(
+        selection,
+        supported_direct_connections,
+        &mut path,
+        &mut unsupported,
+    );
+    unsupported
+}
+
+fn collect_unsupported_local_bulk_nested_connection_paths(
+    selection: &[SelectedField],
+    supported_direct_connections: &[&str],
+    path: &mut Vec<String>,
+    unsupported: &mut Vec<String>,
+) {
+    for field in selection {
+        if field_is_selected(&field.selection, "edges") {
+            let direct_connection = path.is_empty();
+            if !direct_connection || !supported_direct_connections.contains(&field.name.as_str()) {
+                let mut connection_path = path.clone();
+                connection_path.push(field.name.clone());
+                push_unique_string(unsupported, connection_path.join("."));
+            }
+            continue;
+        }
+
+        if field.selection.is_empty() {
+            continue;
+        }
+        path.push(field.name.clone());
+        collect_unsupported_local_bulk_nested_connection_paths(
+            &field.selection,
+            supported_direct_connections,
+            path,
+            unsupported,
+        );
+        path.pop();
+    }
 }
 
 fn bulk_operation_result_artifact_path(id: &str) -> String {

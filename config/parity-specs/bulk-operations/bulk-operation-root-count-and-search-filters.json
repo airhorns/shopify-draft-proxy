@@ -1,6 +1,14 @@
 {
   "scenarioId": "bulk-operation-root-count-and-search-filters",
-  "operationNames": ["productCreate", "productCreateMedia", "bulkOperationRunQuery", "bulkOperation", "bulkOperations"],
+  "operationNames": [
+    "productCreate",
+    "productCreateMedia",
+    "productVariantsBulkUpdate",
+    "productVariantAppendMedia",
+    "bulkOperationRunQuery",
+    "bulkOperation",
+    "bulkOperations"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "search-filter-parity", "bulk-jsonl-artifact-parity"],
   "liveCaptureFiles": [
@@ -16,7 +24,7 @@
     "variablesCapturePath": "$.setup.productCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures a Shopify product bulk query with nested variants, media, and metafields connections filtered to a disposable product tag, proving terminal objectCount can exceed rootObjectCount and that the JSONL artifact carries non-variant child rows with parent linkage. Also captures bulkOperations(query:) lowercase status plus created_at comparator filtering and Shopify's warning-backed match-all behavior for unsupported search keys.",
+  "notes": "Captures Shopify product and productVariants bulk queries with nested variants, media, and metafields connections filtered to disposable product/variant search values, proving terminal objectCount can exceed rootObjectCount and that JSONL artifacts carry non-variant child rows with parent linkage. Also captures bulkOperations(query:) lowercase status plus created_at comparator filtering and Shopify's warning-backed match-all behavior for unsupported search keys.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -40,6 +48,87 @@
             "media": {
               "fromCapturePath": "$.setup.productCreateMedia.variables.media"
             }
+          }
+        }
+      },
+      {
+        "name": "setup-product-media-ready-read",
+        "capturePath": "$.setup.productMediaReady.response.data.product.media.nodes",
+        "proxyPath": "$.data.product.media.nodes",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-root-count-product-media-ready.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.setup.productMediaReady.variables.namespace"
+            }
+          }
+        },
+        "selectedPaths": ["$[*].id", "$[*].alt", "$[*].mediaContentType", "$[*].status"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the proxy allocate different media ids."
+          }
+        ]
+      },
+      {
+        "name": "setup-product-variant-update-user-errors",
+        "capturePath": "$.setup.productVariantUpdate.response.data.productVariantsBulkUpdate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkUpdate.userErrors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-root-count-product-variant-update.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "inventoryItem": {
+                  "sku": {
+                    "fromCapturePath": "$.setup.productVariantUpdate.variables.variants[0].inventoryItem.sku"
+                  }
+                },
+                "metafields": {
+                  "fromCapturePath": "$.setup.productVariantUpdate.variables.variants[0].metafields"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "setup-product-variant-append-media-user-errors",
+        "capturePath": "$.setup.productVariantAppendMedia.response.data.productVariantAppendMedia.userErrors",
+        "proxyPath": "$.data.productVariantAppendMedia.userErrors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-root-count-product-variant-append-media.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "setup-product-create-media-user-errors",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
           }
         }
       },
@@ -166,6 +255,121 @@
             "path": "$[3].__parentId",
             "matcher": "shopify-gid:Product",
             "reason": "Child JSONL rows link to the locally allocated product id."
+          }
+        ]
+      },
+      {
+        "name": "run-nested-product-variants-payload",
+        "capturePath": "$.variantRun.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-root-count-run-query.graphql",
+          "variablesCapturePath": "$.variantRun.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.bulkOperation.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.bulkOperation.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "read-after-nested-product-variants-root-count",
+        "capturePath": "$.variantRun.terminalOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "run-nested-product-variants-payload",
+              "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy completes the synthetic export immediately with its own deterministic clock."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
+          }
+        ]
+      },
+      {
+        "name": "nested-product-variants-jsonl-artifact-child-rows",
+        "capturePath": "$.variantRun.result.body",
+        "proxyPath": "$.body",
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "read-after-nested-product-variants-root-count",
+            "path": "$.data.bulkOperation.url"
+          }
+        },
+        "preserveProxyState": true,
+        "jsonlRecords": true,
+        "selectedPaths": [
+          "$[*].id",
+          "$[*].sku",
+          "$[*].alt",
+          "$[*].mediaContentType",
+          "$[*].namespace",
+          "$[*].key",
+          "$[*].value",
+          "$[*].__parentId"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify and the proxy allocate different product variant ids."
+          },
+          {
+            "path": "$[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the proxy allocate different media ids."
+          },
+          {
+            "path": "$[1].__parentId",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Child JSONL rows link to the locally allocated product variant id."
+          },
+          {
+            "path": "$[2].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the proxy allocate different metafield ids."
+          },
+          {
+            "path": "$[2].__parentId",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Child JSONL rows link to the locally allocated product variant id."
           }
         ]
       },

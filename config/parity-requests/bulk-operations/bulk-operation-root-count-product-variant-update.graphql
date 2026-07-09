@@ -1,0 +1,20 @@
+mutation BulkOperationRootCountProductVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+      sku
+      metafields(first: 5, namespace: "custom") {
+        nodes {
+          id
+          namespace
+          key
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
