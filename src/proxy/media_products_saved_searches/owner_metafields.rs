@@ -448,6 +448,7 @@ impl DraftProxy {
     ) -> Response {
         let fields = root_fields(query, variables).unwrap_or_default();
         self.hydrate_owner_metafield_read_fields(request, &fields, variables);
+        let api_client_id = request_app_namespace_api_client_id(request);
         let data = root_payload_json(&fields, |field| {
             if !matches!(
                 field.name.as_str(),
@@ -461,7 +462,7 @@ impl DraftProxy {
             ) {
                 return None;
             }
-            Some(self.owner_metafield_owner_json(field, variables))
+            Some(self.owner_metafield_owner_json(field, variables, api_client_id.as_deref()))
         });
         ok_json(json!({"data": data}))
     }
@@ -906,12 +907,23 @@ impl DraftProxy {
         root_field: &str,
         owner_id: &str,
         selections: &[SelectedField],
+        api_client_id: Option<&str>,
     ) -> Option<Value> {
         match root_field {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                Some(self.product_owner_json_with_store_currency(product, &variants, selections))
+                let base = self.product_json_with_store_currency(product, &variants, selections);
+                Some(
+                    self.owner_metafield_overlay_owner_json_with_product_variants_and_app_namespace_api_client_id(
+                        root_field,
+                        &product.id,
+                        selections,
+                        &product.variants,
+                        base,
+                        api_client_id,
+                    ),
+                )
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
@@ -921,39 +933,49 @@ impl DraftProxy {
                     selections,
                 );
                 Some(
-                    self.owner_metafield_overlay_owner_json(root_field, owner_id, selections, base),
+                    self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+                        root_field,
+                        owner_id,
+                        selections,
+                        base,
+                        api_client_id,
+                    ),
                 )
             }
             "collection" => self.store.staged.collections.get(owner_id).map(|record| {
-                self.owner_metafield_overlay_owner_json(
+                self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                     root_field,
                     owner_id,
                     selections,
                     selected_json(record, selections),
+                    api_client_id,
                 )
             }),
             "customer" => self.store.staged.customers.get(owner_id).map(|record| {
-                self.owner_metafield_overlay_owner_json(
+                self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                     root_field,
                     owner_id,
                     selections,
                     selected_json(record, selections),
+                    api_client_id,
                 )
             }),
             "order" => self.store.staged.orders.get(owner_id).map(|record| {
-                self.owner_metafield_overlay_owner_json(
+                self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                     root_field,
                     owner_id,
                     selections,
                     selected_json(record, selections),
+                    api_client_id,
                 )
             }),
             "company" => self.store.staged.b2b_companies.get(owner_id).map(|record| {
-                self.owner_metafield_overlay_owner_json(
+                self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                     root_field,
                     owner_id,
                     selections,
                     selected_json(record, selections),
+                    api_client_id,
                 )
             }),
             "shop" => {
@@ -964,12 +986,15 @@ impl DraftProxy {
                 if shop.get("id").and_then(Value::as_str).is_none() && !owner_id.is_empty() {
                     shop["id"] = json!(owner_id);
                 }
-                Some(self.owner_metafield_overlay_owner_json(
-                    root_field,
-                    owner_id,
-                    selections,
-                    selected_json(&shop, selections),
-                ))
+                Some(
+                    self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+                        root_field,
+                        owner_id,
+                        selections,
+                        selected_json(&shop, selections),
+                        api_client_id,
+                    ),
+                )
             }
             _ => None,
         }
@@ -979,21 +1004,34 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
         variables: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
     ) -> Value {
         let owner_id = self.owner_field_id(field, variables);
-        self.owner_record_json_for_read(&field.name, &owner_id, &field.selection)
+        self.owner_record_json_for_read(&field.name, &owner_id, &field.selection, api_client_id)
             .unwrap_or_else(|| {
-                self.minimal_owner_json_for_read(&field.name, &owner_id, &field.selection)
+                self.minimal_owner_json_for_read_with_app_namespace_api_client_id(
+                    &field.name,
+                    &owner_id,
+                    &field.selection,
+                    api_client_id,
+                )
             })
     }
 
-    pub(super) fn minimal_owner_json_for_read(
+    pub(super) fn minimal_owner_json_for_read_with_app_namespace_api_client_id(
         &self,
         root_field: &str,
         owner_id: &str,
         selections: &[SelectedField],
+        api_client_id: Option<&str>,
     ) -> Value {
-        self.owner_metafield_overlay_owner_json(root_field, owner_id, selections, json!({}))
+        self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+            root_field,
+            owner_id,
+            selections,
+            json!({}),
+            api_client_id,
+        )
     }
 
     pub(in crate::proxy) fn owner_metafield_overlay_owner_json(
@@ -1003,30 +1041,53 @@ impl DraftProxy {
         selections: &[SelectedField],
         base: Value,
     ) -> Value {
-        self.owner_metafield_overlay_owner_json_with_product_variants(
+        self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+            root_field, owner_id, selections, base, None,
+        )
+    }
+
+    pub(super) fn owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+        &self,
+        root_field: &str,
+        owner_id: &str,
+        selections: &[SelectedField],
+        base: Value,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        self.owner_metafield_overlay_owner_json_with_product_variants_and_app_namespace_api_client_id(
             root_field,
             owner_id,
             selections,
             &[],
             base,
+            api_client_id,
         )
     }
 
-    pub(super) fn owner_metafield_overlay_owner_json_with_product_variants(
+    pub(super) fn owner_metafield_overlay_owner_json_with_product_variants_and_app_namespace_api_client_id(
         &self,
         root_field: &str,
         owner_id: &str,
         selections: &[SelectedField],
         fallback_product_variants: &[Value],
         base: Value,
+        api_client_id: Option<&str>,
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "__typename" => Some(json!(owner_typename_from_root(root_field))),
             "id" => Some(json!(owner_id)),
-            "metafield" => Some(self.selected_owner_metafield_overlay(owner_id, selection, &base)),
-            "metafields" => {
-                Some(self.selected_owner_metafields_connection_overlay(owner_id, selection, &base))
-            }
+            "metafield" => Some(self.selected_owner_metafield_overlay(
+                owner_id,
+                selection,
+                &base,
+                api_client_id,
+            )),
+            "metafields" => Some(self.selected_owner_metafields_connection_overlay(
+                owner_id,
+                selection,
+                &base,
+                api_client_id,
+            )),
             "variants"
                 if root_field == "product"
                     && Self::owner_field_selects_metafields(&selection.selection) =>
@@ -1035,6 +1096,7 @@ impl DraftProxy {
                     owner_id,
                     fallback_product_variants,
                     selection,
+                    api_client_id,
                 ))
             }
             _ => base
@@ -1049,6 +1111,7 @@ impl DraftProxy {
         product_id: &str,
         fallback_variants: &[Value],
         selection: &SelectedField,
+        api_client_id: Option<&str>,
     ) -> Value {
         #[derive(Clone)]
         enum VariantSource {
@@ -1091,20 +1154,22 @@ impl DraftProxy {
                         self.store.product_by_id(&variant.product_id),
                         selections,
                     );
-                    self.owner_metafield_overlay_owner_json(
+                    self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                         "productVariant",
                         &variant.id,
                         selections,
                         base,
+                        api_client_id,
                     )
                 }
                 VariantSource::Fallback(variant) => {
                     let base = selected_json(variant, selections);
-                    self.owner_metafield_overlay_owner_json(
+                    self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
                         "productVariant",
                         &entry.id,
                         selections,
                         base,
+                        api_client_id,
                     )
                 }
             };
@@ -1191,9 +1256,13 @@ impl DraftProxy {
             })
     }
 
-    fn selected_owner_metafield(&self, owner_id: &str, selection: &SelectedField) -> Value {
-        let namespace =
-            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+    fn selected_owner_metafield(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        let namespace = owner_metafield_read_namespace(&selection.arguments, api_client_id);
         let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
         self.owner_metafield(owner_id, &namespace, &key)
             .map(|metafield| {
@@ -1207,12 +1276,12 @@ impl DraftProxy {
         owner_id: &str,
         selection: &SelectedField,
         base: &Value,
+        api_client_id: Option<&str>,
     ) -> Value {
-        let namespace =
-            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let namespace = owner_metafield_read_namespace(&selection.arguments, api_client_id);
         let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
         if self.owner_metafield_has_local_effect(owner_id, &namespace, &key) {
-            return self.selected_owner_metafield(owner_id, selection);
+            return self.selected_owner_metafield(owner_id, selection, api_client_id);
         }
         if let Some(metafield) = base_owner_metafield(base, &namespace, &key) {
             return self.selected_reference_value_record_json(&metafield, &selection.selection);
@@ -1227,9 +1296,10 @@ impl DraftProxy {
         &self,
         owner_id: &str,
         selection: &SelectedField,
+        api_client_id: Option<&str>,
     ) -> Value {
-        let namespace = resolved_string_field(&selection.arguments, "namespace");
-        let keys = owner_metafields_connection_keys(&selection.arguments);
+        let namespace = owner_metafields_connection_namespace(&selection.arguments, api_client_id);
+        let keys = owner_metafields_connection_keys(&selection.arguments, api_client_id);
         let mut records = self.owner_metafields(owner_id, namespace.as_deref(), keys.as_deref());
         if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
             records.reverse();
@@ -1263,6 +1333,7 @@ impl DraftProxy {
         owner_id: &str,
         selection: &SelectedField,
         base: &Value,
+        api_client_id: Option<&str>,
     ) -> Value {
         if !self.owner_has_metafield_local_effects(owner_id) {
             if let Some(base_value) = base
@@ -1272,7 +1343,7 @@ impl DraftProxy {
                 return base_value.clone();
             }
         }
-        self.selected_owner_metafields_connection(owner_id, selection)
+        self.selected_owner_metafields_connection(owner_id, selection, api_client_id)
     }
 
     fn owner_metafield(&self, owner_id: &str, namespace: &str, key: &str) -> Option<Value> {
@@ -1770,8 +1841,34 @@ fn reference_id_array(value: &Value) -> Option<Vec<String>> {
     )
 }
 
+fn owner_metafield_read_namespace(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
+) -> String {
+    resolved_string_field(arguments, "namespace")
+        .map(|namespace| canonical_app_metafield_read_namespace(&namespace, api_client_id))
+        .unwrap_or_default()
+}
+
+fn owner_metafields_connection_namespace(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
+) -> Option<String> {
+    resolved_string_field(arguments, "namespace")
+        .map(|namespace| canonical_app_metafield_read_namespace(&namespace, api_client_id))
+}
+
+fn canonical_app_metafield_read_namespace(namespace: &str, api_client_id: Option<&str>) -> String {
+    if namespace == "$app" || namespace.starts_with("$app:") {
+        canonical_app_metafield_namespace(Some(namespace), api_client_id)
+    } else {
+        namespace.to_string()
+    }
+}
+
 fn owner_metafields_connection_keys(
     arguments: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
 ) -> Option<Vec<(String, String)>> {
     match arguments.get("keys") {
         None | Some(ResolvedValue::Null) => None,
@@ -1783,7 +1880,10 @@ fn owner_metafields_connection_keys(
                     if namespace.is_empty() || key.is_empty() {
                         return None;
                     }
-                    Some((namespace.to_string(), key.to_string()))
+                    Some((
+                        canonical_app_metafield_read_namespace(namespace, api_client_id),
+                        key.to_string(),
+                    ))
                 })
                 .collect(),
         ),

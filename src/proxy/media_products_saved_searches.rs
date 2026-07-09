@@ -102,19 +102,32 @@ impl DraftProxy {
     pub(in crate::proxy) fn product_overlay_read_data(
         &mut self,
         root_fields: &[RootFieldSelection],
+        api_client_id: Option<&str>,
     ) -> Value {
         self.promote_product_media_ready_on_read(root_fields);
         root_payload_json(root_fields, |field| match field.name.as_str() {
-            "product" => Some(self.product_by_id_field(field)),
+            "product" => Some(
+                self.product_by_id_field_with_app_namespace_api_client_id(field, api_client_id),
+            ),
             "products" => Some(self.products_connection_field(field)),
             "productsCount" => Some(self.products_count_field(field)),
             "collections" => Some(self.collections_connection_field(field)),
             "collectionsCount" => Some(self.collections_count_field(field)),
-            "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+            "productByIdentifier" => Some(
+                self.product_by_identifier_field_with_app_namespace_api_client_id(
+                    field,
+                    api_client_id,
+                ),
+            ),
             "productOperation" => Some(self.product_operation_by_id_field(field)),
             "productFeed" => Some(self.product_tail_feed_read_field(field)),
             "productFeeds" => Some(self.product_tail_feeds_read_field(field)),
-            "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "productVariant" => Some(
+                self.product_variant_by_id_field_with_app_namespace_api_client_id(
+                    field,
+                    api_client_id,
+                ),
+            ),
             "node" | "nodes" => self
                 .local_node_query_data(std::slice::from_ref(field), true, None)
                 .and_then(|data| data.get(&field.response_key).cloned()),
@@ -173,13 +186,26 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
-        self.product_by_id_value(&field.arguments, &field.selection)
+        self.product_by_id_field_with_app_namespace_api_client_id(field, None)
     }
 
-    pub(in crate::proxy) fn product_by_id_value(
+    fn product_by_id_field_with_app_namespace_api_client_id(
+        &self,
+        field: &RootFieldSelection,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        self.product_by_id_value_with_app_namespace_api_client_id(
+            &field.arguments,
+            &field.selection,
+            api_client_id,
+        )
+    }
+
+    fn product_by_id_value_with_app_namespace_api_client_id(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
+        api_client_id: Option<&str>,
     ) -> Value {
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return Value::Null;
@@ -194,11 +220,21 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.product_owner_json_from_base(product, selection, base)
+                self.product_owner_json_from_base_with_app_namespace_api_client_id(
+                    product,
+                    selection,
+                    base,
+                    api_client_id,
+                )
             }
             None if Self::owner_field_selects_direct_metafields(selection) => {
                 let owner_id = id.clone();
-                self.minimal_owner_json_for_read("product", &owner_id, selection)
+                self.minimal_owner_json_for_read_with_app_namespace_api_client_id(
+                    "product",
+                    &owner_id,
+                    selection,
+                    api_client_id,
+                )
             }
             None => Value::Null,
         }
@@ -208,16 +244,29 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
+        self.product_by_identifier_field_with_app_namespace_api_client_id(field, None)
+    }
+
+    fn product_by_identifier_field_with_app_namespace_api_client_id(
+        &self,
+        field: &RootFieldSelection,
+        api_client_id: Option<&str>,
+    ) -> Value {
         let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
-        self.product_by_identifier_value(identifier, &field.selection)
+        self.product_by_identifier_value_with_app_namespace_api_client_id(
+            identifier,
+            &field.selection,
+            api_client_id,
+        )
     }
 
-    pub(in crate::proxy) fn product_by_identifier_value(
+    fn product_by_identifier_value_with_app_namespace_api_client_id(
         &self,
         identifier: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
+        api_client_id: Option<&str>,
     ) -> Value {
         let product = match identifier.get("id") {
             Some(ResolvedValue::String(id)) => self.product_record_by_id(id),
@@ -236,13 +285,23 @@ impl DraftProxy {
                     .collect::<Vec<_>>();
                 let base =
                     self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.product_owner_json_from_base(product, selection, base)
+                self.product_owner_json_from_base_with_app_namespace_api_client_id(
+                    product,
+                    selection,
+                    base,
+                    api_client_id,
+                )
             }
             None => match identifier.get("id") {
                 Some(ResolvedValue::String(id))
                     if Self::owner_field_selects_direct_metafields(selection) =>
                 {
-                    self.minimal_owner_json_for_read("product", id, selection)
+                    self.minimal_owner_json_for_read_with_app_namespace_api_client_id(
+                        "product",
+                        id,
+                        selection,
+                        api_client_id,
+                    )
                 }
                 _ => Value::Null,
             },
@@ -253,10 +312,22 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
+        self.product_variant_by_id_field_with_app_namespace_api_client_id(field, None)
+    }
+
+    fn product_variant_by_id_field_with_app_namespace_api_client_id(
+        &self,
+        field: &RootFieldSelection,
+        api_client_id: Option<&str>,
+    ) -> Value {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return Value::Null;
         };
-        self.product_variant_by_id_value(id, &field.selection)
+        self.product_variant_by_id_value_with_app_namespace_api_client_id(
+            id,
+            &field.selection,
+            api_client_id,
+        )
     }
 
     pub(in crate::proxy) fn product_variant_by_id_value(
@@ -264,9 +335,23 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Value {
+        self.product_variant_by_id_value_with_app_namespace_api_client_id(id, selection, None)
+    }
+
+    fn product_variant_by_id_value_with_app_namespace_api_client_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+        api_client_id: Option<&str>,
+    ) -> Value {
         let Some(variant) = self.store.product_variant_by_id(id) else {
             return if Self::owner_field_selects_direct_metafields(selection) {
-                self.minimal_owner_json_for_read("productVariant", id, selection)
+                self.minimal_owner_json_for_read_with_app_namespace_api_client_id(
+                    "productVariant",
+                    id,
+                    selection,
+                    api_client_id,
+                )
             } else {
                 Value::Null
             };
@@ -277,7 +362,13 @@ impl DraftProxy {
             self.store.product_by_id(&variant.product_id),
             selection,
         );
-        self.owner_metafield_overlay_owner_json("productVariant", &variant.id, selection, base)
+        self.owner_metafield_overlay_owner_json_with_app_namespace_api_client_id(
+            "productVariant",
+            &variant.id,
+            selection,
+            base,
+            api_client_id,
+        )
     }
 
     pub(in crate::proxy) fn product_inventory_item_by_id_value(
@@ -359,12 +450,25 @@ impl DraftProxy {
         selections: &[SelectedField],
         base: Value,
     ) -> Value {
-        self.owner_metafield_overlay_owner_json_with_product_variants(
+        self.product_owner_json_from_base_with_app_namespace_api_client_id(
+            product, selections, base, None,
+        )
+    }
+
+    fn product_owner_json_from_base_with_app_namespace_api_client_id(
+        &self,
+        product: &ProductRecord,
+        selections: &[SelectedField],
+        base: Value,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        self.owner_metafield_overlay_owner_json_with_product_variants_and_app_namespace_api_client_id(
             "product",
             &product.id,
             selections,
             &product.variants,
             base,
+            api_client_id,
         )
     }
 
