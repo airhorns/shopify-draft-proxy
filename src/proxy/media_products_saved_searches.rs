@@ -44,6 +44,22 @@ fn gid_tail_sort_string(id: &str) -> StagedSortValue {
         .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
+fn product_collection_saved_search_top_level_error(
+    field: &RootFieldSelection,
+    message: &str,
+    code: &str,
+) -> Value {
+    json!({
+        "message": message,
+        "locations": [{
+            "line": field.location.line,
+            "column": field.location.column
+        }],
+        "extensions": { "code": code },
+        "path": [field.response_key.clone()],
+    })
+}
+
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key {
         None | Some("CREATED_AT") => StagedSortValue::String(product.created_at.clone()),
@@ -127,6 +143,96 @@ impl DraftProxy {
             "collection" => Some(self.collection_membership_value(field)),
             _ => None,
         })
+    }
+
+    pub(in crate::proxy) fn product_collection_saved_search_error_response(
+        &mut self,
+        root_fields: &[RootFieldSelection],
+    ) -> Option<Response> {
+        let errors = root_fields
+            .iter()
+            .filter_map(|field| self.product_collection_saved_search_error(field))
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            return None;
+        }
+
+        let has_non_null_connection_error = root_fields.iter().any(|field| {
+            matches!(field.name.as_str(), "products" | "collections")
+                && self.product_collection_saved_search_error(field).is_some()
+        });
+        if has_non_null_connection_error {
+            return Some(ok_json(json!({
+                "errors": errors,
+                "data": Value::Null,
+            })));
+        }
+
+        let mut data = self.product_overlay_read_data(root_fields);
+        if let Some(object) = data.as_object_mut() {
+            for field in root_fields {
+                if matches!(field.name.as_str(), "productsCount" | "collectionsCount")
+                    && self.product_collection_saved_search_error(field).is_some()
+                {
+                    object.insert(field.response_key.clone(), Value::Null);
+                }
+            }
+        }
+        Some(ok_json(json!({
+            "errors": errors,
+            "data": data,
+        })))
+    }
+
+    fn product_collection_saved_search_error(&self, field: &RootFieldSelection) -> Option<Value> {
+        let resource_type = match field.name.as_str() {
+            "products" | "productsCount" => "PRODUCT",
+            "collections" | "collectionsCount" => "COLLECTION",
+            _ => return None,
+        };
+        let saved_search_id = resolved_string_field(&field.arguments, "savedSearchId")?;
+        if field.arguments.contains_key("query") {
+            return Some(product_collection_saved_search_top_level_error(
+                field,
+                "savedSearchId and query arguments cannot be used together",
+                "BAD_REQUEST",
+            ));
+        }
+        if self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .is_some_and(|record| record.resource_type == resource_type)
+        {
+            return None;
+        }
+        Some(product_collection_saved_search_top_level_error(
+            field,
+            &format!(
+                "The saved search with the ID {} could not be found.",
+                saved_search_legacy_resource_id(&saved_search_id)
+            ),
+            "RESOURCE_NOT_FOUND",
+        ))
+    }
+
+    pub(in crate::proxy) fn arguments_with_saved_search_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        resource_type: &str,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return arguments.clone();
+        };
+        let Some(record) = self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .filter(|record| record.resource_type == resource_type)
+        else {
+            return arguments.clone();
+        };
+        let mut merged = arguments.clone();
+        merged.insert("query".to_string(), ResolvedValue::String(record.query));
+        merged
     }
 
     pub(in crate::proxy) fn product_operation_by_id_field(
@@ -374,9 +480,10 @@ impl DraftProxy {
         root_selection: &[SelectedField],
     ) -> Value {
         let products = self.store.products();
+        let arguments = self.arguments_with_saved_search_query(arguments, "PRODUCT");
         selected_staged_connection_with_args(
             products,
-            arguments,
+            &arguments,
             root_selection,
             |product, query| self.product_search_decision(product, query),
             product_staged_sort_key,
@@ -389,10 +496,11 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
-        let count = if field.arguments.contains_key("query") {
+        let arguments = self.arguments_with_saved_search_query(&field.arguments, "PRODUCT");
+        let count = if arguments.contains_key("query") {
             staged_connection_query(
                 self.store.products(),
-                &field.arguments,
+                &arguments,
                 |product, query| self.product_search_decision(product, query),
                 product_staged_sort_key,
                 |product| product_cursor(product).to_string(),

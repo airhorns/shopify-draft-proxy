@@ -1,0 +1,14 @@
+query SavedSearchIdConnectionUnknown($unknownId: ID!) {
+  missingProducts: products(first: 1, savedSearchId: $unknownId) {
+    nodes {
+      id
+      title
+    }
+  }
+  missingCollections: collections(first: 1, savedSearchId: $unknownId) {
+    nodes {
+      id
+      title
+    }
+  }
+}

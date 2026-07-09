@@ -1,0 +1,247 @@
+{
+  "scenarioId": "products-collections-saved-search-id",
+  "operationNames": [
+    "productCreate",
+    "collectionCreate",
+    "savedSearchCreate",
+    "products",
+    "productsCount",
+    "collections",
+    "collectionsCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "downstream-read-parity",
+    "search-filter-parity",
+    "saved-search-id-resolution",
+    "resolver-error-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-collections-saved-search-id.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/saved-search-id-product-create.graphql",
+    "variablesCapturePath": "$.operations.productCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for products(savedSearchId:), productsCount(savedSearchId:), collections(savedSearchId:), and collectionsCount(savedSearchId:) resolving a saved search's stored query. The replay creates disposable product and collection records through public mutations, creates product and collection saved searches using the proxy-allocated resource IDs, then compares direct query reads against savedSearchId reads plus Shopify's unknown-id and query-plus-savedSearchId resolver errors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-setup",
+        "capturePath": "$.operations.productCreate.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local proxy allocate product identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "collection-create-setup",
+        "capturePath": "$.operations.collectionCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-collection-create.graphql",
+          "variablesCapturePath": "$.operations.collectionCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local proxy allocate collection identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "product-saved-search-create",
+        "capturePath": "$.operations.productSavedSearchCreate.response.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-saved-search-create.graphql",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.operations.productSavedSearchCreate.request.variables.input.name"
+              },
+              "query": {
+                "fromProxyResponse": "product-create-setup",
+                "path": "$.data.productCreate.product.id",
+                "resourceIdTail": true,
+                "prefix": "id:"
+              },
+              "resourceType": "PRODUCT"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Shopify and the local proxy allocate saved-search identifiers independently."
+          },
+          {
+            "path": "$.savedSearch.query",
+            "matcher": "any-string",
+            "reason": "The saved-search query intentionally targets the product ID allocated by the current runtime."
+          }
+        ]
+      },
+      {
+        "name": "collection-saved-search-create",
+        "capturePath": "$.operations.collectionSavedSearchCreate.response.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-saved-search-create.graphql",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.operations.collectionSavedSearchCreate.request.variables.input.name"
+              },
+              "query": {
+                "fromProxyResponse": "collection-create-setup",
+                "path": "$.data.collectionCreate.collection.id",
+                "resourceIdTail": true,
+                "prefix": "id:"
+              },
+              "resourceType": "COLLECTION"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Shopify and the local proxy allocate saved-search identifiers independently."
+          },
+          {
+            "path": "$.savedSearch.query",
+            "matcher": "any-string",
+            "reason": "The saved-search query intentionally targets the collection ID allocated by the current runtime."
+          }
+        ]
+      },
+      {
+        "name": "saved-search-id-read",
+        "capturePath": "$.operations.validRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-read.graphql",
+          "variables": {
+            "productSavedSearchId": {
+              "fromProxyResponse": "product-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "productQuery": {
+              "fromProxyResponse": "product-create-setup",
+              "path": "$.data.productCreate.product.id",
+              "resourceIdTail": true,
+              "prefix": "id:"
+            },
+            "collectionSavedSearchId": {
+              "fromProxyResponse": "collection-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "collectionQuery": {
+              "fromProxyResponse": "collection-create-setup",
+              "path": "$.data.collectionCreate.collection.id",
+              "resourceIdTail": true,
+              "prefix": "id:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productsDirect.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The live and local read target equivalent but independently allocated products."
+          },
+          {
+            "path": "$.productsSaved.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The live and local read target equivalent but independently allocated products."
+          },
+          {
+            "path": "$.collectionsDirect.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The live and local read target equivalent but independently allocated collections."
+          },
+          {
+            "path": "$.collectionsSaved.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The live and local read target equivalent but independently allocated collections."
+          }
+        ]
+      },
+      {
+        "name": "saved-search-id-connection-conflict",
+        "capturePath": "$.operations.connectionConflict.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-connection-conflict.graphql",
+          "variables": {
+            "productSavedSearchId": {
+              "fromProxyResponse": "product-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "collectionSavedSearchId": {
+              "fromProxyResponse": "collection-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.connectionConflict.request.variables.query"
+            }
+          }
+        }
+      },
+      {
+        "name": "saved-search-id-count-conflict",
+        "capturePath": "$.operations.countConflict.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-count-conflict.graphql",
+          "variables": {
+            "productSavedSearchId": {
+              "fromProxyResponse": "product-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "collectionSavedSearchId": {
+              "fromProxyResponse": "collection-saved-search-create",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.countConflict.request.variables.query"
+            }
+          }
+        }
+      },
+      {
+        "name": "saved-search-id-connection-unknown",
+        "capturePath": "$.operations.connectionUnknown.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-connection-unknown.graphql",
+          "variablesCapturePath": "$.operations.connectionUnknown.request.variables"
+        }
+      },
+      {
+        "name": "saved-search-id-count-unknown",
+        "capturePath": "$.operations.countUnknown.response",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/saved-search-id-count-unknown.graphql",
+          "variablesCapturePath": "$.operations.countUnknown.request.variables"
+        }
+      }
+    ]
+  }
+}

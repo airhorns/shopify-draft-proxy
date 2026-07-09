@@ -1,0 +1,18 @@
+query SavedSearchIdConnectionConflict(
+  $productSavedSearchId: ID!
+  $collectionSavedSearchId: ID!
+  $query: String!
+) {
+  productConflict: products(first: 1, query: $query, savedSearchId: $productSavedSearchId) {
+    nodes {
+      id
+      title
+    }
+  }
+  collectionConflict: collections(first: 1, query: $query, savedSearchId: $collectionSavedSearchId) {
+    nodes {
+      id
+      title
+    }
+  }
+}

@@ -7185,6 +7185,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'products-collections-saved-search-id',
+    scriptPath: 'scripts/capture-products-collections-saved-search-id-conformance.ts',
+    purpose:
+      'products/collections savedSearchId resolution, filtered counts, query-plus-savedSearchId resolver errors, and unknown saved-search errors.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}products-collections-saved-search-id.json`,
+      'config/parity-specs/products/products-collections-saved-search-id.json',
+      'config/parity-requests/products/saved-search-id-product-create.graphql',
+      'config/parity-requests/products/saved-search-id-collection-create.graphql',
+      'config/parity-requests/products/saved-search-id-saved-search-create.graphql',
+      'config/parity-requests/products/saved-search-id-read.graphql',
+      'config/parity-requests/products/saved-search-id-connection-conflict.graphql',
+      'config/parity-requests/products/saved-search-id-count-conflict.graphql',
+      'config/parity-requests/products/saved-search-id-connection-unknown.graphql',
+      'config/parity-requests/products/saved-search-id-count-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, one disposable collection, and two disposable saved searches; deletes saved searches, collection, and product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collection-reorder-products-manual-sort',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

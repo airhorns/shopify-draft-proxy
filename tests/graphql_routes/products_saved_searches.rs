@@ -12448,6 +12448,370 @@ fn saved_search_create_stages_and_reads_back_selection_aware_results() {
 }
 
 #[test]
+fn saved_search_id_filters_product_and_collection_connections_and_counts() {
+    let mut proxy = snapshot_proxy();
+
+    for (title, tag) in [
+        ("Saved search match product", "saved-search-match"),
+        ("Saved search other product", "saved-search-other"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateProduct($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id title tags }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "product": { "title": title, "tags": [tag] } }),
+        ));
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    for title in ["Needle Collection", "Other Collection"] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateCollection($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection { id title handle }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "title": title } }),
+        ));
+        assert_eq!(
+            create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let product_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Products saved id",
+                "query": "tag:saved-search-match",
+                "resourceType": "PRODUCT"
+            }
+        }),
+    ));
+    assert_eq!(
+        product_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let product_saved_search_id = product_search.body["data"]["savedSearchCreate"]["savedSearch"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let collection_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Collections saved id",
+                "query": "title:Needle",
+                "resourceType": "COLLECTION"
+            }
+        }),
+    ));
+    assert_eq!(
+        collection_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_saved_search_id = collection_search.body["data"]["savedSearchCreate"]
+        ["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSavedSearchIds(
+          $productSavedSearchId: ID!
+          $productQuery: String!
+          $collectionSavedSearchId: ID!
+          $collectionQuery: String!
+        ) {
+          productsDirect: products(first: 10, query: $productQuery, sortKey: TITLE) {
+            nodes { title tags }
+          }
+          productsSaved: products(first: 10, savedSearchId: $productSavedSearchId, sortKey: TITLE) {
+            nodes { title tags }
+          }
+          productsDirectCount: productsCount(query: $productQuery) { count precision }
+          productsSavedCount: productsCount(savedSearchId: $productSavedSearchId) { count precision }
+          collectionsDirect: collections(first: 10, query: $collectionQuery, sortKey: TITLE) {
+            nodes { title handle }
+          }
+          collectionsSaved: collections(first: 10, savedSearchId: $collectionSavedSearchId, sortKey: TITLE) {
+            nodes { title handle }
+          }
+          collectionsDirectCount: collectionsCount(query: $collectionQuery) { count precision }
+          collectionsSavedCount: collectionsCount(savedSearchId: $collectionSavedSearchId) { count precision }
+        }
+        "#,
+        json!({
+            "productSavedSearchId": product_saved_search_id,
+            "productQuery": "tag:saved-search-match",
+            "collectionSavedSearchId": collection_saved_search_id,
+            "collectionQuery": "title:Needle"
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["productsSaved"],
+        read.body["data"]["productsDirect"]
+    );
+    assert_eq!(
+        read.body["data"]["productsSavedCount"],
+        read.body["data"]["productsDirectCount"]
+    );
+    assert_eq!(
+        read.body["data"]["productsSaved"]["nodes"],
+        json!([{ "title": "Saved search match product", "tags": ["saved-search-match"] }])
+    );
+    assert_eq!(
+        read.body["data"]["productsSavedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["collectionsSaved"],
+        read.body["data"]["collectionsDirect"]
+    );
+    assert_eq!(
+        read.body["data"]["collectionsSavedCount"],
+        read.body["data"]["collectionsDirectCount"]
+    );
+    assert_eq!(
+        read.body["data"]["collectionsSaved"]["nodes"],
+        json!([{ "title": "Needle Collection", "handle": "needle-collection" }])
+    );
+    assert_eq!(
+        read.body["data"]["collectionsSavedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn product_and_collection_saved_search_id_errors_match_shopify() {
+    let mut proxy = snapshot_proxy();
+
+    let product_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownProductSavedSearch {
+          missingProducts: products(first: 1, savedSearchId: "gid://shopify/SavedSearch/0") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_unknown.status, 200);
+    assert_eq!(product_unknown.body["data"], Value::Null);
+    assert_eq!(
+        product_unknown.body["errors"][0]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        product_unknown.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        product_unknown.body["errors"][0]["path"],
+        json!(["missingProducts"])
+    );
+
+    let collection_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCollectionSavedSearch {
+          missingCollections: collections(first: 1, savedSearchId: "gid://shopify/SavedSearch/0") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(collection_unknown.status, 200);
+    assert_eq!(collection_unknown.body["data"], Value::Null);
+    assert_eq!(
+        collection_unknown.body["errors"][0]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        collection_unknown.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        collection_unknown.body["errors"][0]["path"],
+        json!(["missingCollections"])
+    );
+
+    let count_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownSavedSearchCounts {
+          productCount: productsCount(savedSearchId: "gid://shopify/SavedSearch/0") {
+            count
+            precision
+          }
+          collectionCount: collectionsCount(savedSearchId: "gid://shopify/SavedSearch/0") {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count_unknown.status, 200);
+    assert_eq!(count_unknown.body["data"]["productCount"], Value::Null);
+    assert_eq!(count_unknown.body["data"]["collectionCount"], Value::Null);
+    assert_eq!(
+        count_unknown.body["errors"][0]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        count_unknown.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        count_unknown.body["errors"][0]["path"],
+        json!(["productCount"])
+    );
+    assert_eq!(
+        count_unknown.body["errors"][1]["message"],
+        json!("The saved search with the ID 0 could not be found.")
+    );
+    assert_eq!(
+        count_unknown.body["errors"][1]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        count_unknown.body["errors"][1]["path"],
+        json!(["collectionCount"])
+    );
+
+    let product_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductSavedSearchConflict {
+          productConflict: products(
+            first: 1
+            query: "title:beta"
+            savedSearchId: "gid://shopify/SavedSearch/0"
+          ) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(product_conflict.status, 200);
+    assert_eq!(product_conflict.body["data"], Value::Null);
+    assert_eq!(
+        product_conflict.body["errors"][0]["message"],
+        json!("savedSearchId and query arguments cannot be used together")
+    );
+    assert_eq!(
+        product_conflict.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        product_conflict.body["errors"][0]["path"],
+        json!(["productConflict"])
+    );
+
+    let collection_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionSavedSearchConflict {
+          collectionConflict: collections(
+            first: 1
+            query: "title:beta"
+            savedSearchId: "gid://shopify/SavedSearch/0"
+          ) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(collection_conflict.status, 200);
+    assert_eq!(collection_conflict.body["data"], Value::Null);
+    assert_eq!(
+        collection_conflict.body["errors"][0]["message"],
+        json!("savedSearchId and query arguments cannot be used together")
+    );
+    assert_eq!(
+        collection_conflict.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        collection_conflict.body["errors"][0]["path"],
+        json!(["collectionConflict"])
+    );
+
+    let count_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query CountSavedSearchConflict {
+          productCount: productsCount(query: "title:beta", savedSearchId: "gid://shopify/SavedSearch/0") {
+            count
+            precision
+          }
+          collectionCount: collectionsCount(query: "title:beta", savedSearchId: "gid://shopify/SavedSearch/0") {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count_conflict.status, 200);
+    assert_eq!(count_conflict.body["data"]["productCount"], Value::Null);
+    assert_eq!(count_conflict.body["data"]["collectionCount"], Value::Null);
+    assert_eq!(
+        count_conflict.body["errors"][0]["message"],
+        json!("savedSearchId and query arguments cannot be used together")
+    );
+    assert_eq!(
+        count_conflict.body["errors"][0]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        count_conflict.body["errors"][0]["path"],
+        json!(["productCount"])
+    );
+    assert_eq!(
+        count_conflict.body["errors"][1]["message"],
+        json!("savedSearchId and query arguments cannot be used together")
+    );
+    assert_eq!(
+        count_conflict.body["errors"][1]["extensions"]["code"],
+        json!("BAD_REQUEST")
+    );
+    assert_eq!(
+        count_conflict.body["errors"][1]["path"],
+        json!(["collectionCount"])
+    );
+}
+
+#[test]
 fn saved_search_app_namespace_uses_request_api_client_id() {
     let mut proxy = snapshot_proxy();
     let mut create_request = json_graphql_request(
