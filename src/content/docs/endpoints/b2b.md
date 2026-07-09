@@ -72,7 +72,12 @@ addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,
 `companyLocation(id:)`, `companies`, `companiesCount`, and `companyLocations` expand that staged graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
-`roleAssignments`, and `staffMemberAssignments` connections. LiveHybrid reads
+`roleAssignments`, and `staffMemberAssignments` connections. `Company.orders`
+and `CompanyLocation.orders` expose the same staged orders that feed
+`ordersCount`, `orderCount`, and `totalSpent`; `Company.draftOrders` and
+`CompanyLocation.draftOrders` expose matching staged draft orders. These nested
+order connections honor cursor windows and return empty connection objects when
+no staged records match. LiveHybrid reads
 that do not target staged B2B IDs continue to use the existing upstream or
 fixture-backed read path.
 

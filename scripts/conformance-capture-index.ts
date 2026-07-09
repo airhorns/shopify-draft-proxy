@@ -831,7 +831,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-b2b-company-location-order-aggregates-conformance.ts',
     purpose:
-      'B2B Company and CompanyLocation totalSpent/ordersCount/lifetimeDuration/currency/catalog aggregate reads after a completed B2B draft order and company-location catalogCreate.',
+      'B2B Company and CompanyLocation totalSpent/ordersCount/lifetimeDuration/currency/catalog aggregate reads plus nested orders/draftOrders connections after a completed B2B draft order and company-location catalogCreate.',
     requiredAuthScopes: [
       'read_companies',
       'write_companies',
@@ -851,10 +851,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/b2b/b2b-company-location-order-aggregates-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable B2B company/location/contact, one completed paid B2B draft order, and one CompanyLocationCatalog; records aggregate readback after indexing, then cancels/deletes the completed order, deletes the catalog, and attempts company deletion.',
+      'Creates a disposable B2B company/location/contact, one completed paid B2B draft order, and one CompanyLocationCatalog; records aggregate and nested order/draft-order connection readback after indexing, then cancels/deletes the completed order, deletes the catalog, and attempts company deletion.',
     expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
     notes:
-      'The live 2025-01/2026-04 CompanyLocation schema exposes catalogs, currency, ordersCount, and totalSpent; orderCount and market remain local runtime compatibility coverage because the live conformance schema does not expose those fields.',
+      'The live 2025-01/2026-04 CompanyLocation schema exposes catalogs, currency, orders, draftOrders, ordersCount, and totalSpent; orderCount and market remain local runtime compatibility coverage because the live conformance schema does not expose those fields.',
   },
   {
     domain: 'b2b',
