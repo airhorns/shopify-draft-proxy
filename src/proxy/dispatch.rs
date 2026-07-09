@@ -203,6 +203,11 @@ impl DraftProxy {
                     || self.config.read_mode == ReadMode::Snapshot
                 {
                     let fields = root_fields(query, variables).unwrap_or_default();
+                    if let Some(response) =
+                        self.product_collection_saved_search_error_response(&fields)
+                    {
+                        return response;
+                    }
                     if product_root_fields_select_shop_currency_money(&fields) {
                         self.hydrate_shop_pricing_state_if_missing(request, true, false);
                     }
@@ -245,8 +250,12 @@ impl DraftProxy {
                 {
                     self.hydrate_collections_for_read(request);
                 }
+                let fields = try_root_fields!(query, variables);
+                if let Some(response) = self.product_collection_saved_search_error_response(&fields)
+                {
+                    return response;
+                }
                 if self.store.has_collection_state() {
-                    let fields = try_root_fields!(query, variables);
                     ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
                 } else {
                     (self.upstream_transport)(request.clone())

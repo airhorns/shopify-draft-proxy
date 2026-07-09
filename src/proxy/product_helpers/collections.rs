@@ -446,6 +446,7 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
+        let arguments = self.arguments_with_saved_search_query(arguments, "COLLECTION");
         staged_connection_query(
             self.store
                 .staged
@@ -453,7 +454,7 @@ impl DraftProxy {
                 .values()
                 .cloned()
                 .collect::<Vec<_>>(),
-            arguments,
+            &arguments,
             |collection, query| self.collection_search_decision(collection, query),
             collection_staged_sort_key,
             value_id_cursor,

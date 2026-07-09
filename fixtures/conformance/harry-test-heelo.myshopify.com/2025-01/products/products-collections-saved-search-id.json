@@ -1,0 +1,541 @@
+{
+  "scenarioId": "products-collections-saved-search-id",
+  "capturedAt": "2026-07-09T02:25:44.494Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "operations": {
+    "productCreate": {
+      "request": {
+        "query": "mutation SavedSearchIdProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      vendor\n      productType\n      tags\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "saved-search-id-63942424 product",
+            "vendor": "saved-search-id-63942424",
+            "productType": "SavedSearchId",
+            "tags": ["ssid-63942424"]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10234615038258",
+              "title": "saved-search-id-63942424 product",
+              "vendor": "saved-search-id-63942424",
+              "productType": "SavedSearchId",
+              "tags": ["ssid-63942424"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionCreate": {
+      "request": {
+        "query": "mutation SavedSearchIdCollectionCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "saved-search-id-63942424 collection"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514228748594",
+              "title": "saved-search-id-63942424 collection",
+              "handle": "saved-search-id-63942424-collection"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productSavedSearchCreate": {
+      "request": {
+        "query": "mutation SavedSearchIdSavedSearchCreate($input: SavedSearchCreateInput!) {\n  savedSearchCreate(input: $input) {\n    savedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "name": "SSIP63942424",
+            "query": "id:10234615038258",
+            "resourceType": "PRODUCT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "savedSearchCreate": {
+            "savedSearch": {
+              "id": "gid://shopify/SavedSearch/4082747441458",
+              "name": "SSIP63942424",
+              "query": "id:10234615038258",
+              "resourceType": "PRODUCT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionSavedSearchCreate": {
+      "request": {
+        "query": "mutation SavedSearchIdSavedSearchCreate($input: SavedSearchCreateInput!) {\n  savedSearchCreate(input: $input) {\n    savedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "name": "SSIC63942424",
+            "query": "id:514228748594",
+            "resourceType": "COLLECTION"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "savedSearchCreate": {
+            "savedSearch": {
+              "id": "gid://shopify/SavedSearch/4082747474226",
+              "name": "SSIC63942424",
+              "query": "id:514228748594",
+              "resourceType": "COLLECTION"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "validRead": {
+      "request": {
+        "query": "query SavedSearchIdRead(\n  $productSavedSearchId: ID!\n  $productQuery: String!\n  $collectionSavedSearchId: ID!\n  $collectionQuery: String!\n) {\n  productsDirect: products(first: 10, query: $productQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  productsSaved: products(first: 10, savedSearchId: $productSavedSearchId) {\n    nodes {\n      id\n      title\n    }\n  }\n  productsDirectCount: productsCount(query: $productQuery) {\n    count\n    precision\n  }\n  productsSavedCount: productsCount(savedSearchId: $productSavedSearchId) {\n    count\n    precision\n  }\n  collectionsDirect: collections(first: 10, query: $collectionQuery) {\n    nodes {\n      id\n      title\n    }\n  }\n  collectionsSaved: collections(first: 10, savedSearchId: $collectionSavedSearchId) {\n    nodes {\n      id\n      title\n    }\n  }\n  collectionsDirectCount: collectionsCount(query: $collectionQuery) {\n    count\n    precision\n  }\n  collectionsSavedCount: collectionsCount(savedSearchId: $collectionSavedSearchId) {\n    count\n    precision\n  }\n}\n",
+        "variables": {
+          "productSavedSearchId": "gid://shopify/SavedSearch/4082747441458",
+          "productQuery": "id:10234615038258",
+          "collectionSavedSearchId": "gid://shopify/SavedSearch/4082747474226",
+          "collectionQuery": "id:514228748594"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productsDirect": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10234615038258",
+                "title": "saved-search-id-63942424 product"
+              }
+            ]
+          },
+          "productsSaved": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10234615038258",
+                "title": "saved-search-id-63942424 product"
+              }
+            ]
+          },
+          "productsDirectCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "productsSavedCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "collectionsDirect": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514228748594",
+                "title": "saved-search-id-63942424 collection"
+              }
+            ]
+          },
+          "collectionsSaved": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514228748594",
+                "title": "saved-search-id-63942424 collection"
+              }
+            ]
+          },
+          "collectionsDirectCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "collectionsSavedCount": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 64,
+            "actualQueryCost": 52,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1948,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "connectionConflict": {
+      "request": {
+        "query": "query SavedSearchIdConnectionConflict(\n  $productSavedSearchId: ID!\n  $collectionSavedSearchId: ID!\n  $query: String!\n) {\n  productConflict: products(first: 1, query: $query, savedSearchId: $productSavedSearchId) {\n    nodes {\n      id\n      title\n    }\n  }\n  collectionConflict: collections(first: 1, query: $query, savedSearchId: $collectionSavedSearchId) {\n    nodes {\n      id\n      title\n    }\n  }\n}\n",
+        "variables": {
+          "productSavedSearchId": "gid://shopify/SavedSearch/4082747441458",
+          "collectionSavedSearchId": "gid://shopify/SavedSearch/4082747474226",
+          "query": "title:beta"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "savedSearchId and query arguments cannot be used together",
+            "locations": [
+              {
+                "line": 6,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["productConflict"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1956,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "countConflict": {
+      "request": {
+        "query": "query SavedSearchIdCountConflict(\n  $productSavedSearchId: ID!\n  $collectionSavedSearchId: ID!\n  $query: String!\n) {\n  productCount: productsCount(query: $query, savedSearchId: $productSavedSearchId) {\n    count\n    precision\n  }\n  collectionCount: collectionsCount(query: $query, savedSearchId: $collectionSavedSearchId) {\n    count\n    precision\n  }\n}\n",
+        "variables": {
+          "productSavedSearchId": "gid://shopify/SavedSearch/4082747441458",
+          "collectionSavedSearchId": "gid://shopify/SavedSearch/4082747474226",
+          "query": "title:beta"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "savedSearchId and query arguments cannot be used together",
+            "locations": [
+              {
+                "line": 6,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["productCount"]
+          },
+          {
+            "message": "savedSearchId and query arguments cannot be used together",
+            "locations": [
+              {
+                "line": 10,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["collectionCount"]
+          }
+        ],
+        "data": {
+          "productCount": null,
+          "collectionCount": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "connectionUnknown": {
+      "request": {
+        "query": "query SavedSearchIdConnectionUnknown($unknownId: ID!) {\n  missingProducts: products(first: 1, savedSearchId: $unknownId) {\n    nodes {\n      id\n      title\n    }\n  }\n  missingCollections: collections(first: 1, savedSearchId: $unknownId) {\n    nodes {\n      id\n      title\n    }\n  }\n}\n",
+        "variables": {
+          "unknownId": "gid://shopify/SavedSearch/0"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "The saved search with the ID 0 could not be found.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["missingProducts"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1948,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "countUnknown": {
+      "request": {
+        "query": "query SavedSearchIdCountUnknown($unknownId: ID!) {\n  productCount: productsCount(savedSearchId: $unknownId) {\n    count\n    precision\n  }\n  collectionCount: collectionsCount(savedSearchId: $unknownId) {\n    count\n    precision\n  }\n}\n",
+        "variables": {
+          "unknownId": "gid://shopify/SavedSearch/0"
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "The saved search with the ID 0 could not be found.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["productCount"]
+          },
+          {
+            "message": "The saved search with the ID 0 could not be found.",
+            "locations": [
+              {
+                "line": 6,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["collectionCount"]
+          }
+        ],
+        "data": {
+          "productCount": null,
+          "collectionCount": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1936,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "mutation SavedSearchIdSavedSearchCleanup($input: SavedSearchDeleteInput!) {\n  savedSearchDelete(input: $input) {\n    deletedSavedSearchId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/SavedSearch/4082747441458"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "savedSearchDelete": {
+            "deletedSavedSearchId": "gid://shopify/SavedSearch/4082747441458",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1935,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "mutation SavedSearchIdSavedSearchCleanup($input: SavedSearchDeleteInput!) {\n  savedSearchDelete(input: $input) {\n    deletedSavedSearchId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/SavedSearch/4082747474226"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "savedSearchDelete": {
+            "deletedSavedSearchId": "gid://shopify/SavedSearch/4082747474226",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1936,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "mutation SavedSearchIdCollectionCleanup($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514228748594"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514228748594",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1936,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "mutation SavedSearchIdProductCleanup($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10234615038258"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10234615038258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1943,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

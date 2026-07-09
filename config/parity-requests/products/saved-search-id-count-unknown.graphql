@@ -1,0 +1,10 @@
+query SavedSearchIdCountUnknown($unknownId: ID!) {
+  productCount: productsCount(savedSearchId: $unknownId) {
+    count
+    precision
+  }
+  collectionCount: collectionsCount(savedSearchId: $unknownId) {
+    count
+    precision
+  }
+}

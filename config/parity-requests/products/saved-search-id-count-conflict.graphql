@@ -1,0 +1,14 @@
+query SavedSearchIdCountConflict(
+  $productSavedSearchId: ID!
+  $collectionSavedSearchId: ID!
+  $query: String!
+) {
+  productCount: productsCount(query: $query, savedSearchId: $productSavedSearchId) {
+    count
+    precision
+  }
+  collectionCount: collectionsCount(query: $query, savedSearchId: $collectionSavedSearchId) {
+    count
+    precision
+  }
+}

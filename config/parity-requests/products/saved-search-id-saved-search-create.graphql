@@ -1,0 +1,14 @@
+mutation SavedSearchIdSavedSearchCreate($input: SavedSearchCreateInput!) {
+  savedSearchCreate(input: $input) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

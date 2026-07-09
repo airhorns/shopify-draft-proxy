@@ -1,0 +1,47 @@
+query SavedSearchIdRead(
+  $productSavedSearchId: ID!
+  $productQuery: String!
+  $collectionSavedSearchId: ID!
+  $collectionQuery: String!
+) {
+  productsDirect: products(first: 10, query: $productQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  productsSaved: products(first: 10, savedSearchId: $productSavedSearchId) {
+    nodes {
+      id
+      title
+    }
+  }
+  productsDirectCount: productsCount(query: $productQuery) {
+    count
+    precision
+  }
+  productsSavedCount: productsCount(savedSearchId: $productSavedSearchId) {
+    count
+    precision
+  }
+  collectionsDirect: collections(first: 10, query: $collectionQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  collectionsSaved: collections(first: 10, savedSearchId: $collectionSavedSearchId) {
+    nodes {
+      id
+      title
+    }
+  }
+  collectionsDirectCount: collectionsCount(query: $collectionQuery) {
+    count
+    precision
+  }
+  collectionsSavedCount: collectionsCount(savedSearchId: $collectionSavedSearchId) {
+    count
+    precision
+  }
+}
