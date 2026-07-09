@@ -3010,13 +3010,7 @@ impl DraftProxy {
     }
 
     fn b2b_company_order_aggregate(&self, company_id: &str) -> B2bOrderAggregate {
-        let company_location_ids = self
-            .store
-            .staged
-            .b2b_companies
-            .get(company_id)
-            .map(|company| b2b_json_id_list(company, "locationIds"))
-            .unwrap_or_default();
+        let company_location_ids = self.b2b_company_location_ids(company_id);
         let default_currency = company_location_ids
             .iter()
             .find_map(|location_id| {
@@ -3032,12 +3026,11 @@ impl DraftProxy {
                     })
             })
             .unwrap_or_else(|| self.store.shop_currency_code());
-        self.b2b_order_aggregate(default_currency, |order| {
-            b2b_record_references_company(order, company_id)
-                || company_location_ids
-                    .iter()
-                    .any(|location_id| b2b_record_references_company_location(order, location_id))
-        })
+        let mut aggregate = B2bOrderAggregate::new(default_currency);
+        for order in self.b2b_company_order_records(company_id) {
+            aggregate.add_order(&order);
+        }
+        aggregate
     }
 
     fn b2b_company_location_order_aggregate(&self, location_id: &str) -> B2bOrderAggregate {
@@ -3050,33 +3043,95 @@ impl DraftProxy {
                 b2b_company_location_currency_code(location, &self.store.shop_currency_code())
             })
             .unwrap_or_else(|| self.store.shop_currency_code());
-        self.b2b_order_aggregate(default_currency, |order| {
+        let mut aggregate = B2bOrderAggregate::new(default_currency);
+        for order in self.b2b_company_location_order_records(location_id) {
+            aggregate.add_order(&order);
+        }
+        aggregate
+    }
+
+    fn b2b_company_order_records(&self, company_id: &str) -> Vec<Value> {
+        let company_location_ids = self.b2b_company_location_ids(company_id);
+        self.b2b_matching_order_records(|order| {
+            b2b_record_references_company(order, company_id)
+                || company_location_ids
+                    .iter()
+                    .any(|location_id| b2b_record_references_company_location(order, location_id))
+        })
+    }
+
+    fn b2b_company_location_order_records(&self, location_id: &str) -> Vec<Value> {
+        self.b2b_matching_order_records(|order| {
             b2b_record_references_company_location(order, location_id)
         })
     }
 
-    fn b2b_order_aggregate<Matches>(
-        &self,
-        default_currency_code: String,
-        matches: Matches,
-    ) -> B2bOrderAggregate
+    fn b2b_company_draft_order_records(&self, company_id: &str) -> Vec<Value> {
+        let company_location_ids = self.b2b_company_location_ids(company_id);
+        self.b2b_matching_draft_order_records(|draft_order| {
+            b2b_record_references_company(draft_order, company_id)
+                || company_location_ids.iter().any(|location_id| {
+                    b2b_record_references_company_location(draft_order, location_id)
+                })
+        })
+    }
+
+    fn b2b_company_location_draft_order_records(&self, location_id: &str) -> Vec<Value> {
+        self.b2b_matching_draft_order_records(|draft_order| {
+            b2b_record_references_company_location(draft_order, location_id)
+        })
+    }
+
+    fn b2b_matching_order_records<Matches>(&self, matches: Matches) -> Vec<Value>
     where
         Matches: Fn(&Value) -> bool,
     {
-        let mut aggregate = B2bOrderAggregate::new(default_currency_code);
+        let mut records = Vec::new();
         let mut seen_order_ids = BTreeSet::new();
         for (order_id, order) in self.store.staged.orders.iter() {
             if matches(order) {
                 seen_order_ids.insert(order_id.clone());
-                aggregate.add_order(order);
+                records.push(order.clone());
             }
         }
         for (order_id, order) in &self.store.staged.order_customer_orders {
             if !seen_order_ids.contains(order_id) && matches(order) {
-                aggregate.add_order(order);
+                records.push(order.clone());
             }
         }
-        aggregate
+        records
+    }
+
+    fn b2b_matching_draft_order_records<Matches>(&self, matches: Matches) -> Vec<Value>
+    where
+        Matches: Fn(&Value) -> bool,
+    {
+        self.store
+            .staged
+            .draft_orders
+            .values()
+            .filter(|draft_order| matches(draft_order))
+            .cloned()
+            .collect()
+    }
+
+    fn b2b_selected_order_records_connection(
+        &self,
+        records: Vec<Value>,
+        selection: &SelectedField,
+    ) -> Value {
+        selected_typed_connection_with_args(
+            &records,
+            &selection.arguments,
+            &selection.selection,
+            |record, fields| {
+                selected_json(
+                    &self.payment_terms_owner_record_with_effective_due(record),
+                    fields,
+                )
+            },
+            value_id_cursor,
+        )
     }
 
     fn b2b_company_location_catalogs_connection(
@@ -3168,6 +3223,14 @@ impl DraftProxy {
             "ordersCount" => Some(selected_count_json(
                 order_aggregate.count,
                 &selection.selection,
+            )),
+            "orders" => Some(self.b2b_selected_order_records_connection(
+                self.b2b_company_order_records(company_id),
+                selection,
+            )),
+            "draftOrders" => Some(self.b2b_selected_order_records_connection(
+                self.b2b_company_draft_order_records(company_id),
+                selection,
             )),
             "lifetimeDuration" => Some(
                 company
@@ -3304,6 +3367,14 @@ impl DraftProxy {
                 &selection.selection,
             )),
             "orderCount" => Some(json!(order_aggregate.count)),
+            "orders" => Some(self.b2b_selected_order_records_connection(
+                self.b2b_company_location_order_records(location_id),
+                selection,
+            )),
+            "draftOrders" => Some(self.b2b_selected_order_records_connection(
+                self.b2b_company_location_draft_order_records(location_id),
+                selection,
+            )),
             "market" => Some(
                 self.b2b_company_location_market_selected_json(location_id, &selection.selection),
             ),

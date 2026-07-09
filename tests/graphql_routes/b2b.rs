@@ -3978,6 +3978,388 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
 }
 
 #[test]
+fn b2b_company_and_location_order_sub_connections_are_state_backed() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BOrderConnectionsCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              mainContact { id }
+              locations(first: 1) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Connection Buyer" },
+                "companyContact": {
+                    "firstName": "Connection",
+                    "lastName": "Buyer",
+                    "email": "connection-buyer@example.test"
+                },
+                "companyLocation": { "name": "Connection HQ" }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let contact_id = company["mainContact"]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let location_id = company["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+
+    let empty_company_id = create_b2b_company(&mut proxy, "Empty Connection Buyer");
+    let empty_location_id = create_b2b_location(&mut proxy, &empty_company_id, "Empty HQ");
+
+    let create_order = |proxy: &mut DraftProxy, title: &str, amount: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BOrderConnectionsOrderCreate($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id name currentTotalPriceSet { shopMoney { amount currencyCode } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": "connection-order@example.test",
+                    "currency": "USD",
+                    "purchasingEntity": {
+                        "purchasingCompany": {
+                            "companyId": company_id,
+                            "companyLocationId": location_id
+                        }
+                    },
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "priceSet": { "amount": amount, "currencyCode": "USD" }
+                    }]
+                }
+            }),
+        ))
+    };
+    let first_order = create_order(&mut proxy, "Connection first order", "12.50");
+    let second_order = create_order(&mut proxy, "Connection second order", "7.50");
+    assert_eq!(
+        first_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("first order id")
+        .to_string();
+    let first_order_name = first_order.body["data"]["orderCreate"]["order"]["name"]
+        .as_str()
+        .expect("first order name")
+        .to_string();
+    let second_order_id = second_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("second order id")
+        .to_string();
+    let second_order_name = second_order.body["data"]["orderCreate"]["order"]["name"]
+        .as_str()
+        .expect("second order name")
+        .to_string();
+
+    let create_draft_order = |proxy: &mut DraftProxy, email: &str, title: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BOrderConnectionsDraftOrderCreate($input: DraftOrderInput!) {
+              draftOrderCreate(input: $input) {
+                draftOrder { id name status totalPriceSet { shopMoney { amount currencyCode } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "purchasingEntity": {
+                        "purchasingCompany": {
+                            "companyId": company_id,
+                            "companyContactId": contact_id,
+                            "companyLocationId": location_id
+                        }
+                    },
+                    "email": email,
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "originalUnitPrice": "5.00",
+                        "requiresShipping": false,
+                        "taxable": false
+                    }]
+                }
+            }),
+        ))
+    };
+    let first_draft = create_draft_order(
+        &mut proxy,
+        "connection-draft-one@example.test",
+        "Connection first draft",
+    );
+    let second_draft = create_draft_order(
+        &mut proxy,
+        "connection-draft-two@example.test",
+        "Connection second draft",
+    );
+    assert_eq!(
+        first_draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_draft_id = first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("first draft id")
+        .to_string();
+    let first_draft_name = first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["name"]
+        .as_str()
+        .expect("first draft name")
+        .to_string();
+    let first_draft_total =
+        first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["totalPriceSet"].clone();
+    let second_draft_id = second_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("second draft id")
+        .to_string();
+    let second_draft_name = second_draft.body["data"]["draftOrderCreate"]["draftOrder"]["name"]
+        .as_str()
+        .expect("second draft name")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BOrderSubConnections(
+          $companyId: ID!
+          $locationId: ID!
+          $emptyCompanyId: ID!
+          $emptyLocationId: ID!
+          $firstOrderCursor: String!
+          $secondOrderCursor: String!
+          $firstDraftCursor: String!
+          $secondDraftCursor: String!
+        ) {
+          company(id: $companyId) {
+            ordersCount { count precision }
+            totalSpent { amount currencyCode }
+            ordersFirst: orders(first: 1) {
+              nodes { id name currentTotalPriceSet { shopMoney { amount currencyCode } } }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            ordersAfter: orders(first: 1, after: $firstOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            ordersBefore: orders(last: 1, before: $secondOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersFirst: draftOrders(first: 1) {
+              nodes { id name status totalPriceSet { shopMoney { amount currencyCode } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersAfter: draftOrders(first: 1, after: $firstDraftCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          companyLocation(id: $locationId) {
+            orderCount
+            ordersAfter: orders(first: 1, after: $firstOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersBefore: draftOrders(last: 1, before: $secondDraftCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          emptyCompany: company(id: $emptyCompanyId) {
+            orders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          emptyLocation: companyLocation(id: $emptyLocationId) {
+            orders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "locationId": location_id,
+            "emptyCompanyId": empty_company_id,
+            "emptyLocationId": empty_location_id,
+            "firstOrderCursor": first_order_id,
+            "secondOrderCursor": second_order_id,
+            "firstDraftCursor": first_draft_id,
+            "secondDraftCursor": second_draft_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "20.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["nodes"],
+        json!([{
+            "id": first_order_id,
+            "name": first_order_name,
+            "currentTotalPriceSet": {
+                "shopMoney": { "amount": "12.5", "currencyCode": "USD" }
+            }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["edges"],
+        json!([{ "cursor": first_order_id, "node": { "id": first_order_id } }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_order_id,
+            "endCursor": first_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersAfter"]["nodes"],
+        json!([{ "id": second_order_id, "name": second_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersAfter"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": second_order_id,
+            "endCursor": second_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersBefore"]["nodes"],
+        json!([{ "id": first_order_id, "name": first_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersBefore"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_order_id,
+            "endCursor": first_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersFirst"]["nodes"],
+        json!([{
+            "id": first_draft_id,
+            "name": first_draft_name,
+            "status": "OPEN",
+            "totalPriceSet": first_draft_total
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_draft_id,
+            "endCursor": first_draft_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersAfter"]["nodes"],
+        json!([{ "id": second_draft_id, "name": second_draft_name }])
+    );
+    assert_eq!(read.body["data"]["companyLocation"]["orderCount"], json!(2));
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersAfter"]["nodes"],
+        json!([{ "id": second_order_id, "name": second_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["draftOrdersBefore"]["nodes"],
+        json!([{ "id": first_draft_id, "name": first_draft_name }])
+    );
+    let empty_page_info = json!({
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": Value::Null,
+        "endCursor": Value::Null
+    });
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["orders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["orders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["draftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["draftOrders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["orders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["orders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["draftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["draftOrders"]["pageInfo"],
+        empty_page_info
+    );
+}
+
+#[test]
 fn b2b_company_connections_filter_sort_reverse_count_and_window() {
     let mut proxy = snapshot_proxy();
     let acme_company_id = create_b2b_company(&mut proxy, "Acme Supplies");
