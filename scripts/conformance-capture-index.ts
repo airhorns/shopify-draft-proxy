@@ -8391,6 +8391,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-line-discount-percent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-edit-line-discount-percent-conformance.ts',
+    purpose:
+      'Order-edit line-item percentValue discount live parity: applies a percentage discount to a disposable non-taxable order line and records the cold OrdersOrderEditHydrate forward instead of a setup-block seed.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-line-discount-percent-value.json',
+      'config/parity-specs/orders/orderEditAddLineItemDiscount-percentValue.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order with a non-taxable custom line, applies a percent line discount in an order-edit session, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-zero-removal',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-zero-removal-conformance.ts',

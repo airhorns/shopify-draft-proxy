@@ -11958,6 +11958,159 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
 }
 
 #[test]
+fn order_edit_add_line_item_discount_applies_percent_value_and_keeps_fixed_per_unit() {
+    let mut proxy = snapshot_proxy();
+    let create_document = r#"
+        mutation CreateOrderEditDiscountOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let begin_document = r#"
+        mutation BeginOrderEditForLineDiscount($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              lineItems(first: 1) {
+                nodes { id }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let discount_document = r#"
+        mutation AddOrderEditLineDiscount($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!) {
+          orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+            addedDiscountStagedChange { id description }
+            calculatedLineItem {
+              id
+              hasStagedLineItemDiscount
+              originalUnitPriceSet { shopMoney { amount currencyCode } }
+              discountedUnitPriceSet { shopMoney { amount currencyCode } }
+              calculatedDiscountAllocations {
+                allocatedAmountSet { shopMoney { amount currencyCode } }
+                discountApplication { id description }
+              }
+            }
+            calculatedOrder {
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let create_order = |proxy: &mut DraftProxy, email: &str| {
+        let create = proxy.process_request(json_graphql_request(
+            create_document,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "lineItems": [{
+                        "title": "Discountable order edit line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "100.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        create.body["data"]["orderCreate"]["order"]["id"].clone()
+    };
+    let begin_edit = |proxy: &mut DraftProxy, order_id: Value| {
+        let begin = proxy.process_request(json_graphql_request(
+            begin_document,
+            json!({ "id": order_id }),
+        ));
+        assert_eq!(
+            begin.body["data"]["orderEditBegin"]["userErrors"],
+            json!([])
+        );
+        (
+            begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone(),
+            begin.body["data"]["orderEditBegin"]["calculatedOrder"]["lineItems"]["nodes"][0]["id"]
+                .clone(),
+        )
+    };
+
+    let percent_order_id = create_order(&mut proxy, "order-edit-percent-discount@example.test");
+    let (percent_calculated_id, percent_line_id) = begin_edit(&mut proxy, percent_order_id);
+    let percent = proxy.process_request(json_graphql_request(
+        discount_document,
+        json!({
+            "id": percent_calculated_id,
+            "lineItemId": percent_line_id,
+            "discount": {
+                "description": "Ten percent off",
+                "percentValue": 10.0
+            }
+        }),
+    ));
+    assert_eq!(percent.status, 200, "body: {}", percent.body);
+    assert!(
+        percent.body.get("errors").is_none(),
+        "body: {}",
+        percent.body
+    );
+    let percent_payload = &percent.body["data"]["orderEditAddLineItemDiscount"];
+    assert_eq!(percent_payload["userErrors"], json!([]));
+    assert_eq!(
+        percent_payload["calculatedLineItem"]["hasStagedLineItemDiscount"],
+        json!(true)
+    );
+    assert_eq!(
+        percent_payload["calculatedLineItem"]["originalUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "100.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        percent_payload["calculatedLineItem"]["discountedUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "90.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        percent_payload["calculatedLineItem"]["calculatedDiscountAllocations"][0]
+            ["allocatedAmountSet"]["shopMoney"],
+        json!({ "amount": "20.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        percent_payload["calculatedOrder"]["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "180.0", "currencyCode": "USD" })
+    );
+
+    let fixed_order_id = create_order(&mut proxy, "order-edit-fixed-discount@example.test");
+    let (fixed_calculated_id, fixed_line_id) = begin_edit(&mut proxy, fixed_order_id);
+    let fixed = proxy.process_request(json_graphql_request(
+        discount_document,
+        json!({
+            "id": fixed_calculated_id,
+            "lineItemId": fixed_line_id,
+            "discount": {
+                "description": "Fifteen off each unit",
+                "fixedValue": { "amount": "15.00", "currencyCode": "USD" }
+            }
+        }),
+    ));
+    let fixed_payload = &fixed.body["data"]["orderEditAddLineItemDiscount"];
+    assert_eq!(fixed_payload["userErrors"], json!([]));
+    assert_eq!(
+        fixed_payload["calculatedLineItem"]["discountedUnitPriceSet"]["shopMoney"],
+        json!({ "amount": "85.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        fixed_payload["calculatedLineItem"]["calculatedDiscountAllocations"][0]
+            ["allocatedAmountSet"]["shopMoney"],
+        json!({ "amount": "30.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        fixed_payload["calculatedOrder"]["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "170.0", "currencyCode": "USD" })
+    );
+}
+
+#[test]
 fn order_edit_commit_recomputes_derived_statuses_and_totals_after_added_item() {
     let mut proxy = snapshot_proxy();
     let create_document = r#"
