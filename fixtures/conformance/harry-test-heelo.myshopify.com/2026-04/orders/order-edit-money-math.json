@@ -1,0 +1,1047 @@
+{
+  "capturedAt": "2026-07-08T14:31:32.945Z",
+  "scenarioId": "order-edit-money-math",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Live Shopify Admin GraphQL capture for order-edit money math. The taxed branch creates a disposable two-unit order with a $26 line tax, sets quantity to one, commits, and reads the order back. The discount branch creates a disposable zero-tax order, adds a fixed $20 line-item discount, commits, and reads the order back. All setup uses public Admin GraphQL requests; no proxy/local-runtime output is used as Shopify evidence.",
+  "cases": {
+    "taxed": {
+      "create": {
+        "query": "mutation OrderEditMoneyMathCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          quantity\n          currentQuantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-money-taxed-20260708143123@example.com",
+            "note": "order edit money math taxed 20260708143123",
+            "tags": ["order-edit-money-math", "taxed", "20260708143123"],
+            "test": true,
+            "currency": "CAD",
+            "financialStatus": "PENDING",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "OrderEdit",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "Order edit taxed source 20260708143123",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "100.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "100.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true,
+                "sku": "order-edit-taxed-20260708143123",
+                "taxLines": [
+                  {
+                    "title": "Line tax",
+                    "rate": 0.13,
+                    "priceSet": {
+                      "shopMoney": {
+                        "amount": "26.00",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "26.00",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8913892278578",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "200.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentSubtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "200.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalTaxSet": {
+                    "shopMoney": {
+                      "amount": "26.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalTaxSet": {
+                    "shopMoney": {
+                      "amount": "26.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "226.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "226.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "title": "Order edit taxed source 20260708143123",
+                        "quantity": 2,
+                        "currentQuantity": 2,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "taxLines": [
+                          {
+                            "title": "Line tax",
+                            "rate": 0.13,
+                            "priceSet": {
+                              "shopMoney": {
+                                "amount": "26.0",
+                                "currencyCode": "CAD"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 18,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditMoneyMathBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          discountedUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8913892278578"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/115235455282",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8913892278578"
+                  },
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "200.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "226.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19813261115698",
+                        "title": "Order edit taxed source 20260708143123",
+                        "quantity": 2,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "discountedUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "orderEditSession": {
+                  "id": "gid://shopify/OrderEditSession/115235455282"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setQuantity": {
+        "query": "mutation OrderEditMoneyMathSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n      subtotalLineItemsQuantity\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          discountedUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      discountedUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/115235455282",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19813261115698",
+          "quantity": 1
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditSetQuantity": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/115235455282",
+                  "subtotalLineItemsQuantity": 1,
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "113.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19813261115698",
+                        "title": "Order edit taxed source 20260708143123",
+                        "quantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "discountedUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "calculatedLineItem": {
+                  "id": "gid://shopify/CalculatedLineItem/19813261115698",
+                  "title": "Order edit taxed source 20260708143123",
+                  "quantity": 1,
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountedUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 15,
+                "actualQueryCost": 13,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1987,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditMoneyMathCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTaxLines {\n        title\n        rate\n        priceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          quantity\n          currentQuantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/115235455282",
+          "notifyCustomer": false,
+          "staffNote": "order edit money math taxed commit"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8913892278578",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "200.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentSubtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalTaxSet": {
+                    "shopMoney": {
+                      "amount": "26.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalTaxSet": {
+                    "shopMoney": {
+                      "amount": "13.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "226.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "113.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTaxLines": [
+                    {
+                      "title": "Line tax",
+                      "rate": 0.13,
+                      "priceSet": {
+                        "shopMoney": {
+                          "amount": "13.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "title": "Order edit taxed source 20260708143123",
+                        "quantity": 2,
+                        "currentQuantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "taxLines": [
+                          {
+                            "title": "Line tax",
+                            "rate": 0.13,
+                            "priceSet": {
+                              "shopMoney": {
+                                "amount": "26.0",
+                                "currencyCode": "CAD"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "successMessages": ["Order updated"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 19,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "query": "query OrderEditMoneyMathRead($id: ID!) {\n  order(id: $id) {\n    id\n    subtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        title\n        quantity\n        currentQuantity\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        taxLines {\n          title\n          rate\n          priceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8913892278578"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8913892278578",
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "200.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "100.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "26.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "13.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "226.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "113.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTaxLines": [
+                  {
+                    "title": "Line tax",
+                    "rate": 0.13,
+                    "priceSet": {
+                      "shopMoney": {
+                        "amount": "13.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Order edit taxed source 20260708143123",
+                      "quantity": 2,
+                      "currentQuantity": 1,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "100.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": [
+                        {
+                          "title": "Line tax",
+                          "rate": 0.13,
+                          "priceSet": {
+                            "shopMoney": {
+                              "amount": "26.0",
+                              "currencyCode": "CAD"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 6,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1994,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "discount": {
+      "create": {
+        "query": "mutation OrderEditMoneyMathCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          quantity\n          currentQuantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-money-discount-20260708143123@example.com",
+            "note": "order edit money math discount 20260708143123",
+            "tags": ["order-edit-money-math", "discount", "20260708143123"],
+            "test": true,
+            "currency": "CAD",
+            "financialStatus": "PENDING",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "OrderEdit",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "Order edit discount source 20260708143123",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "100.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "100.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "order-edit-discount-20260708143123"
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8913894408498",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentSubtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalTaxSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalTaxSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "title": "Order edit discount source 20260708143123",
+                        "quantity": 1,
+                        "currentQuantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "taxLines": []
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 18,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditMoneyMathBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          discountedUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8913894408498"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/115235684658",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8913894408498"
+                  },
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19813273436466",
+                        "title": "Order edit discount source 20260708143123",
+                        "quantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "discountedUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "orderEditSession": {
+                  "id": "gid://shopify/OrderEditSession/115235684658"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "addLineItemDiscount": {
+        "query": "mutation OrderEditMoneyMathAddLineItemDiscount(\n  $id: ID!\n  $lineItemId: ID!\n  $discount: OrderEditAppliedDiscountInput!\n) {\n  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {\n    addedDiscountStagedChange {\n      id\n      description\n    }\n    calculatedOrder {\n      id\n      subtotalLineItemsQuantity\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          discountedUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      hasStagedLineItemDiscount\n      calculatedDiscountAllocations {\n        allocatedAmountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        discountApplication {\n          id\n          description\n        }\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      discountedUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/115235684658",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19813273436466",
+          "discount": {
+            "description": "order edit money math line discount",
+            "fixedValue": {
+              "amount": "20.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditAddLineItemDiscount": {
+                "addedDiscountStagedChange": {
+                  "id": "gid://shopify/OrderStagedChangeAddLineItemDiscount/260335632690",
+                  "description": "order edit money math line discount"
+                },
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/115235684658",
+                  "subtotalLineItemsQuantity": 1,
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19813273436466",
+                        "title": "Order edit discount source 20260708143123",
+                        "quantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "discountedUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "80.0",
+                            "currencyCode": "CAD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "calculatedLineItem": {
+                  "id": "gid://shopify/CalculatedLineItem/19813273436466",
+                  "title": "Order edit discount source 20260708143123",
+                  "quantity": 1,
+                  "hasStagedLineItemDiscount": true,
+                  "calculatedDiscountAllocations": [
+                    {
+                      "allocatedAmountSet": {
+                        "shopMoney": {
+                          "amount": "20.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "discountApplication": {
+                        "id": "gid://shopify/CalculatedManualDiscountApplication/ba2ab9de-25e1-4568-b382-95334afdbc3e",
+                        "description": "order edit money math line discount"
+                      }
+                    }
+                  ],
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "100.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountedUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditMoneyMathCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentSubtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTaxLines {\n        title\n        rate\n        priceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          title\n          quantity\n          currentQuantity\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/115235684658",
+          "notifyCustomer": false,
+          "staffNote": "order edit money math discount commit"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8913894408498",
+                  "subtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentSubtotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalTaxSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalTaxSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "80.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "currentTaxLines": [],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "title": "Order edit discount source 20260708143123",
+                        "quantity": 1,
+                        "currentQuantity": 1,
+                        "originalUnitPriceSet": {
+                          "shopMoney": {
+                            "amount": "100.0",
+                            "currencyCode": "CAD"
+                          }
+                        },
+                        "taxLines": []
+                      }
+                    ]
+                  }
+                },
+                "successMessages": ["Order updated"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 19,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "query": "query OrderEditMoneyMathRead($id: ID!) {\n  order(id: $id) {\n    id\n    subtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        title\n        quantity\n        currentQuantity\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        taxLines {\n          title\n          rate\n          priceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8913894408498"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8913894408498",
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "80.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "80.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "80.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "80.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTaxLines": [],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Order edit discount source 20260708143123",
+                      "quantity": 1,
+                      "currentQuantity": 1,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "100.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 6,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1994,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "orderId": "gid://shopify/Order/8913894408498",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/a0985416-1b0f-426d-ae7f-aa03abb94307"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "orderId": "gid://shopify/Order/8913892278578",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/fad9ccab-bf99-4ea6-bbc6-03696d054e61"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
