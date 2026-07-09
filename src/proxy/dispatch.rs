@@ -1542,6 +1542,8 @@ impl DraftProxy {
                     // observed state yet) forward upstream and observe the result so
                     // later pickup mutations and reads resolve locally.
                     self.delivery_profile_locations_read_response(request, &fields)
+                } else if matches!(root_field, "deliverySettings" | "deliveryPromiseSettings") {
+                    self.delivery_settings_read_response(request, &fields)
                 } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
                     ok_json(json!({ "data": data }))
                 } else if matches!(
