@@ -10797,7 +10797,112 @@ fn order_capture_zero_amount_uses_captured_public_error_without_code() {
 }
 
 #[test]
-fn order_payment_create_defaults_amount_and_gateway_from_order_state() {
+fn order_payment_create_preserves_empty_payment_view_without_transactions() {
+    let mut proxy = snapshot_proxy();
+    let plain_status = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePlainUnpaidOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Plain unpaid order",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        plain_status.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        plain_status.body["data"]["orderCreate"]["order"]["displayFinancialStatus"],
+        Value::Null
+    );
+
+    let payment_projection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePaymentProjectionOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              capturable
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              totalCapturable
+              totalCapturableSet { shopMoney { amount currencyCode } }
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              netPaymentSet { shopMoney { amount currencyCode } }
+              paymentGatewayNames
+              transactions {
+                id
+                kind
+                status
+                gateway
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "No transaction payment projection",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "13.25", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        payment_projection.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let projected_order = &payment_projection.body["data"]["orderCreate"]["order"];
+    assert_eq!(projected_order["displayFinancialStatus"], Value::Null);
+    assert_eq!(projected_order["capturable"], json!(false));
+    assert_eq!(
+        projected_order["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "26.5", "currencyCode": "USD" })
+    );
+    assert_eq!(projected_order["totalCapturable"], json!("0.0"));
+    assert_eq!(
+        projected_order["totalCapturableSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        projected_order["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "26.5", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        projected_order["totalReceivedSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        projected_order["netPaymentSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(projected_order["paymentGatewayNames"], json!([]));
+    assert_eq!(projected_order["transactions"], json!([]));
+}
+
+#[test]
+fn order_payment_create_preserves_transaction_backed_payment_view() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
         mutation CreatePaymentProjectionOrder($order: OrderCreateOrderInput!) {
@@ -10805,7 +10910,7 @@ fn order_payment_create_defaults_amount_and_gateway_from_order_state() {
             order {
               id
               displayFinancialStatus
-              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              capturable
               totalCapturableSet { shopMoney { amount currencyCode } }
               paymentGatewayNames
               transactions {
@@ -10820,37 +10925,6 @@ fn order_payment_create_defaults_amount_and_gateway_from_order_state() {
           }
         }
     "#;
-
-    let default_amount = proxy.process_request(json_graphql_request(
-        create_query,
-        json!({
-            "order": {
-                "currency": "USD",
-                "lineItems": [{
-                    "title": "Default payment amount",
-                    "quantity": 2,
-                    "priceSet": { "shopMoney": { "amount": "13.25", "currencyCode": "USD" } }
-                }]
-            }
-        }),
-    ));
-    assert_eq!(
-        default_amount.body["data"]["orderCreate"]["userErrors"],
-        json!([])
-    );
-    let default_order = &default_amount.body["data"]["orderCreate"]["order"];
-    assert_eq!(
-        default_order["currentTotalPriceSet"]["shopMoney"],
-        json!({ "amount": "26.5", "currencyCode": "USD" })
-    );
-    assert_eq!(
-        default_order["transactions"][0]["amountSet"]["shopMoney"],
-        json!({ "amount": "26.5", "currencyCode": "USD" })
-    );
-    assert_eq!(
-        default_order["totalCapturableSet"]["shopMoney"],
-        json!({ "amount": "26.5", "currencyCode": "USD" })
-    );
 
     let gateway_create = proxy.process_request(json_graphql_request(
         create_query,
@@ -10880,10 +10954,48 @@ fn order_payment_create_defaults_amount_and_gateway_from_order_state() {
         gateway_order["paymentGatewayNames"],
         json!(["shopify_payments"])
     );
+    assert_eq!(gateway_order["displayFinancialStatus"], json!("AUTHORIZED"));
+    assert_eq!(gateway_order["capturable"], json!(true));
+    assert_eq!(
+        gateway_order["totalCapturableSet"]["shopMoney"],
+        json!({ "amount": "31.9", "currencyCode": "CAD" })
+    );
     assert_eq!(
         gateway_order["transactions"][0]["gateway"],
         json!("shopify_payments")
     );
+
+    for (kind, expected_status) in [("SALE", "PAID"), ("CAPTURE", "PAID")] {
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({
+                "order": {
+                    "currency": "CAD",
+                    "transactions": [{
+                        "kind": kind,
+                        "status": "SUCCESS",
+                        "gateway": "manual",
+                        "amountSet": { "shopMoney": { "amount": "12.00", "currencyCode": "CAD" } }
+                    }],
+                    "lineItems": [{
+                        "title": format!("{kind} transaction propagation"),
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "CAD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        let order = &create.body["data"]["orderCreate"]["order"];
+        assert_eq!(order["displayFinancialStatus"], json!(expected_status));
+        assert_eq!(order["capturable"], json!(false));
+        assert_eq!(order["paymentGatewayNames"], json!(["manual"]));
+        assert_eq!(order["transactions"][0]["kind"], json!(kind));
+        assert_eq!(
+            order["transactions"][0]["amountSet"]["shopMoney"],
+            json!({ "amount": "12.0", "currencyCode": "CAD" })
+        );
+    }
 }
 
 #[test]

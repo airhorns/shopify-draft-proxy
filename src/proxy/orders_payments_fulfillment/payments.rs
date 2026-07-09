@@ -1473,6 +1473,10 @@ impl DraftProxy {
         // layered on top so a payment-field selection still receives the complete
         // order shape rather than the totals-only subset.
         let mut order = self.build_order_create_record(&id, &order_record_input);
+        if transaction_inputs.is_empty() {
+            self.store.staged.orders.insert(id, order.clone());
+            return order;
+        }
         let shop_currency_code = self.store.shop_currency_code();
         let amount_set = transaction_amount_set.unwrap_or_else(|| {
             order_money_set_with_presentment_fallback(
