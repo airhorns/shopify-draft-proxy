@@ -135,6 +135,15 @@ Local staged mutations:
   The `order-refund-fulfillment-usererror-no-code` parity spec also records
   the no-`code` schema boundary for `refundCreate` alongside the fulfillment
   payload roots.
+- For known order line items, `refundCreate` caps each refund line against the
+  line's remaining refundable quantity and returns
+  `Quantity cannot refund more items than were purchased` on the indexed
+  `refundLineItems[n].quantity` path when a sequential refund exceeds what
+  earlier refunds left available. Downstream `Order.lineItems.nodes`
+  projections expose `refundableQuantity` from the staged order graph, so reads
+  reflect the remaining per-line quantity after each local refund. This
+  read-after-write branch is covered by focused Rust runtime tests rather than a
+  new captured parity fixture.
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
   line items, while `returnCancel`, `returnClose`, `returnReopen`, and `removeFromReturn` enforce captured
   status/editability preconditions before updating local return state. Top-level `return(id:)` and nested `Order.returns`

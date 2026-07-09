@@ -104,6 +104,69 @@ pub(in crate::proxy) fn order_line_item_by_id(order: &Value, line_item_id: &str)
         .find(|line| line["id"].as_str() == Some(line_item_id))
 }
 
+fn refund_line_items(refund: &Value) -> Vec<Value> {
+    if let Some(nodes) = refund["refundLineItems"]["nodes"].as_array() {
+        return nodes.clone();
+    }
+    refund["refundLineItems"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn refund_line_item_line_id(refund_line_item: &Value) -> Option<&str> {
+    refund_line_item["lineItem"]["id"]
+        .as_str()
+        .or_else(|| refund_line_item["lineItemId"].as_str())
+}
+
+fn refunded_quantities_by_line_id(order: &Value) -> BTreeMap<String, i64> {
+    let mut quantities = BTreeMap::new();
+    for refund in order["refunds"].as_array().into_iter().flatten() {
+        for refund_line_item in refund_line_items(refund) {
+            let Some(line_item_id) = refund_line_item_line_id(&refund_line_item) else {
+                continue;
+            };
+            let quantity = refund_line_item["quantity"].as_i64().unwrap_or(0).max(0);
+            *quantities.entry(line_item_id.to_string()).or_insert(0) += quantity;
+        }
+    }
+    quantities
+}
+
+fn line_item_refundable_quantity_before_refunds(line: &Value) -> i64 {
+    line["currentQuantity"]
+        .as_i64()
+        .or_else(|| line["quantity"].as_i64())
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn sync_order_refundable_quantities(order: &mut Value) {
+    let refunded_quantities = refunded_quantities_by_line_id(order);
+    let sync_line = |line: &mut Value| {
+        let line_item_id = line["id"].as_str().unwrap_or_default();
+        let already_refunded = refunded_quantities
+            .get(line_item_id)
+            .copied()
+            .unwrap_or_default();
+        let refundable_quantity = line_item_refundable_quantity_before_refunds(line)
+            .saturating_sub(already_refunded)
+            .max(0);
+        line["refundableQuantity"] = json!(refundable_quantity);
+    };
+
+    if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+        for line in nodes {
+            sync_line(line);
+        }
+    } else if let Some(lines) = order["lineItems"].as_array_mut() {
+        for line in lines {
+            sync_line(line);
+        }
+    }
+}
+
 pub(in crate::proxy) fn order_transaction_by_id(
     order: &Value,
     transaction_id: &str,
@@ -234,6 +297,7 @@ pub(in crate::proxy) fn refund_order_with_defaults(
     if !order.get("transactions").is_some_and(Value::is_array) {
         order["transactions"] = json!(order_transactions(&order));
     }
+    sync_order_refundable_quantities(&mut order);
     order
 }
 
@@ -331,8 +395,9 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
-        let refundable_quantity = line["currentQuantity"]
+        let refundable_quantity = line["refundableQuantity"]
             .as_i64()
+            .or_else(|| line["currentQuantity"].as_i64())
             .or_else(|| line["quantity"].as_i64())
             .unwrap_or(0);
         if quantity > refundable_quantity {
@@ -535,6 +600,7 @@ pub(in crate::proxy) fn update_order_after_refund(
     if order.get("returns").is_none_or(Value::is_null) {
         order["returns"] = order_connection(Vec::new());
     }
+    sync_order_refundable_quantities(&mut order);
     order
 }
 
