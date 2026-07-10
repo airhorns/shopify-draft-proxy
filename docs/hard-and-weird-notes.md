@@ -3289,21 +3289,34 @@ Practical rule:
   do not apply the ordinary owner-type pin-cap error; use the captured next
   pinned position behavior for `pin: true`
 
-## 65. Discount redeem-code bulk support is narrow by design
+## 65. Discount bulk support is selector-scoped by design
 
-HAR-197 added a safe local model for code-basic redeem-code bulk operations without promoting broad discount bulk lifecycle roots.
+HAR-197 added a safe local model for code-basic redeem-code bulk operations.
+HAR-2278 promoted the broad code bulk activate/deactivate/delete roots and
+automatic bulk delete root to local staging for selectors backed by executable
+evidence.
 
 Useful constraints:
 
 - `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
 - The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
 - HAR-785 live 2026-04 validation capture for `discountCodeRedeemCodeBulkDelete` shows the base selector errors serialize as `field: null` in Admin GraphQL, despite the internal source helper naming the base field. The same capture shows unknown discounts return `field: ["discountId"]`, message `Code discount does not exist.`, and empty `ids` returns the generic `Something went wrong, please try again.` with `code: null`.
-- The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
+- The broad code/automatic bulk roots are selector-scoped local operations, not
+  upstream job mirrors. `discountCodeBulkActivate`,
+  `discountCodeBulkDeactivate`, `discountCodeBulkDelete`, and
+  `discountAutomaticBulkDelete` resolve `ids`, non-blank `search`, and known
+  `savedSearchId` selectors against the effective local discount catalog and
+  never forward the caller's mutation at runtime. Missing selectors, mutually
+  exclusive selectors, code-root blank search, and captured code-delete search
+  field validation still return local `DiscountUserError` payloads instead of
+  staging.
 - Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
 
 Practical rule:
 
-- do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
+- do not widen broad discount bulk selectors or job-state fields beyond the
+  captured branches until local staging covers the added lifecycle and
+  downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
 
 ## 66. `productSet` inventory quantities are location rows, but product totals lag

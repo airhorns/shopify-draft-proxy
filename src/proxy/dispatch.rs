@@ -2031,22 +2031,6 @@ impl DraftProxy {
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
-        // Discount bulk activate/deactivate/delete jobs run upstream (the async
-        // `job` is the real recorded one), but the proxy must mirror their effect
-        // onto its local overlay so later reads in the same scenario see the
-        // transition. Forward byte-for-byte, then apply the overlay side effect
-        // when the job was accepted. Bulk fields embedded in a locally-dispatched
-        // omnibus mutation do not reach here (their primary root field is the
-        // create), so this only affects standalone bulk requests.
-        if operation.operation_type == OperationType::Mutation
-            && is_discount_bulk_action_root(root_field)
-        {
-            let response = (self.upstream_transport)(request.clone());
-            if response.status == 200 {
-                self.apply_discount_bulk_overlay_effects(&query, &variables, &response.body);
-            }
-            return response;
-        }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, execution) => self.dispatch_products_graphql(
                 request, &query, &variables, &operation, root_field, execution,

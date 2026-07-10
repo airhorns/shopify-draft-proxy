@@ -1231,83 +1231,120 @@ impl DraftProxy {
         )
     }
 
-    /// Resolver-level selector validation shared by the discount bulk activate /
-    /// deactivate / delete mutations (`discount{Code,Automatic}Bulk*`). Shopify
-    /// requires exactly one of `ids`, `search`, or `savedSearchId`; supplying more
-    /// than one is rejected up front with a `job: null` payload and a
-    /// `TOO_MANY_ARGUMENTS` base error. The code and automatic families phrase the
-    /// message differently. Single/zero-selector jobs are not staged locally, so
-    /// those paths keep the not-implemented marker (they only reach this handler as
-    /// a sibling of a locally-dispatched mutation; standalone bulk requests are
-    /// forwarded upstream instead).
-    fn discount_bulk_action(&self, field: &RootFieldSelection) -> MutationFieldOutcome {
-        if discount_bulk_selector_count(field) > 1 {
-            let message = if field.name.starts_with("discountAutomatic") {
+    /// Local staging for broad discount bulk activate / deactivate / delete roots.
+    /// The payload exposes a completed local `Job` because the in-memory state
+    /// transition has already happened; it does not represent upstream job state.
+    fn discount_bulk_action(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+        let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [user_error_with_extra_info(Value::Null, "Local staging for this discount mutation is not implemented.", Some("NOT_IMPLEMENTED"), Value::Null)],
+            }));
+        };
+        if let Some(user_errors) = self.discount_bulk_selector_user_errors(field) {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": user_errors,
+            }));
+        }
+
+        let target_ids = self.discount_bulk_selector_ids(field, kind);
+        for id in &target_ids {
+            self.apply_discount_bulk_transition(id, action);
+        }
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let mut staged_ids = vec![job_id.clone()];
+        staged_ids.extend(target_ids);
+        MutationFieldOutcome::staged(
+            json!({
+                "job": { "id": job_id, "done": true, "query": Value::Null },
+                "userErrors": []
+            }),
+            LogDraft::staged(&field.name, "discounts", staged_ids),
+        )
+    }
+
+    fn discount_bulk_selector_user_errors(&self, field: &RootFieldSelection) -> Option<Vec<Value>> {
+        let selector_count = discount_bulk_selector_count(field);
+        let automatic = field.name.starts_with("discountAutomatic");
+        if selector_count == 0 {
+            let message = if automatic {
+                "One of IDs, search argument or saved search ID is required."
+            } else {
+                "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+            };
+            return Some(vec![user_error_with_extra_info(
+                Value::Null,
+                message,
+                Some("MISSING_ARGUMENT"),
+                Value::Null,
+            )]);
+        }
+        if selector_count > 1 {
+            let message = if automatic {
                 "Only one of IDs, search argument or saved search ID is allowed."
             } else {
                 "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
             };
-            return MutationFieldOutcome::unlogged(json!({
-                "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(Value::Null, message, Some("TOO_MANY_ARGUMENTS"), Value::Null)],
-            }));
+            return Some(vec![user_error_with_extra_info(
+                Value::Null,
+                message,
+                Some("TOO_MANY_ARGUMENTS"),
+                Value::Null,
+            )]);
         }
-        MutationFieldOutcome::unlogged(json!({
-            "job": Value::Null,
-            "userErrors": [user_error_with_extra_info(Value::Null, "Local staging for this discount mutation is not implemented.", Some("NOT_IMPLEMENTED"), Value::Null)],
-        }))
-    }
-
-    /// Apply the local-overlay consequences of a discount bulk activate /
-    /// deactivate / delete mutation that was forwarded upstream. The async job
-    /// itself runs server-side (the forwarded response carries the real `job`),
-    /// but the proxy's overlay must reflect the resulting state so later reads in
-    /// the same scenario observe the transition. We only act on staged discounts
-    /// matching the mutation's selector (`ids` or `search`) and its
-    /// code/automatic kind, and only when the upstream accepted the job (a
-    /// non-null `job` with no userErrors) — rejected validation cases leave the
-    /// overlay untouched. `savedSearchId` selectors are not resolved locally; the
-    /// forwarded response still stands for those.
-    pub(in crate::proxy) fn apply_discount_bulk_overlay_effects(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_body: &Value,
-    ) {
-        let Some(fields) = root_fields(query, variables) else {
-            return;
-        };
-        for field in &fields {
-            let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
-                continue;
-            };
-            let payload = &response_body["data"][&field.response_key];
-            if payload.is_null() {
-                continue;
+        if let Some(search) = resolved_string_field(&field.arguments, "search") {
+            if search.trim().is_empty() && !automatic {
+                return Some(vec![user_error_with_extra_info(
+                    vec!["search"],
+                    "'Search' can't be blank.",
+                    Some("BLANK"),
+                    Value::Null,
+                )]);
             }
-            let job_accepted = payload
-                .get("job")
-                .map(|job| !job.is_null())
+            if field.name == "discountCodeBulkDelete" {
+                let invalid_fields = discount_code_bulk_delete_invalid_search_fields(&search);
+                if !invalid_fields.is_empty() {
+                    return Some(vec![user_error_with_extra_info(
+                        vec!["search"],
+                        &format!(
+                            "Invalid search field(s): {}. Check the query syntax.",
+                            invalid_fields.join(", ")
+                        ),
+                        Some("INVALID"),
+                        Value::Null,
+                    )]);
+                }
+            }
+        }
+        if let Some(saved_search_id) = discount_bulk_saved_search_id(field) {
+            let valid = self
+                .store
+                .saved_search_by_id(&saved_search_id)
+                .map(|record| record.resource_type == "DISCOUNT")
                 .unwrap_or(false);
-            let no_user_errors = payload
-                .get("userErrors")
-                .and_then(Value::as_array)
-                .map(|errors| errors.is_empty())
-                .unwrap_or(true);
-            if !job_accepted || !no_user_errors {
-                continue;
-            }
-            for id in self.discount_bulk_selector_ids(field, kind) {
-                self.apply_discount_bulk_transition(&id, action);
+            if !valid {
+                let message = if automatic {
+                    "Invalid savedSearchId."
+                } else {
+                    "Invalid 'saved_search_id'."
+                };
+                return Some(vec![user_error_with_extra_info(
+                    vec!["savedSearchId"],
+                    message,
+                    Some("INVALID"),
+                    Value::Null,
+                )]);
             }
         }
+        None
     }
 
     /// Resolve the staged discount ids a bulk mutation's selector targets,
     /// restricted to the mutation's discount kind (`code` / `automatic`). An
     /// `ids` selector keeps only the supplied ids that resolve to a staged
-    /// discount of the right kind; a `search` selector matches the staged
-    /// overlay with the same query semantics reads use.
+    /// discount of the right kind; `search` and `savedSearchId` selectors match
+    /// the staged overlay with the same query semantics reads use.
     fn discount_bulk_selector_ids(&self, field: &RootFieldSelection, kind: &str) -> Vec<String> {
         if let Some(ResolvedValue::List(values)) = field.arguments.get("ids") {
             return values
@@ -1323,7 +1360,19 @@ impl DraftProxy {
                 })
                 .collect();
         }
-        if let Some(ResolvedValue::String(search)) = field.arguments.get("search") {
+        let search = match field.arguments.get("search") {
+            Some(ResolvedValue::String(search)) => Some(search.clone()),
+            _ => discount_bulk_saved_search_id(field).and_then(|id| {
+                self.store
+                    .saved_search_by_id(&id)
+                    .filter(|record| record.resource_type == "DISCOUNT")
+                    .map(|record| record.query)
+            }),
+        };
+        if let Some(search) = search {
+            if search.trim().is_empty() {
+                return Vec::new();
+            }
             return self
                 .store
                 .staged
@@ -1337,7 +1386,7 @@ impl DraftProxy {
                         .is_tombstoned(discount_id(record))
                 })
                 .filter(|record| discount_kind(record) == kind)
-                .filter(|record| self.discount_matches_query(record, search))
+                .filter(|record| self.discount_matches_query(record, &search))
                 .map(|record| discount_id(record).to_string())
                 .collect();
         }
@@ -3656,11 +3705,34 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
     }
 }
 
-/// Whether a mutation root field is a discount bulk activate / deactivate /
-/// delete. These forward upstream for the async `job`, then apply their effect
-/// to the local overlay so later reads stay consistent.
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
-    discount_bulk_root_action(name).is_some()
+fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {
+    resolved_string_field(&field.arguments, "savedSearchId")
+        .or_else(|| resolved_string_field(&field.arguments, "saved_search_id"))
+}
+
+fn discount_code_bulk_delete_invalid_search_fields(search: &str) -> Vec<String> {
+    let mut invalid = Vec::new();
+    for token in saved_search_query_tokens(search) {
+        let trimmed = token.trim_matches(|ch| ch == '(' || ch == ')');
+        let Some((key, _)) = saved_search_filter_from_token(trimmed) else {
+            continue;
+        };
+        let base_key = discount_bulk_search_base_key(&key);
+        let allowed = matches!(
+            base_key,
+            "default" | "status" | "times_used" | "discount_type"
+        );
+        if !allowed && !invalid.iter().any(|existing| existing == base_key) {
+            invalid.push(base_key.to_string());
+        }
+    }
+    invalid
+}
+
+fn discount_bulk_search_base_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
 }
 
 fn discount_matches_query_with_status(record: &Value, query: &str, status: &str) -> bool {

@@ -1995,7 +1995,6 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
-pub(in crate::proxy) use self::discounts::*;
 pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
