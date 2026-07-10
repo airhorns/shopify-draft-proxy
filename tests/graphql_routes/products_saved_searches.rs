@@ -15009,6 +15009,235 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
 }
 
 #[test]
+fn collection_identifier_roots_resolve_staged_state_without_upstream() {
+    for read_mode in [ReadMode::Snapshot, ReadMode::LiveHybrid] {
+        let read_mode_label = format!("{read_mode:?}");
+        let assert_mixed_collection_roots = matches!(read_mode, ReadMode::Snapshot);
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let calls = Arc::clone(&upstream_calls);
+        let mut proxy = configured_proxy(read_mode, None).with_upstream_transport(move |request| {
+            calls.lock().unwrap().push(request.body);
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "upstream should not be called"}]}),
+            }
+        });
+
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateCollection($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection { id title handle }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "title": "Identifier Roots",
+                    "handle": "identifier-roots"
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query CollectionIdentifierRoots($id: ID!, $handle: String!) {
+              byId: collectionByIdentifier(identifier: { id: $id }) {
+                id
+                title
+                handle
+              }
+              byHandle: collectionByIdentifier(identifier: { handle: $handle }) {
+                id
+                title
+                handle
+              }
+              deprecatedHandle: collectionByHandle(handle: $handle) {
+                id
+                title
+                handle
+              }
+              missingHandle: collectionByIdentifier(identifier: { handle: "missing-handle-for-local-read" }) {
+                id
+              }
+              customId: collectionByIdentifier(identifier: { customId: { namespace: "custom", key: "external_id", value: "missing" } }) {
+                id
+              }
+            }
+            "#,
+            json!({ "id": collection_id, "handle": "identifier-roots" }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["byId"],
+            json!({
+                "id": collection_id,
+                "title": "Identifier Roots",
+                "handle": "identifier-roots"
+            })
+        );
+        assert_eq!(read.body["data"]["byHandle"], read.body["data"]["byId"]);
+        assert_eq!(
+            read.body["data"]["deprecatedHandle"],
+            read.body["data"]["byId"]
+        );
+        assert_eq!(read.body["data"]["missingHandle"], Value::Null);
+        assert_eq!(read.body["data"]["customId"], Value::Null);
+
+        if assert_mixed_collection_roots {
+            let mixed_read = proxy.process_request(json_graphql_request(
+                r#"
+                query MixedCollectionLookupRoots($handle: String!) {
+                  collections(first: 10, query: "handle:identifier-roots", sortKey: ID) {
+                    nodes { id title handle }
+                  }
+                  byHandle: collectionByIdentifier(identifier: { handle: $handle }) {
+                    id
+                    title
+                    handle
+                  }
+                  deprecatedHandle: collectionByHandle(handle: $handle) {
+                    id
+                    title
+                    handle
+                  }
+                }
+                "#,
+                json!({ "handle": "identifier-roots" }),
+            ));
+            assert_eq!(mixed_read.status, 200);
+            assert_eq!(
+                mixed_read.body["data"]["byHandle"],
+                mixed_read.body["data"]["collections"]["nodes"][0]
+            );
+            assert_eq!(
+                mixed_read.body["data"]["deprecatedHandle"],
+                mixed_read.body["data"]["byHandle"]
+            );
+        }
+
+        let update = proxy.process_request(json_graphql_request(
+            r#"
+            mutation UpdateCollection($input: CollectionInput!) {
+              collectionUpdate(input: $input) {
+                collection { id title handle }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "id": collection_id,
+                    "title": "Identifier Roots Updated",
+                    "handle": "identifier-roots-updated"
+                }
+            }),
+        ));
+        assert_eq!(
+            update.body["data"]["collectionUpdate"]["userErrors"],
+            json!([])
+        );
+
+        let after_update = proxy.process_request(json_graphql_request(
+            r#"
+            query UpdatedCollectionIdentifierRoots($id: ID!, $oldHandle: String!, $newHandle: String!) {
+              byId: collectionByIdentifier(identifier: { id: $id }) {
+                id
+                title
+                handle
+              }
+              oldIdentifier: collectionByIdentifier(identifier: { handle: $oldHandle }) {
+                id
+              }
+              newIdentifier: collectionByIdentifier(identifier: { handle: $newHandle }) {
+                id
+                title
+                handle
+              }
+              oldDeprecated: collectionByHandle(handle: $oldHandle) {
+                id
+              }
+              newDeprecated: collectionByHandle(handle: $newHandle) {
+                id
+                handle
+              }
+            }
+            "#,
+            json!({
+                "id": collection_id,
+                "oldHandle": "identifier-roots",
+                "newHandle": "identifier-roots-updated"
+            }),
+        ));
+        assert_eq!(
+            after_update.body["data"]["byId"],
+            json!({
+                "id": collection_id,
+                "title": "Identifier Roots Updated",
+                "handle": "identifier-roots-updated"
+            })
+        );
+        assert_eq!(after_update.body["data"]["oldIdentifier"], Value::Null);
+        assert_eq!(after_update.body["data"]["oldDeprecated"], Value::Null);
+        assert_eq!(
+            after_update.body["data"]["newIdentifier"],
+            after_update.body["data"]["byId"]
+        );
+        assert_eq!(
+            after_update.body["data"]["newDeprecated"],
+            json!({
+                "id": collection_id,
+                "handle": "identifier-roots-updated"
+            })
+        );
+
+        let delete = proxy.process_request(json_graphql_request(
+            r#"
+            mutation DeleteCollection($input: CollectionDeleteInput!) {
+              collectionDelete(input: $input) {
+                deletedCollectionId
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "id": collection_id } }),
+        ));
+        assert_eq!(
+            delete.body["data"]["collectionDelete"]["deletedCollectionId"],
+            json!(collection_id)
+        );
+
+        let after_delete = proxy.process_request(json_graphql_request(
+            r#"
+            query DeletedCollectionIdentifierRoots($id: ID!, $handle: String!) {
+              byId: collectionByIdentifier(identifier: { id: $id }) { id }
+              byHandle: collectionByIdentifier(identifier: { handle: $handle }) { id }
+              deprecatedHandle: collectionByHandle(handle: $handle) { id }
+            }
+            "#,
+            json!({ "id": collection_id, "handle": "identifier-roots-updated" }),
+        ));
+        assert_eq!(after_delete.body["data"]["byId"], Value::Null);
+        assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+        assert_eq!(after_delete.body["data"]["deprecatedHandle"], Value::Null);
+        assert!(
+            upstream_calls.lock().unwrap().is_empty(),
+            "{read_mode_label} should not call upstream for locally answerable collection lookup roots"
+        );
+    }
+}
+
+#[test]
 fn collection_products_connection_windows_and_tracks_staged_membership() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {

@@ -1385,6 +1385,16 @@ impl Store {
         self.staged.collections.get(id)
     }
 
+    fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
+        if handle.is_empty() {
+            return None;
+        }
+        self.staged
+            .collections
+            .values()
+            .find(|collection| collection.get("handle").and_then(Value::as_str) == Some(handle))
+    }
+
     /// True when the collection id has been locally deleted (tombstoned). Unlike a
     /// never-seen collection, a tombstoned one must be served from local state
     /// (collection: null) for read-after-delete rather than forwarded upstream.

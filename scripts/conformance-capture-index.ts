@@ -7172,9 +7172,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'collections',
     captureId: 'collection-top-level-staged-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-top-level-staged-read-conformance.mts',
     purpose:
-      'Top-level collections and collectionsCount read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
+      'Top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}collection-top-level-staged-read.json`,

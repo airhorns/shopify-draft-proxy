@@ -256,6 +256,20 @@ impl DraftProxy {
                     (self.upstream_transport)(request.clone())
                 }
             }
+            "collectionByIdentifier" | "collectionByHandle" => {
+                let fields = try_root_fields!(query, variables);
+                if self.collection_identifier_read_needs_upstream(&fields) {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_collections_read_response(&response);
+                    }
+                    response
+                } else {
+                    ok_json(
+                        json!({ "data": self.collection_membership_downstream_read_data(&fields) }),
+                    )
+                }
+            }
             "publication"
             | "channel"
             | "channels"

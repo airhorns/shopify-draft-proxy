@@ -2717,6 +2717,8 @@ The safe local branches mirror the existing effective collection graph:
 
 `CollectionIdentifierInput.customId` is deliberately not modeled as a generic key/value lookup yet. Until a live collection unique-metafield fixture exists, local `customId` lookups return `null` and the proxy does not claim support for positive custom-id matches.
 
+A 2026-04 live probe on `harry-test-heelo` also showed that arbitrary `identifier.customId` collection lookups can return a top-level `NOT_FOUND` error with `data.<alias>: null` when no metafield definition of type `id` is configured for custom ids. Do not add positive custom-id matching or error-branch parity without a dedicated unique-metafield setup capture.
+
 ## 48. Manual collection ordering is not the default collection write path
 
 Live collection capture for `collectionReorderProducts` exposed two easy traps:
