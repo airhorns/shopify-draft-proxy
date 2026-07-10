@@ -46,18 +46,6 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 /// matcher is strict on query text + variables).
 const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
-/// Buyer-context segment existence/name probe forwarded before a discount's
-/// `context.customerSegments` selection is materialized. A discount scoped to a
-/// customer segment echoes back the segment's display name; rather than relying
-/// on locally injected segment state, the proxy resolves the name the way
-/// Shopify's own admin does — by reading the referenced segment — and stages the
-/// result so `resolve_discount_context_names` bakes the real name. The query text
-/// is shared verbatim with the conformance capture script so the request the
-/// proxy forwards matches the recorded `DiscountContextSegmentHydrate` cassette
-/// call byte-for-byte (the cassette matcher is strict on query text + variables).
-const DISCOUNT_CONTEXT_SEGMENT_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/discounts/discount-context-segment-hydrate.graphql");
-
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
         &self,
@@ -522,10 +510,8 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let mut customer_ids: Vec<String> = Vec::new();
-        let mut segment_ids: Vec<String> = Vec::new();
-        let mut seen_customers: BTreeSet<String> = BTreeSet::new();
-        let mut seen_segments: BTreeSet<String> = BTreeSet::new();
+        let mut ids: Vec<String> = Vec::new();
+        let mut seen: BTreeSet<String> = BTreeSet::new();
         for field in fields {
             let Some(input_arg) = discount_mutation_input_arg(&field.name) else {
                 continue;
@@ -534,66 +520,63 @@ impl DraftProxy {
                 continue;
             };
             for id in resolved_string_list_path(&input, &["context", "customers", "add"]) {
-                if !self.store.staged.customers.contains_key(&id)
-                    && seen_customers.insert(id.clone())
-                {
-                    customer_ids.push(id);
+                if !self.store.staged.customers.contains_key(&id) && seen.insert(id.clone()) {
+                    ids.push(id);
                 }
             }
             for id in resolved_string_list_path(&input, &["context", "customerSegments", "add"]) {
-                if !self.store.staged.segments.contains_key(&id) && seen_segments.insert(id.clone())
-                {
-                    segment_ids.push(id);
+                if !self.store.staged.segments.contains_key(&id) && seen.insert(id.clone()) {
+                    ids.push(id);
                 }
             }
         }
-        for id in customer_ids {
-            if let Some(customer) = self.hydrate_customer_for_mutation(request, &id) {
-                self.store.staged.customers.insert(id, customer);
-            }
+        if ids.is_empty() {
+            return;
         }
-        for id in segment_ids {
-            self.hydrate_discount_context_segment(request, &id);
-        }
-    }
-
-    /// Forward a `segment(id:)` read for a single buyer-context segment and stage the
-    /// normalized record so `resolve_discount_context_names` resolves its name from
-    /// real store state. No-op when the lookup misses (non-200 or a null segment) —
-    /// the permissive default that never fabricates a name — so a scenario that does
-    /// not record the read simply leaves the member id un-named, exactly as before.
-    fn hydrate_discount_context_segment(&mut self, request: &Request, id: &str) {
+        ids.sort_by(|left, right| compare_resource_ids(left, right));
         let response = self.upstream_post(
             request,
             json!({
-                "query": DISCOUNT_CONTEXT_SEGMENT_HYDRATE_QUERY,
-                "operationName": "DiscountContextSegmentHydrate",
-                "variables": { "id": id },
+                "query": DISCOUNT_CONTEXT_REFS_HYDRATE_QUERY,
+                "operationName": "DiscountContextRefsHydrate",
+                "variables": { "ids": ids },
             }),
         );
+        self.observe_discount_context_refs_response(&response);
+    }
+
+    fn observe_discount_context_refs_response(&mut self, response: &Response) {
         if !(200..300).contains(&response.status) {
             return;
         }
-        let segment = response.body["data"]["segment"].clone();
-        if segment.is_null() {
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
             return;
+        };
+        for node in nodes {
+            if node.is_null() {
+                continue;
+            }
+            let id = node
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            match shopify_gid_resource_type(&id) {
+                Some("Customer") => {
+                    self.store
+                        .staged
+                        .customers
+                        .insert(id.clone(), discount_context_customer_record(node, &id));
+                }
+                Some("Segment") => {
+                    self.store
+                        .staged
+                        .segments
+                        .insert(id.clone(), discount_context_segment_record(node, &id));
+                }
+                _ => {}
+            }
         }
-        let field = |key: &str| segment.get(key).cloned().unwrap_or(Value::Null);
-        let record = json!({
-            "__typename": "Segment",
-            "id": id,
-            "name": field("name"),
-            "query": field("query"),
-            "creationDate": field("creationDate"),
-            "lastEditDate": field("lastEditDate"),
-            "tagMigrated": false,
-            "valid": true,
-            "percentageSnapshot": null,
-            "percentageSnapshotUpdatedAt": null,
-            "translation": null,
-            "author": null
-        });
-        self.store.staged.segments.insert(id.to_string(), record);
     }
 
     /// Whether a product / variant / collection gid is already present in staged
@@ -819,7 +802,7 @@ impl DraftProxy {
         let existing_record = self
             .discount_record(&id)
             .cloned()
-            .or_else(|| self.hydrate_discount_record_for_update(request, &id));
+            .or_else(|| self.hydrate_discount_record_for_update(request, &id, discount_kind));
         let user_errors = match existing_record.as_ref() {
             None => vec![user_error_with_extra_info(
                 ["id"],
@@ -1019,7 +1002,7 @@ impl DraftProxy {
                     vec![discount_unknown_id_user_error(&field.name)],
                 ))
             }
-            None => match self.hydrate_discount_record(request, &id) {
+            None => match self.hydrate_discount_record(request, &id, expected_kind) {
                 // Not staged locally: hydrate the discount from upstream so the
                 // transition applies against its real dates/status.
                 Some(record) if discount_kind(&record) == expected_kind => record,
@@ -1078,12 +1061,30 @@ impl DraftProxy {
     /// call). Returns a discount record built from the upstream node, or `None`
     /// when the id resolves to neither a code nor an automatic discount (or no
     /// upstream is available, e.g. snapshot mode).
-    fn hydrate_discount_record(&self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_discount_record_with_query(request, id, DISCOUNT_HYDRATE_QUERY)
+    fn hydrate_discount_record(
+        &self,
+        request: &Request,
+        id: &str,
+        discount_kind: &str,
+    ) -> Option<Value> {
+        self.hydrate_discount_record_with_query(
+            request,
+            id,
+            discount_hydrate_query_for_kind(discount_kind),
+        )
     }
 
-    fn hydrate_discount_record_for_update(&self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_discount_record_with_query(request, id, DISCOUNT_UPDATE_HYDRATE_QUERY)
+    fn hydrate_discount_record_for_update(
+        &self,
+        request: &Request,
+        id: &str,
+        discount_kind: &str,
+    ) -> Option<Value> {
+        self.hydrate_discount_record_with_query(
+            request,
+            id,
+            discount_hydrate_query_for_kind(discount_kind),
+        )
     }
 
     fn hydrate_discount_record_with_query(
@@ -3824,6 +3825,57 @@ fn discount_context_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value
         return json!({ "__typename": "DiscountCustomerSegments", "segments": segments });
     }
     json!({ "__typename": "DiscountBuyerSelectionAll", "all": "ALL" })
+}
+
+fn discount_context_customer_record(node: &Value, id: &str) -> Value {
+    let field = |key: &str| node.get(key).cloned().unwrap_or(Value::Null);
+    json!({
+        "__typename": "Customer",
+        "id": id,
+        "displayName": field("displayName"),
+        "email": field("email"),
+        "firstName": field("firstName"),
+        "lastName": field("lastName"),
+        "phone": field("phone"),
+        "locale": field("locale"),
+        "note": field("note"),
+        "verifiedEmail": field("verifiedEmail"),
+        "taxExempt": field("taxExempt"),
+        "taxExemptions": node.get("taxExemptions").cloned().unwrap_or_else(|| json!([])),
+        "tags": node.get("tags").cloned().unwrap_or_else(|| json!([])),
+        "state": field("state"),
+        "dataSaleOptOut": field("dataSaleOptOut"),
+        "canDelete": field("canDelete"),
+        "defaultEmailAddress": field("defaultEmailAddress"),
+        "defaultPhoneNumber": field("defaultPhoneNumber"),
+        "emailMarketingConsent": field("emailMarketingConsent"),
+        "smsMarketingConsent": field("smsMarketingConsent"),
+        "defaultAddress": field("defaultAddress"),
+        "addressesV2": connection_json_with_empty_edges(Vec::new()),
+        "metafield": Value::Null,
+        "metafields": connection_json_with_empty_edges(Vec::new()),
+        "orders": connection_json_with_empty_edges(Vec::new()),
+        "createdAt": field("createdAt"),
+        "updatedAt": field("updatedAt")
+    })
+}
+
+fn discount_context_segment_record(node: &Value, id: &str) -> Value {
+    let field = |key: &str| node.get(key).cloned().unwrap_or(Value::Null);
+    json!({
+        "__typename": "Segment",
+        "id": id,
+        "name": field("name"),
+        "query": field("query"),
+        "creationDate": field("creationDate"),
+        "lastEditDate": field("lastEditDate"),
+        "tagMigrated": false,
+        "valid": true,
+        "percentageSnapshot": null,
+        "percentageSnapshotUpdatedAt": null,
+        "translation": null,
+        "author": null
+    })
 }
 
 fn discount_customer_buys_from_input(
