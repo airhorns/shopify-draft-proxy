@@ -5,10 +5,37 @@ enum StoreCreditAccountMutationResolution {
     CreateForOwner(String),
 }
 
-// Shared with the parity capture scripts via include_str! so recorded `CustomerHydrate`
-// cassettes byte-match what `hydrate_customer_for_mutation` forwards upstream. The leading
-// newline is significant: the cassette matcher only trims trailing whitespace.
-const CUSTOMER_HYDRATE_QUERY: &str =
+const CUSTOMER_HYDRATE_QUERY: &str = r#"
+query CustomerHydrate($id: ID!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    phone
+    locale
+    note
+    canDelete
+    verifiedEmail
+    dataSaleOptOut
+    taxExempt
+    taxExemptions
+    state
+    tags
+    createdAt
+    updatedAt
+    defaultEmailAddress { emailAddress }
+    defaultPhoneNumber { phoneNumber }
+    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+  }
+}
+"#;
+// Shared with the parity capture scripts via include_str! so recorded address-aware
+// `CustomerHydrate` cassettes byte-match the request forwarded when address nodes
+// are required for validation/output. The leading newline is significant: the
+// cassette matcher only trims trailing whitespace.
+const CUSTOMER_ADDRESS_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-mutation-hydrate.graphql");
 
 // Shared with the parity capture scripts via include_str! so recorded
@@ -18,14 +45,52 @@ const CUSTOMER_HYDRATE_QUERY: &str =
 const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
 
-// `customerMerge` resolves both referenced customers the real way (forward + observe) and
-// must reconcile their *attached* resources — metafields, addresses, and orders — into the
-// resulting customer. The general `CustomerHydrate` mutation hydrate only carries scalars +
-// addresses, so the merge forwards this richer query instead and stages metafields/orders
-// from it. Shared with the merge capture scripts via include_str! so the recorded
-// `CustomerMergeHydrate` cassettes byte-match what `hydrate_customer_for_merge` forwards.
-const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
+const CUSTOMER_MERGE_HYDRATE_QUERY: &str = r#"
+query CustomerMergeHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      phone
+      locale
+      note
+      canDelete
+      verifiedEmail
+      dataSaleOptOut
+      taxExempt
+      taxExemptions
+      state
+      tags
+      numberOfOrders
+      createdAt
+      updatedAt
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      lastOrder { id name email createdAt }
+    }
+  }
+}
+"#;
+const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = r#"
+query CustomerMergeAttachedHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Customer {
+      id
+      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      addressesV2(first: 5) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
+      metafields(first: 5) { nodes { id namespace key type value } }
+      orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+        edges { cursor node { id name email createdAt } }
+      }
+      lastOrder { id name email createdAt }
+    }
+  }
+}
+"#;
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
 const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
@@ -1437,7 +1502,9 @@ impl DraftProxy {
             );
         }
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.customer_existing_for_update(request, &id) else {
+        let hydrate_addresses = customer_update_needs_address_hydrate(&input, &field.selection);
+        let Some(existing) = self.customer_existing_for_update(request, &id, hydrate_addresses)
+        else {
             return (
                 customer_payload(
                     Value::Null,
@@ -1601,8 +1668,11 @@ impl DraftProxy {
         }
 
         if let Some(identifier) = identifier.as_ref() {
+            let hydrate_addresses = customer_update_needs_address_hydrate(&input, &field.selection);
             if let Some(id) = resolved_string_field(identifier, "id") {
-                let Some(existing) = self.customer_existing_for_update(request, &id) else {
+                let Some(existing) =
+                    self.customer_existing_for_update(request, &id, hydrate_addresses)
+                else {
                     return (customer_set_not_found_payload(), Vec::new(), Vec::new());
                 };
                 return self.customer_update_existing_payload(
@@ -1621,7 +1691,7 @@ impl DraftProxy {
                     &email,
                     &input,
                     None,
-                    find_customer_id_by_email,
+                    hydrate_addresses,
                 );
             }
             if let Some(phone) = resolved_string_field(identifier, "phone") {
@@ -1635,7 +1705,7 @@ impl DraftProxy {
                     &normalized_phone,
                     &input,
                     phone_country_code.as_deref(),
-                    find_customer_id_by_phone,
+                    hydrate_addresses,
                 );
             }
             if identifier.contains_key("customId") {
@@ -1661,7 +1731,7 @@ impl DraftProxy {
         identifier_value: &str,
         input: &BTreeMap<String, ResolvedValue>,
         phone_country_code: Option<&str>,
-        find: fn(&BTreeMap<String, Value>, &str) -> Option<String>,
+        hydrate_addresses: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input_value = resolved_string_field(input, identifier_field);
         let Some(input_value) = input_value else {
@@ -1693,8 +1763,14 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if let Some(id) = find(&self.store.staged.customers.records, identifier_value) {
-            let Some(existing) = self.customer_existing_for_update(request, &id) else {
+        let staged_match = if identifier_field == "phone" {
+            find_customer_id_by_phone(&self.store.staged.customers.records, identifier_value)
+        } else {
+            find_customer_id_by_email(&self.store.staged.customers.records, identifier_value)
+        };
+        if let Some(id) = staged_match {
+            let Some(existing) = self.customer_existing_for_update(request, &id, hydrate_addresses)
+            else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
             self.customer_update_existing_payload(
@@ -1710,7 +1786,8 @@ impl DraftProxy {
             identifier_value,
             request,
         ) {
-            let Some(existing) = self.customer_existing_for_update(request, &id) else {
+            let Some(existing) = self.customer_existing_for_update(request, &id, hydrate_addresses)
+            else {
                 return (customer_set_not_found_payload(), Vec::new(), Vec::new());
             };
             self.customer_update_existing_payload(
@@ -1959,7 +2036,12 @@ impl DraftProxy {
         }
     }
 
-    fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
+    fn customer_existing_for_update(
+        &mut self,
+        request: &Request,
+        id: &str,
+        hydrate_addresses: bool,
+    ) -> Option<Value> {
         if id.is_empty() || self.store.staged.customers.is_tombstoned(id) {
             return None;
         }
@@ -1968,58 +2050,111 @@ impl DraftProxy {
             .customers
             .get(id)
             .cloned()
-            .or_else(|| self.hydrate_customer_for_mutation(request, id))
+            .or_else(|| self.hydrate_customer_for_mutation(request, id, hydrate_addresses))
     }
 
     pub(super) fn customer_exists_for_mutation(&mut self, request: &Request, id: &str) -> bool {
-        self.customer_existing_for_update(request, id).is_some()
+        self.customer_existing_for_update(request, id, false)
+            .is_some()
     }
 
-    /// Ensure a customer referenced by `customerMerge` is present in staged state
-    /// by forwarding a hydrate upstream and observing the result. Mirrors
-    /// `customer_existing_for_update`'s forward-on-miss, but *stages* the observed
-    /// record so both the existence validation (`customer_exists`) and the merge
-    /// body read the same customer. No-op when the customer is already staged or
-    /// has been deleted/merged away.
-    pub(super) fn ensure_customer_hydrated_for_merge(&mut self, request: &Request, id: &str) {
-        if id.is_empty()
-            || self.store.staged.customers.contains_staged(id)
-            || self.store.staged.customers.is_tombstoned(id)
-        {
-            return;
-        }
-        if let Some(customer) = self.hydrate_customer_for_merge(request, id) {
-            self.store.staged.customers.stage(id.to_string(), customer);
-        }
-    }
-
-    /// Forward the richer `CustomerMergeHydrate` query and observe a customer the merge
-    /// references, so the merge body reads consistent state for the customer's attached
-    /// resources. Unlike `hydrate_customer_for_mutation`, this also lifts the customer's
-    /// `orders` connection into the staged `customer_orders` index (preserving each order's
-    /// opaque connection cursor) so the merge can transfer them to the resulting customer and
-    /// downstream order reads window/cursor them like locally-created orders. Returns the
-    /// staged customer record (metafields/addresses retained) or `None` for a missing
-    /// customer / snapshot mode.
-    fn hydrate_customer_for_merge(&mut self, request: &Request, id: &str) -> Option<Value> {
+    /// Ensure cold customers referenced by `customerMerge` are present in staged
+    /// state with the scalar fields needed for existence, blocker, and survivor
+    /// validation. Attached resources are intentionally not fetched here.
+    pub(super) fn ensure_customers_hydrated_for_merge(
+        &mut self,
+        request: &Request,
+        ids: &[String],
+    ) -> Vec<String> {
         if self.config.read_mode == ReadMode::Snapshot {
-            return None;
+            return Vec::new();
+        }
+        let ids_to_hydrate = ids
+            .iter()
+            .filter(|id| {
+                !id.is_empty()
+                    && !self.store.staged.customers.contains_staged(id)
+                    && !self.store.staged.customers.is_tombstoned(id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if ids_to_hydrate.is_empty() {
+            return Vec::new();
         }
         let response = self.upstream_post(
             request,
             json!({
                 "query": CUSTOMER_MERGE_HYDRATE_QUERY,
                 "operationName": "CustomerMergeHydrate",
-                "variables": { "id": id },
+                "variables": { "ids": ids_to_hydrate },
             }),
         );
         if !(200..300).contains(&response.status) {
-            return None;
+            return Vec::new();
         }
-        let customer = response.body["data"]["customer"].clone();
-        if customer.is_null() {
-            return None;
+        let requested = ids_to_hydrate.into_iter().collect::<BTreeSet<_>>();
+        let mut hydrated = Vec::new();
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
+            return hydrated;
+        };
+        for customer in nodes {
+            if customer.is_null() {
+                continue;
+            }
+            let Some(id) = customer.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if !requested.contains(id) {
+                continue;
+            }
+            self.store.staged.customers.stage(
+                id.to_string(),
+                normalize_hydrated_customer_record(customer.clone()),
+            );
+            hydrated.push(id.to_string());
         }
+        hydrated
+    }
+
+    /// Fetch the attached resources needed to apply the successful
+    /// `customerMerge` branch. This stays separate from scalar validation so
+    /// validation-only branches do not pay for address/metafield/order windows.
+    pub(super) fn hydrate_customer_merge_attached_resources(
+        &mut self,
+        request: &Request,
+        ids: &[String],
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot || ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY,
+                "operationName": "CustomerMergeAttachedHydrate",
+                "variables": { "ids": ids },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
+            return;
+        };
+        for customer in nodes {
+            if customer.is_null() {
+                continue;
+            }
+            let Some(id) = customer.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if ids.iter().any(|requested| requested == id) {
+                self.stage_customer_merge_attached_resources(id, customer);
+            }
+        }
+    }
+
+    fn stage_customer_merge_attached_resources(&mut self, id: &str, customer: &Value) {
         let orders = customer_merge_extract_order_records(id, &customer["orders"]);
         if !orders.is_empty() {
             self.store
@@ -2027,13 +2162,33 @@ impl DraftProxy {
                 .customer_orders
                 .insert(id.to_string(), orders);
         }
-        let mut record = normalize_hydrated_customer_record(customer);
-        // The orders connection is served from `customer_orders`; drop the raw hydrate edges
-        // so the stored record keeps the canonical staged-customer shape.
-        if let Some(object) = record.as_object_mut() {
-            object.remove("orders");
+        let metafields = customer
+            .get("metafields")
+            .map(|connection| nodes_connection(connection_nodes(connection)));
+        let default_id = customer
+            .get("defaultAddress")
+            .and_then(|address| address.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if let Some(record) = self.store.staged.customers.get_mut(id) {
+            if customer.get("addressesV2").is_some() {
+                customer_rebuild_addresses(
+                    record,
+                    connection_nodes(&customer["addressesV2"]),
+                    default_id.as_deref(),
+                );
+            } else if customer.get("defaultAddress").is_some() {
+                record["defaultAddress"] = customer["defaultAddress"].clone();
+            }
+            if let Some(metafields) = metafields {
+                record["metafields"] = metafields;
+            }
+            for key in ["lastOrder", "numberOfOrders"] {
+                if let Some(value) = customer.get(key) {
+                    record[key] = value.clone();
+                }
+            }
         }
-        Some(record)
     }
 
     fn customer_phone_country_code(
@@ -2264,14 +2419,20 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         id: &str,
+        hydrate_addresses: bool,
     ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
+        let query = if hydrate_addresses {
+            CUSTOMER_ADDRESS_HYDRATE_QUERY
+        } else {
+            CUSTOMER_HYDRATE_QUERY
+        };
         let response = self.upstream_post(
             request,
             json!({
-                "query": CUSTOMER_HYDRATE_QUERY,
+                "query": query,
                 "operationName": "CustomerHydrate",
                 "variables": { "id": id },
             }),
@@ -2397,6 +2558,16 @@ impl DraftProxy {
         }
         None
     }
+}
+
+fn customer_update_needs_address_hydrate(
+    input: &BTreeMap<String, ResolvedValue>,
+    payload_selection: &[SelectedField],
+) -> bool {
+    input.contains_key("addresses")
+        || selected_child_selection(payload_selection, "customer").is_some_and(
+            |customer_selection| selection_contains_any(&customer_selection, &["addressesV2"]),
+        )
 }
 
 #[derive(Default)]
@@ -2704,6 +2875,13 @@ fn preserve_existing_customer_fields(
     }
     if input.phone.is_none() {
         for key in ["defaultPhoneNumber", "smsMarketingConsent"] {
+            if let Some(value) = existing.get(key) {
+                customer.insert(key.to_string(), value.clone());
+            }
+        }
+    }
+    if input.addresses.is_none() {
+        for key in ["defaultAddress", "addressesV2"] {
             if let Some(value) = existing.get(key) {
                 customer.insert(key.to_string(), value.clone());
             }

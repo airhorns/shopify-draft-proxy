@@ -1342,7 +1342,7 @@ impl DraftProxy {
         if let Some(customer) = self.store.staged.customers.get(id) {
             return Some(customer.clone());
         }
-        let customer = self.hydrate_customer_for_mutation(request, id)?;
+        let customer = self.hydrate_customer_for_mutation(request, id, false)?;
         self.store
             .staged
             .customers

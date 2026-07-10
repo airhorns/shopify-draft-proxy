@@ -100,6 +100,11 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
                 captured.lock().unwrap().push(body.clone());
                 assert_eq!(body["operationName"], json!("CustomerHydrate"));
                 assert_eq!(body["variables"]["id"], json!(hydrated_customer_id));
+                let query = body["query"].as_str().expect("hydrate query");
+                assert!(
+                    !query.contains("addressesV2(first: 250)"),
+                    "simple update/set hydrates should not fetch the full address window: {query}"
+                );
                 Response {
                     status: 200,
                     headers: Default::default(),
@@ -125,8 +130,7 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
                                 "updatedAt": "2026-06-01T00:00:00Z",
                                 "defaultEmailAddress": { "emailAddress": "hydrated-customer@example.com" },
                                 "defaultPhoneNumber": null,
-                                "defaultAddress": null,
-                                "addressesV2": { "nodes": [] }
+                                "defaultAddress": null
                             }
                         }
                     }),
@@ -186,6 +190,105 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
         );
         assert_eq!(upstream_calls.lock().unwrap().len(), 1);
     }
+}
+
+#[test]
+fn customer_update_address_input_uses_address_aware_cold_hydrate() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/address-aware";
+    let address_id = "gid://shopify/MailingAddress/101";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            assert_eq!(body["variables"]["id"], json!(customer_id));
+            let query = body["query"].as_str().expect("hydrate query");
+            assert!(
+                query.contains("addressesV2(first: 250)"),
+                "address edits need the existing address window for ID validation: {query}"
+            );
+            let address = json!({
+                "id": address_id,
+                "firstName": "Hydrated",
+                "lastName": "Address",
+                "address1": "1 Old St",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "zip": "K1A 0B1",
+                "phone": null,
+                "name": "Hydrated Address",
+                "formattedArea": "Ottawa ON K1A 0B1, Canada"
+            });
+            let mut customer = json!({
+                "id": customer_id,
+                "firstName": "Hydrated",
+                "lastName": "Address",
+                "displayName": "Hydrated Address",
+                "email": "hydrated-address@example.com",
+                "phone": null,
+                "locale": "en",
+                "note": null,
+                "canDelete": true,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "ENABLED",
+                "tags": [],
+                "createdAt": "2026-06-01T00:00:00Z",
+                "updatedAt": "2026-06-01T00:00:00Z",
+                "defaultEmailAddress": { "emailAddress": "hydrated-address@example.com" },
+                "defaultPhoneNumber": null,
+                "defaultAddress": { "id": address_id }
+            });
+            customer["addressesV2"] = json!({ "nodes": [address] });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customer": customer } }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddressAwareHydrate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id addressesV2(first: 3) { nodes { id address1 city } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": customer_id,
+                "addresses": [{
+                    "id": address_id,
+                    "address1": "2 New St",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1A 0B1"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerUpdate"]["customer"]["addressesV2"]["nodes"],
+        json!([{ "id": address_id, "address1": "2 New St", "city": "Ottawa" }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -690,6 +793,263 @@ fn assert_merge_survivor(
         .unwrap()
         .iter()
         .any(|id| id.as_str() == Some(expected_source_id)));
+}
+
+fn upstream_merge_scalar_customer(
+    id: &str,
+    email: &str,
+    first: &str,
+    last: &str,
+    note: &str,
+) -> Value {
+    json!({
+        "id": id,
+        "firstName": first,
+        "lastName": last,
+        "displayName": format!("{first} {last}"),
+        "email": email,
+        "phone": null,
+        "locale": "en",
+        "note": note,
+        "canDelete": true,
+        "verifiedEmail": true,
+        "dataSaleOptOut": false,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "state": "ENABLED",
+        "tags": [],
+        "numberOfOrders": "0",
+        "createdAt": "2026-06-01T00:00:00Z",
+        "updatedAt": "2026-06-01T00:00:00Z",
+        "defaultEmailAddress": { "emailAddress": email },
+        "defaultPhoneNumber": null,
+        "defaultAddress": null,
+        "lastOrder": null
+    })
+}
+
+#[test]
+fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let one_id = "gid://shopify/Customer/merge-cold-one";
+    let two_id = "gid://shopify/Customer/merge-cold-two";
+    let expected_one = one_id.to_string();
+    let expected_two = two_id.to_string();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            let ids = json!([expected_one.clone(), expected_two.clone()]);
+            assert_eq!(body["variables"]["ids"], ids);
+            let query = body["query"].as_str().expect("merge hydrate query");
+            match body["operationName"].as_str() {
+                Some("CustomerMergeHydrate") => {
+                    assert!(query.contains("nodes(ids: $ids)"));
+                    assert!(!query.contains("addressesV2("));
+                    assert!(!query.contains("metafields("));
+                    assert!(!query.contains("orders("));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "nodes": [
+                                    upstream_merge_scalar_customer(&expected_one, "merge-one@example.com", "Merge", "One", "one note"),
+                                    upstream_merge_scalar_customer(&expected_two, "merge-two@example.com", "Merge", "Two", "two note")
+                                ]
+                            }
+                        }),
+                    }
+                }
+                Some("CustomerMergeAttachedHydrate") => {
+                    assert!(query.contains("nodes(ids: $ids)"));
+                    assert!(query.contains("addressesV2(first: 5)"));
+                    assert!(query.contains("metafields(first: 5)"));
+                    assert!(query.contains("orders(first: 5"));
+                    assert!(!query.contains("first: 250"));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "nodes": [
+                                    {
+                                        "id": expected_one.clone(),
+                                        "defaultAddress": null,
+                                        "addressesV2": {
+                                            "nodes": [{
+                                                "id": "gid://shopify/MailingAddress/merge-one",
+                                                "firstName": "Merge",
+                                                "lastName": "One",
+                                                "address1": "1 Source St",
+                                                "address2": null,
+                                                "city": "Ottawa",
+                                                "company": null,
+                                                "province": "Ontario",
+                                                "provinceCode": "ON",
+                                                "country": "Canada",
+                                                "countryCodeV2": "CA",
+                                                "zip": "K1A 0B1",
+                                                "phone": null,
+                                                "name": "Merge One",
+                                                "formattedArea": "Ottawa ON K1A 0B1, Canada"
+                                            }]
+                                        },
+                                        "metafields": {
+                                            "nodes": [{
+                                                "id": "gid://shopify/Metafield/merge-one",
+                                                "namespace": "custom",
+                                                "key": "source",
+                                                "type": "single_line_text_field",
+                                                "value": "yes"
+                                            }]
+                                        },
+                                        "orders": {
+                                            "edges": [{
+                                                "cursor": "source-order-cursor",
+                                                "node": {
+                                                    "id": "gid://shopify/Order/merge-one",
+                                                    "name": "#1001",
+                                                    "email": "merge-one@example.com",
+                                                    "createdAt": "2026-06-02T00:00:00Z"
+                                                }
+                                            }]
+                                        },
+                                        "lastOrder": {
+                                            "id": "gid://shopify/Order/merge-one",
+                                            "name": "#1001",
+                                            "email": "merge-one@example.com",
+                                            "createdAt": "2026-06-02T00:00:00Z"
+                                        }
+                                    },
+                                    {
+                                        "id": expected_two.clone(),
+                                        "defaultAddress": null,
+                                        "addressesV2": { "nodes": [] },
+                                        "metafields": { "nodes": [] },
+                                        "orders": { "edges": [] },
+                                        "lastOrder": null
+                                    }
+                                ]
+                            }
+                        }),
+                    }
+                }
+                other => panic!("unexpected upstream operation: {other:?}"),
+            }
+        });
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "one": one_id, "two": two_id }),
+    ));
+    assert_eq!(merge.status, 200);
+    assert_eq!(merge.body["data"]["customerMerge"]["userErrors"], json!([]));
+    assert_eq!(
+        merge.body["data"]["customerMerge"]["resultingCustomerId"],
+        json!(two_id)
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdMergeReadback($id: ID!) {
+          customer(id: $id) {
+            addressesV2(first: 5) { nodes { address1 city } }
+            metafields(first: 5) { nodes { namespace key value } }
+            orders(first: 5) { nodes { id name email } }
+          }
+        }
+        "#,
+        json!({ "id": two_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["customer"]["addressesV2"]["nodes"],
+        json!([{ "address1": "1 Source St", "city": "Ottawa" }])
+    );
+    assert_eq!(
+        readback.body["data"]["customer"]["metafields"]["nodes"],
+        json!([{ "namespace": "custom", "key": "source", "value": "yes" }])
+    );
+    assert_eq!(
+        readback.body["data"]["customer"]["orders"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Order/merge-one",
+            "name": "#1001",
+            "email": "merge-two@example.com"
+        }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn customer_merge_live_hybrid_validation_skips_attached_hydrate() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let one_id = "gid://shopify/Customer/merge-invalid-one";
+    let two_id = "gid://shopify/Customer/merge-invalid-two";
+    let expected_one = one_id.to_string();
+    let expected_two = two_id.to_string();
+    let long_note = "a".repeat(5001);
+    let hydrate_note = long_note.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("CustomerMergeHydrate"));
+            let query = body["query"].as_str().expect("merge hydrate query");
+            assert!(!query.contains("addressesV2("));
+            assert!(!query.contains("metafields("));
+            assert!(!query.contains("orders("));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            upstream_merge_scalar_customer(&expected_one, "invalid-one@example.com", "Invalid", "One", &hydrate_note),
+                            upstream_merge_scalar_customer(&expected_two, "invalid-two@example.com", "Invalid", "Two", "")
+                        ]
+                    }
+                }),
+            }
+        });
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidColdMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "one": one_id, "two": two_id }),
+    ));
+    assert_eq!(merge.status, 200);
+    assert_eq!(
+        merge.body["data"]["customerMerge"]["userErrors"],
+        json!([
+            {
+                "field": ["customerOneId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+            },
+            {
+                "field": ["customerTwoId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+            }
+        ])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]

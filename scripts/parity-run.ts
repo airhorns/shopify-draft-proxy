@@ -13,6 +13,7 @@ import {
 } from '../js/src/index.js';
 import {
   type RecordedUpstreamCall,
+  customerMergeHydrateCompatibilityResponse,
   recordedCallMatchesBody,
   formatRecordedCallMismatch,
   stableJson,
@@ -632,6 +633,13 @@ async function startCassetteServer(): Promise<CassetteServer> {
         response.statusCode = fallbackResponse.response.status;
         response.setHeader('content-type', 'application/json');
         response.end(JSON.stringify(fallbackResponse.response.body));
+        return;
+      }
+      const compatibilityResponse = customerMergeHydrateCompatibilityResponse(body, calls);
+      if (compatibilityResponse !== null) {
+        response.statusCode = compatibilityResponse.status;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify(compatibilityResponse.body));
         return;
       }
       response.statusCode = 500;

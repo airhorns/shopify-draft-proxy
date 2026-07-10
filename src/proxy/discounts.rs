@@ -548,7 +548,7 @@ impl DraftProxy {
             }
         }
         for id in customer_ids {
-            if let Some(customer) = self.hydrate_customer_for_mutation(request, &id) {
+            if let Some(customer) = self.hydrate_customer_for_mutation(request, &id, false) {
                 self.store.staged.customers.insert(id, customer);
             }
         }

@@ -4,7 +4,11 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { diffValues, parseJsonlRecordsForParity, selectPaths } from '../../scripts/parity-run.js';
-import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
+import {
+  customerMergeHydrateCompatibilityResponse,
+  recordedCallMatchesBody,
+  validateRecordedUpstreamCalls,
+} from '../../scripts/parity-cassette.js';
 
 const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
@@ -177,6 +181,97 @@ describe('Rust parity runner cassette matching', () => {
       'upstreamCalls[0].query is not a valid GraphQL document: "sha:hand-synthesized-product-hydrate"',
       'upstreamCalls[1].query is missing or is not a string',
     ]);
+  });
+
+  it('replays combined customerMerge hydrates from exact captured per-customer cassettes', () => {
+    const legacyQuery = `
+      query CustomerMergeHydrate($id: ID!) {
+        customer(id: $id) {
+          id
+          email
+          addressesV2(first: 250) { nodes { id } }
+          metafields(first: 250) { nodes { id } }
+          orders(first: 250) { edges { node { id } } }
+        }
+      }
+    `;
+    const calls = [
+      {
+        operationName: 'CustomerMergeHydrate',
+        variables: { id: 'gid://shopify/Customer/1' },
+        query: legacyQuery,
+        response: {
+          status: 200,
+          body: {
+            data: {
+              customer: {
+                id: 'gid://shopify/Customer/1',
+                email: 'one@example.com',
+                addressesV2: { nodes: [{ id: 'gid://shopify/MailingAddress/1' }] },
+                metafields: { nodes: [{ id: 'gid://shopify/Metafield/1' }] },
+                orders: { edges: [{ node: { id: 'gid://shopify/Order/1' } }] },
+              },
+            },
+          },
+        },
+      },
+      {
+        operationName: 'CustomerMergeHydrate',
+        variables: { id: 'gid://shopify/Customer/2' },
+        query: legacyQuery,
+        response: {
+          status: 200,
+          body: { data: { customer: { id: 'gid://shopify/Customer/2', email: 'two@example.com' } } },
+        },
+      },
+    ];
+
+    const scalar = customerMergeHydrateCompatibilityResponse(
+      JSON.stringify({
+        operationName: 'CustomerMergeHydrate',
+        query: 'query CustomerMergeHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on Customer { id email } } }',
+        variables: { ids: ['gid://shopify/Customer/1', 'gid://shopify/Customer/2'] },
+      }),
+      calls,
+    );
+    expect(scalar).toEqual({
+      status: 200,
+      body: {
+        data: {
+          nodes: [
+            { id: 'gid://shopify/Customer/1', email: 'one@example.com' },
+            { id: 'gid://shopify/Customer/2', email: 'two@example.com' },
+          ],
+        },
+      },
+    });
+
+    const attached = customerMergeHydrateCompatibilityResponse(
+      JSON.stringify({
+        operationName: 'CustomerMergeAttachedHydrate',
+        query:
+          'query CustomerMergeAttachedHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on Customer { id addressesV2(first: 5) { nodes { id } } } } }',
+        variables: { ids: ['gid://shopify/Customer/1', 'gid://shopify/Customer/2'] },
+      }),
+      calls,
+    );
+    expect(attached?.body).toEqual({
+      data: {
+        nodes: [
+          {
+            id: 'gid://shopify/Customer/1',
+            email: 'one@example.com',
+            addressesV2: { nodes: [{ id: 'gid://shopify/MailingAddress/1' }] },
+            metafields: { nodes: [{ id: 'gid://shopify/Metafield/1' }] },
+            orders: { edges: [{ node: { id: 'gid://shopify/Order/1' } }] },
+          },
+          {
+            id: 'gid://shopify/Customer/2',
+            email: 'two@example.com',
+          },
+        ],
+      },
+    });
   });
 });
 
