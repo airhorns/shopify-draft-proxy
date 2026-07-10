@@ -104,7 +104,24 @@ fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/italian-primary",
+        "name": "Italian primary shop",
+        "currencyCode": "EUR",
+        "myshopifyDomain": "italian-primary.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "italian-primary.example",
+            "url": "https://italian-primary.example",
+            "sslEnabled": true
+        },
+        "domains": [{
+            "id": "gid://shopify/Domain/1000",
+            "host": "italian-primary.example",
+            "url": "https://italian-primary.example",
+            "sslEnabled": true
+        }]
+    });
     restored["state"]["baseState"]["shopLocales"] = json!({
         "it": {
             "locale": "it",
@@ -2924,6 +2941,11 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         "gid://shopify/Product/quantity-pricing-captured-shapes",
         "gid://shopify/ProductVariant/49875425296690",
     )]);
+    restore_shop_domain_context(
+        &mut proxy,
+        "captured-shapes.myshopify.com",
+        "captured-shapes.example",
+    );
     let price_list_id = create_test_price_list(&mut proxy, "CAD");
 
     let unknown_price_list = proxy.process_request(json_graphql_request(
@@ -3371,9 +3393,9 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
-            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
+            {"locale": "en", "url": "https://captured-shapes.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://captured-shapes.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://captured-shapes.myshopify.com/fr-intl/"}
         ])
     );
 }
@@ -3449,6 +3471,221 @@ fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
 }
 
 #[test]
+fn market_web_presence_first_create_uses_shop_domain_from_live_preflight() {
+    let preflight_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&preflight_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            assert!(query.contains("shop { myshopifyDomain"));
+            assert!(query.contains("domains { id host url sslEnabled }"));
+            assert!(query.contains("webPresences(first: $first)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "myshopifyDomain": "first-presence.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/1111",
+                                "host": "first-presence.example",
+                                "url": "https://first-presence.example",
+                                "sslEnabled": true
+                            },
+                            "domains": [{
+                                "id": "gid://shopify/Domain/1111",
+                                "host": "first-presence.example",
+                                "url": "https://first-presence.example",
+                                "sslEnabled": true
+                            }]
+                        },
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceFirstShopDomain($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { domain { id } rootUrls { locale url } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "subfolderSuffix": "intl"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://first-presence.myshopify.com/en-intl/"},
+            {"locale": "fr", "url": "https://first-presence.myshopify.com/fr-intl/"}
+        ])
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+    assert_eq!(preflight_queries.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn market_web_presence_first_create_uses_selected_custom_domain_from_live_preflight() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "myshopifyDomain": "custom-domain-shop.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/2001",
+                                "host": "primary-custom.example",
+                                "url": "https://primary-custom.example",
+                                "sslEnabled": true
+                            },
+                            "domains": [{
+                                "id": "gid://shopify/Domain/2002",
+                                "host": "selected-custom.example",
+                                "url": "https://selected-custom.example",
+                                "sslEnabled": true
+                            }]
+                        },
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceFirstCustomDomain($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              subfolderSuffix
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/2002"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/2002",
+            "host": "selected-custom.example",
+            "url": "https://selected-custom.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://selected-custom.example/"},
+            {"locale": "fr", "url": "https://selected-custom.example/fr/"}
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["subfolderSuffix"],
+        Value::Null
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+}
+
+#[test]
+fn market_web_presence_first_create_returns_error_when_domain_hydrate_unavailable() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceMissingDomainContext($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id rootUrls { locale url } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "intl"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{
+            "__typename": "MarketUserError",
+            "field": ["input", "subfolderSuffix"],
+            "message": "Shop domain context is unavailable for subfolder web presence URL generation.",
+            "code": "UNSUPPORTED_IN_PROXY"
+        }])
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+    assert_no_staged_web_presences(&proxy);
+}
+
+#[test]
 fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     // Covers web-presence helper behavior:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
@@ -3497,6 +3734,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     "#;
 
     let mut proxy = snapshot_proxy();
+    let domain_id = restore_shop_domain_context(
+        &mut proxy,
+        "runtime-helper.myshopify.com",
+        "runtime-helper.example",
+    );
     let subfolder = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
@@ -3516,45 +3758,25 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     assert_eq!(
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
-            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
+            {"locale": "en", "url": "https://runtime-helper.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://runtime-helper.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://runtime-helper.myshopify.com/fr-intl/"}
         ])
     );
 
-    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
-    assert_eq!(dump.status, 200);
-    let mut restored_state = dump.body;
-    restored_state["state"]["baseState"]["shop"] = json!({
-        "id": "gid://shopify/Shop/domain-helper",
-        "myshopifyDomain": "shopify-draft-proxy.local",
-        "primaryDomain": {
-            "id": "gid://shopify/Domain/1000",
-            "host": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "sslEnabled": true
-        }
-    });
-    let restore = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &restored_state.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
-
     let domain = proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/1000"}}),
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": domain_id}}),
     ));
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
-        json!({"id": "gid://shopify/Domain/1000", "host": "shopify-draft-proxy.local", "url": "https://shopify-draft-proxy.local", "sslEnabled": true})
+        json!({"id": "gid://shopify/Domain/1000", "host": "runtime-helper.example", "url": "https://runtime-helper.example", "sslEnabled": true})
     );
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr/"}
+            {"locale": "en", "url": "https://runtime-helper.example/"},
+            {"locale": "fr", "url": "https://runtime-helper.example/fr/"}
         ])
     );
     assert_eq!(
@@ -3563,6 +3785,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     );
 
     let mut locale_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut locale_proxy,
+        "locale-helper.myshopify.com",
+        "locale-helper.example",
+    );
     let normalized = locale_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "EN-us", "alternateLocales": ["ZH-hant-tw", "pt-br"], "subfolderSuffix": "us"}}),
@@ -3589,9 +3816,9 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     assert_eq!(
         normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en-US", "url": "https://shopify-draft-proxy.local/en-us/"},
-            {"locale": "pt-BR", "url": "https://shopify-draft-proxy.local/pt-us/"},
-            {"locale": "zh-Hant-TW", "url": "https://shopify-draft-proxy.local/zh-us/"}
+            {"locale": "en-US", "url": "https://locale-helper.myshopify.com/en-us/"},
+            {"locale": "pt-BR", "url": "https://locale-helper.myshopify.com/pt-us/"},
+            {"locale": "zh-Hant-TW", "url": "https://locale-helper.myshopify.com/zh-us/"}
         ])
     );
 
@@ -3660,6 +3887,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     }
 
     let mut duplicate_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut duplicate_proxy,
+        "duplicate-helper.myshopify.com",
+        "duplicate-helper.example",
+    );
     let deduped = duplicate_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "fr"], "subfolderSuffix": "dup"}}),
@@ -3690,6 +3922,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     );
 
     let mut update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut update_proxy,
+        "update-helper.myshopify.com",
+        "update-helper.example",
+    );
     let create = update_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["es"], "subfolderSuffix": "intl"}}),
@@ -3780,6 +4017,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     }
 
     let mut taken_update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut taken_update_proxy,
+        "taken-update-helper.myshopify.com",
+        "taken-update-helper.example",
+    );
     let first = taken_update_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "subfolderSuffix": "fr"}}),
@@ -3982,6 +4224,11 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
     "#;
 
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "locale-catalog-helper.myshopify.com",
+        "locale-catalog-helper.example",
+    );
     let create = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
@@ -4129,7 +4376,7 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
     );
     assert_eq!(
         web_presence.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
-        json!([{"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"}])
+        json!([{"locale": "it", "url": "https://italian-primary.myshopify.com/it-it/"}])
     );
     let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
         .as_str()
@@ -4195,8 +4442,8 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
     assert_eq!(
         updated_presence["rootUrls"],
         json!([
-            {"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"},
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-it/"}
+            {"locale": "it", "url": "https://italian-primary.myshopify.com/it-it/"},
+            {"locale": "en", "url": "https://italian-primary.myshopify.com/en-it/"}
         ])
     );
 }
@@ -5091,6 +5338,11 @@ fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
 #[test]
 fn bundled_price_list_web_presence_mutations_stage_through_helper_path() {
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "bundled-web-presence.myshopify.com",
+        "bundled-web-presence.example",
+    );
 
     let bundled_create = proxy.process_request(json_graphql_request(
         r#"
@@ -6534,6 +6786,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     }
 
     let mut update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut update_proxy,
+        "relation-web-presence.myshopify.com",
+        "relation-web-presence.example",
+    );
     let _primary = update_proxy.process_request(json_graphql_request(
         market_create_query,
         json!({"input": {"name": "Primary"}}),
@@ -6632,6 +6889,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
 #[test]
 fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "connection-web-presence.myshopify.com",
+        "connection-web-presence.example",
+    );
 
     let market_create_query = r#"
         mutation StageMarket($input: MarketCreateInput!) {
@@ -6982,6 +7244,11 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
             body: json!({ "data": data }),
         }
     });
+    restore_shop_domain_context(
+        &mut proxy,
+        "delete-cascade-web-presence.myshopify.com",
+        "delete-cascade-web-presence.example",
+    );
 
     let market_create_query = r#"
         mutation RustMarketCreateLocalRuntimeDeleteCreate($input: MarketCreateInput!) {

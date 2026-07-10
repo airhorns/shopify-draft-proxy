@@ -368,6 +368,11 @@ fn stage_market(proxy: &mut DraftProxy, name: &str, country_code: &str) -> Strin
 }
 
 fn stage_web_presence(proxy: &mut DraftProxy, subfolder_suffix: &str) -> String {
+    restore_shop_domain_context(
+        proxy,
+        "localization-web-presence.myshopify.com",
+        "localization-web-presence.example",
+    );
     let response = proxy.process_request(json_graphql_request(
         r#"mutation StageWebPresenceForLocalization($input: WebPresenceCreateInput!) {
           webPresenceCreate(input: $input) {

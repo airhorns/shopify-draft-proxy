@@ -6024,10 +6024,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
     purpose:
-      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, multi-locale rootUrls, locale catalog breadth/invalid-locale validation, duplicate subfolder-suffix validation, duplicate-language validation, non-letter subfolder-suffix validation, and primary-domain delete guard.',
+      'Web presence create/update/delete lifecycle, first local subfolder create domain hydration, downstream top-level webPresences reads, multi-locale rootUrls, locale catalog breadth/invalid-locale validation, duplicate subfolder-suffix validation, duplicate-language validation, non-letter subfolder-suffix validation, and primary-domain delete guard.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
+      'config/parity-specs/markets/web-presence-first-subfolder-create.json',
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
       'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
       'config/parity-specs/markets/web-presence-partial-update-alternate-locales.json',
@@ -6042,7 +6043,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/web-presence-delete-primary-blocked.json',
     ],
     cleanupBehavior:
-      'Records the primary-domain webPresenceDelete guard without cleanup because it must fail, creates one disposable subfolder web presence, updates it, deletes it, records multi-locale and Italian default-locale disposable web presences, records invalid-locale, duplicate-language, and non-letter subfolder validation branches, deletes all disposable web presences, and verifies the baseline read after cleanup.',
+      'Records the primary-domain webPresenceDelete guard without cleanup because it must fail, creates one disposable subfolder web presence after shop-domain preflight hydration, updates it, deletes it, records multi-locale and Italian default-locale disposable web presences, records invalid-locale, duplicate-language, and non-letter subfolder validation branches, deletes all disposable web presences, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

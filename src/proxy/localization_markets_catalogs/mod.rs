@@ -96,7 +96,7 @@ const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelatio
 /// shop's baseline web presences from a real Admin GraphQL preflight before
 /// applying the local mutation. The cassette stores the exact request Shopify saw,
 /// so parity cannot hide behind a provenance descriptor string.
-const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
+const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { shop { myshopifyDomain primaryDomain { id host url sslEnabled } domains { id host url sslEnabled } } webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
 const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 
 /// Market-localization mutations (`marketLocalizationsRegister`/`Remove`) hydrate the
@@ -737,11 +737,9 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
     }
 }
 
-/// The shop's myshopify domain, used as the host for synthesized web-presence
-/// root URLs. Falls back to the neutral cold-runtime domain when the shop record
-/// has no `myshopifyDomain` (mirrors the fallback used by region-coverage
-/// lookups).
-fn web_presence_shop_domain(store: &Store) -> String {
+/// The shop's authoritative myshopify domain, used as the host for synthesized
+/// web-presence root URLs when no custom domain is selected.
+fn web_presence_shop_domain(store: &Store) -> Option<String> {
     let shop = store.effective_shop();
     if let Some(domain) = shop
         .get("myshopifyDomain")
@@ -749,10 +747,9 @@ fn web_presence_shop_domain(store: &Store) -> String {
         .filter(|domain| !domain.is_empty())
         .filter(|domain| *domain != "shopify-draft-proxy.local")
     {
-        return domain.to_string();
+        return Some(domain.to_string());
     }
     observed_web_presence_shop_domain(store)
-        .unwrap_or_else(|| "shopify-draft-proxy.local".to_string())
 }
 
 fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {

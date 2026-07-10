@@ -94,6 +94,10 @@ impl DraftProxy {
         let Some(data) = body.get("data").filter(|data| data.is_object()) else {
             return;
         };
+        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
+        }
         for record in markets_collect_records(data, "webPresences", "webPresence") {
             if let Some(id) = record_gid(&record, "MarketWebPresence") {
                 self.store.staged.web_presences.entry(id).or_insert(record);
@@ -195,8 +199,14 @@ impl DraftProxy {
         );
         draft.id = id.clone();
         let shop_domain = web_presence_shop_domain(&self.store);
-        let record =
-            market_web_presence_helper_record(&draft, &shop_domain, linked_domain.as_ref());
+        if linked_domain.is_none() && shop_domain.is_none() {
+            return web_presence_domain_context_unavailable_payload();
+        }
+        let record = market_web_presence_helper_record(
+            &draft,
+            shop_domain.as_deref().unwrap_or(""),
+            linked_domain.as_ref(),
+        );
         self.store
             .staged
             .web_presences
@@ -266,8 +276,14 @@ impl DraftProxy {
             return payload_error("webPresence", errors);
         }
         let shop_domain = web_presence_shop_domain(&self.store);
-        let record =
-            market_web_presence_helper_record(&draft, &shop_domain, linked_domain.as_ref());
+        if linked_domain.is_none() && shop_domain.is_none() {
+            return web_presence_domain_context_unavailable_payload();
+        }
+        let record = market_web_presence_helper_record(
+            &draft,
+            shop_domain.as_deref().unwrap_or(""),
+            linked_domain.as_ref(),
+        );
         self.store
             .staged
             .web_presences
@@ -283,4 +299,15 @@ impl DraftProxy {
         }
         json!({"webPresence": record, "userErrors": []})
     }
+}
+
+fn web_presence_domain_context_unavailable_payload() -> Value {
+    payload_user_error(
+        "webPresence",
+        market_user_error(
+            vec!["input", "subfolderSuffix"],
+            "Shop domain context is unavailable for subfolder web presence URL generation.",
+            json!("UNSUPPORTED_IN_PROXY"),
+        ),
+    )
 }

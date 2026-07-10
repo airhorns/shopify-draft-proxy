@@ -58,7 +58,7 @@ const webPresencesReadQuery = `#graphql
 `;
 
 const webPresencePreflightQuery =
-  'query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }';
+  'query MarketsMutationPreflightHydrate($first: Int!) { shop { myshopifyDomain primaryDomain { id host url sslEnabled } domains { id host url sslEnabled } } webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }';
 
 const primaryWebPresenceSetupQuery = `#graphql
   ${webPresenceFields}
@@ -1032,7 +1032,7 @@ try {
       nonLetterUpdateSource: nonLetterUpdateSourceSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity including Italian default-locale acceptance and invalid default-locale rejection, primary-domain delete guard parity, duplicate subfolder suffix validation parity, duplicate-language validation parity, and non-letter subfolder suffix validation parity',
+      'Market web presence create/update/delete lifecycle parity plus first local subfolder create domain hydration, multi-locale rootUrls parity, fr-CA default locale parity, web-presence locale catalog/error-shape parity including Italian default-locale acceptance and invalid default-locale rejection, primary-domain delete guard parity, duplicate subfolder suffix validation parity, duplicate-language validation parity, and non-letter subfolder suffix validation parity',
     data: {
       shop: primarySetupRead.data?.shop,
       webPresences: baselineRead.data?.webPresences,
