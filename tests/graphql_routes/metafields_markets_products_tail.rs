@@ -864,6 +864,162 @@ fn price_list_fixed_prices_update_validates_compare_at_price_currency_without_st
 }
 
 #[test]
+fn price_list_update_currency_change_clears_staged_fixed_prices() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedFixedPricesForCurrencyUpdate($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let before_update =
+        fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID);
+    assert_eq!(before_update["fixedPricesCount"], json!(2));
+    assert_eq!(
+        before_update["prices"]["edges"].as_array().map(Vec::len),
+        Some(2)
+    );
+
+    let update_query = r#"
+        mutation PriceListUpdateCurrencyFixedPrices($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList {
+              id
+              currency
+              fixedPricesCount
+              prices(first: 10, originType: FIXED) {
+                edges { node { variant { id } price { amount currencyCode } } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let same_currency = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": { "currency": "USD" }
+        }),
+    ));
+    assert_eq!(same_currency.status, 200);
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let rejected_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": {
+                "parent": {
+                    "adjustment": {
+                        "type": "PERCENTAGE_DECREASE",
+                        "value": 250
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(rejected_update.status, 200);
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["userErrors"][0]["code"],
+        json!("INVALID_ADJUSTMENT_VALUE")
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["currency"],
+        json!("USD")
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let changed_currency = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": { "currency": "CAD" }
+        }),
+    ));
+    assert_eq!(changed_currency.status, 200);
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["currency"],
+        json!("CAD")
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"],
+        json!([])
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+
+    let read_after_change =
+        fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID);
+    assert_eq!(read_after_change["currency"], json!("CAD"));
+    assert_eq!(read_after_change["fixedPricesCount"], json!(0));
+    assert_eq!(read_after_change["prices"]["edges"], json!([]));
+}
+
+#[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,

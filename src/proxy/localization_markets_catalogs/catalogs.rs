@@ -716,8 +716,12 @@ impl DraftProxy {
             }
         }
         if let Some(currency) = resolved_string_field(&input, "currency") {
+            let currency_changed = price_list_currency(&updated) != currency;
             if let Some(object) = updated.as_object_mut() {
                 object.insert("currency".to_string(), json!(currency));
+            }
+            if currency_changed {
+                clear_fixed_price_nodes(&mut updated);
             }
         }
         if let Some(parent) = parent_update.as_ref() {
