@@ -34,6 +34,12 @@ The Python package under `python/` is also a thin embedding surface: it builds a
    - reject with a 400 GraphQL error envelope before upstream transport when `unsupportedMutationMode` is `reject`
    - remain visible in logs/observability when proxied
 
+The upstream transport boundary rejects any implemented mutation root whose
+registry execution mode is `stage-locally` if a handler attempts to forward that
+mutation before commit. Supported handlers may still issue query-only hydration
+requests in LiveHybrid mode, but the caller's original write document is held
+for local staging and explicit commit replay.
+
 `POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
 
 ## High-level request flow
@@ -72,6 +78,7 @@ App/test harness
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
+- wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`

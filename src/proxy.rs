@@ -2018,3 +2018,86 @@ pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
+
+#[cfg(test)]
+mod upstream_guard_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn graphql_request(query: String) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query }).to_string(),
+        }
+    }
+
+    #[test]
+    fn guarded_upstream_transport_blocks_every_implemented_stage_locally_mutation_root() {
+        let mutation_roots = default_registry()
+            .into_iter()
+            .filter(|entry| entry.implemented && entry.operation_type == OperationType::Mutation)
+            .collect::<Vec<_>>();
+        assert!(
+            !mutation_roots.is_empty(),
+            "default registry should expose implemented mutation roots"
+        );
+
+        for entry in mutation_roots {
+            let forwarded = Arc::new(AtomicUsize::new(0));
+            let transport = super::core::guarded_upstream_transport({
+                let forwarded = Arc::clone(&forwarded);
+                move |_| {
+                    forwarded.fetch_add(1, Ordering::SeqCst);
+                    ok_json(json!({ "data": { "unexpected": true } }))
+                }
+            });
+            let response = transport(graphql_request(format!(
+                "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
+                entry.name
+            )));
+
+            assert_eq!(
+                forwarded.load(Ordering::SeqCst),
+                0,
+                "{} was forwarded through the upstream transport",
+                entry.name
+            );
+            assert_eq!(response.status, 400, "{} should fail closed", entry.name);
+            let message = response.body["errors"][0]["message"]
+                .as_str()
+                .unwrap_or_default();
+            assert!(
+                message.contains(&entry.name),
+                "blocked response for {} should name the root: {message}",
+                entry.name
+            );
+        }
+    }
+
+    #[test]
+    fn guarded_upstream_transport_allows_hydration_queries_and_unknown_mutations() {
+        let forwarded = Arc::new(AtomicUsize::new(0));
+        let transport = super::core::guarded_upstream_transport({
+            let forwarded = Arc::clone(&forwarded);
+            move |_| {
+                forwarded.fetch_add(1, Ordering::SeqCst);
+                ok_json(json!({ "data": { "ok": true } }))
+            }
+        });
+
+        let query_response = transport(graphql_request(
+            r#"query HydrateOrderForLocalMutation { order(id: "gid://shopify/Order/1") { id } }"#
+                .to_string(),
+        ));
+        assert_eq!(query_response.status, 200);
+        assert_eq!(forwarded.load(Ordering::SeqCst), 1);
+
+        let unknown_mutation_response = transport(graphql_request(
+            "mutation UnsupportedMutationPassthrough { definitelyUnknownRoot { id } }".to_string(),
+        ));
+        assert_eq!(unknown_mutation_response.status, 200);
+        assert_eq!(forwarded.load(Ordering::SeqCst), 2);
+    }
+}

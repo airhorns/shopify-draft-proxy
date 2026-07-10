@@ -18,7 +18,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json"
   ],
-  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts", "tests/graphql_routes/platform.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-hold.graphql",
     "variablesCapturePath": "$.workflows.holdRelease.hold.variables"
@@ -64,6 +64,21 @@
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
           }
         ]
+      },
+      {
+        "name": "hold-unknown-id-resource-not-found",
+        "capturePath": "$.validation.holdUnknownId.response.payload",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.fulfillmentOrderHold",
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-hold.graphql",
+          "variablesCapturePath": "$.validation.holdUnknownId.variables"
+        }
       },
       {
         "name": "after-hold-order-read",

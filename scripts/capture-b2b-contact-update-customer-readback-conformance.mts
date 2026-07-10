@@ -15,12 +15,26 @@ type RecordedOperation = {
   };
   response: JsonRecord;
 };
+type RecordedUpstreamCall = {
+  operationName: string;
+  query: string;
+  variables: JsonRecord;
+  response: {
+    status: number;
+    body: JsonRecord;
+  };
+};
 
 const scenarioId = 'b2b-contact-update-customer-readback';
 const timestamp = Date.now();
 const companyName = `B2B contact customer readback ${timestamp}`;
 const originalEmail = `b2b-contact-customer-old-${timestamp}@example.com`;
 const updatedEmail = `b2b-contact-customer-new-${timestamp}@example.com`;
+const originalPhoneLine = String((timestamp % 8000) + 1000).padStart(4, '0');
+const updatedPhoneLine = String(((timestamp + 1) % 8000) + 1000).padStart(4, '0');
+const originalPhone = `(415) 555-${originalPhoneLine}`;
+const updatedPhone = `(650) 555-${updatedPhoneLine}`;
+const expectedUpdatedPhone = `+1650555${updatedPhoneLine}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -43,6 +57,8 @@ const schemaProbeDocument = `#graphql
     }
   }
 `;
+
+const shopCountryHydrateDocument = 'query B2BShopCountryHydrate { shop { shopAddress { countryCodeV2 countryCode } } }';
 
 const companyCreateDocument = `#graphql
   mutation B2BContactUpdateCustomerReadbackCompanyCreate($input: CompanyCreateInput!) {
@@ -205,6 +221,24 @@ function recordOperation(query: string, variables: JsonRecord, result: Conforman
   };
 }
 
+function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: JsonRecord,
+  result: RecordedOperation,
+): RecordedUpstreamCall {
+  const { status, ...body } = result.response;
+  return {
+    operationName,
+    query,
+    variables,
+    response: {
+      status: typeof status === 'number' ? status : 200,
+      body,
+    },
+  };
+}
+
 async function runRequired(
   query: string,
   variables: JsonRecord,
@@ -250,6 +284,11 @@ try {
   const schemaProbeResult = await runGraphqlRequest(schemaProbeDocument, {});
   assertNoTopLevelErrors(schemaProbeResult, 'B2B contact customer readback schema probe');
   const schemaProbe = recordOperation(schemaProbeDocument, {}, schemaProbeResult);
+  const shopCountryHydrate = await runRead(
+    shopCountryHydrateDocument,
+    {},
+    'B2B contact customer readback shop country hydrate',
+  );
 
   const companyCreate = await runRequired(
     companyCreateDocument,
@@ -280,7 +319,7 @@ try {
         email: originalEmail,
         firstName: 'Old',
         lastName: 'Buyer',
-        phone: '(415) 555-0100',
+        phone: originalPhone,
       },
     },
     'companyContactCreate',
@@ -310,7 +349,7 @@ try {
         email: updatedEmail,
         firstName: 'New',
         lastName: 'Name',
-        phone: '(650) 555-0101',
+        phone: updatedPhone,
       },
     },
     'companyContactUpdate',
@@ -323,7 +362,7 @@ try {
       email: updatedEmail,
       firstName: 'New',
       lastName: 'Name',
-      phone: '+16505550101',
+      phone: expectedUpdatedPhone,
     },
     'B2B contact customer readback contact update',
   );
@@ -340,7 +379,7 @@ try {
       email: updatedEmail,
       firstName: 'New',
       lastName: 'Name',
-      phone: '+16505550101',
+      phone: expectedUpdatedPhone,
     },
     'B2B contact customer readback read after update',
   );
@@ -367,7 +406,7 @@ try {
     contactUpdate,
     contactReadAfterUpdate,
     cleanup,
-    upstreamCalls: [],
+    upstreamCalls: [recordUpstreamCall('B2BShopCountryHydrate', shopCountryHydrateDocument, {}, shopCountryHydrate)],
   };
 
   const outputPath = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'b2b', `${scenarioId}.json`);

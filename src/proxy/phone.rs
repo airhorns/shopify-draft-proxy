@@ -47,6 +47,55 @@ pub(in crate::proxy) fn normalize_phone_with_country_context(
     }
 }
 
+pub(in crate::proxy) fn normalize_phone_with_existing_e164_context(
+    raw: &str,
+    existing_e164: Option<&str>,
+    allow_masked: bool,
+) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if allow_masked && trimmed.contains('*') {
+        return Some(trimmed.to_string());
+    }
+
+    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
+    if starts_with_plus {
+        return normalize_phone_with_country_context(raw, None, allow_masked);
+    }
+    if trimmed
+        .chars()
+        .any(|c| c == '+' || c == '\u{FF0B}' || !phone_supported_character(c))
+    {
+        return None;
+    }
+
+    let existing = existing_e164?.trim();
+    let existing_digits = existing
+        .strip_prefix('+')
+        .or_else(|| existing.strip_prefix('\u{FF0B}'))?;
+    if existing_digits.is_empty() || !existing_digits.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    let digits = trimmed
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+    let calling_code_len = existing_digits.len().checked_sub(digits.len())?;
+    if !(1..=3).contains(&calling_code_len) {
+        return None;
+    }
+
+    let e164_digits = format!("{}{}", &existing_digits[..calling_code_len], digits);
+    if (8..=15).contains(&e164_digits.len()) {
+        Some(format!("+{e164_digits}"))
+    } else {
+        None
+    }
+}
+
 pub(in crate::proxy) fn shop_country_code(shop: &Value) -> Option<&str> {
     shop.pointer("/shopAddress/countryCodeV2")
         .and_then(Value::as_str)

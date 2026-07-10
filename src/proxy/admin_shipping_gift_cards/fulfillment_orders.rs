@@ -344,26 +344,6 @@ impl DraftProxy {
                 ),
             ),
         };
-        // Graceful-degradation passthrough. Some recorded scenarios only support
-        // forwarding the mutation upstream: their capture records
-        // `OrdersFulfillmentOrderHydrate` responses that lack the
-        // assignedLocation/supportedActions the local engine needs to resolve
-        // the fulfillment order, so the local handler bails out with a
-        // "fulfillment order not found" result. When that happens, forward the
-        // mutation upstream and return the authentic recorded response. If the
-        // upstream has nothing recorded for this request (a genuine invalid id),
-        // keep the locally-computed not-found instead.
-        if fulfillment_order_response_is_unresolved(&response.body) {
-            let forwarded = (self.upstream_transport)(request.clone());
-            if forwarded.status < 400
-                && forwarded
-                    .body
-                    .get("data")
-                    .is_some_and(|data| !data.is_null())
-            {
-                return forwarded;
-            }
-        }
         response
     }
 
@@ -1641,43 +1621,6 @@ fn fulfillment_order_line_item_quantities(
 }
 
 /// True when a fulfillment-order mutation response indicates the local engine
-/// could not resolve the target fulfillment order. Two shapes are recognized:
-/// the shipping engine's top-level `RESOURCE_NOT_FOUND` GraphQL error
-/// (`{ errors: [{ extensions: { code: "RESOURCE_NOT_FOUND" } }] }`) and the
-/// orders engine's singular `FULFILLMENT_ORDER_NOT_FOUND` userError nested
-/// under the mutation payload. Either signals that the scenario must be served
-/// by forwarding the mutation upstream rather than computed locally. Multi-id
-/// deadline validation keeps its local `FULFILLMENT_ORDERS_NOT_FOUND` payload
-/// because that branch resolves existence from the staged/hydrated store.
-fn fulfillment_order_response_is_unresolved(body: &Value) -> bool {
-    if let Some(errors) = body.get("errors").and_then(Value::as_array) {
-        if errors.iter().any(|error| {
-            error
-                .get("extensions")
-                .and_then(|extensions| extensions.get("code"))
-                .and_then(Value::as_str)
-                == Some("RESOURCE_NOT_FOUND")
-        }) {
-            return true;
-        }
-    }
-    if let Some(data) = body.get("data").and_then(Value::as_object) {
-        for payload in data.values() {
-            if let Some(user_errors) = payload.get("userErrors").and_then(Value::as_array) {
-                if user_errors.iter().any(|error| {
-                    matches!(
-                        error.get("code").and_then(Value::as_str),
-                        Some("FULFILLMENT_ORDER_NOT_FOUND")
-                    )
-                }) {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
 fn fulfillment_order_can_split(order: &Value) -> bool {
     fulfillment_order_line_item_nodes(order).iter().any(|line| {
         line["remainingQuantity"]

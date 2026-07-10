@@ -4605,6 +4605,57 @@ fn order_update_and_mark_as_paid_plain_user_errors_omit_codes() {
 }
 
 #[test]
+fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(query);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "order": Value::Null } }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridOrderUpdateMiss($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/404404404" } }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["orderUpdate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].contains("query OrdersOrderHydrate"));
+}
+
+#[test]
 fn order_create_validation_matrix_returns_typed_user_errors() {
     let mut proxy = snapshot_proxy();
 

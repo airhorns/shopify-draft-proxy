@@ -115,8 +115,11 @@ role setup when those input objects are present. Its nested
 `companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
 `companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
 company-contact lifecycle and keep company `contactIds`, contact customer data,
-role assignments, and downstream contact reads in sync. Deleting or removing
-the current main contact clears the company's `mainContact`. `companyContactCreate`
+role assignments, and downstream contact reads in sync. Local-format contact
+phone input normalizes through the shop country observed from local state or a
+LiveHybrid query-only shop-country hydrate; if no country context is available,
+the proxy does not assume a default calling code. Deleting or removing the
+current main contact clears the company's `mainContact`. `companyContactCreate`
 stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
 `lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
 email-backed customer reference; omitting `input.email` returns `INVALID` at
