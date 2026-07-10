@@ -35,7 +35,6 @@ Local staged mutations:
 - `customerSmsMarketingConsentUpdate`
 - `customerGenerateAccountActivationUrl`
 - `customerSendAccountInviteEmail`
-- `customerPaymentMethodSendUpdateEmail`
 - `customerPaymentMethodCreditCardCreate`
 - `customerPaymentMethodCreditCardUpdate`
 - `customerPaymentMethodRemoteCreate`
@@ -154,9 +153,9 @@ The customer surface includes roots that look related but have different safety 
 
 - `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate` are customer state changes, not outbound notification sends. They are safe to stage locally once captured behavior is modeled because downstream reads can observe the changed consent fields.
 - `customerGenerateAccountActivationUrl` returns a sensitive, expiring customer-facing link. Runtime support only succeeds for `DISABLED` or `INVITED` customers, records a stable synthetic account-activation token on the local customer row, synthesizes a non-deliverable token-bearing activation URL, and keeps the original raw mutation for commit replay instead of asking Shopify for a live URL. Other customer states return `account_already_enabled`.
-- `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are explicit outbound email side effects. These can still be supported because the proxy buffers the original mutations locally and does not deliver email at runtime; delivery happens only if the staged mutation log is committed to Shopify.
+- `customerSendAccountInviteEmail` is an explicit outbound email side effect. Runtime support buffers the original mutation locally and does not deliver email at runtime; delivery happens only if the staged mutation log is committed to Shopify.
 - `customerSendAccountInviteEmail` only stages the invite for locally invitable account states. `DISABLED` customers transition to `INVITED`; customers already in `ENABLED` or another ineligible state return `ACCOUNT_ALREADY_ENABLED` on `customerId` and keep their current state.
-- `customerPaymentMethodSendUpdateEmail` validates that the payment method is present in the local customer-payment graph before buffering. It returns the associated customer when that ownership edge is known locally, and otherwise mirrors Shopify's not-found userError instead of claiming delivery for an unknown payment method.
+- `customerPaymentMethodSendUpdateEmail` remains unsupported as a primary mutation root until customer-payment ownership and email buffering have their own captured implementation path.
 - `customerPaymentMethodGetUpdateUrl` synthesizes a non-deliverable local URL only for Shop Pay agreement instruments. Do not replace it with a live Shopify URL fetch during supported runtime handling.
 
 Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.

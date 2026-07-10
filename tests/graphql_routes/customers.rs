@@ -88,6 +88,325 @@ fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: 
 }
 
 #[test]
+fn customer_activation_url_and_account_invite_stage_locally() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_customer(
+        &mut proxy,
+        "account-lifecycle@example.com",
+        "Account",
+        "Lifecycle",
+        Vec::new(),
+        None,
+    );
+
+    let activation_mutation = r#"
+        mutation GenerateActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first_activation = proxy.process_request(json_graphql_request(
+        activation_mutation,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(first_activation.status, 200);
+    assert_eq!(
+        first_activation.body["data"]["customerGenerateAccountActivationUrl"]["userErrors"],
+        json!([])
+    );
+    let activation_url = first_activation.body["data"]["customerGenerateAccountActivationUrl"]
+        ["accountActivationUrl"]
+        .as_str()
+        .expect("activation URL")
+        .to_string();
+    assert!(
+        activation_url.starts_with("https://shopify-draft-proxy.local/customer-account/activate/"),
+        "activation URL should be non-deliverable local URL: {activation_url}"
+    );
+
+    let second_activation = proxy.process_request(json_graphql_request(
+        activation_mutation,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        second_activation.body["data"]["customerGenerateAccountActivationUrl"]
+            ["accountActivationUrl"],
+        json!(activation_url)
+    );
+
+    let invite = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendInvite($customerId: ID!) {
+          customerSendAccountInviteEmail(customerId: $customerId) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(invite.status, 200);
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadInvitedCustomer($id: ID!) {
+          customer(id: $id) { id state }
+        }
+        "#,
+        json!({ "id": customer_id.clone() }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().expect("log entries").len(), 4);
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("customerGenerateAccountActivationUrl")
+    );
+    assert_eq!(
+        log["entries"][3]["interpreted"]["primaryRootField"],
+        json!("customerSendAccountInviteEmail")
+    );
+    assert!(log["entries"][3]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("customerSendAccountInviteEmail"));
+
+    let state = state_snapshot(&proxy);
+    let staged_customer = &state["stagedState"]["customers"][customer_id.as_str()];
+    assert_eq!(staged_customer["state"], json!("INVITED"));
+    assert!(staged_customer["__proxyAccountActivationToken"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("sdp-activation-"));
+    assert_eq!(
+        staged_customer["__proxyAccountInvite"]["status"],
+        json!("staged")
+    );
+}
+
+#[test]
+fn customer_invite_validation_failures_do_not_mutate_or_log() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_customer(
+        &mut proxy,
+        "invite-validation@example.com",
+        "Invite",
+        "Validation",
+        Vec::new(),
+        None,
+    );
+    let log_len_after_create = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("log entries")
+        .len();
+
+    let invite_mutation = r#"
+        mutation InviteValidation($customerId: ID!, $email: EmailInput) {
+          customerSendAccountInviteEmail(customerId: $customerId, email: $email) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let cases = [
+        (
+            json!({ "subject": "" }),
+            json!([{ "field": ["email", "subject"], "message": "Subject can't be blank", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "to": "not-an-email" }),
+            json!([{ "field": ["email", "to"], "message": "To is invalid", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "from": "not-an-email" }),
+            json!([{ "field": ["email", "from"], "message": "From Sender is invalid", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "bcc": ["bad", "ok@example.com"] }),
+            json!([{ "field": ["email", "bcc"], "message": "bad is not a valid bcc address and ok@example.com is not a valid bcc address", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "s".repeat(1001) }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "customMessage": "m".repeat(5001) }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "customMessage": "<script>alert(1)</script>" }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+    ];
+
+    for (email, expected_errors) in cases {
+        let response = proxy.process_request(json_graphql_request(
+            invite_mutation,
+            json!({ "customerId": customer_id.clone(), "email": email }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["customerSendAccountInviteEmail"]["customer"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["customerSendAccountInviteEmail"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(
+            log_snapshot(&proxy)["entries"]
+                .as_array()
+                .expect("log entries")
+                .len(),
+            log_len_after_create
+        );
+        let read = proxy.process_request(json_graphql_request(
+            r#"query ReadCustomer($id: ID!) { customer(id: $id) { id state } }"#,
+            json!({ "id": customer_id.clone() }),
+        ));
+        assert_eq!(
+            read.body["data"]["customer"],
+            json!({ "id": customer_id.clone(), "state": "DISABLED" })
+        );
+    }
+
+    let unknown_activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": "gid://shopify/Customer/999999999999999" }),
+    ));
+    assert_eq!(
+        unknown_activation.body["data"]["customerGenerateAccountActivationUrl"],
+        json!({
+            "accountActivationUrl": null,
+            "userErrors": [{ "field": ["customerId"], "message": "The customer can't be found." }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"]
+            .as_array()
+            .expect("log entries")
+            .len(),
+        log_len_after_create
+    );
+}
+
+#[test]
+fn customer_outbound_lifecycle_live_hybrid_never_forwards_write_mutations() {
+    let customer_id = "gid://shopify/Customer/live-hybrid-invite".to_string();
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let hydrated_customer_id = customer_id.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "outbound lifecycle runtime must not forward write mutations upstream: {query}"
+            );
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            captured.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "customer": {
+                            "id": hydrated_customer_id,
+                            "firstName": "Live",
+                            "lastName": "Hybrid",
+                            "displayName": "Live Hybrid",
+                            "email": "live-hybrid@example.com",
+                            "phone": null,
+                            "locale": "en",
+                            "note": null,
+                            "canDelete": true,
+                            "verifiedEmail": true,
+                            "dataSaleOptOut": false,
+                            "taxExempt": false,
+                            "taxExemptions": [],
+                            "state": "DISABLED",
+                            "tags": [],
+                            "createdAt": "2026-06-01T00:00:00Z",
+                            "updatedAt": "2026-06-01T00:00:00Z",
+                            "defaultEmailAddress": { "emailAddress": "live-hybrid@example.com" },
+                            "defaultPhoneNumber": null,
+                            "defaultAddress": null,
+                            "addressesV2": { "nodes": [] },
+                            "metafields": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let invite = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridInvite($customerId: ID!) {
+          customerSendAccountInviteEmail(customerId: $customerId) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(invite.status, 200);
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "only query hydration should have reached upstream"
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["customerGenerateAccountActivationUrl"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "staged customer should satisfy activation without another upstream call"
+    );
+}
+
+#[test]
 fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
     for root in ["customerUpdate", "customerSet"] {
         let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));

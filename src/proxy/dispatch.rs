@@ -1795,6 +1795,15 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerGenerateAccountActivationUrl" | "customerSendAccountInviteEmail"
+                    ) =>
+            {
+                self.customer_outbound_lifecycle_response(request, query, variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
                     && root_field == "customerMerge" =>
             {
                 self.customer_merge(query, variables, request)
