@@ -1645,6 +1645,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-top-level-media',
+    scriptPath: 'scripts/capture-product-top-level-media-conformance.mts',
+    purpose:
+      'productCreate/productUpdate top-level CreateMediaInput handling for valid image media, valid external-video media, invalid source userErrors, and immediate read-after-write behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-top-level-media-parity.json',
+      'config/parity-requests/products/product-top-level-media-create.graphql',
+      'config/parity-requests/products/product-top-level-media-update.graphql',
+      'config/parity-requests/products/product-top-level-media-read.graphql',
+      'config/parity-specs/products/product-top-level-media-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable draft products through productCreate top-level media scenarios and deletes any created products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-media-missing-media-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-media-missing-media-aggregation-conformance.mts',

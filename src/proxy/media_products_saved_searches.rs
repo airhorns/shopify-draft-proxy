@@ -686,6 +686,21 @@ impl DraftProxy {
             ));
         }
 
+        let top_level_media_inputs = product_top_level_media_inputs(query, variables);
+        if let Some(media_inputs) = top_level_media_inputs.as_ref() {
+            let media_errors = product_top_level_media_user_errors(media_inputs);
+            if !media_errors.is_empty() {
+                return MutationOutcome::response(
+                    self.product_create_user_errors_response_with_shop(
+                        request,
+                        query,
+                        variables,
+                        media_errors,
+                    ),
+                );
+            }
+        }
+
         let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
@@ -717,6 +732,11 @@ impl DraftProxy {
             collections: Vec::new(),
             extra_fields,
         };
+        let media_append = top_level_media_inputs
+            .as_ref()
+            .map(|media_inputs| self.product_top_level_media_append(media_inputs))
+            .unwrap_or_default();
+        product.media = media_append.staged_nodes.clone();
         // Echo product-level inputs that Shopify persists verbatim onto the created product
         // and surfaces through downstream reads.
         if let Some(requires_selling_plan) = resolved_bool_field(&input, "requiresSellingPlan") {
@@ -777,6 +797,7 @@ impl DraftProxy {
         };
         product.variants = vec![product_variant_state_json(&variant)];
         staged_ids.push(variant.id.clone());
+        staged_ids.extend(media_append.staged_ids.iter().cloned());
         self.store.stage_product_variant(variant);
 
         // `collectionsToJoin` adds the new product to existing collections. Add the minimal
@@ -793,6 +814,8 @@ impl DraftProxy {
         self.stage_owner_metafields_from_input(&id, &input);
 
         self.store.stage_product(product.clone());
+        let mut response_product = product.clone();
+        response_product.media = media_append.mutation_nodes;
 
         // Register collection membership so downstream `collection` reads expose hasProduct,
         // productsCount, and the product in their member list.
@@ -812,7 +835,7 @@ impl DraftProxy {
             ok_json(json!({
                 "data": {
                     response_key: product_mutation_payload_json(
-                        &product,
+                        &response_product,
                         &variants,
                         &payload_selection,
                         &product_selection,
@@ -1062,6 +1085,14 @@ impl DraftProxy {
             }
         }
 
+        let top_level_media_inputs = product_top_level_media_inputs(query, variables);
+        if let Some(media_inputs) = top_level_media_inputs.as_ref() {
+            let media_errors = product_top_level_media_user_errors(media_inputs);
+            if !media_errors.is_empty() {
+                return self.product_update_field_user_errors(query, &existing, media_errors);
+            }
+        }
+
         let mut extra_fields = existing.extra_fields;
         if let Some(category_id) = product_category_input_id(&input) {
             match self.product_category_value_for_input(request, &category_id) {
@@ -1081,6 +1112,15 @@ impl DraftProxy {
                 }
             }
         }
+
+        let media_append = top_level_media_inputs
+            .as_ref()
+            .map(|media_inputs| self.product_top_level_media_append(media_inputs))
+            .unwrap_or_default();
+        let mut staged_media = existing.media.clone();
+        staged_media.extend(media_append.staged_nodes.clone());
+        let mut response_media = existing.media.clone();
+        response_media.extend(media_append.mutation_nodes);
 
         let product = ProductRecord {
             id: existing.id,
@@ -1107,23 +1147,27 @@ impl DraftProxy {
                 .unwrap_or(existing.seo_description),
             total_inventory: existing.total_inventory,
             tracks_inventory: existing.tracks_inventory,
-            media: existing.media,
+            media: staged_media,
             variants: existing.variants,
             collections: existing.collections,
             extra_fields,
         };
         self.store.stage_product(product.clone());
+        let mut response_product = product.clone();
+        response_product.media = response_media;
 
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "productUpdate".to_string());
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
+        let mut staged_ids = vec![id];
+        staged_ids.extend(media_append.staged_ids);
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
                     response_key: product_mutation_payload_json(
-                        &product,
+                        &response_product,
                         &variants,
                         &payload_selection,
                         &product_selection,
@@ -1136,7 +1180,7 @@ impl DraftProxy {
                     )
                 }
             })),
-            LogDraft::staged("productUpdate", "products", vec![id]),
+            LogDraft::staged("productUpdate", "products", staged_ids),
         )
     }
 
@@ -3772,6 +3816,421 @@ mod tests {
             json!([])
         );
         response.body["data"]["productVariantCreate"]["productVariant"].clone()
+    }
+
+    #[test]
+    fn product_create_stages_top_level_media_from_variable() {
+        let mut proxy = test_proxy();
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation CreateProductWithMedia($productInput: ProductCreateInput!, $mediaPayload: [CreateMediaInput!]) {
+              productCreate(product: $productInput, media: $mediaPayload) {
+                product {
+                  id
+                  title
+                  media(first: 10) {
+                    nodes {
+                      __typename
+                      id
+                      alt
+                      mediaContentType
+                      status
+                      preview { image { url } }
+                      ... on MediaImage { image { url } }
+                    }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "productInput": {
+                    "title": "Created with media",
+                    "status": "DRAFT"
+                },
+                "mediaPayload": [{
+                    "mediaContentType": "IMAGE",
+                    "originalSource": "https://placehold.co/640x480/png",
+                    "alt": "Top level image"
+                }]
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        let payload = &response.body["data"]["productCreate"];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(
+            payload["product"]["media"]["nodes"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            payload["product"]["media"]["nodes"][0]["__typename"],
+            json!("MediaImage")
+        );
+        assert_eq!(
+            payload["product"]["media"]["nodes"][0]["mediaContentType"],
+            json!("IMAGE")
+        );
+        assert_eq!(
+            payload["product"]["media"]["nodes"][0]["status"],
+            json!("UPLOADED")
+        );
+        assert_eq!(
+            payload["product"]["media"]["nodes"][0]["alt"],
+            json!("Top level image")
+        );
+
+        let product_id = payload["product"]["id"].as_str().unwrap();
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadProductMedia($id: ID!) {
+              product(id: $id) {
+                media(first: 10) {
+                  nodes {
+                    __typename
+                    id
+                    alt
+                    mediaContentType
+                    status
+                    preview { image { url } }
+                    ... on MediaImage { image { url } }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["media"]["nodes"][0]["id"],
+            payload["product"]["media"]["nodes"][0]["id"]
+        );
+        assert_eq!(
+            read.body["data"]["product"]["media"]["nodes"][0]["status"],
+            json!("PROCESSING")
+        );
+    }
+
+    #[test]
+    fn product_create_and_update_stage_top_level_media_from_inline_literals() {
+        let mut proxy = test_proxy();
+        let create = proxy.process_request(test_request(
+            r#"
+            mutation CreateProductWithInlineMedia {
+              productCreate(
+                product: { title: "Inline media owner", status: DRAFT }
+                media: [{
+                  mediaContentType: IMAGE
+                  originalSource: "https://placehold.co/640x480/png"
+                  alt: "Inline image"
+                }]
+              ) {
+                product {
+                  id
+                  media(first: 10) {
+                    nodes {
+                      __typename
+                      id
+                      alt
+                      mediaContentType
+                      status
+                    }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        let product_id = create.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let image_id = create.body["data"]["productCreate"]["product"]["media"]["nodes"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let update = proxy.process_request(test_request(
+            r#"
+            mutation UpdateProductWithInlineMedia($productId: ID!) {
+              productUpdate(
+                product: { id: $productId, title: "Inline media update" }
+                media: [{
+                  mediaContentType: EXTERNAL_VIDEO
+                  originalSource: "https://youtu.be/dQw4w9WgXcQ"
+                  alt: "Inline external video"
+                }]
+              ) {
+                product {
+                  title
+                  media(first: 10) {
+                    nodes {
+                      __typename
+                      id
+                      alt
+                      mediaContentType
+                      status
+                      ... on ExternalVideo {
+                        originUrl
+                        embedUrl
+                      }
+                    }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "productId": product_id }),
+        ));
+        assert_eq!(update.status, 200);
+        let payload = &update.body["data"]["productUpdate"];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(payload["product"]["title"], json!("Inline media update"));
+        let nodes = payload["product"]["media"]["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0]["id"], json!(image_id));
+        assert_eq!(nodes[0]["alt"], json!("Inline image"));
+        assert_eq!(nodes[1]["__typename"], json!("ExternalVideo"));
+        assert_eq!(nodes[1]["alt"], json!("Inline external video"));
+        assert_eq!(nodes[1]["originUrl"], json!("https://youtu.be/dQw4w9WgXcQ"));
+        assert_eq!(
+            nodes[1]["embedUrl"],
+            json!("https://www.youtube.com/embed/dQw4w9WgXcQ")
+        );
+    }
+
+    #[test]
+    fn product_update_appends_top_level_media_and_preserves_existing_media() {
+        let mut proxy = test_proxy();
+        let create = proxy.process_request(test_request(
+            r#"
+            mutation CreateProductWithImage($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+              productCreate(product: $product, media: $media) {
+                product {
+                  id
+                  media(first: 10) {
+                    nodes { id alt mediaContentType status }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "product": { "title": "Update media owner" },
+                "media": [{
+                    "mediaContentType": "IMAGE",
+                    "originalSource": "https://placehold.co/320x240/png",
+                    "alt": "Existing image"
+                }]
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        let product_id = create.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let image_id = create.body["data"]["productCreate"]["product"]["media"]["nodes"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let update = proxy.process_request(test_request(
+            r#"
+            mutation UpdateProductWithExternalVideo($input: ProductUpdateInput!, $mediaInput: [CreateMediaInput!]) {
+              productUpdate(product: $input, media: $mediaInput) {
+                product {
+                  id
+                  title
+                  media(first: 10) {
+                    nodes {
+                      __typename
+                      id
+                      alt
+                      mediaContentType
+                      status
+                      ... on ExternalVideo {
+                        originUrl
+                        embedUrl
+                      }
+                    }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "id": product_id,
+                    "title": "Updated with external video"
+                },
+                "mediaInput": [{
+                    "mediaContentType": "EXTERNAL_VIDEO",
+                    "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    "alt": "Top level external video"
+                }]
+            }),
+        ));
+        assert_eq!(update.status, 200);
+        let payload = &update.body["data"]["productUpdate"];
+        assert_eq!(payload["userErrors"], json!([]));
+        let nodes = payload["product"]["media"]["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0]["id"], json!(image_id));
+        assert_eq!(nodes[0]["status"], json!("PROCESSING"));
+        assert_eq!(nodes[1]["__typename"], json!("ExternalVideo"));
+        assert_eq!(nodes[1]["mediaContentType"], json!("EXTERNAL_VIDEO"));
+        assert_eq!(nodes[1]["status"], json!("UPLOADED"));
+        assert_eq!(nodes[1]["originUrl"], json!("https://youtu.be/dQw4w9WgXcQ"));
+        assert_eq!(
+            nodes[1]["embedUrl"],
+            json!("https://www.youtube.com/embed/dQw4w9WgXcQ")
+        );
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadUpdatedProductMedia($id: ID!) {
+              product(id: $id) {
+                title
+                media(first: 10) {
+                  nodes {
+                    __typename
+                    id
+                    alt
+                    mediaContentType
+                    status
+                    ... on ExternalVideo {
+                      originUrl
+                      embedUrl
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": product_id }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["title"],
+            json!("Updated with external video")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["media"]["nodes"],
+            payload["product"]["media"]["nodes"]
+        );
+    }
+
+    #[test]
+    fn product_media_validation_errors_are_atomic() {
+        let mut proxy = test_proxy();
+        let invalid_create = proxy.process_request(test_request(
+            r#"
+            mutation InvalidCreateMedia($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+              productCreate(product: $product, media: $media) {
+                product { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "product": { "title": "Invalid media create" },
+                "media": [{
+                    "mediaContentType": "IMAGE",
+                    "originalSource": "not-a-url",
+                    "alt": "Invalid"
+                }]
+            }),
+        ));
+        assert_eq!(invalid_create.status, 200);
+        assert_eq!(
+            invalid_create.body["data"]["productCreate"]["product"],
+            Value::Null
+        );
+        assert_eq!(
+            invalid_create.body["data"]["productCreate"]["userErrors"],
+            json!([{
+                "field": ["media", "0", "originalSource"],
+                "message": "Image URL is invalid"
+            }])
+        );
+
+        let invalid_update = proxy.process_request(test_request(
+            r#"
+            mutation InvalidUpdateMedia($input: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+              productUpdate(product: $input, media: $media) {
+                product {
+                  id
+                  title
+                  media(first: 10) { nodes { id } }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "id": "gid://shopify/Product/1",
+                    "title": "Should not persist"
+                },
+                "media": [{
+                    "mediaContentType": "IMAGE",
+                    "originalSource": "not-a-url",
+                    "alt": "Invalid"
+                }]
+            }),
+        ));
+        assert_eq!(invalid_update.status, 200);
+        assert_eq!(
+            invalid_update.body["data"]["productUpdate"]["userErrors"],
+            json!([{
+                "field": ["media", "0", "originalSource"],
+                "message": "Image URL is invalid"
+            }])
+        );
+        assert_eq!(
+            invalid_update.body["data"]["productUpdate"]["product"]["title"],
+            json!("Seeded product")
+        );
+        assert_eq!(
+            invalid_update.body["data"]["productUpdate"]["product"]["media"]["nodes"],
+            json!([])
+        );
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadAfterInvalidUpdate($id: ID!) {
+              product(id: $id) {
+                title
+                media(first: 10) { nodes { id } }
+              }
+            }
+            "#,
+            json!({ "id": "gid://shopify/Product/1" }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["product"]["title"],
+            json!("Seeded product")
+        );
+        assert_eq!(read.body["data"]["product"]["media"]["nodes"], json!([]));
     }
 
     #[test]

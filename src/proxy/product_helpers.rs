@@ -542,6 +542,42 @@ pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publi
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn product_top_level_media_append(
+        &mut self,
+        media_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> ProductTopLevelMediaAppend {
+        let mut append = ProductTopLevelMediaAppend::default();
+        for item in media_inputs {
+            let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
+            let media_content_type = resolved_string_field(item, "mediaContentType")
+                .unwrap_or_else(|| infer_product_media_content_type(&original_source).to_string());
+            let id = self.next_proxy_synthetic_gid(product_media_typename(&media_content_type));
+            let alt = resolved_string_field(item, "alt").unwrap_or_default();
+            append.mutation_nodes.push(product_media_node_with_type(
+                &id,
+                &alt,
+                &media_content_type,
+                "UPLOADED",
+                None,
+                Some(&original_source),
+            ));
+            append.staged_nodes.push(product_media_node_with_type(
+                &id,
+                &alt,
+                &media_content_type,
+                if media_content_type == "IMAGE" {
+                    "PROCESSING"
+                } else {
+                    "UPLOADED"
+                },
+                None,
+                Some(&original_source),
+            ));
+            append.staged_ids.push(id);
+        }
+        append
+    }
+
     pub(in crate::proxy) fn product_media_mutation_data(
         &mut self,
         request: &Request,
@@ -966,6 +1002,57 @@ impl DraftProxy {
     }
 }
 
+#[derive(Default)]
+pub(in crate::proxy) struct ProductTopLevelMediaAppend {
+    pub(in crate::proxy) mutation_nodes: Vec<Value>,
+    pub(in crate::proxy) staged_nodes: Vec<Value>,
+    pub(in crate::proxy) staged_ids: Vec<String>,
+}
+
+pub(in crate::proxy) fn product_top_level_media_inputs(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Vec<BTreeMap<String, ResolvedValue>>> {
+    let mut arguments = root_field_arguments(query, variables)?;
+    match arguments.remove("media") {
+        Some(ResolvedValue::List(items)) => Some(
+            items
+                .into_iter()
+                .filter_map(|item| match item {
+                    ResolvedValue::Object(fields) => Some(fields),
+                    _ => None,
+                })
+                .collect(),
+        ),
+        Some(ResolvedValue::Null) | None => None,
+        _ => Some(Vec::new()),
+    }
+}
+
+pub(in crate::proxy) fn product_top_level_media_user_errors(
+    media_inputs: &[BTreeMap<String, ResolvedValue>],
+) -> Vec<Value> {
+    media_inputs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
+            if media_source_is_valid(&original_source) {
+                return None;
+            }
+            Some(user_error_omit_code(
+                vec![
+                    "media".to_string(),
+                    index.to_string(),
+                    "originalSource".to_string(),
+                ],
+                "Image URL is invalid",
+                None,
+            ))
+        })
+        .collect()
+}
+
 fn product_media_node_with_type(
     id: &str,
     alt: &str,
@@ -993,6 +1080,14 @@ fn product_media_node_with_type(
         if let Some(source) = original_source {
             node["originalSource"] = json!({ "url": source });
         }
+    } else if media_content_type == "EXTERNAL_VIDEO" {
+        if let Some(source) = original_source {
+            let (origin_url, embed_url) = external_video_urls(source);
+            node["originUrl"] = json!(origin_url);
+            if let Some(embed_url) = embed_url {
+                node["embedUrl"] = json!(embed_url);
+            }
+        }
     } else if matches!(media_content_type, "VIDEO" | "MODEL_3D") {
         if let Some(source) = original_source {
             node["originalSource"] = json!({ "url": source });
@@ -1000,6 +1095,36 @@ fn product_media_node_with_type(
         }
     }
     node
+}
+
+fn external_video_urls(source: &str) -> (String, Option<String>) {
+    if let Some(video_id) = youtube_video_id(source) {
+        return (
+            format!("https://youtu.be/{video_id}"),
+            Some(format!("https://www.youtube.com/embed/{video_id}")),
+        );
+    }
+    (source.to_string(), None)
+}
+
+fn youtube_video_id(source: &str) -> Option<String> {
+    if let Some(tail) = source.split("youtu.be/").nth(1) {
+        return video_id_token(tail);
+    }
+    let query = source.split_once('?')?.1;
+    query.split('&').find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        (key == "v").then(|| video_id_token(value)).flatten()
+    })
+}
+
+fn video_id_token(raw: &str) -> Option<String> {
+    let token = raw
+        .split(['?', '&', '#', '/'])
+        .next()
+        .unwrap_or_default()
+        .trim();
+    (!token.is_empty()).then(|| token.to_string())
 }
 
 fn product_media_typename(media_content_type: &str) -> &'static str {
