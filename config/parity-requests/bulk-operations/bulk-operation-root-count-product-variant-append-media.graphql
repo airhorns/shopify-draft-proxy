@@ -1,0 +1,21 @@
+mutation BulkOperationRootCountProductVariantAppendMedia(
+  $productId: ID!
+  $variantMedia: [ProductVariantAppendMediaInput!]!
+) {
+  productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+    productVariants {
+      id
+      media(first: 5) {
+        nodes {
+          id
+          alt
+          mediaContentType
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

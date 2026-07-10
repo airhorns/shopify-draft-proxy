@@ -60,6 +60,7 @@ type ComparisonTarget = {
   proxyUpload?: ProxyUploadSpec;
   proxyHttpRequest?: ProxyHttpRequestSpec;
   isolatedProxy?: boolean;
+  jsonlRecords?: boolean;
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
@@ -750,8 +751,18 @@ async function sendProxyUpload(
   return response;
 }
 
+export function parseJsonlRecordsForParity(value: unknown): unknown {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return value;
+  return value
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as unknown);
+}
+
 function normalizeForTarget(value: unknown, target: ComparisonTarget): unknown {
-  return applyExcludedPaths(selectPaths(value, target.selectedPaths), target.excludedPaths);
+  const comparable = target.jsonlRecords ? parseJsonlRecordsForParity(value) : value;
+  return applyExcludedPaths(selectPaths(comparable, target.selectedPaths), target.excludedPaths);
 }
 
 function captureResponseForTarget(capture: unknown, target: ComparisonTarget): ProxyResponse | null {

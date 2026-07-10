@@ -70,11 +70,74 @@ const productCreateMutation = `mutation BulkOperationRootCountProductCreate($pro
       id
       title
       tags
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          value
+        }
+      }
       variants(first: 5) {
         nodes {
           id
           title
           sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}`;
+
+const productCreateMediaMutation = `mutation BulkOperationRootCountProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+      status
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+  }
+}`;
+
+const productVariantsBulkUpdateMutation = `mutation BulkOperationRootCountProductVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+      sku
+      metafields(first: 5, namespace: "custom") {
+        nodes {
+          id
+          namespace
+          key
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}`;
+
+const productVariantAppendMediaMutation = `mutation BulkOperationRootCountProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+  productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+    productVariants {
+      id
+      media(first: 5) {
+        nodes {
+          id
+          alt
+          mediaContentType
         }
       }
     }
@@ -91,6 +154,50 @@ const productDeleteMutation = `mutation BulkOperationRootCountProductDelete($inp
     userErrors {
       field
       message
+    }
+  }
+}`;
+
+const productChildConnectionsQuery = `query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {
+  product(id: $id) {
+    id
+    media(first: 5) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+      }
+    }
+    metafields(first: 5, namespace: $namespace) {
+      nodes {
+        id
+        namespace
+        key
+        value
+      }
+    }
+  }
+}`;
+
+const productVariantChildConnectionsQuery = `query BulkOperationRootCountProductVariantChildrenVisible($id: ID!, $namespace: String!) {
+  productVariant(id: $id) {
+    id
+    sku
+    media(first: 5) {
+      nodes {
+        id
+        alt
+        mediaContentType
+      }
+    }
+    metafields(first: 5, namespace: $namespace) {
+      nodes {
+        id
+        namespace
+        key
+        value
+      }
     }
   }
 }`;
@@ -203,7 +310,8 @@ function readData(interaction: CapturedInteraction): Record<string, unknown> | n
 function readPayloadUserErrors(interaction: CapturedInteraction, payloadFieldName: string): unknown[] {
   const data = readData(interaction);
   const payload = asRecord(data?.[payloadFieldName]);
-  const userErrors = payload?.['userErrors'];
+  const errorFieldName = payloadFieldName === 'productCreateMedia' ? 'mediaUserErrors' : 'userErrors';
+  const userErrors = payload?.[errorFieldName];
   return Array.isArray(userErrors) ? userErrors : [];
 }
 
@@ -214,6 +322,32 @@ function readCreatedProductId(interaction: CapturedInteraction): string {
   const id = product?.['id'];
   if (typeof id !== 'string') {
     throw new Error('productCreate did not return a product id.');
+  }
+  return id;
+}
+
+function readCreatedProductDefaultVariantId(interaction: CapturedInteraction): string {
+  const data = readData(interaction);
+  const payload = asRecord(data?.['productCreate']);
+  const product = asRecord(payload?.['product']);
+  const variants = asRecord(product?.['variants']);
+  const nodes = variants?.['nodes'];
+  const firstVariant = Array.isArray(nodes) ? asRecord(nodes[0]) : null;
+  const id = firstVariant?.['id'];
+  if (typeof id !== 'string') {
+    throw new Error('productCreate did not expose a default variant id.');
+  }
+  return id;
+}
+
+function readCreatedProductMediaId(interaction: CapturedInteraction): string {
+  const data = readData(interaction);
+  const payload = asRecord(data?.['productCreateMedia']);
+  const media = payload?.['media'];
+  const firstMedia = Array.isArray(media) ? asRecord(media[0]) : null;
+  const id = firstMedia?.['id'];
+  if (typeof id !== 'string') {
+    throw new Error('productCreateMedia did not return a media id.');
   }
   return id;
 }
@@ -280,6 +414,91 @@ async function waitForProductSearch(tag: string, productId: string): Promise<Cap
   throw new Error(`Created product ${productId} was not visible via products(query: ${query}).`);
 }
 
+async function waitForProductChildConnections(
+  productId: string,
+  namespace: string,
+  mediaAlt: string,
+  metafieldKey: string,
+): Promise<CapturedInteraction[]> {
+  const probes: CapturedInteraction[] = [];
+  for (let index = 0; index < maxPolls; index += 1) {
+    if (index > 0) {
+      await sleep(pollIntervalMs);
+    }
+    const probe = await capture('BulkOperationRootCountProductChildrenVisible', productChildConnectionsQuery, {
+      id: productId,
+      namespace,
+    });
+    probes.push(probe);
+    const product = asRecord(readData(probe)?.['product']);
+    const mediaNodes = asRecord(product?.['media'])?.['nodes'];
+    const metafieldNodes = asRecord(product?.['metafields'])?.['nodes'];
+    const mediaVisible = Array.isArray(mediaNodes) && mediaNodes.some((node) => asRecord(node)?.['alt'] === mediaAlt);
+    const metafieldVisible =
+      Array.isArray(metafieldNodes) && metafieldNodes.some((node) => asRecord(node)?.['key'] === metafieldKey);
+    if (mediaVisible && metafieldVisible) {
+      return probes;
+    }
+  }
+  throw new Error(`Product ${productId} did not expose expected media/metafield child connections.`);
+}
+
+async function waitForProductMediaReady(productId: string, mediaId: string): Promise<CapturedInteraction[]> {
+  const probes: CapturedInteraction[] = [];
+  for (let index = 0; index < maxPolls; index += 1) {
+    if (index > 0) {
+      await sleep(pollIntervalMs);
+    }
+    const probe = await capture('BulkOperationRootCountProductMediaReady', productChildConnectionsQuery, {
+      id: productId,
+      namespace: metafieldNamespace,
+    });
+    probes.push(probe);
+    const product = asRecord(readData(probe)?.['product']);
+    const mediaNodes = asRecord(product?.['media'])?.['nodes'];
+    const mediaReady =
+      Array.isArray(mediaNodes) &&
+      mediaNodes.some((node) => asRecord(node)?.['id'] === mediaId && asRecord(node)?.['status'] === 'READY');
+    if (mediaReady) {
+      return probes;
+    }
+  }
+  throw new Error(`Product media ${mediaId} was not READY on product ${productId}.`);
+}
+
+async function waitForProductVariantChildConnections(
+  variantId: string,
+  namespace: string,
+  mediaAlt: string,
+  metafieldKey: string,
+): Promise<CapturedInteraction[]> {
+  const probes: CapturedInteraction[] = [];
+  for (let index = 0; index < maxPolls; index += 1) {
+    if (index > 0) {
+      await sleep(pollIntervalMs);
+    }
+    const probe = await capture(
+      'BulkOperationRootCountProductVariantChildrenVisible',
+      productVariantChildConnectionsQuery,
+      {
+        id: variantId,
+        namespace,
+      },
+    );
+    probes.push(probe);
+    const variant = asRecord(readData(probe)?.['productVariant']);
+    const mediaNodes = asRecord(variant?.['media'])?.['nodes'];
+    const metafieldNodes = asRecord(variant?.['metafields'])?.['nodes'];
+    const mediaVisible = Array.isArray(mediaNodes) && mediaNodes.some((node) => asRecord(node)?.['alt'] === mediaAlt);
+    const metafieldVisible =
+      Array.isArray(metafieldNodes) && metafieldNodes.some((node) => asRecord(node)?.['key'] === metafieldKey);
+    if (mediaVisible && metafieldVisible) {
+      return probes;
+    }
+  }
+  throw new Error(`Product variant ${variantId} did not expose expected media/metafield child connections.`);
+}
+
 async function pollBulkOperationToTerminal(id: string): Promise<CapturedInteraction[]> {
   const polls: CapturedInteraction[] = [];
   for (let index = 0; index < maxPolls; index += 1) {
@@ -319,18 +538,73 @@ async function captureBulkOperationResult(url: string): Promise<Record<string, u
     status: response.status,
     contentType: response.headers.get('content-type'),
     byteLength: Buffer.byteLength(text, 'utf8'),
+    body: text,
     records,
   };
 }
 
 const runId = `bulk-root-${Date.now().toString(36)}-${process.pid.toString(36)}`;
 const tag = `conformance-${runId}`;
+const metafieldNamespace = 'custom';
+const metafieldKey = `bulk_child_${Date.now().toString(36)}_${process.pid.toString(36)}`;
+const metafieldValue = `bulk child ${runId}`;
+const mediaAlt = `Bulk child media ${runId}`;
+const variantSku = `bulk-variant-${runId}`;
+const variantMetafieldKey = `bulk_variant_child_${Date.now().toString(36)}_${process.pid.toString(36)}`;
+const variantMetafieldValue = `bulk variant child ${runId}`;
 const productVariables = {
   product: {
     title: `Bulk root count ${runId}`,
     tags: ['conformance', 'bulk-root-count', tag],
+    metafields: [
+      {
+        namespace: metafieldNamespace,
+        key: metafieldKey,
+        type: 'single_line_text_field',
+        value: metafieldValue,
+      },
+    ],
   },
 };
+
+function buildVariantUpdateVariables(productId: string, variantId: string): Record<string, unknown> {
+  return {
+    productId,
+    variants: [
+      {
+        id: variantId,
+        inventoryItem: {
+          sku: variantSku,
+        },
+        metafields: [
+          {
+            namespace: metafieldNamespace,
+            key: variantMetafieldKey,
+            type: 'single_line_text_field',
+            value: variantMetafieldValue,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildVariantAppendMediaVariables(
+  productId: string,
+  variantId: string,
+  mediaId: string,
+): Record<string, unknown> {
+  return {
+    productId,
+    variantMedia: [
+      {
+        variantId,
+        mediaIds: [mediaId],
+      },
+    ],
+  };
+}
+
 const bulkQuery = `#graphql
 {
   products(query: "tag:${tag}") {
@@ -347,6 +621,55 @@ const bulkQuery = `#graphql
             }
           }
         }
+        media {
+          edges {
+            node {
+              id
+              alt
+              mediaContentType
+            }
+          }
+        }
+        metafields(namespace: "${metafieldNamespace}") {
+          edges {
+            node {
+              id
+              namespace
+              key
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+const bulkVariantQuery = `#graphql
+{
+  productVariants(query: "sku:${variantSku}") {
+    edges {
+      node {
+        id
+        sku
+        media {
+          edges {
+            node {
+              id
+              alt
+              mediaContentType
+            }
+          }
+        }
+        metafields(namespace: "${metafieldNamespace}") {
+          edges {
+            node {
+              id
+              namespace
+              key
+              value
+            }
+          }
+        }
       }
     }
   }
@@ -359,8 +682,56 @@ try {
   const productCreate = await capture('BulkOperationRootCountProductCreate', productCreateMutation, productVariables);
   assertNoUserErrors(productCreate, 'productCreate');
   createdProductId = readCreatedProductId(productCreate);
+  const defaultVariantId = readCreatedProductDefaultVariantId(productCreate);
+
+  const productCreateMedia = await capture('BulkOperationRootCountProductCreateMedia', productCreateMediaMutation, {
+    productId: createdProductId,
+    media: [
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: `https://placehold.co/640x480/png?text=bulk-child-${runId}`,
+        alt: mediaAlt,
+      },
+    ],
+  });
+  assertNoUserErrors(productCreateMedia, 'productCreateMedia');
+  const productMediaId = readCreatedProductMediaId(productCreateMedia);
+  const productMediaReadyProbes = await waitForProductMediaReady(createdProductId, productMediaId);
+  const productMediaReady = productMediaReadyProbes[productMediaReadyProbes.length - 1];
+
+  const variantUpdateVariables = buildVariantUpdateVariables(createdProductId, defaultVariantId);
+  const productVariantUpdate = await capture(
+    'BulkOperationRootCountProductVariantUpdate',
+    productVariantsBulkUpdateMutation,
+    variantUpdateVariables,
+  );
+  assertNoUserErrors(productVariantUpdate, 'productVariantsBulkUpdate');
+
+  const variantAppendMediaVariables = buildVariantAppendMediaVariables(
+    createdProductId,
+    defaultVariantId,
+    productMediaId,
+  );
+  const productVariantAppendMedia = await capture(
+    'BulkOperationRootCountProductVariantAppendMedia',
+    productVariantAppendMediaMutation,
+    variantAppendMediaVariables,
+  );
+  assertNoUserErrors(productVariantAppendMedia, 'productVariantAppendMedia');
 
   const productSearchProbes = await waitForProductSearch(tag, createdProductId);
+  const productChildProbes = await waitForProductChildConnections(
+    createdProductId,
+    metafieldNamespace,
+    mediaAlt,
+    metafieldKey,
+  );
+  const productVariantChildProbes = await waitForProductVariantChildConnections(
+    defaultVariantId,
+    metafieldNamespace,
+    mediaAlt,
+    variantMetafieldKey,
+  );
 
   const run = await capture('BulkOperationRootCountRunQuery', bulkOperationRunQueryMutation, { query: bulkQuery });
   assertNoUserErrors(run, 'bulkOperationRunQuery');
@@ -380,6 +751,28 @@ try {
 
   const resultUrl = readBulkOperationUrl(terminalOperation);
   const result = resultUrl ? await captureBulkOperationResult(resultUrl) : null;
+  const variantRun = await capture('BulkOperationRootCountVariantRunQuery', bulkOperationRunQueryMutation, {
+    query: bulkVariantQuery,
+  });
+  assertNoUserErrors(variantRun, 'bulkOperationRunQuery');
+  const variantOperationId = readBulkOperationId(readBulkOperationFromPayload(variantRun));
+  const variantStatusPolls = await pollBulkOperationToTerminal(variantOperationId);
+  const variantTerminalOperation = findTerminalBulkOperation(variantStatusPolls);
+  const variantObjectCount = readCount(variantTerminalOperation.objectCount, 'objectCount');
+  const variantRootObjectCount = readCount(variantTerminalOperation.rootObjectCount, 'rootObjectCount');
+  if (variantObjectCount <= variantRootObjectCount) {
+    throw new Error(
+      `Expected nested product variant bulk query to report objectCount > rootObjectCount, got ${variantObjectCount} and ${variantRootObjectCount}.`,
+    );
+  }
+  if (variantRootObjectCount !== 1) {
+    throw new Error(
+      `Expected the SKU-filtered variant query to report exactly one root object, got ${variantRootObjectCount}.`,
+    );
+  }
+
+  const variantResultUrl = readBulkOperationUrl(variantTerminalOperation);
+  const variantResult = variantResultUrl ? await captureBulkOperationResult(variantResultUrl) : null;
   const completedAfter = await capture('BulkOperationsCompletedAfterFilter', completedAfterFilterQuery);
   const createdBefore = await capture('BulkOperationsCreatedBeforeFilter', createdBeforeFilterQuery);
   const unknown = await capture('BulkOperationsUnknownFilterWarning', unknownFilterQuery);
@@ -401,7 +794,14 @@ try {
     },
     setup: {
       productCreate,
+      productCreateMedia,
+      productMediaReadyProbes,
+      productMediaReady,
+      productVariantUpdate,
+      productVariantAppendMedia,
       productSearchProbes,
+      productChildProbes,
+      productVariantChildProbes,
     },
     run: {
       variables: { query: bulkQuery },
@@ -410,6 +810,14 @@ try {
       statusPolls,
       terminalOperation,
       result,
+    },
+    variantRun: {
+      variables: { query: bulkVariantQuery },
+      response: variantRun.response,
+      interaction: variantRun,
+      statusPolls: variantStatusPolls,
+      terminalOperation: variantTerminalOperation,
+      result: variantResult,
     },
     filters: {
       completedAfter,
