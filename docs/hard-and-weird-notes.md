@@ -98,6 +98,21 @@ contract when product requirements call for it, and use
 `return-reverse-logistics-dispose-validation` as the public parity anchor only
 for the branches the live store actually rejected.
 
+## Current: Order.returnStatus ignores declined/canceled-only returns
+
+Admin GraphQL 2026-04 `Order.returnStatus` is an aggregate display state, not a
+direct mirror of the most recent `Order.returns` node. Captured return
+lifecycle evidence showed this precedence on one order: any `REQUESTED` return
+wins as `RETURN_REQUESTED`; otherwise any `OPEN` return wins as `IN_PROGRESS`;
+otherwise any `CLOSED` return yields `RETURNED`. Zero returns, declined-only
+returns, and canceled-only returns all report `NO_RETURN`.
+
+Two traps are worth preserving: `returnProcess` leaves the return `OPEN` in
+mutation payloads and downstream reads after processed quantities change, and
+`removeFromReturn` for the final line closes the return with `totalQuantity: 0`,
+so the aggregate becomes `RETURNED`. The checked-in anchor is
+`config/parity-specs/orders/order-return-status-lifecycle.json`.
+
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
 Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`

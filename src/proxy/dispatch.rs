@@ -629,6 +629,14 @@ impl DraftProxy {
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
             return Some(selected_json(abandonment, selection));
         }
+        if shopify_gid_resource_type(id) == Some("Order") {
+            if self.store.staged.orders.is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(order) = self.staged_order_record_for_id(id) {
+                return Some(self.selected_order_with_return_status(&order, selection));
+            }
+        }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }

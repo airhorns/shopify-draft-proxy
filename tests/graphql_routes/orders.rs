@@ -908,7 +908,7 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
 }
 
 #[test]
-fn return_process_payload_and_reads_close_processed_return() {
+fn return_process_payload_and_reads_keep_processed_return_open() {
     let mut proxy = snapshot_proxy();
     let setup = stage_open_return_for_removal(&mut proxy);
 
@@ -922,15 +922,15 @@ fn return_process_payload_and_reads_close_processed_return() {
     assert_eq!(processed["return"]["status"], json!("OPEN"));
 
     let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
-    assert_eq!(read_after["return"]["status"], json!("CLOSED"));
+    assert_eq!(read_after["return"]["status"], json!("OPEN"));
     assert_eq!(
         read_after["order"]["returns"]["nodes"][0]["status"],
-        json!("CLOSED")
+        json!("OPEN")
     );
 }
 
 #[test]
-fn return_close_and_process_closed_at_use_request_clock_on_readback() {
+fn return_close_closed_at_uses_request_clock_and_process_keeps_closed_at_null() {
     let clock = Arc::new(Mutex::new(utc_time(1_782_993_600)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
     let close_setup = stage_open_return_for_removal(&mut proxy);
@@ -989,13 +989,15 @@ fn return_close_and_process_closed_at_use_request_clock_on_readback() {
 
     let process_read =
         read_return_timestamp_state(&mut proxy, process_setup.return_id, process_setup.order_id);
+    assert_eq!(process_read["return"]["status"], json!("OPEN"));
+    assert_eq!(process_read["return"]["closedAt"], Value::Null);
     assert_eq!(
-        process_read["return"]["closedAt"],
-        json!("2026-07-04T12:00:00Z")
+        process_read["order"]["returns"]["nodes"][0]["status"],
+        json!("OPEN")
     );
     assert_eq!(
         process_read["order"]["returns"]["nodes"][0]["closedAt"],
-        json!("2026-07-04T12:00:00Z")
+        Value::Null
     );
 }
 
@@ -1338,6 +1340,272 @@ fn order_returns_window_and_query_from_staged_returns() {
             "endCursor": requested_return_id
         })
     );
+}
+
+fn return_statuses(connection: &Value) -> Vec<String> {
+    connection["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node["status"].as_str().map(str::to_string))
+        .collect()
+}
+
+fn read_order_return_status_views(proxy: &mut DraftProxy, order_id: Value) -> Value {
+    let detail = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusDetail($id: ID!) {
+          order(id: $id) {
+            id
+            returnStatus
+            returns(first: 5) { nodes { id status totalQuantity } }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(detail.status, 200);
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusList {
+          orders(first: 5) {
+            nodes {
+              id
+              returnStatus
+              returns(first: 5) { nodes { id status totalQuantity } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on Order {
+              id
+              returnStatus
+              returns(first: 5) { nodes { id status totalQuantity } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(node.status, 200);
+
+    json!({
+        "detail": detail.body["data"]["order"].clone(),
+        "list": list.body["data"]["orders"]["nodes"][0].clone(),
+        "node": node.body["data"]["node"].clone()
+    })
+}
+
+fn assert_order_return_status_views(
+    proxy: &mut DraftProxy,
+    order_id: Value,
+    expected_status: &str,
+    expected_return_statuses: &[&str],
+) {
+    let views = read_order_return_status_views(proxy, order_id);
+    let expected_return_statuses = expected_return_statuses
+        .iter()
+        .map(|status| status.to_string())
+        .collect::<Vec<_>>();
+    for key in ["detail", "list", "node"] {
+        assert_eq!(views[key]["returnStatus"], json!(expected_status), "{key}");
+        assert_eq!(
+            return_statuses(&views[key]["returns"]),
+            expected_return_statuses,
+            "{key}"
+        );
+    }
+    assert_eq!(views["node"]["__typename"], json!("Order"));
+}
+
+#[test]
+fn order_return_status_tracks_staged_return_lifecycle_across_order_projections() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
+
+    let request = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnForOrderStatus($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              status
+              order {
+                id
+                returnStatus
+                returns(first: 5) { nodes { id status } }
+              }
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let requested_return = &request.body["data"]["returnRequest"]["return"];
+    let return_id = requested_return["id"].clone();
+    assert_eq!(
+        requested_return["order"]["returnStatus"],
+        json!("RETURN_REQUESTED")
+    );
+    assert_order_return_status_views(
+        &mut proxy,
+        requested_return["order"]["id"].clone(),
+        "RETURN_REQUESTED",
+        &["REQUESTED"],
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ApproveReturnForOrderStatus($input: ReturnApproveRequestInput!) {
+          returnApproveRequest(input: $input) {
+            return {
+              id
+              status
+              order {
+                id
+                returnStatus
+                returns(first: 5) { nodes { id status } }
+              }
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": return_id.clone() } }),
+    ));
+    assert_eq!(approve.status, 200);
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["return"]["order"]["returnStatus"],
+        json!("IN_PROGRESS")
+    );
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "IN_PROGRESS", &["OPEN"]);
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", return_id.clone());
+    assert_eq!(close["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "RETURNED", &["CLOSED"]);
+
+    let reopen =
+        return_lifecycle_transition_for_test(&mut proxy, "returnReopen", return_id.clone());
+    assert_eq!(reopen["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "IN_PROGRESS", &["OPEN"]);
+
+    let return_line_item_id = request.body["data"]["returnRequest"]["return"]["returnLineItems"]
+        ["nodes"][0]["id"]
+        .clone();
+    let processed = return_process_for_test(&mut proxy, return_id, return_line_item_id);
+    assert_eq!(processed["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id, "IN_PROGRESS", &["OPEN"]);
+}
+
+#[test]
+fn order_return_status_handles_declined_canceled_and_removed_only_returns() {
+    let mut declined_proxy = snapshot_proxy();
+    let declined = stage_requested_return_for_removal(&mut declined_proxy);
+    let declined_payload =
+        decline_return_request_for_test(&mut declined_proxy, declined.return_id.clone());
+    assert_eq!(declined_payload["userErrors"], json!([]));
+    assert_order_return_status_views(
+        &mut declined_proxy,
+        declined.order_id,
+        "NO_RETURN",
+        &["DECLINED"],
+    );
+
+    let mut canceled_proxy = snapshot_proxy();
+    let canceled = stage_requested_return_for_removal(&mut canceled_proxy);
+    let approved = approve_return_request_for_test(&mut canceled_proxy, canceled.return_id.clone());
+    assert_eq!(approved["userErrors"], json!([]));
+    let canceled_payload = return_lifecycle_transition_for_test(
+        &mut canceled_proxy,
+        "returnCancel",
+        canceled.return_id,
+    );
+    assert_eq!(canceled_payload["userErrors"], json!([]));
+    assert_order_return_status_views(
+        &mut canceled_proxy,
+        canceled.order_id,
+        "NO_RETURN",
+        &["CANCELED"],
+    );
+
+    let mut removed_proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut removed_proxy);
+    let create = removed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOpenReturnForRemovedStatus($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "OTHER",
+                    "returnReasonNote": "removed"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["returnCreate"]["userErrors"], json!([]));
+    let open_return = &create.body["data"]["returnCreate"]["return"];
+    let removed = remove_from_return_for_test(
+        &mut removed_proxy,
+        open_return["id"].clone(),
+        open_return["returnLineItems"]["nodes"][0]["id"].clone(),
+    );
+    assert_eq!(removed["userErrors"], json!([]));
+    assert_eq!(removed["return"]["status"], json!("CLOSED"));
+    assert_eq!(removed["return"]["totalQuantity"], json!(0));
+    assert_eq!(removed["return"]["returnLineItems"]["nodes"], json!([]));
+    assert_order_return_status_views(&mut removed_proxy, order_id, "RETURNED", &["CLOSED"]);
 }
 
 fn remove_from_return_for_test(
