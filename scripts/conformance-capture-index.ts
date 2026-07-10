@@ -3945,6 +3945,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-partial-catalog-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-partial-catalog-overlay-conformance.mts',
+    purpose:
+      'MetafieldDefinitionCreate duplicate validation against hydrated real PRODUCT catalog state plus merged detail/list/count/pageInfo reads and tombstoned read-after-delete over staged local overlays.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-partial-catalog-overlay.json`,
+      'config/parity-specs/metafields/metafield-definition-partial-catalog-overlay.json',
+      'config/parity-requests/metafields/metafield-definition-hydrate-by-id.graphql',
+      'config/parity-requests/metafields/metafield-definition-hydrate-by-namespace.graphql',
+      'config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql',
+      'config/parity-requests/metafields/metafield-definition-partial-catalog-read.graphql',
+      'config/parity-requests/metafields/metafield-definition-partial-catalog-read-after-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable real, unrelated, and local PRODUCT metafield definitions in generated namespaces, deletes the real definition during the scenario, then deletes remaining disposable definitions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-metafields',
     scriptPath: 'scripts/capture-metafield-definition-non-product-metafields-conformance.mts',
     purpose: 'Definition-backed metafieldsSet and owner-scoped reads for CUSTOMER, ORDER, and COMPANY owner types.',

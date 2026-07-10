@@ -1,0 +1,102 @@
+query MetafieldDefinitionPartialCatalogReadAfterDelete($namespace: String!, $otherNamespace: String!) {
+  realDetail: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "real" }
+  ) {
+    id
+  }
+  localDetail: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "local" }
+  ) {
+    id
+    ownerType
+    namespace
+    key
+    name
+    metafieldsCount
+  }
+  otherDetail: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $otherNamespace, key: "other" }
+  ) {
+    id
+    ownerType
+    namespace
+    key
+    name
+    metafieldsCount
+  }
+  realCatalog: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    key: "real"
+    first: 1
+  ) {
+    nodes {
+      id
+      namespace
+      key
+      name
+      metafieldsCount
+    }
+    edges {
+      cursor
+      node {
+        id
+        namespace
+        key
+        name
+        metafieldsCount
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  localCatalog: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    key: "local"
+    first: 1
+  ) {
+    nodes {
+      id
+      namespace
+      key
+      name
+      metafieldsCount
+    }
+    edges {
+      cursor
+      node {
+        id
+        namespace
+        key
+        name
+        metafieldsCount
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  otherCatalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $otherNamespace, first: 1) {
+    nodes {
+      id
+      namespace
+      key
+      name
+      metafieldsCount
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
