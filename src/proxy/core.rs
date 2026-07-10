@@ -338,6 +338,54 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        if !self.store.base.marketing_activities.records.is_empty()
+            || !self.store.base.marketing_activities.order.is_empty()
+        {
+            snapshot["baseState"]["marketingActivities"] =
+                json!(self.store.base.marketing_activities.records.clone());
+            snapshot["baseState"]["marketingActivityOrder"] =
+                json!(self.store.base.marketing_activities.order.clone());
+        }
+        if !self.store.base.marketing_events.records.is_empty()
+            || !self.store.base.marketing_events.order.is_empty()
+        {
+            snapshot["baseState"]["marketingEvents"] =
+                json!(self.store.base.marketing_events.records.clone());
+            snapshot["baseState"]["marketingEventOrder"] =
+                json!(self.store.base.marketing_events.order.clone());
+        }
+        if !self.store.staged.marketing_activities.is_empty() {
+            snapshot["stagedState"]["marketingActivities"] =
+                json!(self.store.staged.marketing_activities.records.clone());
+            snapshot["stagedState"]["marketingActivityOrder"] =
+                json!(self.store.staged.marketing_activities.order.clone());
+            snapshot["stagedState"]["deletedMarketingActivityIds"] = json!(self
+                .store
+                .staged
+                .marketing_activities
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.marketing_delete_all_external {
+            snapshot["stagedState"]["marketingDeleteAllExternal"] =
+                json!(self.store.staged.marketing_delete_all_external);
+        }
+        if !self
+            .store
+            .staged
+            .marketing_delete_all_external_app_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["marketingDeleteAllExternalAppIds"] = json!(self
+                .store
+                .staged
+                .marketing_delete_all_external_app_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -1077,6 +1125,20 @@ impl DraftProxy {
             .base
             .delivery_profiles
             .replace_with_order(base_delivery_profiles, base_delivery_profile_order);
+        self.store.base.marketing_activities.replace_with_order(
+            value_map_from_json(state["baseState"].get("marketingActivities")),
+            state["baseState"]
+                .get("marketingActivityOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.marketing_events.replace_with_order(
+            value_map_from_json(state["baseState"].get("marketingEvents")),
+            state["baseState"]
+                .get("marketingEventOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
@@ -1655,6 +1717,23 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.discount_redeem_code_bulk_creations =
             value_map_from_json(state["stagedState"].get("discountRedeemCodeBulkCreations"));
+        replace_staged_value_records(
+            &mut self.store.staged.marketing_activities,
+            &state["stagedState"],
+            "marketingActivities",
+            Some("marketingActivityOrder"),
+            Some("deletedMarketingActivityIds"),
+        );
+        self.store.staged.marketing_delete_all_external = state["stagedState"]
+            .get("marketingDeleteAllExternal")
+            .and_then(Value::as_bool)
+            .unwrap_or_default();
+        self.store.staged.marketing_delete_all_external_app_ids = state["stagedState"]
+            .get("marketingDeleteAllExternalAppIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.deleted_b2b_contact_ids = state["stagedState"]
             .get("deletedB2bContactIds")
             .map(string_array_from_json)

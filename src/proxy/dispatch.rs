@@ -2363,7 +2363,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.marketing_query_data(&fields) }))
+                self.marketing_query_response(request, &fields)
             }
             (CapabilityDomain::Marketing, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>

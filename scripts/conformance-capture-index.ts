@@ -6188,6 +6188,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-live-hybrid-non-empty-read',
+    scriptPath: 'scripts/capture-marketing-live-hybrid-non-empty-read-conformance.mts',
+    purpose:
+      'Cold LiveHybrid marketing activity and event read forwarding against a non-empty disposable upstream catalog, including singular reads, title search, title sort, opaque cursors, and after-cursor pagination.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-live-hybrid-non-empty-read.json`,
+      'config/parity-specs/marketing/marketing-live-hybrid-non-empty-read.json',
+      'config/parity-requests/marketing/marketing-live-hybrid-non-empty-read.graphql',
+      'config/parity-requests/marketing/marketing-live-hybrid-non-empty-read-after.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable external marketing activities, captures non-empty reads as upstreamCalls cassette entries, then deletes both activities by remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-create-external-default-status',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-activity-create-external-default-status-conformance.mts',

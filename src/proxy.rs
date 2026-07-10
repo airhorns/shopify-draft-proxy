@@ -271,6 +271,8 @@ struct BaseState {
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
+    marketing_activities: OrderedRecords<Value>,
+    marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     shop: Value,
@@ -390,6 +392,7 @@ struct StagedState {
     localization_dirty: bool,
     marketing_activities: StagedRecords<Value>,
     marketing_delete_all_external: bool,
+    marketing_delete_all_external_app_ids: BTreeSet<String>,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: StagedRecords<Value>,
@@ -907,6 +910,24 @@ fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> us
             .count()
 }
 
+fn merge_json_values(target: &mut Value, observed: &Value) {
+    match (target, observed) {
+        (Value::Object(target), Value::Object(observed)) => {
+            for (key, value) in observed {
+                match target.get_mut(key) {
+                    Some(existing) => merge_json_values(existing, value),
+                    None => {
+                        target.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (target, observed) => {
+            *target = observed.clone();
+        }
+    }
+}
+
 fn normalized_order<'a, I>(record_ids: I, order: Vec<String>) -> Vec<String>
 where
     I: IntoIterator<Item = &'a String>,
@@ -1264,6 +1285,84 @@ impl Store {
 
     fn has_product_feed_state(&self) -> bool {
         !self.staged.product_feeds.is_empty()
+    }
+
+    fn marketing_activity_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(
+            &self.base.marketing_activities,
+            &self.staged.marketing_activities,
+            id,
+        )
+    }
+
+    fn marketing_activities(&self) -> Vec<Value> {
+        effective_records(
+            &self.base.marketing_activities,
+            &self.staged.marketing_activities,
+        )
+    }
+
+    fn marketing_events(&self) -> Vec<Value> {
+        let mut events = Vec::new();
+        let mut seen_event_ids = BTreeSet::new();
+        let mut hidden_event_ids = BTreeSet::new();
+
+        for (id, activity) in self
+            .base
+            .marketing_activities
+            .records
+            .iter()
+            .chain(self.staged.marketing_activities.records.iter())
+        {
+            if self.staged.marketing_activities.is_tombstoned(id) {
+                if let Some(event_id) = activity["marketingEvent"]["id"].as_str() {
+                    hidden_event_ids.insert(event_id.to_string());
+                }
+            }
+        }
+
+        for activity in self.marketing_activities() {
+            let event = &activity["marketingEvent"];
+            if event.is_null() {
+                continue;
+            }
+            let Some(event_id) = event["id"].as_str() else {
+                continue;
+            };
+            if seen_event_ids.insert(event_id.to_string()) {
+                let mut event = event.clone();
+                if let Some(base_event) = self.base.marketing_events.get(event_id) {
+                    let mut merged = base_event.clone();
+                    merge_json_values(&mut merged, &event);
+                    event = merged;
+                }
+                events.push(event);
+            }
+        }
+
+        for event in self.base.marketing_events.ordered_values() {
+            let Some(event_id) = event["id"].as_str() else {
+                continue;
+            };
+            if hidden_event_ids.contains(event_id) || !seen_event_ids.insert(event_id.to_string()) {
+                continue;
+            }
+            events.push(event.clone());
+        }
+
+        events
+    }
+
+    fn marketing_event_by_id(&self, id: &str) -> Option<Value> {
+        self.marketing_events()
+            .into_iter()
+            .find(|event| event["id"].as_str() == Some(id))
+    }
+
+    fn has_marketing_overlay_state(&self) -> bool {
+        !self.staged.marketing_activities.is_empty()
+            || self.staged.marketing_delete_all_external
+            || !self.staged.marketing_delete_all_external_app_ids.is_empty()
     }
 
     fn product_feed_is_tombstoned(&self, id: &str) -> bool {
