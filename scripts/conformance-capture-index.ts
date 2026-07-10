@@ -2515,6 +2515,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-item-levels-connection-windowing-2026-04',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-item-levels-connection-conformance.ts',
+    purpose:
+      'InventoryItem.inventoryLevels staged-aware connection behavior over multi-location quantity, activation, inactive visibility, query filtering, reverse ordering, and cursor windows.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-item-levels-connection-windowing-2026-04.json`,
+      'config/parity-specs/products/inventory-item-levels-connection-windowing-2026-04.json',
+      'config/parity-requests/products/inventory-item-levels-activate.graphql',
+      'config/parity-requests/products/inventory-item-levels-read.graphql',
+      'config/parity-requests/products/inventory-item-levels-window.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations and one disposable tracked product, sets source inventory, activates and adjusts a destination level, records item-side inventoryLevels reads/windows, deactivates one level for inactive visibility, then deletes the product and deactivates/deletes locations best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-connection-query-windowing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-connection-query-windowing-conformance.ts',
