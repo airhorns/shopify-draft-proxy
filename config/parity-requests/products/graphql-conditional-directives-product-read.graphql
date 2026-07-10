@@ -1,0 +1,25 @@
+fragment ConditionalDirectiveProductBits on Product {
+  aliasStatus: status
+  hiddenVendor: vendor @skip(if: true)
+}
+
+query ConditionalDirectiveProductRead(
+  $id: ID!
+  $includeTitle: Boolean!
+  $skipInline: Boolean!
+  $includeSpread: Boolean!
+) {
+  skippedRoot: product(id: $id) @skip(if: true) {
+    id
+    title
+  }
+  includedProduct: product(id: $id) @include(if: true) {
+    id
+    title @include(if: $includeTitle)
+    hiddenHandle: handle @include(if: false)
+    ... on Product @skip(if: $skipInline) {
+      productType
+    }
+    ...ConditionalDirectiveProductBits @include(if: $includeSpread)
+  }
+}

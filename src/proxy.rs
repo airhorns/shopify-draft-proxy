@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    parse_operation, parsed_document, primary_root_field, root_field_arguments, root_fields,
-    variable_definition_info, OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection,
-    SelectedField, SourceLocation,
+    parse_operation, parse_operation_with_variables, parsed_document, primary_root_field,
+    root_field_arguments, root_fields, variable_definition_info, OperationType, RawArgumentValue,
+    ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
