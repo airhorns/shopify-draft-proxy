@@ -4157,3 +4157,21 @@ Practical rule:
 - when proving the throttle branch, register the staged upload and write a
   non-empty JSONL body through the public staged-upload route before calling
   `bulkOperationRunMutation`
+
+## 99. BXGY DiscountProducts rejects implicit product/variant duplicates
+
+Admin GraphQL 2026-04 live capture for BXGY entitlement connections against
+`harry-test-heelo.myshopify.com` showed that a single `DiscountProducts` input
+cannot target a product and one of that same product's variants together.
+Shopify returned an `IMPLICIT_DUPLICATE` user error, so the successful capture
+uses separate products for product entitlements and product-variant
+entitlements.
+
+Practical rule:
+
+- do not create parity setup that mixes a product ID with one of its variant IDs
+  in the same `DiscountProducts` block unless the scenario is explicitly proving
+  the duplicate validation branch
+- local read-after-write connection parity should use distinct entitlement
+  owners so it can exercise product and product-variant connection projection
+  instead of failing setup validation
