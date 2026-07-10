@@ -31,6 +31,62 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
     )
 }
 
+fn metafield_definition_hydrate_selection(include_constraints: bool) -> &'static str {
+    if include_constraints {
+        r#"
+                  id
+                  name
+                  namespace
+                  key
+                  ownerType
+                  type { name category }
+                  description
+                  validations { name value }
+                  access { admin storefront customerAccount }
+                  capabilities {
+                    adminFilterable { enabled eligible status }
+                    smartCollectionCondition { enabled eligible }
+                    uniqueValues { enabled eligible }
+                  }
+                  constraints {
+                    key
+                    values(first: 50) {
+                      nodes { value }
+                      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                    }
+                  }
+                  pinnedPosition
+                  validationStatus
+        "#
+    } else {
+        r#"
+                  id
+                  name
+                  namespace
+                  key
+                  ownerType
+                  type { name category }
+                  description
+                  validations { name value }
+                  access { admin storefront customerAccount }
+                  capabilities {
+                    adminFilterable { enabled eligible status }
+                    smartCollectionCondition { enabled eligible }
+                    uniqueValues { enabled eligible }
+                  }
+                  pinnedPosition
+                  validationStatus
+        "#
+    }
+}
+
+fn metafield_definition_update_needs_constraints(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_bool_field(input, "pin") == Some(true)
+        || input.contains_key("constraints")
+        || input.contains_key("constraintsUpdates")
+        || input.contains_key("constraintsSet")
+}
+
 fn metafield_access_grants_validation_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -290,6 +346,7 @@ impl DraftProxy {
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
+        self.hydrate_metafield_definition_by_key(request, &owner_type, &namespace, &key, false);
         if self
             .store
             .staged
@@ -369,6 +426,13 @@ impl DraftProxy {
     ) -> Value {
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
+        let needs_constraints = metafield_definition_update_needs_constraints(input);
+        self.hydrate_metafield_definition_from_input(
+            request,
+            input,
+            &owner_type,
+            needs_constraints,
+        );
         let Some((_, namespace, key)) =
             self.metafield_definition_key_from_input(request, input, &owner_type)
         else {
@@ -547,8 +611,12 @@ impl DraftProxy {
                 request_app_namespace_api_client_id(request).as_deref(),
             );
             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
+            self.hydrate_metafield_definition_by_key(request, &owner_type, &namespace, &key, false);
             metafield_definition_store_key(&owner_type, &namespace, &key)
         } else if let Some(id) = arguments.get("id").and_then(resolved_value_string) {
+            if self.metafield_definition_key_for_id(&id).is_none() {
+                self.hydrate_metafield_definition_by_id(request, &id, false);
+            }
             self.metafield_definition_key_for_id(&id)
                 .unwrap_or_else(|| metafield_definition_store_key("PRODUCT", "", ""))
         } else {
@@ -638,8 +706,9 @@ impl DraftProxy {
             variables,
             &["definitionId"],
             &["definitionId"],
+            true,
         );
-        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        self.hydrate_metafield_definition_by_key(request, &owner_type, &namespace, &key, true);
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
         let Some(mut definition) = self
             .store
@@ -712,8 +781,9 @@ impl DraftProxy {
             variables,
             &[],
             &["definitionId", "id"],
+            false,
         );
-        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        self.hydrate_metafield_definition_by_key(request, &owner_type, &namespace, &key, false);
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
         let Some(current) = self
             .store
@@ -772,6 +842,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         argument_id_names: &[&str],
         variable_id_names: &[&str],
+        include_constraints: bool,
     ) -> (String, String, String) {
         let identifier = resolved_object_field(arguments, "identifier").unwrap_or_default();
         let mut owner_type = resolved_string_field(&identifier, "ownerType")
@@ -797,7 +868,11 @@ impl DraftProxy {
                 namespace = found_namespace;
                 key = found_key;
             } else {
-                self.hydrate_metafield_definition_by_id(request, &definition_id);
+                self.hydrate_metafield_definition_by_id(
+                    request,
+                    &definition_id,
+                    include_constraints,
+                );
                 if let Some((found_owner_type, found_namespace, found_key)) =
                     self.metafield_definition_key_for_id(&definition_id)
                 {
@@ -1007,62 +1082,74 @@ impl DraftProxy {
             .count()
     }
 
-    fn hydrate_metafield_definitions_for_owner(
+    fn hydrate_metafield_definition_from_input(
+        &mut self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        owner_type: &str,
+        include_constraints: bool,
+    ) {
+        let Some(raw_namespace) = resolved_string_field(input, "namespace") else {
+            return;
+        };
+        let Some(key) = resolved_string_field(input, "key") else {
+            return;
+        };
+        let namespace = canonical_app_metafield_namespace(
+            Some(&raw_namespace),
+            request_app_namespace_api_client_id(request).as_deref(),
+        );
+        self.hydrate_metafield_definition_by_key(
+            request,
+            owner_type,
+            &namespace,
+            &key,
+            include_constraints,
+        );
+    }
+
+    fn hydrate_metafield_definition_by_key(
         &mut self,
         request: &Request,
         owner_type: &str,
         namespace: &str,
+        key: &str,
+        include_constraints: bool,
     ) {
-        if self.config.read_mode == ReadMode::Snapshot || namespace.trim().is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || namespace.trim().is_empty()
+            || key.trim().is_empty()
+        {
             return;
         }
-        let already_hydrated = self
+        let map_key = metafield_definition_store_key(owner_type, namespace, key);
+        if self
             .store
             .staged
             .metafield_definitions
-            .values()
-            .any(|definition| {
-                definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
-                    && definition.get("namespace").and_then(Value::as_str) == Some(namespace)
-            });
-        if already_hydrated {
+            .get(&map_key)
+            .is_some_and(|definition| {
+                !include_constraints || definition.get("constraints").is_some()
+            })
+        {
             return;
         }
-        let query = r#"
-            query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {
-              metafieldDefinitions(ownerType: $ownerType, first: 250, namespace: $namespace, sortKey: PINNED_POSITION) {
-                nodes {
-                  id
-                  name
-                  namespace
-                  key
-                  ownerType
-                  type { name category }
-                  description
-                  validations { name value }
-                  access { admin storefront customerAccount }
-                  capabilities {
-                    adminFilterable { enabled eligible status }
-                    smartCollectionCondition { enabled eligible }
-                    uniqueValues { enabled eligible }
-                  }
-                  constraints {
-                    key
-                    values(first: 50) {
-                      nodes { value }
-                      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-                    }
-                  }
-                  pinnedPosition
-                  validationStatus
-                }
-              }
-            }
-        "#;
+        let selection = metafield_definition_hydrate_selection(include_constraints);
+        let query = format!(
+            r#"
+            query MetafieldDefinitionHydrateByKey($ownerType: MetafieldOwnerType!, $namespace: String!, $query: String!) {{
+              metafieldDefinitions(ownerType: $ownerType, first: 1, namespace: $namespace, query: $query, sortKey: PINNED_POSITION) {{
+                nodes {{
+                  {selection}
+                }}
+              }}
+            }}
+        "#
+        );
         let body = json!({
             "query": query,
-            "operationName": "MetafieldDefinitionsHydrateByNamespace",
-            "variables": {"ownerType": owner_type, "namespace": namespace}
+            "operationName": "MetafieldDefinitionHydrateByKey",
+            "variables": {"ownerType": owner_type, "namespace": namespace, "query": format!("key:{key}")}
         });
         let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
@@ -1078,65 +1165,29 @@ impl DraftProxy {
             return;
         };
         for definition in nodes.iter().filter(|definition| definition.is_object()) {
-            let definition_namespace = definition
-                .get("namespace")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let definition_key = definition
-                .get("key")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let definition_owner_type = definition
-                .get("ownerType")
-                .and_then(Value::as_str)
-                .unwrap_or(owner_type);
-            if definition_namespace.is_empty() || definition_key.is_empty() {
-                continue;
-            }
-            self.store.staged.metafield_definitions.insert(
-                metafield_definition_store_key(
-                    definition_owner_type,
-                    definition_namespace,
-                    definition_key,
-                ),
-                definition.clone(),
-            );
+            self.stage_observed_metafield_definition(definition, owner_type);
         }
     }
 
-    fn hydrate_metafield_definition_by_id(&mut self, request: &Request, id: &str) {
+    fn hydrate_metafield_definition_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+        include_constraints: bool,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot || id.trim().is_empty() {
             return;
         }
-        let query = r#"
-            query MetafieldDefinitionHydrateById($id: ID!) {
-              metafieldDefinition(id: $id) {
-                id
-                name
-                namespace
-                key
-                ownerType
-                type { name category }
-                description
-                validations { name value }
-                access { admin storefront customerAccount }
-                capabilities {
-                  adminFilterable { enabled eligible status }
-                  smartCollectionCondition { enabled eligible }
-                  uniqueValues { enabled eligible }
-                }
-                constraints {
-                  key
-                  values(first: 50) {
-                    nodes { value }
-                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-                  }
-                }
-                pinnedPosition
-                validationStatus
-              }
-            }
-        "#;
+        let selection = metafield_definition_hydrate_selection(include_constraints);
+        let query = format!(
+            r#"
+            query MetafieldDefinitionHydrateById($id: ID!) {{
+              metafieldDefinition(id: $id) {{
+                {selection}
+              }}
+            }}
+        "#
+        );
         let body = json!({
             "query": query,
             "operationName": "MetafieldDefinitionHydrateById",
@@ -1150,6 +1201,14 @@ impl DraftProxy {
         if !definition.is_object() {
             return;
         }
+        self.stage_observed_metafield_definition(&definition, "PRODUCT");
+    }
+
+    fn stage_observed_metafield_definition(
+        &mut self,
+        definition: &Value,
+        fallback_owner_type: &str,
+    ) {
         let namespace = definition
             .get("namespace")
             .and_then(Value::as_str)
@@ -1161,13 +1220,13 @@ impl DraftProxy {
         let owner_type = definition
             .get("ownerType")
             .and_then(Value::as_str)
-            .unwrap_or("PRODUCT");
+            .unwrap_or(fallback_owner_type);
         if namespace.is_empty() || key.is_empty() {
             return;
         }
         self.store.staged.metafield_definitions.insert(
             metafield_definition_store_key(owner_type, namespace, key),
-            definition,
+            definition.clone(),
         );
     }
 
@@ -3145,10 +3204,11 @@ fn metafield_definition_type_name(definition: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     fn test_proxy() -> DraftProxy {
         DraftProxy::new(Config {
-            read_mode: ReadMode::LiveHybrid,
+            read_mode: ReadMode::Snapshot,
             unsupported_mutation_mode: None,
             bulk_operation_run_mutation_max_input_file_size_bytes: None,
             port: 0,
@@ -3177,6 +3237,59 @@ mod tests {
             headers: BTreeMap::new(),
             body: json!({ "query": query, "variables": variables }).to_string(),
         }
+    }
+
+    fn live_hybrid_proxy_with_definition_hydrate(
+        calls: Arc<Mutex<Vec<Value>>>,
+        definition: Value,
+    ) -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            calls.lock().unwrap().push(body.clone());
+            let response_body = match body["operationName"].as_str() {
+                Some("MetafieldDefinitionHydrateByKey") => {
+                    json!({"data": {"metafieldDefinitions": {"nodes": [definition.clone()]}}})
+                }
+                Some("MetafieldDefinitionHydrateById") => {
+                    json!({"data": {"metafieldDefinition": definition.clone()}})
+                }
+                other => panic!("unexpected upstream operation: {other:?}"),
+            };
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: response_body,
+            }
+        })
+    }
+
+    fn hydrated_definition(namespace: &str, key: &str) -> Value {
+        json!({
+            "id": "gid://shopify/MetafieldDefinition/9001",
+            "name": "Color",
+            "namespace": namespace,
+            "key": key,
+            "ownerType": "PRODUCT",
+            "type": {"name": "single_line_text_field", "category": "TEXT"},
+            "description": Value::Null,
+            "validations": [],
+            "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+            "capabilities": {
+                "adminFilterable": {"enabled": false, "eligible": true, "status": "NOT_FILTERABLE"},
+                "smartCollectionCondition": {"enabled": false, "eligible": true},
+                "uniqueValues": {"enabled": false, "eligible": true}
+            },
+            "pinnedPosition": Value::Null,
+            "validationStatus": "ALL_VALID"
+        })
     }
 
     fn create_definition(proxy: &mut DraftProxy, namespace: &str, key: &str, name: &str) -> Value {
@@ -3282,6 +3395,103 @@ mod tests {
             .iter()
             .map(|node| node["key"].as_str().unwrap().to_string())
             .collect()
+    }
+
+    #[test]
+    fn definition_create_duplicate_validation_hydrates_exact_key_without_constraints() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = live_hybrid_proxy_with_definition_hydrate(
+            calls.clone(),
+            hydrated_definition("custom", "color"),
+        );
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateDefinition($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": "custom",
+                    "key": "color",
+                    "name": "Color",
+                    "type": "single_line_text_field"
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionCreate"]["userErrors"][0]["code"],
+            json!("TAKEN")
+        );
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        let body = &calls[0];
+        assert_eq!(body["operationName"], "MetafieldDefinitionHydrateByKey");
+        assert_eq!(body["variables"]["ownerType"], json!("PRODUCT"));
+        assert_eq!(body["variables"]["namespace"], json!("custom"));
+        assert_eq!(body["variables"]["query"], json!("key:color"));
+        let query = body["query"].as_str().unwrap();
+        assert!(query.contains("first: 1"));
+        assert!(!query.contains("first: 250"));
+        assert!(!query.contains("constraints"));
+        assert!(!query.contains("values(first: 50)"));
+    }
+
+    #[test]
+    fn definition_update_pin_validation_hydrates_exact_key_with_constraints() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut definition = hydrated_definition("custom", "color");
+        definition["constraints"] = json!({
+            "key": "product",
+            "values": {
+                "nodes": [{"value": "gid://shopify/Product/1"}],
+                "pageInfo": empty_page_info()
+            }
+        });
+        let mut proxy = live_hybrid_proxy_with_definition_hydrate(calls.clone(), definition);
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            mutation PinViaUpdate($definition: MetafieldDefinitionUpdateInput!) {
+              metafieldDefinitionUpdate(definition: $definition) {
+                updatedDefinition { id }
+                userErrors { field message code }
+                validationJob { id }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": "custom",
+                    "key": "color",
+                    "pin": true
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metafieldDefinitionUpdate"]["userErrors"][0]["code"],
+            json!("UNSUPPORTED_PINNING")
+        );
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        let body = &calls[0];
+        assert_eq!(body["operationName"], "MetafieldDefinitionHydrateByKey");
+        assert_eq!(body["variables"]["query"], json!("key:color"));
+        let query = body["query"].as_str().unwrap();
+        assert!(query.contains("first: 1"));
+        assert!(query.contains("constraints"));
+        assert!(query.contains("values(first: 50)"));
+        assert!(!query.contains("first: 250"));
     }
 
     #[test]
