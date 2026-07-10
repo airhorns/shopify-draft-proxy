@@ -6941,6 +6941,377 @@ fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
 }
 
 #[test]
+fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
+    let live_market_id = "gid://shopify/Market/live-ca";
+    let live_catalog_id = "gid://shopify/MarketCatalog/live-catalog";
+    let live_price_list_id = "gid://shopify/PriceList/live-prices";
+    let live_presence_id = "gid://shopify/MarketWebPresence/live-presence";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let mut calls = upstream_calls_for_proxy.lock().unwrap();
+            *calls += 1;
+            assert_eq!(
+                *calls, 1,
+                "only the mixed markets-family read should hydrate upstream"
+            );
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("markets(")
+                    && query.contains("catalogs(")
+                    && query.contains("priceLists(")
+                    && query.contains("webPresences("),
+                "unexpected upstream query: {query}"
+            );
+            let live_market = json!({
+                "__typename": "Market",
+                "id": live_market_id,
+                "name": "Canada Live",
+                "handle": "canada-live",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let live_catalog = json!({
+                "__typename": "MarketCatalog",
+                "id": live_catalog_id,
+                "title": "Live Market Catalog",
+                "status": "ACTIVE",
+                "contextDriverType": "MARKET",
+                "marketIds": [live_market_id],
+                "markets": {
+                    "nodes": [live_market.clone()],
+                    "edges": [{ "cursor": live_market_id, "node": live_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": live_market_id,
+                        "endCursor": live_market_id
+                    }
+                },
+                "priceList": { "id": live_price_list_id },
+                "publication": null
+            });
+            let live_price_list = json!({
+                "__typename": "PriceList",
+                "id": live_price_list_id,
+                "name": "Live Base Prices",
+                "currency": "CAD",
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 5 },
+                    "settings": { "compareAtMode": "ADJUSTED" }
+                },
+                "catalogId": live_catalog_id,
+                "catalog": {
+                    "id": live_catalog_id,
+                    "title": "Live Market Catalog",
+                    "status": "ACTIVE"
+                },
+                "fixedPricesCount": 0,
+                "prices": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }
+            });
+            let live_presence = json!({
+                "__typename": "MarketWebPresence",
+                "id": live_presence_id,
+                "subfolderSuffix": "ca",
+                "domain": null,
+                "rootUrls": [],
+                "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                    "nodes": [live_market.clone()],
+                    "edges": [{ "cursor": live_market_id, "node": live_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": live_market_id,
+                        "endCursor": live_market_id
+                    }
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [live_market],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_market_id,
+                                "endCursor": live_market_id
+                            }
+                        },
+                        "catalogs": {
+                            "nodes": [live_catalog.clone()],
+                            "edges": [{ "cursor": live_catalog_id, "node": live_catalog.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_catalog_id,
+                                "endCursor": live_catalog_id
+                            }
+                        },
+                        "catalogsWindow": {
+                            "nodes": [live_catalog],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_catalog_id,
+                                "endCursor": live_catalog_id
+                            }
+                        },
+                        "catalogsCount": { "count": 1, "precision": "EXACT" },
+                        "priceLists": {
+                            "nodes": [live_price_list],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_price_list_id,
+                                "endCursor": live_price_list_id
+                            }
+                        },
+                        "webPresences": {
+                            "nodes": [live_presence],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_presence_id,
+                                "endCursor": live_presence_id
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let local_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCountryCatalogBeforeColdMarketsRead($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Japan Staged Catalog",
+                "status": "ACTIVE",
+                "context": {
+                    "driverType": "COUNTRY",
+                    "countryCodes": ["JP"]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        local_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let local_catalog_id = local_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("catalogCreate returns an id")
+        .to_string();
+    let local_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StagePriceListBeforeColdMarketsRead($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency catalog { id title } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Staged Delta Prices",
+                "currency": "USD",
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        local_price_list.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let local_price_list_id = local_price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("priceListCreate returns an id")
+        .to_string();
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        0,
+        "local staged mutations should not hydrate or passthrough"
+    );
+
+    let mixed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedMarketsFamilyEffectiveGraph(
+          $marketQuery: String!
+          $catalogQuery: String!
+          $marketsFirst: Int!
+          $catalogsFirst: Int!
+          $catalogsWindowFirst: Int!
+          $priceListsFirst: Int!
+          $webPresencesFirst: Int!
+        ) {
+          markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {
+            nodes { id name handle status type }
+          }
+          catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+            nodes {
+              id
+              title
+              status
+              ... on MarketCatalog {
+                markets(first: 5) { nodes { id name } }
+              }
+            }
+          }
+          catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          catalogsCount(query: $catalogQuery) { count precision }
+          priceLists(first: $priceListsFirst) {
+            nodes { id name currency catalog { id title } }
+          }
+          webPresences(first: $webPresencesFirst) {
+            nodes {
+              id
+              subfolderSuffix
+              markets(first: 5) { nodes { id name } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "marketQuery": "Live",
+            "catalogQuery": "Catalog",
+            "marketsFirst": 5,
+            "catalogsFirst": 5,
+            "catalogsWindowFirst": 1,
+            "priceListsFirst": 5,
+            "webPresencesFirst": 5,
+        }),
+    ));
+    assert_eq!(mixed_read.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "cold markets-family roots must hydrate upstream even when another family has staged rows"
+    );
+    assert_eq!(
+        mixed_read.body["data"]["markets"]["nodes"],
+        json!([{
+            "id": live_market_id,
+            "name": "Canada Live",
+            "handle": "canada-live",
+            "status": "ACTIVE",
+            "type": "REGION"
+        }])
+    );
+    let catalog_titles = mixed_read.body["data"]["catalogs"]["nodes"]
+        .as_array()
+        .expect("catalog nodes are an array")
+        .iter()
+        .map(|catalog| catalog["title"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(catalog_titles.len(), 2);
+    assert!(catalog_titles.contains(&json!("Live Market Catalog")));
+    assert!(catalog_titles.contains(&json!("Japan Staged Catalog")));
+    let live_catalog = mixed_read.body["data"]["catalogs"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|catalog| catalog["id"] == json!(live_catalog_id))
+        .expect("live catalog should survive staged delta overlay");
+    assert_eq!(
+        live_catalog["markets"]["nodes"],
+        json!([{ "id": live_market_id, "name": "Canada Live" }])
+    );
+    assert_eq!(
+        mixed_read.body["data"]["catalogsWindow"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        mixed_read.body["data"]["catalogsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    let price_list_nodes = mixed_read.body["data"]["priceLists"]["nodes"]
+        .as_array()
+        .expect("price list nodes are an array");
+    assert_eq!(price_list_nodes.len(), 2);
+    assert!(price_list_nodes
+        .iter()
+        .any(|price_list| price_list["id"] == json!(local_price_list_id)
+            && price_list["name"] == json!("Staged Delta Prices")));
+    assert!(price_list_nodes.iter().any(|price_list| price_list["id"]
+        == json!(live_price_list_id)
+        && price_list["catalog"]
+            == json!({
+                "id": live_catalog_id,
+                "title": "Live Market Catalog"
+            })));
+    assert_eq!(
+        mixed_read.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{ "id": live_market_id, "name": "Canada Live" }])
+    );
+
+    let aliased_followup = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedMarketsFamilyAliasedFollowup($after: String!) {
+          secondCatalogPage: catalogs(first: 1, after: $after, query: "Catalog", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          aliasedPriceLists: priceLists(first: 1) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": local_catalog_id }),
+    ));
+    assert_eq!(aliased_followup.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "hydrated effective graph should satisfy alias/pagination follow-up locally"
+    );
+    assert_eq!(
+        aliased_followup.body["data"]["secondCatalogPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert!(aliased_followup.body["data"]["aliasedPriceLists"]["nodes"]
+        .as_array()
+        .is_some_and(|nodes| !nodes.is_empty()));
+}
+
+#[test]
 fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,

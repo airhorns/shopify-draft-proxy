@@ -881,16 +881,6 @@ fn market_localizable_content_is_money_metafield(content_entry: &Value) -> bool 
         .is_some_and(|object| object.contains_key("amount") && object.contains_key("currency_code"))
 }
 
-fn markets_variables_have_local_id(
-    variables: &BTreeMap<String, ResolvedValue>,
-    records: &BTreeMap<String, Value>,
-) -> bool {
-    variables.values().any(|value| match value {
-        ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
-        _ => false,
-    })
-}
-
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
     let mut records = data
         .get(connection_key)

@@ -2454,15 +2454,19 @@ impl DraftProxy {
             (CapabilityDomain::Markets, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                let fields = try_root_fields!(&query, &variables);
                 // Cold LiveHybrid reads forward verbatim upstream and hydrate the
-                // staged stores as a side effect; once a lifecycle has staged
-                // markets-domain records we serve locally (read-after-write).
+                // staged stores as a side effect. If local markets-family rows
+                // already exist, keep the upstream response as hydration input
+                // and render from the effective local graph so staged deltas are
+                // merged instead of replacing unrelated families.
                 if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.markets_should_fetch_upstream(root_field, &variables)
+                    && self.markets_should_fetch_upstream(&fields, &variables)
                 {
+                    let had_markets_overlay_state = self.has_markets_overlay_state();
                     let response = (self.upstream_transport)(request.clone());
                     if response.status < 400 {
-                        self.hydrate_markets_from_upstream(&response.body);
+                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
                         // A single verbatim forward returns whatever the client
                         // selected, which can span domains (e.g. a localization
                         // source read selects `markets` alongside `shopLocales`
@@ -2473,9 +2477,10 @@ impl DraftProxy {
                         // objects, not locale arrays).
                         self.hydrate_localization_from_upstream(&response.body);
                     }
-                    return response;
+                    if !had_markets_overlay_state {
+                        return response;
+                    }
                 }
-                let fields = try_root_fields!(&query, &variables);
                 if operation
                     .root_fields
                     .iter()

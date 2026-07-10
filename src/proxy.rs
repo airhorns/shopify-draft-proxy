@@ -355,6 +355,8 @@ struct StagedState {
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
+    markets_hydrated_scopes: BTreeSet<String>,
+    markets_dirty_families: BTreeSet<String>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
     // Full publication records staged this scenario, keyed by publication gid.

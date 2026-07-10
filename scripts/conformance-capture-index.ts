@@ -5596,6 +5596,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'markets-family-mixed-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-markets-family-mixed-overlay-conformance.mts',
+    purpose:
+      'Mixed Markets-family LiveHybrid read proving pre-existing upstream baseline rows merge with staged market-catalog and price-list deltas without emptying unrelated web presences.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}markets-family-mixed-overlay-read.json`,
+      'config/parity-specs/markets/markets-family-mixed-overlay-read.json',
+      'config/parity-requests/markets/markets-family-mixed-overlay-read.graphql',
+      'config/parity-requests/markets/markets-family-mixed-overlay-price-list-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates deterministic pre-existing market, catalog, price list, and web presence rows; records the mixed read as the upstream baseline; creates staged analogs for the Shopify reference response; then deletes all disposable rows.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-create-unknown-market-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-create-unknown-market-validation-conformance.mts',
