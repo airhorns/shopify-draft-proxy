@@ -704,6 +704,9 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(metaobject) = self.metaobject_node_value_by_id(id, selection) {
+            return Some(metaobject);
+        }
         if let Some(file) = self.store.staged.media_files.get(id) {
             return Some(selected_json(file, selection));
         }
@@ -2164,8 +2167,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                if self.config.read_mode != ReadMode::Snapshot
-                    && !self.has_local_metaobject_entry_state()
+                if self.config.read_mode != ReadMode::Snapshot && !self.has_local_metaobject_state()
                 {
                     self.metaobject_live_hybrid_read(request, &fields)
                 } else {
