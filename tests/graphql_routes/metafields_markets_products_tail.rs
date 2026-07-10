@@ -2589,6 +2589,7 @@ fn owner_metafields_connection_filters_keys_reverse_and_paginates_staged_state()
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
     let api_client_id = "999999999999";
+    let owner_id = "gid://shopify/Product/10180596236594";
     let canonical_namespace = "app--999999999999--value_namespace_mowuw5ai";
     let default_namespace = "app--999999999999";
 
@@ -2598,7 +2599,7 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
-        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
         api_client_id,
     ));
     assert_eq!(
@@ -2616,12 +2617,12 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": owner_id, "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         read_after_canonical.body["data"]["product"],
         json!({
-            "id": "gid://shopify/Product/10180596236594",
+            "id": owner_id,
             "canonical": {"id": "gid://shopify/Metafield/1", "namespace": canonical_namespace, "key": "tier", "type": "single_line_text_field", "value": "gold"},
             "defaulted": null
         })
@@ -2633,12 +2634,66 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
-        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}]}),
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "$app", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "plain_mowuw5ai", "type": "single_line_text_field", "value": "plain"}
+        ]}),
         api_client_id,
     ));
     assert_eq!(
         set_default.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
         json!(default_namespace)
+    );
+    assert_eq!(
+        set_default.body["data"]["metafieldsSet"]["metafields"][1]["namespace"],
+        json!("custom")
+    );
+
+    let read_after_shorthand = proxy.process_request(app_namespace_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceShorthandProductRead($productId: ID!) {
+          product(id: $productId) {
+            named: metafield(namespace: "$app:value_namespace_mowuw5ai", key: "tier") { namespace key value }
+            namedList: metafields(first: 10, namespace: "$app:value_namespace_mowuw5ai") { nodes { namespace key value } }
+            defaulted: metafield(namespace: "$app", key: "default_mowuw5ai") { namespace key value }
+            defaultList: metafields(first: 10, namespace: "$app") { nodes { namespace key value } }
+            qualifiedKeys: metafields(first: 10, keys: ["$app.default_mowuw5ai", "$app:value_namespace_mowuw5ai.tier", "custom.plain_mowuw5ai"]) {
+              nodes { namespace key value }
+            }
+            custom: metafield(namespace: "custom", key: "plain_mowuw5ai") { namespace key value }
+          }
+        }
+        "#,
+        json!({"productId": owner_id}),
+        api_client_id,
+    ));
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["named"],
+        json!({"namespace": canonical_namespace, "key": "tier", "value": "gold"})
+    );
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["namedList"]["nodes"],
+        json!([{"namespace": canonical_namespace, "key": "tier", "value": "gold"}])
+    );
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["defaulted"],
+        json!({"namespace": default_namespace, "key": "default_mowuw5ai", "value": "silver"})
+    );
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["defaultList"]["nodes"],
+        json!([{"namespace": default_namespace, "key": "default_mowuw5ai", "value": "silver"}])
+    );
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["qualifiedKeys"]["nodes"],
+        json!([
+            {"namespace": default_namespace, "key": format!("{default_namespace}.default_mowuw5ai"), "value": "silver"},
+            {"namespace": canonical_namespace, "key": format!("{canonical_namespace}.tier"), "value": "gold"},
+            {"namespace": "custom", "key": "custom.plain_mowuw5ai", "value": "plain"}
+        ])
+    );
+    assert_eq!(
+        read_after_shorthand.body["data"]["product"]["custom"],
+        json!({"namespace": "custom", "key": "plain_mowuw5ai", "value": "plain"})
     );
 
     let delete_canonical = proxy.process_request(app_namespace_graphql_request(
@@ -2647,12 +2702,12 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
         }
         "#,
-        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
         api_client_id,
     ));
     assert_eq!(
         delete_canonical.body["data"]["metafieldsDelete"],
-        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": canonical_namespace, "key": "tier"}], "userErrors": []})
+        json!({"deletedMetafields": [{"ownerId": owner_id, "namespace": canonical_namespace, "key": "tier"}], "userErrors": []})
     );
 
     let post_delete = proxy.process_request(json_graphql_request(
@@ -2665,12 +2720,12 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": owner_id, "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({
-            "id": "gid://shopify/Product/10180596236594",
+            "id": owner_id,
             "canonical": null,
             "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": default_namespace, "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
         })

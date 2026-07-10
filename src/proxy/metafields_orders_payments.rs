@@ -702,6 +702,7 @@ pub(in crate::proxy) fn app_metafield_namespace_requires_api_client(
         Some(value) => {
             let value = value.trim();
             value.is_empty()
+                || value == "$app"
                 || value.starts_with("$app:")
                 || app_namespace_api_client_id(value).is_some()
         }
@@ -734,6 +735,9 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(
                 )
             })
             .unwrap_or_else(|| value.to_string()),
+        Some("$app") => api_client_id
+            .map(|api_client_id| format!("app--{api_client_id}"))
+            .unwrap_or_else(|| "$app".to_string()),
         Some(value) if value.trim().is_empty() => api_client_id
             .map(|api_client_id| format!("app--{api_client_id}"))
             .unwrap_or_default(),

@@ -215,8 +215,9 @@ impl DraftProxy {
                     // before serving, so the overlay read can fill them in for real
                     // instead of relying on seeded cursor state.
                     self.hydrate_inventory_level_cursors_for_read(request, query);
+                    let api_client_id = request_app_namespace_api_client_id(request);
                     ok_json(json!({
-                        "data": self.product_overlay_read_data(&fields)
+                        "data": self.product_overlay_read_data(&fields, api_client_id.as_deref())
                     }))
                 } else {
                     (self.upstream_transport)(request.clone())
@@ -247,7 +248,10 @@ impl DraftProxy {
                 }
                 if self.store.has_collection_state() {
                     let fields = try_root_fields!(query, variables);
-                    ok_json(json!({ "data": self.product_overlay_read_data(&fields) }))
+                    let api_client_id = request_app_namespace_api_client_id(request);
+                    ok_json(
+                        json!({ "data": self.product_overlay_read_data(&fields, api_client_id.as_deref()) }),
+                    )
                 } else {
                     (self.upstream_transport)(request.clone())
                 }
