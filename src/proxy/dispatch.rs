@@ -2602,6 +2602,9 @@ impl DraftProxy {
             {
                 let fields = try_root_fields!(&query, &variables);
                 self.hydrate_market_currency_defaults_if_needed(request, &fields);
+                if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
+                    return response;
+                }
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
@@ -2659,6 +2662,7 @@ impl DraftProxy {
                 }) {
                     self.catalog_mutation_data(&fields, request, &query, &variables)
                 } else {
+                    self.market_mutation_target_preflight(&fields, request);
                     self.market_create_mutation_data(&fields, request, &query, &variables)
                 };
                 if operation.root_fields.iter().all(|field| {

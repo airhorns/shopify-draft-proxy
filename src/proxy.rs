@@ -352,6 +352,7 @@ struct StagedState {
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
+    deleted_market_ids: BTreeSet<String>,
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,

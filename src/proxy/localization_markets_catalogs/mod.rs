@@ -107,6 +107,9 @@ const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
 const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
     "The primary locale of your store can't be changed through this endpoint.";
 
+const MARKET_MUTATION_TARGETS_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/markets/market-mutation-targets-hydrate.graphql");
+
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
@@ -887,6 +890,16 @@ fn markets_variables_have_local_id(
 ) -> bool {
     variables.values().any(|value| match value {
         ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
+        _ => false,
+    })
+}
+
+fn markets_variables_have_deleted_market_id(
+    variables: &BTreeMap<String, ResolvedValue>,
+    deleted_ids: &BTreeSet<String>,
+) -> bool {
+    variables.values().any(|value| match value {
+        ResolvedValue::String(id) => deleted_ids.contains(id),
         _ => false,
     })
 }

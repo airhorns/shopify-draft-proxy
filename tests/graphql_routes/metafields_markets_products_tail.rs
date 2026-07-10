@@ -4818,6 +4818,404 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
 }
 
 #[test]
+fn market_update_live_hybrid_hydrates_existing_market_before_local_stage() {
+    let market_id = "gid://shopify/Market/18001001";
+    let catalog_id = "gid://shopify/MarketCatalog/18001002";
+    let web_presence_id = "gid://shopify/MarketWebPresence/18001003";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("marketUpdate"),
+                "marketUpdate must stage locally without upstream passthrough: {request:?}"
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            assert_eq!(body["variables"]["ids"], json!([market_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Market",
+                            "id": market_id,
+                            "name": "Existing Market",
+                            "handle": "existing-market",
+                            "status": "ACTIVE",
+                            "enabled": true,
+                            "type": "REGION",
+                            "regionCodes": ["DK"],
+                            "conditions": {
+                                "regionsCondition": {
+                                    "regions": {
+                                        "nodes": [{
+                                            "__typename": "MarketRegionCountry",
+                                            "id": "gid://shopify/Market/Region/18001001001",
+                                            "name": "Denmark",
+                                            "code": "DK"
+                                        }]
+                                    }
+                                }
+                            },
+                            "currencySettings": {
+                                "baseCurrency": {
+                                    "currencyCode": "DKK",
+                                    "currencyName": "Danish Krone"
+                                },
+                                "localCurrencies": true,
+                                "roundingEnabled": false
+                            },
+                            "priceInclusions": null,
+                            "catalogs": {
+                                "nodes": [{
+                                    "__typename": "MarketCatalog",
+                                    "id": catalog_id,
+                                    "title": "Existing Catalog",
+                                    "status": "ACTIVE",
+                                    "contextDriverType": "MARKET",
+                                    "marketIds": [market_id],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Existing Market"
+                                        }]
+                                    },
+                                    "operations": [],
+                                    "priceList": null,
+                                    "publication": null
+                                }]
+                            },
+                            "webPresences": {
+                                "nodes": [{
+                                    "__typename": "MarketWebPresence",
+                                    "id": web_presence_id,
+                                    "subfolderSuffix": "dk",
+                                    "domain": {
+                                        "id": "gid://shopify/Domain/18001004",
+                                        "host": "example.com",
+                                        "url": "https://example.com",
+                                        "sslEnabled": true
+                                    },
+                                    "rootUrls": [],
+                                    "defaultLocale": {
+                                        "locale": "en",
+                                        "name": "English",
+                                        "primary": true,
+                                        "published": true
+                                    },
+                                    "alternateLocales": [],
+                                    "marketIds": [market_id],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Existing Market"
+                                        }]
+                                    }
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              name
+              handle
+              status
+              enabled
+              catalogs(first: 5) { nodes { id title markets(first: 5) { nodes { id name } } } }
+              webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"id": market_id, "input": {"name": "Existing Market Updated", "handle": "existing-market-updated"}}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["marketUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["handle"],
+        json!("existing-market-updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]["nodes"]
+            [0]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"][0]["markets"]
+            ["nodes"][0]["id"],
+        json!(market_id)
+    );
+
+    let upstream_calls_after_update = upstream_bodies.lock().unwrap().len();
+    assert_eq!(upstream_calls_after_update, 1);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridExistingMarketUpdateRead($marketId: ID!, $catalogId: ID!) {
+          market(id: $marketId) {
+            id
+            name
+            handle
+            catalogs(first: 5) { nodes { id title } }
+            webPresences(first: 5) { nodes { id } }
+          }
+          catalog(id: $catalogId) {
+            id
+            markets(first: 5) { nodes { id name } }
+          }
+          webPresences(first: 5) {
+            nodes { id markets(first: 5) { nodes { id } } }
+          }
+        }
+        "#,
+        json!({"marketId": market_id, "catalogId": catalog_id}),
+    ));
+    assert_eq!(
+        readback.body["data"]["market"]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        readback.body["data"]["catalog"]["markets"]["nodes"][0],
+        json!({"id": market_id, "name": "Existing Market Updated"})
+    );
+    assert_eq!(
+        readback.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{"id": market_id}])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_update,
+        "read-after-write should serve from locally staged hydrated state"
+    );
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("LiveHybridExistingMarketUpdate"));
+
+    let wrong_resource = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketUpdateWrongResource($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/18001999", "input": {"name": "Wrong"}}),
+    ));
+    assert_eq!(wrong_resource.status, 200);
+    assert_eq!(wrong_resource.body["data"]["marketUpdate"], Value::Null);
+    assert_eq!(
+        wrong_resource.body["errors"],
+        json!([{
+            "message": "Invalid id: gid://shopify/Product/18001999",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["marketUpdate"]
+        }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_update,
+        "wrong-resource validation must not call upstream"
+    );
+}
+
+#[test]
+fn market_delete_live_hybrid_hydrates_existing_market_and_cascades_relations() {
+    let market_id = "gid://shopify/Market/18002001";
+    let catalog_id = "gid://shopify/MarketCatalog/18002002";
+    let web_presence_id = "gid://shopify/MarketWebPresence/18002003";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("marketDelete"),
+                "marketDelete must stage locally without upstream passthrough: {request:?}"
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            assert_eq!(body["variables"]["ids"], json!([market_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Market",
+                            "id": market_id,
+                            "name": "Delete Existing Market",
+                            "handle": "delete-existing-market",
+                            "status": "DRAFT",
+                            "enabled": false,
+                            "type": "REGION",
+                            "conditions": {
+                                "regionsCondition": {
+                                    "regions": {
+                                        "nodes": [{
+                                            "__typename": "MarketRegionCountry",
+                                            "id": "gid://shopify/Market/Region/18002001001",
+                                            "name": "Sweden",
+                                            "code": "SE"
+                                        }]
+                                    }
+                                }
+                            },
+                            "currencySettings": null,
+                            "priceInclusions": null,
+                            "catalogs": {
+                                "nodes": [{
+                                    "__typename": "MarketCatalog",
+                                    "id": catalog_id,
+                                    "title": "Delete Existing Catalog",
+                                    "status": "ACTIVE",
+                                    "contextDriverType": "MARKET",
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Delete Existing Market"
+                                        }]
+                                    },
+                                    "operations": [],
+                                    "priceList": null,
+                                    "publication": null
+                                }]
+                            },
+                            "webPresences": {
+                                "nodes": [{
+                                    "__typename": "MarketWebPresence",
+                                    "id": web_presence_id,
+                                    "subfolderSuffix": "se",
+                                    "rootUrls": [],
+                                    "defaultLocale": {
+                                        "locale": "en",
+                                        "name": "English",
+                                        "primary": true,
+                                        "published": true
+                                    },
+                                    "alternateLocales": [],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Delete Existing Market"
+                                        }]
+                                    }
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketDelete($id: ID!) {
+          marketDelete(id: $id) {
+            deletedId
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"id": market_id}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["marketDelete"],
+        json!({"deletedId": market_id, "userErrors": []})
+    );
+    let upstream_calls_after_delete = upstream_bodies.lock().unwrap().len();
+    assert_eq!(upstream_calls_after_delete, 1);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridExistingMarketDeleteRead($marketId: ID!, $catalogId: ID!) {
+          market(id: $marketId) { id }
+          catalog(id: $catalogId) {
+            id
+            markets(first: 5) { nodes { id } }
+          }
+          webPresences(first: 5) {
+            nodes { id markets(first: 5) { nodes { id } } }
+          }
+        }
+        "#,
+        json!({"marketId": market_id, "catalogId": catalog_id}),
+    ));
+    assert_eq!(readback.body["data"]["market"], Value::Null);
+    assert_eq!(
+        readback.body["data"]["catalog"]["markets"]["nodes"],
+        json!([])
+    );
+    assert_eq!(readback.body["data"]["webPresences"]["nodes"], json!([]));
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_delete,
+        "read-after-delete should serve from locally staged hydrated state"
+    );
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("LiveHybridExistingMarketDelete"));
+
+    let wrong_resource = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketDeleteWrongResource($id: ID!) {
+          marketDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/18002999"}),
+    ));
+    assert_eq!(wrong_resource.status, 200);
+    assert_eq!(wrong_resource.body["data"]["marketDelete"], Value::Null);
+    assert_eq!(
+        wrong_resource.body["errors"],
+        json!([{
+            "message": "Invalid id: gid://shopify/Product/18002999",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["marketDelete"]
+        }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_delete,
+        "wrong-resource validation must not call upstream"
+    );
+}
+
+#[test]
 fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity() {
     let mut proxy = snapshot_proxy();
     restore_italian_eur_shop(&mut proxy);
@@ -6958,6 +7356,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
             "marketDelete must stage locally without upstream passthrough: {request:?}"
         );
         // Legitimate LiveHybrid cold reads that *do* passthrough:
+        //  - the mutation target preflight for an unknown market ID,
         //  - the localizable-resource preflight (observe content/digests), and
         //  - the post-delete read-back of the locally-minted market, which never
         //    existed upstream, so real Shopify reports it as null.
@@ -6971,6 +7370,8 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
                     "marketLocalizations": []
                 }
             })
+        } else if query.contains("MarketsMutationPreflightHydrate") {
+            json!({ "nodes": [Value::Null] })
         } else if query.contains("market(id:") {
             json!({ "market": Value::Null })
         } else {

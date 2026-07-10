@@ -488,8 +488,8 @@ impl DraftProxy {
         let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "marketCreate" => self.market_create_response(field),
-                "marketUpdate" => self.market_update_response(field),
-                "marketDelete" => self.market_delete_response(field),
+                "marketUpdate" => self.market_update_response(field, request),
+                "marketDelete" => self.market_delete_response(field, request),
                 _ => Value::Null,
             };
             if let Some(id) = value["market"]["id"]
@@ -513,6 +513,75 @@ impl DraftProxy {
             );
         }
         data
+    }
+
+    pub(in crate::proxy) fn market_mutation_wrong_resource_response(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Response> {
+        let errors = fields
+            .iter()
+            .filter_map(market_mutation_wrong_resource_error)
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            return None;
+        }
+        let data = fields
+            .iter()
+            .map(|field| (field.response_key.clone(), Value::Null))
+            .collect::<serde_json::Map<_, _>>();
+        Some(ok_json(json!({
+            "data": Value::Object(data),
+            "errors": errors
+        })))
+    }
+
+    pub(in crate::proxy) fn market_mutation_target_preflight(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let ids = fields
+            .iter()
+            .filter(|field| matches!(field.name.as_str(), "marketUpdate" | "marketDelete"))
+            .filter_map(|field| resolved_string_field(&field.arguments, "id"))
+            .filter(|id| !self.store.staged.markets.contains_key(id))
+            .filter(|id| !self.store.staged.deleted_market_ids.contains(id))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        self.hydrate_market_mutation_targets(&ids, request);
+    }
+
+    fn hydrate_market_mutation_target(&mut self, id: &str, request: &Request) {
+        self.hydrate_market_mutation_targets(&[id.to_string()], request);
+    }
+
+    fn hydrate_market_mutation_targets(&mut self, ids: &[String], request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let ids = ids
+            .iter()
+            .filter(|id| !id.trim().is_empty())
+            .filter(|id| !self.store.staged.markets.contains_key(*id))
+            .filter(|id| !self.store.staged.deleted_market_ids.contains(*id))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
+        let body = json!({
+            "query": MARKET_MUTATION_TARGETS_HYDRATE_QUERY,
+            "variables": { "ids": ids },
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
     }
 
     pub(in crate::proxy) fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -639,13 +708,20 @@ impl DraftProxy {
             &region_codes,
             &shop_currency_code,
         );
+        self.store.staged.deleted_market_ids.remove(&id);
         self.store.staged.markets.insert(id, market.clone());
         self.selected_market_payload(field, market, Vec::new())
     }
 
-    pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn market_delete_response(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_market_mutation_target(&id, request);
         let payload = if self.store.staged.markets.remove(&id).is_some() {
+            self.store.staged.deleted_market_ids.insert(id.clone());
             self.cascade_market_delete(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -675,8 +751,13 @@ impl DraftProxy {
             });
     }
 
-    pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn market_update_response(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_market_mutation_target(&id, request);
         let Some(existing_market) = self.store.staged.markets.get(&id).cloned() else {
             return selected_market_error(
                 field,
@@ -979,6 +1060,7 @@ impl DraftProxy {
     /// locally (read-after-write); before that, cold reads forward upstream.
     pub(in crate::proxy) fn has_markets_overlay_state(&self) -> bool {
         !self.store.staged.markets.is_empty()
+            || !self.store.staged.deleted_market_ids.is_empty()
             || !self.store.staged.catalogs.is_empty()
             || !self.store.staged.price_lists.is_empty()
             || !self.store.staged.web_presences.is_empty()
@@ -993,7 +1075,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
         match root_field {
-            "market" => !markets_variables_have_local_id(variables, &self.store.staged.markets),
+            "market" => {
+                !markets_variables_have_local_id(variables, &self.store.staged.markets)
+                    && !markets_variables_have_deleted_market_id(
+                        variables,
+                        &self.store.staged.deleted_market_ids,
+                    )
+            }
             "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
             "priceList" => {
                 !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
@@ -1061,7 +1149,9 @@ impl DraftProxy {
         );
         for record in &market_records {
             if let Some(id) = record_gid(record, "Market") {
-                self.store.staged.markets.insert(id, record.clone());
+                if !self.store.staged.deleted_market_ids.contains(&id) {
+                    self.store.staged.markets.insert(id, record.clone());
+                }
             }
         }
         // Catalogs: top-level plus nested under each market.
@@ -1158,5 +1248,21 @@ impl DraftProxy {
         for record in &localizable_records {
             self.stage_observed_market_localizable_resource(record);
         }
+    }
+}
+
+fn market_mutation_wrong_resource_error(field: &RootFieldSelection) -> Option<Value> {
+    if !matches!(field.name.as_str(), "marketUpdate" | "marketDelete") {
+        return None;
+    }
+    let id = resolved_string_field(&field.arguments, "id")?;
+    match shopify_gid_resource_type(&id) {
+        Some("Market") | None => None,
+        Some(_) => Some(json!({
+            "message": format!("Invalid id: {id}"),
+            "locations": [{"line": field.location.line, "column": field.location.column}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": [field.response_key.clone()]
+        })),
     }
 }

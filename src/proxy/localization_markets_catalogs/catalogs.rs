@@ -838,7 +838,7 @@ impl DraftProxy {
         self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
     }
 
-    fn run_markets_preflight(
+    pub(in crate::proxy) fn run_markets_preflight(
         &mut self,
         request: &Request,
         body: Value,

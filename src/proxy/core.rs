@@ -671,6 +671,15 @@ impl DraftProxy {
         if !self.store.staged.markets.is_empty() {
             snapshot["stagedState"]["markets"] = json!(self.store.staged.markets.clone());
         }
+        if !self.store.staged.deleted_market_ids.is_empty() {
+            snapshot["stagedState"]["deletedMarketIds"] = json!(self
+                .store
+                .staged
+                .deleted_market_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.catalogs.is_empty() {
             snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
         }
@@ -1653,6 +1662,12 @@ impl DraftProxy {
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
         self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
+        self.store.staged.deleted_market_ids = state["stagedState"]
+            .get("deletedMarketIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =

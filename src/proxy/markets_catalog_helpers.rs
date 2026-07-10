@@ -135,7 +135,19 @@ pub(in crate::proxy) fn country_catalog_record(
 }
 
 pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
-    string_array_from_json(&catalog["marketIds"])
+    let ids = string_array_from_json(&catalog["marketIds"]);
+    if !ids.is_empty() {
+        return ids;
+    }
+    catalog["markets"]["nodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|node| node["id"].as_str().map(ToString::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn catalog_company_location_ids(catalog: &Value) -> Vec<String> {
