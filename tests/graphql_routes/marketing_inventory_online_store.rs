@@ -14535,6 +14535,156 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
 }
 
 #[test]
+fn media_file_update_batches_product_reference_hydration_without_fallback_probes() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let product_one_id = "gid://shopify/Product/7001";
+    let product_two_id = "gid://shopify/Product/7002";
+    let missing_product_id = "gid://shopify/Product/7999";
+    let expected_product_ids = json!([product_one_id, product_two_id, missing_product_id]);
+    let expected_product_ids_for_transport = expected_product_ids.clone();
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Hydrated reference target",
+                                "createdAt": "2026-06-04T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/hydrated-reference-target.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/hydrated-reference-target-preview.jpg",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+
+            assert!(
+                query.contains("MediaProductHydrate"),
+                "unexpected upstream request: {body}"
+            );
+            let product_node = |id: &str| {
+                let tail = id.rsplit('/').next().unwrap_or_default();
+                json!({
+                    "id": id,
+                    "title": format!("Hydrated product {tail}"),
+                    "handle": format!("hydrated-product-{tail}"),
+                    "status": "ACTIVE",
+                    "media": { "nodes": [] },
+                    "variants": { "nodes": [] }
+                })
+            };
+            let product_response = if let Some(ids) = body["variables"]["ids"].as_array() {
+                assert_eq!(body["variables"]["ids"], expected_product_ids_for_transport);
+                let nodes = ids
+                    .iter()
+                    .map(|id| match id.as_str() {
+                        Some(id) if id == product_one_id || id == product_two_id => {
+                            product_node(id)
+                        }
+                        _ => Value::Null,
+                    })
+                    .collect::<Vec<_>>();
+                json!({ "nodes": nodes })
+            } else {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let product = match id {
+                    id if id == product_one_id || id == product_two_id => product_node(id),
+                    _ => Value::Null,
+                };
+                json!({ "product": product })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": product_response }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileUpdateBatchedReferenceHydration($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "id": media_id,
+            "referencesToAdd": [product_one_id, product_two_id, product_one_id],
+            "referencesToRemove": [product_two_id, missing_product_id, product_one_id]
+        }]}),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [],
+            "userErrors": [{
+                "field": ["files"],
+                "message": "The reference target does not exist",
+                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    let product_hydrates = bodies
+        .iter()
+        .filter(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaProductHydrate"))
+        })
+        .collect::<Vec<_>>();
+    let file_hydrates = bodies
+        .iter()
+        .filter(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaFileUpdateHydrate"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        product_hydrates.len(),
+        1,
+        "several product references should be hydrated by one bounded request"
+    );
+    assert_eq!(
+        product_hydrates[0]["variables"]["ids"],
+        expected_product_ids
+    );
+    assert_eq!(file_hydrates.len(), 1);
+    assert_eq!(
+        bodies.len(),
+        2,
+        "no per-ID fallback probes should be issued"
+    );
+}
+
+#[test]
 fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() {
     let media_id = "gid://shopify/MediaImage/43688017887538";
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
