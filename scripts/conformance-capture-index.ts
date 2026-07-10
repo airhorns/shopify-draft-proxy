@@ -12214,19 +12214,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-root-count-and-search-filters-conformance.ts',
     purpose:
-      'bulkOperation.rootObjectCount vs objectCount for nested product variant query exports plus bulkOperations(query:) status/created_at comparator and unknown-field warning behavior.',
+      'bulkOperation.rootObjectCount vs objectCount and JSONL child rows for nested product variant/media/metafield query exports plus bulkOperations(query:) status/created_at comparator and unknown-field warning behavior.',
     requiredAuthScopes: ['bulk operation access through active Admin token', 'read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-root-count-and-search-filters.json`,
       'config/parity-specs/bulk-operations/bulk-operation-root-count-and-search-filters.json',
       'config/parity-requests/bulk-operations/bulk-operation-root-count-product-create.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-root-count-product-create-media.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-root-count-product-media-ready.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-root-count-product-variant-append-media.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-root-count-product-variant-update.graphql',
       'config/parity-requests/bulk-operations/bulk-operation-root-count-run-query.graphql',
       'config/parity-requests/bulk-operations/bulk-operations-completed-after-filter.graphql',
       'config/parity-requests/bulk-operations/bulk-operations-created-before-filter.graphql',
       'config/parity-requests/bulk-operations/bulk-operations-unknown-filter-warning.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable tagged product, waits for product search visibility, runs a nested product bulk query, captures read/filter behavior, then deletes the product.',
+      'Creates one disposable tagged product with a metafield, attaches one media image, waits for product child visibility, runs a nested product bulk query, captures read/filter behavior, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
