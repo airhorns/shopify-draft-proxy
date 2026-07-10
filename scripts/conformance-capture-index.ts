@@ -13661,11 +13661,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'read_customer_merge',
       'write_customer_merge',
       'read_orders',
+      'read_draft_orders',
+      'write_draft_orders',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
       'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
+      'config/parity-specs/customers/customerMerge-draft-orders-parity.json',
       'config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql',
+      'config/parity-requests/customers/customer-merge-draft-order-create.graphql',
+      'config/parity-requests/customers/customer-merge-draft-orders-read.graphql',
       'config/parity-requests/customers/customer-merge-downstream-read.graphql',
     ],
     cleanupBehavior:

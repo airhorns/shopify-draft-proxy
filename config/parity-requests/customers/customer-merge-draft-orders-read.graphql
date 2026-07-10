@@ -1,0 +1,39 @@
+query CustomerMergeDraftOrdersAfter(
+  $sourceDraftOrderQuery: String!
+  $resultDraftOrderQuery: String!
+) {
+  sourceDraftOrders: draftOrders(first: 5, query: $sourceDraftOrderQuery) {
+    nodes {
+      id
+      email
+      status
+      tags
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+  }
+  resultDraftOrders: draftOrders(first: 5, query: $resultDraftOrderQuery) {
+    nodes {
+      id
+      email
+      status
+      tags
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+  }
+  sourceDraftOrdersCount: draftOrdersCount(query: $sourceDraftOrderQuery) {
+    count
+    precision
+  }
+  resultDraftOrdersCount: draftOrdersCount(query: $resultDraftOrderQuery) {
+    count
+    precision
+  }
+}

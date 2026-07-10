@@ -87,6 +87,48 @@ fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: 
         .to_string()
 }
 
+fn create_customer_draft_order(proxy: &mut DraftProxy, customer_id: &str, email: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomerDraftOrder($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              email
+              status
+              tags
+              customer { id email displayName }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "purchasingEntity": { "customerId": customer_id },
+                "email": email,
+                "tags": ["merge-draft"],
+                "lineItems": [{
+                    "title": "Customer merge draft item",
+                    "quantity": 1,
+                    "originalUnitPrice": "12.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("draft order id")
+        .to_string()
+}
+
 #[test]
 fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
     for root in ["customerUpdate", "customerSet"] {
@@ -1403,6 +1445,8 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
             ]
         }),
     );
+    let draft_order_id =
+        create_customer_draft_order(&mut proxy, &source_id, "merge-source@example.test");
 
     let merge = proxy.process_request(json_graphql_request(
         r#"
@@ -1443,7 +1487,13 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
 
     let downstream = proxy.process_request(json_graphql_request(
         r#"
-        query MergeReadAfterWrite($source: ID!, $result: ID!, $sourceEmail: String!, $resultEmail: String!, $job: ID!) {
+        query MergeReadAfterWrite(
+          $source: ID!
+          $result: ID!
+          $sourceEmail: String!
+          $resultEmail: String!
+          $job: ID!
+        ) {
           source: customer(id: $source) { id email }
           result: customer(id: $result) {
             id
@@ -1541,6 +1591,72 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
             "customerMergeErrors": []
         })
     );
+    let draft_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MergeDraftOrderReadAfterWrite($draftOrder: ID!, $sourceDraftQuery: String!, $resultDraftQuery: String!) {
+          draftOrder(id: $draftOrder) {
+            id
+            email
+            status
+            tags
+            customer { id email displayName }
+          }
+          sourceDraftOrders: draftOrders(first: 5, query: $sourceDraftQuery) {
+            nodes { id email status customer { id } }
+          }
+          resultDraftOrders: draftOrders(first: 5, query: $resultDraftQuery) {
+            nodes { id email status tags customer { id email displayName } }
+          }
+          sourceDraftOrdersCount: draftOrdersCount(query: $sourceDraftQuery) { count precision }
+          resultDraftOrdersCount: draftOrdersCount(query: $resultDraftQuery) { count precision }
+        }
+        "#,
+        json!({
+            "draftOrder": draft_order_id,
+            "sourceDraftQuery": format!("customer_id:{source_id}"),
+            "resultDraftQuery": format!("customer_id:{result_id}")
+        }),
+    ));
+    assert_eq!(
+        draft_downstream.body["data"]["draftOrder"],
+        json!({
+            "id": draft_order_id,
+            "email": "merge-result@example.test",
+            "status": "OPEN",
+            "tags": ["merge-draft"],
+            "customer": {
+                "id": result_id,
+                "email": "merge-result@example.test",
+                "displayName": "Merge Result"
+            }
+        })
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["sourceDraftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["resultDraftOrders"]["nodes"],
+        json!([{
+            "id": draft_order_id,
+            "email": "merge-result@example.test",
+            "status": "OPEN",
+            "tags": ["merge-draft"],
+            "customer": {
+                "id": result_id,
+                "email": "merge-result@example.test",
+                "displayName": "Merge Result"
+            }
+        }])
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["sourceDraftOrdersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["resultDraftOrdersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
     assert_eq!(downstream.body["data"]["job"]["id"], json!(job_id));
     assert_eq!(downstream.body["data"]["job"]["done"], json!(true));
     assert_eq!(downstream.body["data"]["node"]["id"], json!(job_id));
@@ -1559,12 +1675,21 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
         state["stagedState"]["deletedCustomerIds"],
         json!([source_id])
     );
+    assert_eq!(
+        state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["customer"]["id"],
+        json!(result_id)
+    );
+    assert_eq!(
+        state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["purchasingEntity"]
+            ["customerId"],
+        json!(result_id)
+    );
     let log = log_snapshot(&proxy);
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        log["entries"][3]["interpreted"]["primaryRootField"],
         json!("customerMerge")
     );
-    assert!(log["entries"][2]["rawBody"]
+    assert!(log["entries"][3]["rawBody"]
         .as_str()
         .unwrap()
         .contains("TotallyArbitraryMergeName"));
@@ -1856,6 +1981,8 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
         Vec::new(),
         Some(&"b".repeat(2500)),
     );
+    let note_draft_order =
+        create_customer_draft_order(&mut proxy, &note_one, "merge-note-one@example.test");
     let note_overflow = proxy.process_request(json_graphql_request(
         r#"
         mutation NotesBlockerNameDoesNotMatter($one: ID!, $two: ID!) {
@@ -1883,6 +2010,36 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
             }
         ])
     );
+    let note_draft_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NoteRejectedDraftRead($draftOrder: ID!, $sourceDraftQuery: String!, $resultDraftQuery: String!) {
+          draftOrder(id: $draftOrder) { id customer { id email displayName } }
+          sourceDraftOrders: draftOrders(first: 5, query: $sourceDraftQuery) { nodes { id customer { id } } }
+          resultDraftOrders: draftOrders(first: 5, query: $resultDraftQuery) { nodes { id customer { id } } }
+        }
+        "#,
+        json!({
+            "draftOrder": note_draft_order,
+            "sourceDraftQuery": format!("customer_id:{note_one}"),
+            "resultDraftQuery": format!("customer_id:{note_two}")
+        }),
+    ));
+    assert_eq!(
+        note_draft_read.body["data"]["draftOrder"]["customer"],
+        json!({
+            "id": note_one,
+            "email": "merge-note-one@example.test",
+            "displayName": "Note One"
+        })
+    );
+    assert_eq!(
+        note_draft_read.body["data"]["sourceDraftOrders"]["nodes"][0]["id"],
+        json!(note_draft_order)
+    );
+    assert_eq!(
+        note_draft_read.body["data"]["resultDraftOrders"]["nodes"],
+        json!([])
+    );
 
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["mergedCustomerIds"],
@@ -1891,6 +2048,16 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["customers"][second_id.as_str()]["email"],
         json!("merge-validation-two@example.test")
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
+            ["customer"]["id"],
+        json!(note_one)
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
+            ["purchasingEntity"]["customerId"],
+        json!(note_one)
     );
 }
 
