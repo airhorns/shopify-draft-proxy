@@ -1269,6 +1269,44 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
+    pub(in crate::proxy) fn hydrate_product_set_target_by_id_with_request(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) {
+        if id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_SET_TARGET_HYDRATE_BY_ID_QUERY,
+                "operationName": "ProductSetTargetHydrateById",
+                "variables": { "ids": [id] }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
+    pub(in crate::proxy) fn hydrate_product_set_target_by_handle_with_request(
+        &mut self,
+        request: &Request,
+        handle: &str,
+    ) {
+        if handle.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY,
+                "operationName": "ProductSetTargetHydrateByHandle",
+                "variables": { "handle": handle }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
     /// Forward the options-aware product hydrate (selecting the option/optionValue
     /// graph that the generic observation query omits) and observe it, so a cold
     /// productOptionsReorder resolves the real owning product + option graph from

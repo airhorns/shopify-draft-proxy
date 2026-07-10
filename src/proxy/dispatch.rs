@@ -58,6 +58,15 @@ fn observed_node_values(response: &Response) -> Vec<Value> {
     {
         nodes.push(node.clone());
     }
+    for pointer in ["/data/productByIdentifier", "/data/productByHandle"] {
+        if let Some(node) = response
+            .body
+            .pointer(pointer)
+            .filter(|node| node.is_object())
+        {
+            nodes.push(node.clone());
+        }
+    }
     nodes
 }
 
