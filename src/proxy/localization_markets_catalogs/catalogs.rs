@@ -26,6 +26,7 @@ impl DraftProxy {
             Some(value)
         });
         if !touched_ids.is_empty() {
+            self.mark_markets_family_dirty("catalogs");
             self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
         }
         data
@@ -596,6 +597,23 @@ impl DraftProxy {
             Some(outcome.value)
         });
         if !touched_ids.is_empty() {
+            for field in fields {
+                match field.name.as_str() {
+                    "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete" => {
+                        self.mark_markets_family_dirty("webPresences");
+                    }
+                    "priceListCreate"
+                    | "priceListUpdate"
+                    | "priceListDelete"
+                    | "priceListFixedPricesByProductUpdate"
+                    | "priceListFixedPricesAdd"
+                    | "priceListFixedPricesUpdate"
+                    | "priceListFixedPricesDelete" => {
+                        self.mark_markets_family_dirty("priceLists");
+                    }
+                    _ => {}
+                }
+            }
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
         let mut body = serde_json::Map::new();

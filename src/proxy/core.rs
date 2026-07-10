@@ -806,6 +806,24 @@ impl DraftProxy {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
         }
+        if !self.store.staged.markets_hydrated_scopes.is_empty() {
+            snapshot["stagedState"]["marketsHydratedScopes"] = json!(self
+                .store
+                .staged
+                .markets_hydrated_scopes
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.markets_dirty_families.is_empty() {
+            snapshot["stagedState"]["marketsDirtyFamilies"] = json!(self
+                .store
+                .staged
+                .markets_dirty_families
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.shop_locales.is_empty() {
             snapshot["stagedState"]["stagedShopLocales"] =
                 json!(self.store.staged.shop_locales.clone());
@@ -1801,6 +1819,18 @@ impl DraftProxy {
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.markets_hydrated_scopes = state["stagedState"]
+            .get("marketsHydratedScopes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.markets_dirty_families = state["stagedState"]
+            .get("marketsDirtyFamilies")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.shop_locales = state["stagedState"]
             .get("stagedShopLocales")
             .and_then(Value::as_object)

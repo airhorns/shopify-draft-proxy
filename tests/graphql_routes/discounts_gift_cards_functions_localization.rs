@@ -6819,19 +6819,38 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
 }
 
 #[test]
-fn localization_markets_read_uses_locally_staged_markets_before_upstream() {
+fn localization_markets_read_merges_locally_staged_markets_with_upstream() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let captured_hits = Arc::clone(&upstream_hits);
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
-        move |_request| {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
             *captured_hits.lock().unwrap() += 1;
             shopify_draft_proxy::proxy::Response {
-                status: 500,
+                status: 200,
                 headers: Default::default(),
-                body: json!({ "errors": [{ "message": "staged market read should not hit upstream" }] }),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [{
+                                "__typename": "Market",
+                                "id": "gid://shopify/Market/live-ca",
+                                "name": "Live Canada",
+                                "handle": "live-canada",
+                                "status": "ACTIVE",
+                                "type": "REGION"
+                            }],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "gid://shopify/Market/live-ca",
+                                "endCursor": "gid://shopify/Market/live-ca"
+                            }
+                        }
+                    }
+                }),
             }
-        },
-    );
+        });
 
     let created = proxy.process_request(json_graphql_request(
         r#"mutation RustMarketCreateLocalRuntimeSourceBacked($input: MarketCreateInput!) {
@@ -6856,8 +6875,19 @@ fn localization_markets_read_uses_locally_staged_markets_before_upstream() {
         json!({}),
     ));
     assert_eq!(read.status, 200);
-    assert_eq!(read.body["data"]["markets"]["nodes"], json!([market]));
-    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+    assert_eq!(
+        read.body["data"]["markets"]["nodes"],
+        json!([
+            market,
+            {
+                "id": "gid://shopify/Market/live-ca",
+                "name": "Live Canada",
+                "handle": "live-canada",
+                "status": "ACTIVE"
+            }
+        ])
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 1);
 }
 
 #[test]
