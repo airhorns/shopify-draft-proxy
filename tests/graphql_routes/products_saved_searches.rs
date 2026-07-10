@@ -3008,14 +3008,35 @@ fn product_option_name_delimiter_validation_rejects_all_option_write_paths() {
 fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
     let forwarded = Arc::new(Mutex::new(0usize));
     let captured = Arc::clone(&forwarded);
+    let setup_complete = Arc::new(Mutex::new(false));
+    let captured_setup_complete = Arc::clone(&setup_complete);
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
         .with_base_products(vec![seed_product("gid://shopify/Product/1")])
-        .with_upstream_transport(move |_| {
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            if !*captured_setup_complete.lock().unwrap()
+                && body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("ShippingFulfillmentServicesHydrate"))
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "fulfillmentServices": []
+                            }
+                        }
+                    }),
+                };
+            }
             *captured.lock().unwrap() += 1;
             panic!("bulk variant create should not call upstream")
         });
     let location_id =
         staged_fulfillment_service_location_id(&mut proxy, "Bulk variant inventory location");
+    *setup_complete.lock().unwrap() = true;
 
     let create = proxy.process_request(json_graphql_request(
         r#"
