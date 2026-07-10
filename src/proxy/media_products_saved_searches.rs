@@ -2865,9 +2865,9 @@ impl DraftProxy {
                 self.product_delete_missing_product_response_with_shop(request, query, variables),
             );
         };
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "productDelete".to_string());
-        let is_async_delete = resolved_bool_field(variables, "synchronous") == Some(false);
+        let (response_key, payload_selection, root_arguments) =
+            primary_root_response_parts(query, variables, || "productDelete".to_string());
+        let is_async_delete = resolved_bool_field(&root_arguments, "synchronous") == Some(false);
         if is_async_delete
             && self
                 .store

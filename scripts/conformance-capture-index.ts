@@ -3296,13 +3296,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'products',
     captureId: 'product-delete-async',
     scriptPath: 'scripts/capture-product-delete-async-conformance.ts',
-    purpose: 'Asynchronous productDelete operation payload, duplicate pending-operation guard, and helper reads.',
+    purpose:
+      'Asynchronous productDelete operation payload, resolved synchronous argument forms, duplicate pending-operation guard, and helper reads.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-delete-async-operation.json`,
+      'config/parity-requests/products/productDelete-async-inline-false.graphql',
       'config/parity-specs/products/productDelete-async-operation.json',
       'config/parity-requests/products/productDelete-async-operation.graphql',
       'config/parity-requests/products/productDelete-async-product-read.graphql',
+      'config/parity-requests/products/productDelete-async-renamed-variable.graphql',
       'config/parity-requests/products/productDelete-async-source-create.graphql',
       'config/parity-requests/products/productDelete-operation-node-read.graphql',
       'config/parity-requests/products/productDelete-operation-read.graphql',

@@ -11856,6 +11856,218 @@ fn product_delete_async_operation_tombstones_immediate_product_read() {
     assert_eq!(node_read.body["data"]["node"]["status"], "COMPLETE");
 }
 
+fn create_product_delete_source(proxy: &mut DraftProxy, title: &str) -> Value {
+    let source_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productDelete-async-source-create.graphql"
+        ),
+        json!({
+            "input": { "title": title, "status": "DRAFT" },
+            "synchronous": true
+        }),
+    ));
+    assert_eq!(source_create.status, 200);
+    assert_eq!(
+        source_create.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    source_create.body["data"]["productSet"]["product"]["id"].clone()
+}
+
+fn assert_product_delete_async_payload(response: &Response, response_key: &str) -> Value {
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"][response_key];
+    assert_eq!(payload["deletedProductId"], Value::Null);
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["productDeleteOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        payload["productDeleteOperation"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(payload["productDeleteOperation"]["userErrors"], json!([]));
+    let operation_id = payload["productDeleteOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductDeleteOperation/"));
+    operation_id
+}
+
+#[test]
+fn product_delete_async_uses_resolved_synchronous_root_argument() {
+    let mut proxy = snapshot_proxy();
+
+    let canonical_product_id =
+        create_product_delete_source(&mut proxy, "Async delete canonical variable");
+    let canonical_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteCanonicalVariable($input: ProductDeleteInput!, $synchronous: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $synchronous) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": canonical_product_id.clone() },
+            "synchronous": false
+        }),
+    ));
+    let canonical_operation_id =
+        assert_product_delete_async_payload(&canonical_delete, "deleteResult");
+
+    let renamed_product_id =
+        create_product_delete_source(&mut proxy, "Async delete renamed variable");
+    let renamed_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteRenamedVariable($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $runSynchronously) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": renamed_product_id.clone() },
+            "runSynchronously": false
+        }),
+    ));
+    let renamed_operation_id = assert_product_delete_async_payload(&renamed_delete, "deleteResult");
+
+    let inline_product_id = create_product_delete_source(&mut proxy, "Async delete inline false");
+    let inline_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteInlineFalse($input: ProductDeleteInput!) {
+          deleteResult: productDelete(input: $input, synchronous: false) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": inline_product_id.clone() }
+        }),
+    ));
+    let inline_operation_id = assert_product_delete_async_payload(&inline_delete, "deleteResult");
+
+    for (product_id, operation_id) in [
+        (canonical_product_id, canonical_operation_id),
+        (renamed_product_id, renamed_operation_id),
+        (inline_product_id, inline_operation_id),
+    ] {
+        let immediate_read = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/productDelete-async-product-read.graphql"
+            ),
+            json!({ "id": product_id.clone() }),
+        ));
+        assert_eq!(immediate_read.status, 200);
+        assert_eq!(immediate_read.body["data"]["product"], Value::Null);
+
+        let operation_read = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/productDelete-operation-read.graphql"
+            ),
+            json!({ "id": operation_id.clone() }),
+        ));
+        assert_eq!(operation_read.status, 200);
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["__typename"],
+            "ProductDeleteOperation"
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["id"],
+            operation_id
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["deletedProductId"],
+            product_id
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let omitted_product_id = create_product_delete_source(&mut proxy, "Sync delete omitted");
+    let omitted_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteOmitted($input: ProductDeleteInput!) {
+          deleteResult: productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": omitted_product_id.clone() }
+        }),
+    ));
+    assert_eq!(omitted_delete.status, 200);
+    assert_eq!(
+        omitted_delete.body["data"]["deleteResult"]["deletedProductId"],
+        omitted_product_id
+    );
+    assert_eq!(
+        omitted_delete.body["data"]["deleteResult"]["userErrors"],
+        json!([])
+    );
+
+    let true_product_id = create_product_delete_source(&mut proxy, "Sync delete explicit true");
+    let true_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteTrue($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $runSynchronously) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": true_product_id.clone() },
+            "runSynchronously": true
+        }),
+    ));
+    assert_eq!(true_delete.status, 200);
+    assert_eq!(
+        true_delete.body["data"]["deleteResult"]["deletedProductId"],
+        true_product_id
+    );
+    assert_eq!(
+        true_delete.body["data"]["deleteResult"]["userErrors"],
+        json!([])
+    );
+
+    let product_delete_log_entries = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["interpreted"]["operationName"] == json!("productDelete"))
+        .count();
+    assert_eq!(product_delete_log_entries, 5);
+}
+
 #[test]
 fn product_relationship_options_reads_use_staged_state_or_no_data() {
     let validation_fixture = product_fixture(include_str!(

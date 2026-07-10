@@ -3592,13 +3592,14 @@ Practical rule:
 ## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
-A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
+Refreshed 2026-04 captures against the same store showed the operation can complete before the immediate downstream product read, but can also leave the product visible to that immediate read while the operation is still active.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
 - the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
-- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
+- one refreshed 2026-04 capture returned `product: null` for that immediate downstream read, while a later 2026-04 capture covering inline false and renamed-variable false kept all three disposable products visible to the immediate product read
+- local timing should stay deterministic by preferring the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
