@@ -11928,6 +11928,36 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'shipping-service-mutation-first-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shipping-service-mutation-first-hydration-conformance.ts',
+    purpose:
+      'Carrier-service and fulfillment-service mutation-first update/delete hydration plus duplicate-create catalog hydration.',
+    requiredAuthScopes: [
+      'read_shipping',
+      'write_shipping',
+      'read_fulfillments',
+      'write_fulfillments',
+      'read_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-service-mutation-first-hydration.json`,
+      'config/parity-specs/shipping-fulfillments/shipping-service-mutation-first-hydration.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-create.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-update.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-delete.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-update.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-delete.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable app-owned carrier and fulfillment services, records exact query-only hydrate calls plus lifecycle/duplicate behavior, then deletes all services not already removed by the captured delete mutations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-delete-transfer',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-delete-transfer-conformance.ts',
