@@ -31,6 +31,17 @@ pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = incl
     "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
 );
 
+// `productSet` must decide update-vs-create from a real existing product when
+// LiveHybrid has not observed it yet. These productSet-owned hydrate documents
+// select product options in addition to variants so omitted-field and replacement
+// semantics can build from the upstream product graph.
+pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_ID_QUERY: &str =
+    include_str!("../../config/parity-requests/products/productSet-target-hydrate-by-id.graphql");
+
+pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/productSet-target-hydrate-by-handle.graphql"
+);
+
 pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
 
 pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
