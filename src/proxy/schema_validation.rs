@@ -3785,6 +3785,22 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([("input".to_string(), mutation_arg(non_null("CustomerInput")))]),
     );
 
+    // customerSet is staged locally, so the proxy owns GraphQL variable
+    // coercion for its public input objects. Keep CustomerInput unregistered
+    // for customerCreate/customerUpdate field-level validation, but enforce the
+    // captured CustomerSetInput/identifier shapes here so unsupported fields
+    // (such as `metafields`) and malformed customId identifiers fail before the
+    // local resolver runs.
+    for input_object_name in [
+        "CustomerSetInput",
+        "CustomerSetIdentifiers",
+        "UniqueMetafieldValueInput",
+    ] {
+        if let Some(fields) = schema.input_objects.get(input_object_name).cloned() {
+            schema.insert_strict_input_object(input_object_name.to_string(), fields);
+        }
+    }
+
     // dataSaleOptOut(email: String!) on Admin API 2026-04. The single `email`
     // argument is non-null, so a missing or explicitly-null email must surface a
     // top-level `missingRequiredArguments` / null-coercion envelope before the

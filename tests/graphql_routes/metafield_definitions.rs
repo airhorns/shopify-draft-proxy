@@ -1190,9 +1190,15 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
         json!({ "namespace": namespace }),
     ));
     assert_eq!(
-        id_disabled.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]["capabilities"]
-            ["uniqueValues"],
-        json!({ "enabled": false, "eligible": true })
+        id_disabled.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Capability unique_values is required for type id but is disabled",
+                "code": "CAPABILITY_REQUIRED_BUT_DISABLED"
+            }]
+        })
     );
 
     let json_base = proxy.process_request(json_graphql_request(

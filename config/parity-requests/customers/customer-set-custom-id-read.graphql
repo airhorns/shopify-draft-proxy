@@ -1,0 +1,59 @@
+query CustomerSetCustomIdRead(
+  $identifier: CustomerIdentifierInput!
+  $customerId: ID!
+  $namespace: String!
+  $key: String!
+) {
+  byIdentifier: customerByIdentifier(identifier: $identifier) {
+    id
+    firstName
+    lastName
+    displayName
+    externalId: metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 5) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  byId: customer(id: $customerId) {
+    id
+    firstName
+    lastName
+    displayName
+    externalId: metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 5) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

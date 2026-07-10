@@ -2572,6 +2572,18 @@ fn metafield_definition_capability_input_error(
     metafield_type: &str,
 ) -> Option<Value> {
     let capabilities = resolved_object_field(input, "capabilities")?;
+    if metafield_type == "id"
+        && resolved_object_field(&capabilities, "uniqueValues")
+            .and_then(|capability| resolved_bool_field(&capability, "enabled"))
+            == Some(false)
+    {
+        return Some(metafield_definition_user_error(
+            typename,
+            field,
+            "Capability unique_values is required for type id but is disabled",
+            "CAPABILITY_REQUIRED_BUT_DISABLED",
+        ));
+    }
     for (key, capability_name) in [
         ("adminFilterable", "admin_filterable"),
         ("smartCollectionCondition", "smart_collection_condition"),

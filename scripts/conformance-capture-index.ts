@@ -13526,6 +13526,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-set-custom-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-set-custom-id-conformance.mts',
+    purpose: 'customerSet identifier.customId upsert semantics backed by CUSTOMER id metafield definitions.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-set-custom-id.json`,
+      'config/parity-specs/customers/customer-set-custom-id.json',
+      'config/parity-requests/customers/customer-set-custom-id-definition-create.graphql',
+      'config/parity-requests/customers/customer-set-custom-id-definition-delete.graphql',
+      'config/parity-requests/customers/customer-set-custom-id.graphql',
+      'config/parity-requests/customers/customer-set-custom-id-read.graphql',
+      'config/parity-requests/customers/customer-custom-id-lookup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable CUSTOMER id metafield definitions and one customer through customerSet, records customId success/readback and validation branches, then deletes the customer and definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Duplicate-assignment live evidence is recorded as a probe; Shopify unique-id definitions prevent durable duplicate customer metafield state, so impossible duplicate effective-state handling remains covered by local runtime tests.',
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-set',
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',
