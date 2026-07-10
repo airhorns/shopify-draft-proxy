@@ -1489,11 +1489,7 @@ impl DraftProxy {
         namespace: &str,
         key: &str,
     ) -> Option<Value> {
-        self.store
-            .staged
-            .metafield_definitions
-            .get(&metafield_definition_store_key(owner_type, namespace, key))
-            .cloned()
+        self.effective_metafield_definition(owner_type, namespace, key)
     }
 
     fn owner_metafield_definition_value(

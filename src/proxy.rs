@@ -279,6 +279,9 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
+    metafield_definition_owner_catalogs: BTreeSet<String>,
+    metafield_definition_namespaces: BTreeSet<(String, String)>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -420,6 +423,7 @@ struct StagedState {
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
+    deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
     media_ready_on_read: BTreeSet<String>,
