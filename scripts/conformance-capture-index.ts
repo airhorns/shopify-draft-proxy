@@ -11003,6 +11003,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-customization-mutation-first-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-mutation-first-hydration-conformance.ts',
+    purpose:
+      'Mutation-first paymentCustomizationUpdate, paymentCustomizationActivation, and paymentCustomizationDelete against real pre-existing Shopify IDs hydrated through upstream reads.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-mutation-first-hydration.json`,
+      'config/parity-specs/payments/payment-customization-mutation-first-hydration.json',
+      'config/parity-requests/payments/payment-customization-hydrate-by-id.graphql',
+      'config/parity-requests/payments/payment-customization-hydrate-catalog.graphql',
+      'config/parity-requests/payments/payment-customization-mutation-first-update.graphql',
+      'config/parity-requests/payments/payment-customization-mutation-first-read.graphql',
+      'config/parity-requests/payments/payment-customization-mutation-first-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable update, activation, and delete payment customizations with a visible payment_customization function, records hydrate/update/activation/delete/read behavior, deletes the delete target during capture, and deletes remaining targets during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Requires a Shopify Plus-capable test shop/app with a released payment customization function. The recorder captures upstream hydrate reads, not proxy-generated state.',
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-create-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',

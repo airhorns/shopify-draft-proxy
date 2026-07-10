@@ -45,6 +45,47 @@ pub(in crate::proxy) fn payment_customization_record(
     record
 }
 
+pub(in crate::proxy) fn normalize_payment_customization_record(record: Value) -> Option<Value> {
+    if !record.is_object() || record["id"].as_str().is_none() {
+        return None;
+    }
+    let mut record = record;
+    if record
+        .get("functionHandle")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        record["functionHandle"] = record["shopifyFunction"]["handle"]
+            .as_str()
+            .map(|handle| json!(handle))
+            .unwrap_or(Value::Null);
+    }
+    if record.get("shopifyFunction").is_none() {
+        record["shopifyFunction"] = Value::Null;
+    }
+    if record.get("errorHistory").is_none() {
+        record["errorHistory"] = json!({ "nodes": [] });
+    }
+    let metafields = payment_customization_connection_nodes(&record["metafields"]);
+    payment_customization_set_metafields(&mut record, metafields);
+    Some(record)
+}
+
+fn payment_customization_connection_nodes(connection: &Value) -> Vec<Value> {
+    connection["nodes"]
+        .as_array()
+        .cloned()
+        .or_else(|| {
+            connection["edges"].as_array().map(|edges| {
+                edges
+                    .iter()
+                    .filter_map(|edge| edge.get("node").cloned())
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
+}
+
 pub(in crate::proxy) fn payment_customization_metafields(
     input: &BTreeMap<String, ResolvedValue>,
     api_client_id: Option<&str>,

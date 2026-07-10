@@ -2292,7 +2292,7 @@ impl DraftProxy {
                     )
                 }) {
                     ok_json(json!({
-                        "data": self.payment_customization_query_data(&fields)
+                        "data": self.payment_customization_query_data(request, &fields)
                     }))
                 } else if root_field == "paymentTermsTemplates" {
                     ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }))

@@ -8146,6 +8146,12 @@ fn payment_customization_function_proxy(
                     .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
             }
+            "PaymentCustomizationHydrateById" => {
+                json!({ "data": { "paymentCustomization": Value::Null } })
+            }
+            "PaymentCustomizationHydrateCatalog" => {
+                json!({ "data": { "paymentCustomizations": { "nodes": [] } } })
+            }
             _ => json!({
                 "errors": [{
                     "message": format!("unexpected payment customization upstream request: {body}")
@@ -8158,6 +8164,224 @@ fn payment_customization_function_proxy(
             body: response_body,
         }
     })
+}
+
+fn base_payment_customization_record(id: &str, title: &str, enabled: bool) -> Value {
+    json!({
+        "__typename": "PaymentCustomization",
+        "id": id,
+        "legacyResourceId": id.rsplit('/').next().unwrap_or_default(),
+        "title": title,
+        "enabled": enabled,
+        "functionId": "gid://shopify/ShopifyFunction/payment-a",
+        "functionHandle": Value::Null,
+        "shopifyFunction": Value::Null,
+        "errorHistory": { "nodes": [] },
+        "metafields": {
+            "edges": [{
+                "node": {
+                    "id": "gid://shopify/Metafield/payment-customization-base",
+                    "namespace": "app--347082227713--foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "base",
+                    "createdAt": "2026-07-01T00:00:00Z",
+                    "updatedAt": "2026-07-01T00:00:00Z"
+                }
+            }]
+        }
+    })
+}
+
+fn payment_customization_base_hydration_proxy(
+    base_records: Vec<Value>,
+    hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    let base_records = Arc::new(base_records);
+    configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("payment customization hydrate body should parse");
+        hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str().unwrap_or_default() {
+            "PaymentCustomizationHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let record = base_records
+                    .iter()
+                    .find(|record| record["id"].as_str() == Some(id))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "paymentCustomization": record } })
+            }
+            "PaymentCustomizationHydrateCatalog" => json!({
+                "data": {
+                    "paymentCustomizations": {
+                        "nodes": base_records.as_ref().clone()
+                    }
+                }
+            }),
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected payment customization upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
+#[test]
+fn payment_customization_mutation_first_hydrates_base_state() {
+    let target_id = "gid://shopify/PaymentCustomization/4242";
+    let other_id = "gid://shopify/PaymentCustomization/4243";
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = payment_customization_base_hydration_proxy(
+        vec![
+            base_payment_customization_record(target_id, "Hydrated before update", true),
+            base_payment_customization_record(other_id, "Hydrated catalog sibling", true),
+        ],
+        Arc::clone(&upstream_hits),
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+          paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              title
+              enabled
+              functionId
+              metafield(namespace: "$app:foo", key: "bar") { namespace key type value updatedAt }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "id": target_id,
+            "input": {
+                "title": "Updated without pre-read",
+                "enabled": false,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{
+                    "namespace": "$app:foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "updated"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]["title"],
+        json!("Updated without pre-read")
+    );
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]["metafield"]
+            ["value"],
+        json!("updated")
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstActivation($ids: [ID!]!, $enabled: Boolean!) {
+          paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "ids": [target_id, other_id], "enabled": true }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"],
+        json!({ "ids": [target_id, other_id], "userErrors": [] })
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query PaymentCustomizationMutationFirstCatalog {
+          paymentCustomizations(first: 10) {
+            nodes { id title enabled }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["paymentCustomizations"]["nodes"],
+        json!([
+            { "id": target_id, "title": "Updated without pre-read", "enabled": true },
+            { "id": other_id, "title": "Hydrated catalog sibling", "enabled": true }
+        ])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstDelete($id: ID!) {
+          paymentCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": other_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["paymentCustomizationDelete"],
+        json!({ "deletedId": other_id, "userErrors": [] })
+    );
+
+    let read_deleted = proxy.process_request(json_graphql_request(
+        r#"
+        query PaymentCustomizationMutationFirstReadDeleted($id: ID!) {
+          paymentCustomization(id: $id) { id title enabled }
+        }
+        "#,
+        json!({ "id": other_id }),
+    ));
+    assert_eq!(read_deleted.status, 200);
+    assert_eq!(
+        read_deleted.body["data"]["paymentCustomization"],
+        Value::Null
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 3);
+    let upstream_operations = upstream_hits
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| {
+            body["operationName"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        upstream_operations,
+        vec![
+            "PaymentCustomizationHydrateById",
+            "PaymentCustomizationHydrateCatalog"
+        ]
+    );
 }
 
 #[test]
@@ -8609,7 +8833,26 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
             }]
         })
     );
-    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
+    let upstream_operations = upstream_hits
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| {
+            body["operationName"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        upstream_operations,
+        vec![
+            "FunctionHydrateByHandle",
+            "PaymentCustomizationHydrateById",
+            "PaymentCustomizationHydrateCatalog",
+            "PaymentCustomizationHydrateById"
+        ]
+    );
 }
 
 #[test]
