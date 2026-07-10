@@ -1090,32 +1090,17 @@ impl Store {
             || self.staged.publications.contains_key(id)
     }
 
-    fn default_publication_id(&self) -> Option<&'static str> {
-        let id = "gid://shopify/Publication/1";
-        self.has_publication_id(id).then_some(id)
-    }
-
     fn current_publication_ids(&self) -> Vec<&str> {
         if self.staged.current_channel_publication_resolved {
             return self
                 .staged
                 .current_channel_publication_id
                 .as_deref()
-                .or_else(|| self.default_publication_id())
                 .into_iter()
                 .collect();
         }
 
-        let mut publication_ids = Vec::new();
-        if !(self.base.publication_count == Some(0) && self.staged.publications.is_empty()) {
-            publication_ids.push(CURRENT_CHANNEL_PUBLICATION_ID);
-        }
-        if let Some(id) = self.default_publication_id() {
-            if !publication_ids.contains(&id) {
-                publication_ids.push(id);
-            }
-        }
-        publication_ids
+        Vec::new()
     }
 
     fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
@@ -1151,23 +1136,14 @@ impl Store {
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
-        self.staged
-            .publications
-            .iter()
-            .find_map(|(id, record)| {
-                let matches = record
-                    .get("channel")
-                    .and_then(|channel| channel.get("id"))
-                    .and_then(Value::as_str)
-                    == Some(channel_id);
-                matches.then(|| id.clone())
-            })
-            .or_else(|| {
-                let suffix = resource_id_path_tail(channel_id);
-                let publication_id = shopify_gid("Publication", suffix);
-                self.has_publication_id(&publication_id)
-                    .then_some(publication_id)
-            })
+        self.staged.publications.iter().find_map(|(id, record)| {
+            let matches = record
+                .get("channel")
+                .and_then(|channel| channel.get("id"))
+                .and_then(Value::as_str)
+                == Some(channel_id);
+            matches.then(|| id.clone())
+        })
     }
 
     pub(in crate::proxy) fn effective_shop(&self) -> Value {

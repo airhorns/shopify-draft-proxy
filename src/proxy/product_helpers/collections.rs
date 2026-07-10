@@ -533,24 +533,6 @@ impl DraftProxy {
         !self.store.staged.publications.is_empty()
     }
 
-    /// Every Shopify store has a default "Online Store" publication
-    /// (`Publication/1` / `Channel/1`) that the proxy already treats as the
-    /// reserved, un-deletable default (`next_publication_id`,
-    /// `is_default_publication`, `publicationDelete` guard). Materialize it into
-    /// local publication state when the engine activates so `channels` /
-    /// `channel` / `publicationsCount` reflect it without a `/__meta/seed`
-    /// precondition — the production proxy was never told the Online Store
-    /// exists; it always does.
-    pub(in crate::proxy) fn ensure_default_publication(&mut self) {
-        let id = "gid://shopify/Publication/1";
-        if !self.store.staged.publications.contains_key(id) {
-            self.store.staged.publications.insert(
-                id.to_string(),
-                publication_record_json(id, "Online Store", false),
-            );
-        }
-    }
-
     /// Discover a publishable resource's pre-existing publication membership by
     /// reading it upstream, the first time the local publication engine
     /// publishes a resource it has never seen. Stages the resource's
@@ -716,12 +698,7 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
-        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
-        {
-            None
-        } else {
-            Some(CURRENT_CHANNEL_PUBLICATION_ID.to_string())
-        }
+        None
     }
 
     pub(in crate::proxy) fn resolve_current_channel_publication_id(
@@ -731,13 +708,9 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
-        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
-        {
+        if self.config.read_mode != ReadMode::LiveHybrid {
             self.store.staged.current_channel_publication_resolved = true;
             self.store.staged.current_channel_publication_id = None;
-            return None;
-        }
-        if self.config.read_mode != ReadMode::LiveHybrid {
             return self.current_channel_publication_id();
         }
 

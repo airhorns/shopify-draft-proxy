@@ -4747,8 +4747,241 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
     );
 }
 
+fn assert_publication_create_uses_allocator_without_materializing_default_publication() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublicationCreateAllocatorRegression($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication {
+              id
+              name
+              autoPublish
+              channel { id name publication { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["publicationCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = create.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id");
+    assert!(created_id.starts_with("gid://shopify/Publication/"));
+    assert!(
+        created_id.contains("shopify-draft-proxy=synthetic"),
+        "publicationCreate should allocate from the instance synthetic allocator, got {created_id}"
+    );
+    assert_ne!(created_id, "gid://shopify/Publication/1");
+
+    let state = state_snapshot(&proxy);
+    let publications = state["stagedState"]["publications"]
+        .as_object()
+        .expect("staged publications should be an object");
+    assert_eq!(publications.len(), 1);
+    assert!(publications.contains_key(created_id));
+    assert!(!publications.contains_key("gid://shopify/Publication/1"));
+
+    let channels = proxy.process_request(json_graphql_request(
+        r#"
+        query PublicationCreateChannelsRegression($id: ID!) {
+          channels(first: 10) {
+            nodes { id name }
+          }
+          publication(id: $id) {
+            id
+            name
+          }
+          publicationsCount { count precision }
+        }
+        "#,
+        json!({ "id": created_id }),
+    ));
+    assert_eq!(channels.status, 200);
+    assert_eq!(
+        channels.body["data"]["channels"]["nodes"]
+            .as_array()
+            .unwrap_or_else(|| panic!("channels nodes should be an array: {}", channels.body))
+            .len(),
+        1
+    );
+    assert_eq!(
+        channels.body["data"]["publication"]["id"],
+        json!(created_id)
+    );
+    let channel_id = channels.body["data"]["channels"]["nodes"][0]["id"]
+        .as_str()
+        .expect("created publication channel should have an id");
+    assert!(channel_id.starts_with("gid://shopify/Channel/"));
+    assert!(channel_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(
+        channel_id,
+        create.body["data"]["publicationCreate"]["publication"]["channel"]["id"]
+            .as_str()
+            .expect("create payload channel should have an id")
+    );
+    assert_ne!(channel_id, "gid://shopify/Channel/1");
+    assert_eq!(
+        channels.body["data"]["publicationsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let delete_plain_one = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublicationDeletePlainOneRegression {
+          publicationDelete(id: "gid://shopify/Publication/1") {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(delete_plain_one.status, 200);
+    assert_eq!(
+        delete_plain_one.body["data"]["publicationDelete"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Publication was not found",
+                "code": "PUBLICATION_NOT_FOUND"
+            }]
+        })
+    );
+}
+
+fn assert_current_publication_reads_require_observed_current_publication() {
+    let current_publication_id = "gid://shopify/Publication/268039389490";
+    let current_product_id = "gid://shopify/Product/current-publication-non-one";
+    let mut current_product = ProductRecord {
+        id: current_product_id.to_string(),
+        title: "Observed current publication product".to_string(),
+        handle: "observed-current-publication-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    current_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": current_publication_id }]),
+    );
+    let mut current_proxy = snapshot_proxy().with_base_products(vec![current_product]);
+    restore_state_with(&mut current_proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([current_publication_id]);
+        state["baseState"]["publicationCount"] = json!(5);
+        state["stagedState"]["currentChannelPublicationId"] = json!(current_publication_id);
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
+
+    let current_read = current_proxy.process_request(json_graphql_request(
+        r#"
+        query ObservedCurrentPublicationRead($id: ID!) {
+          product(id: $id) { id publishedOnCurrentPublication }
+          node(id: $id) { ... on Product { id publishedOnCurrentPublication } }
+        }
+        "#,
+        json!({ "id": current_product_id }),
+    ));
+    assert_eq!(current_read.status, 200);
+    assert_eq!(
+        current_read.body["data"],
+        json!({
+            "product": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            },
+            "node": {
+                "id": current_product_id,
+                "publishedOnCurrentPublication": true
+            }
+        })
+    );
+
+    let default_publication_product_id = "gid://shopify/Product/null-current-default-fallback";
+    let mut default_publication_product = ProductRecord {
+        id: default_publication_product_id.to_string(),
+        title: "Null current default fallback product".to_string(),
+        handle: "null-current-default-fallback-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    default_publication_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/1" }]),
+    );
+    let mut null_current_proxy =
+        snapshot_proxy().with_base_products(vec![default_publication_product]);
+    restore_state_with(&mut null_current_proxy, |state| {
+        state["baseState"]["publicationIds"] = json!(["gid://shopify/Publication/1"]);
+        state["baseState"]["publicationCount"] = json!(1);
+        state["stagedState"]["currentChannelPublicationId"] = Value::Null;
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
+
+    let null_current_read = null_current_proxy.process_request(json_graphql_request(
+        r#"
+        query NullCurrentDoesNotFallbackToDefault($id: ID!) {
+          product(id: $id) { id publishedOnCurrentPublication }
+        }
+        "#,
+        json!({ "id": default_publication_product_id }),
+    ));
+    assert_eq!(null_current_read.status, 200);
+    assert_eq!(
+        null_current_read.body["data"]["product"],
+        json!({
+            "id": default_publication_product_id,
+            "publishedOnCurrentPublication": false
+        })
+    );
+
+    let no_online_store_product_id = "gid://shopify/Product/no-online-store-publication";
+    let mut no_online_store_product = ProductRecord {
+        id: no_online_store_product_id.to_string(),
+        title: "No Online Store publication product".to_string(),
+        handle: "no-online-store-publication-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    no_online_store_product.extra_fields.insert(
+        "productPublications".to_string(),
+        json!([{ "publicationId": "gid://shopify/Publication/268039455026" }]),
+    );
+    let mut no_online_store_proxy =
+        snapshot_proxy().with_base_products(vec![no_online_store_product]);
+    restore_state_with(&mut no_online_store_proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([]);
+        state["baseState"]["publicationCount"] = json!(0);
+    });
+    let no_online_store_read = no_online_store_proxy.process_request(json_graphql_request(
+        r#"
+        query NoOnlineStoreCurrentPublication($id: ID!) {
+          product(id: $id) { id publishedOnCurrentPublication }
+        }
+        "#,
+        json!({ "id": no_online_store_product_id }),
+    ));
+    assert_eq!(no_online_store_read.status, 200);
+    assert_eq!(
+        no_online_store_read.body["data"]["product"],
+        json!({
+            "id": no_online_store_product_id,
+            "publishedOnCurrentPublication": false
+        })
+    );
+}
+
 #[test]
 fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavior() {
+    assert_publication_create_uses_allocator_without_materializing_default_publication();
+
     let mut proxy = snapshot_proxy();
 
     let publication_validation = proxy.process_request(json_graphql_request(
@@ -4767,16 +5000,23 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         json!({}),
     ));
     assert_eq!(publication_validation.status, 200);
+    let created_publication_id = publication_validation.body["data"]["omittedCatalog"]
+        ["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
+    assert!(created_publication_id.contains("shopify-draft-proxy=synthetic"));
     assert_eq!(
-        publication_validation.body["data"]["omittedCatalog"],
-        json!({
-            "publication": {
-                "id": "gid://shopify/Publication/2",
-                "name": "Publication 2",
-                "autoPublish": false
-            },
-            "userErrors": []
-        })
+        publication_validation.body["data"]["omittedCatalog"]["publication"]["name"],
+        json!("Publication 1")
+    );
+    assert_eq!(
+        publication_validation.body["data"]["omittedCatalog"]["publication"]["autoPublish"],
+        json!(false)
+    );
+    assert_eq!(
+        publication_validation.body["data"]["omittedCatalog"]["userErrors"],
+        json!([])
     );
     assert_eq!(
         publication_validation.body["data"]["missingCatalog"],
@@ -4792,7 +5032,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
 
     let publication_update_delete = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustProductPublicationUpdateDeleteValidation {
+        mutation RustProductPublicationUpdateDeleteValidation($createdPublicationId: ID!) {
           updateMissing: publicationUpdate(id: "gid://shopify/Publication/999", input: { autoPublish: true }) {
             publication { id }
             userErrors { field message code }
@@ -4801,18 +5041,18 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             deletedId
             userErrors { field message code }
           }
-          deleteDefault: publicationDelete(id: "gid://shopify/Publication/1") {
+          deletePlainOne: publicationDelete(id: "gid://shopify/Publication/1") {
             deletedId
             userErrors { field message code }
           }
-          deleteCreated: publicationDelete(id: "gid://shopify/Publication/2") {
+          deleteCreated: publicationDelete(id: $createdPublicationId) {
             deletedId
             publication { id name }
             userErrors { field message code }
           }
         }
         "#,
-        json!({}),
+        json!({ "createdPublicationId": created_publication_id.clone() }),
     ));
     assert_eq!(publication_update_delete.status, 200);
     assert_eq!(
@@ -4838,20 +5078,20 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         })
     );
     assert_eq!(
-        publication_update_delete.body["data"]["deleteDefault"],
+        publication_update_delete.body["data"]["deletePlainOne"],
         json!({
             "deletedId": Value::Null,
             "userErrors": [{
                 "field": ["id"],
-                "message": "Cannot delete the default publication",
-                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+                "message": "Publication was not found",
+                "code": "PUBLICATION_NOT_FOUND"
             }]
         })
     );
     assert_eq!(
         publication_update_delete.body["data"]["deleteCreated"],
         json!({
-            "deletedId": "gid://shopify/Publication/2",
+            "deletedId": created_publication_id.clone(),
             "userErrors": []
         })
     );
@@ -4862,7 +5102,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
           productFullSync(id: $id) { id job { id } userErrors { field message code } }
         }
         "#,
-        json!({ "id": "gid://shopify/Publication/2" }),
+        json!({ "id": created_publication_id }),
     ));
     assert_eq!(staged_non_feed.status, 200);
     assert_eq!(
@@ -4998,7 +5238,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
     assert_eq!(sync.status, 200);
     let sync_payload = &sync.body["data"]["productFullSync"];
     let job_id = sync_payload["job"]["id"].as_str().expect("sync job id");
-    assert_eq!(job_id, "gid://shopify/Job/2");
+    assert!(job_id.starts_with("gid://shopify/Job/"));
     assert_eq!(
         sync_payload,
         &json!({
@@ -5224,7 +5464,10 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
                                 id.starts_with("gid://shopify/ProductFullSyncOperation/")
                             })
                         })
-                        && ids.iter().any(|id| id == "gid://shopify/Job/2")
+                        && ids.iter().any(|id| {
+                            id.as_str()
+                                .is_some_and(|id| id.starts_with("gid://shopify/Job/"))
+                        })
                 })),
         "successful full sync should stage the ProductFeed, operation, and Job IDs: {log}"
     );
@@ -6126,7 +6369,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
         add_product.body["data"]["publicationUpdate"],
         json!({
             "publication": {
-                "id": "gid://shopify/Publication/2",
+                "id": publication_id.clone(),
                 "autoPublish": true
             },
             "userErrors": []
@@ -6143,7 +6386,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
           }
         }
         "#,
-        json!({ "id": product_id, "publicationId": "gid://shopify/Publication/2" }),
+        json!({ "id": product_id, "publicationId": publication_id.clone() }),
     ));
     assert_eq!(
         product_read.body["data"]["product"],
@@ -6157,7 +6400,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
     let remove_product = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/Publication/2",
+            "id": publication_id.clone(),
             "input": { "publishablesToRemove": [product_id] }
         }),
     ));
@@ -6165,7 +6408,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
         remove_product.body["data"]["publicationUpdate"],
         json!({
             "publication": {
-                "id": "gid://shopify/Publication/2",
+                "id": publication_id.clone(),
                 "autoPublish": true
             },
             "userErrors": []
@@ -6180,7 +6423,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
           }
         }
         "#,
-        json!({ "id": product_id, "publicationId": "gid://shopify/Publication/2" }),
+        json!({ "id": product_id, "publicationId": publication_id.clone() }),
     ));
     assert_eq!(
         product_after_remove.body["data"]["product"],
@@ -6193,7 +6436,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
     let variant_only = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/Publication/2",
+            "id": publication_id.clone(),
             "input": { "publishablesToAdd": [variant_id] }
         }),
     ));
@@ -6214,7 +6457,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
     let mixed = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/Publication/2",
+            "id": publication_id.clone(),
             "input": { "publishablesToAdd": [product_id, variant_id] }
         }),
     ));
@@ -6235,7 +6478,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
     let invalid = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/Publication/2",
+            "id": publication_id.clone(),
             "input": { "publishablesToAdd": ["gid://shopify/Product/missing"] }
         }),
     ));
@@ -6254,7 +6497,7 @@ fn publication_update_stages_publishables_and_validates_real_input_contract() {
     let too_many = proxy.process_request(json_graphql_request(
         update_query,
         json!({
-            "id": "gid://shopify/Publication/2",
+            "id": publication_id,
             "input": { "publishablesToAdd": too_many_publishables }
         }),
     ));
@@ -7556,11 +7799,14 @@ fn product_publish_live_hybrid_stages_seeded_product_without_upstream_write() {
 
     let publish = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductPublishNoRuntimeWrite($input: ProductPublishInput!) {
-          productPublish(input: $input) { product { id publishedOnPublication(publicationId: "gid://shopify/Publication/2") } userErrors { field message } }
+        mutation ProductPublishNoRuntimeWrite($input: ProductPublishInput!, $publicationId: ID!) {
+          productPublish(input: $input) { product { id publishedOnPublication(publicationId: $publicationId) } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+        json!({
+            "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] },
+            "publicationId": publication_id
+        }),
     ));
     assert_eq!(publish.status, 200);
     assert_eq!(
@@ -7624,7 +7870,9 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
                     "customerOrders": {},
                     "taggableResources": {},
                     "publicationIds": [],
-                    "createdPublicationIds": []
+                    "createdPublicationIds": [],
+                    "currentChannelPublicationId": "gid://shopify/Publication/82090459369",
+                    "currentChannelPublicationResolved": true
                 }
             },
             "log": { "entries": [] },
@@ -7722,10 +7970,15 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         "#,
         json!({ "input": {} }),
     ));
+    let local_publication_id = create_publication.body["data"]["publicationCreate"]["publication"]
+        ["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
     assert_eq!(
         create_publication.body["data"]["publicationCreate"],
         json!({
-            "publication": { "id": "gid://shopify/Publication/2" },
+            "publication": { "id": local_publication_id.clone() },
             "userErrors": []
         })
     );
@@ -7738,11 +7991,11 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
     });
     assert_eq!(
         state.body["stagedState"]["publicationIds"],
-        json!(["gid://shopify/Publication/2"])
+        json!([local_publication_id.clone()])
     );
     assert_eq!(
         state.body["stagedState"]["createdPublicationIds"],
-        json!(["gid://shopify/Publication/2"])
+        json!([local_publication_id.clone()])
     );
 
     let staged_count = proxy.process_request(json_graphql_request(
@@ -7757,7 +8010,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         "#,
         json!({
             "id": product_id,
-            "input": [{ "publicationId": "gid://shopify/Publication/2" }]
+            "input": [{ "publicationId": local_publication_id }]
         }),
     ));
     assert_eq!(
@@ -8012,6 +8265,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
 #[test]
 fn publishable_current_channel_payload_reflects_staged_membership() {
     let product_id = "gid://shopify/Product/current-channel-active";
+    let current_publication_id = "gid://shopify/Publication/268039389490";
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: product_id.to_string(),
         title: "Current channel active product".to_string(),
@@ -8019,6 +8273,12 @@ fn publishable_current_channel_payload_reflects_staged_membership() {
         status: "ACTIVE".to_string(),
         ..ProductRecord::default()
     }]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([current_publication_id]);
+        state["baseState"]["publicationCount"] = json!(5);
+        state["stagedState"]["currentChannelPublicationId"] = json!(current_publication_id);
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
 
     let publish = proxy.process_request(json_graphql_request(
         r#"
@@ -8052,7 +8312,7 @@ fn publishable_current_channel_payload_reflects_staged_membership() {
                 "publishedOnCurrentPublication": true,
                 "resourcePublications": {
                     "nodes": [{
-                        "publication": { "id": "gid://shopify/Publication/current-channel" },
+                        "publication": { "id": current_publication_id },
                         "isPublished": true,
                         "publishable": { "id": product_id }
                     }]
@@ -8094,7 +8354,10 @@ fn publishable_current_channel_payload_reflects_staged_membership() {
 
 #[test]
 fn product_read_resolves_published_on_current_publication_from_current_channel() {
+    assert_current_publication_reads_require_observed_current_publication();
+
     let current_product_id = "gid://shopify/Product/current-channel-product-read";
+    let current_publication_id = "gid://shopify/Publication/268039389490";
     let default_only_product_id = "gid://shopify/Product/default-publication-only";
     let mut default_only_product = ProductRecord {
         id: default_only_product_id.to_string(),
@@ -8130,7 +8393,7 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
                     "data": {
                         "currentAppInstallation": {
                             "publication": {
-                                "id": "gid://shopify/Publication/current-channel"
+                                "id": current_publication_id
                             }
                         }
                     }
@@ -8165,7 +8428,7 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     assert_eq!(dump.status, 200);
     assert_eq!(
         dump.body["state"]["stagedState"]["currentChannelPublicationId"],
-        json!("gid://shopify/Publication/current-channel")
+        json!(current_publication_id)
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["currentChannelPublicationResolved"],
@@ -8173,7 +8436,7 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["resourcePublications"][current_product_id],
-        json!(["gid://shopify/Publication/current-channel"])
+        json!([current_publication_id])
     );
     let restore = proxy.process_request(request_with_body(
         "POST",
@@ -8184,7 +8447,7 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     let restored_state = state_snapshot(&proxy);
     assert_eq!(
         restored_state["stagedState"]["currentChannelPublicationId"],
-        json!("gid://shopify/Publication/current-channel")
+        json!(current_publication_id)
     );
     assert_eq!(
         restored_state["stagedState"]["currentChannelPublicationResolved"],
@@ -8192,7 +8455,7 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
     );
     assert_eq!(
         restored_state["stagedState"]["resourcePublications"][current_product_id],
-        json!(["gid://shopify/Publication/current-channel"])
+        json!([current_publication_id])
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -8507,11 +8770,11 @@ fn product_read_resolves_published_on_current_publication_from_current_channel()
         json!({
             "product": {
                 "id": fallback_product_id,
-                "publishedOnCurrentPublication": true
+                "publishedOnCurrentPublication": false
             },
             "node": {
                 "id": fallback_product_id,
-                "publishedOnCurrentPublication": true
+                "publishedOnCurrentPublication": false
             }
         })
     );
@@ -9021,12 +9284,14 @@ fn publishable_mutations_validate_publication_input_locally() {
 #[test]
 fn publishable_publish_preserves_collection_identity_and_current_publication_state() {
     let mut proxy = snapshot_proxy();
-    let publication_id = "gid://shopify/Publication/1";
+    let publication_id = "gid://shopify/Publication/268039389490";
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
     restored["state"]["baseState"]["publicationIds"] = json!([publication_id]);
     restored["state"]["baseState"]["publicationCount"] = json!(1);
+    restored["state"]["stagedState"]["currentChannelPublicationId"] = json!(publication_id);
+    restored["state"]["stagedState"]["currentChannelPublicationResolved"] = json!(true);
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",

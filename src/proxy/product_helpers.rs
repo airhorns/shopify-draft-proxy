@@ -71,9 +71,6 @@ pub(in crate::proxy) const CURRENT_APP_PUBLICATION_HYDRATE_QUERY: &str = include
     "../../config/parity-requests/store-properties/current-app-publication-hydrate.graphql"
 );
 
-pub(in crate::proxy) const CURRENT_CHANNEL_PUBLICATION_ID: &str =
-    "gid://shopify/Publication/current-channel";
-
 struct ProductStatusInputContext<'a> {
     argument_name: &'a str,
     input_object_type: &'a str,
@@ -469,10 +466,7 @@ pub(in crate::proxy) fn product_publication_field_json(
                 .unwrap_or(Value::Null),
         ),
         "publishedOnCurrentPublication" => Some(Value::Bool(
-            published_on_current_publication.unwrap_or_else(|| {
-                product.status == "ACTIVE"
-                    && product_is_published_on_publication(product, "gid://shopify/Publication/1")
-            }),
+            published_on_current_publication.unwrap_or(false),
         )),
         "publishedOnPublication" => {
             let publication_id = selection
